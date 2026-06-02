@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReifenPro Admin</title>
+<style>
+
+:root{
+  --bg:#0a0a0a;--dark:#111;--panel:#181818;--border:#252525;--border2:#2e2e2e;
+  --text:#ececec;--muted:#666;--accent:#e8502a;--adim:rgba(232,80,42,.13);
+  --green:#3ecf8e;--gdim:rgba(62,207,142,.12);--yellow:#f5c842;--ydim:rgba(245,200,66,.12);
+  --blue:#4a9eff;--bdim:rgba(74,158,255,.12);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px}
+#loader{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity .5s}
+#loader.out{opacity:0;pointer-events:none}
+.ll{font-size:32px;font-weight:800;letter-spacing:3px;text-transform:uppercase}
+.ll span{color:var(--accent)}
+.lb{width:140px;height:3px;background:var(--border);border-radius:2px;margin-top:18px;overflow:hidden}
+.lbf{height:100%;background:var(--accent);border-radius:2px;animation:lba 1.2s ease forwards}
+@keyframes lba{from{width:0}to{width:100%}}
+#login-screen{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;z-index:200}
+.lbox{background:var(--dark);border:1px solid var(--border2);border-radius:14px;padding:36px;width:360px}
+.llogo{font-size:26px;font-weight:800;letter-spacing:3px;text-transform:uppercase;margin-bottom:4px}
+.llogo span{color:var(--accent)}
+.lsub{color:var(--muted);font-size:13px;margin-bottom:26px}
+.lerr{background:var(--adim);border:1px solid rgba(232,80,42,.3);color:var(--accent);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
+.lmsg{background:var(--gdim);border:1px solid rgba(62,207,142,.3);color:var(--green);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;display:none}
+#app{display:none;height:100vh;flex-direction:column;overflow:hidden}
+header{background:var(--dark);border-bottom:1px solid var(--border);height:60px;display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0}
+.hlogo{font-size:18px;font-weight:800;letter-spacing:2px;text-transform:uppercase}
+.hlogo span{color:var(--accent)}
+.hstats{display:flex;gap:20px;margin-left:auto}
+.hstat-v{font-size:14px;font-weight:600;color:var(--accent)}
+.hstat-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+.huser{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.huser-dot{width:8px;height:8px;border-radius:50%;background:var(--green)}
+.hbtn{background:none;border:1px solid var(--border2);color:var(--muted);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit}
+.body{display:flex;flex:1;overflow:hidden}
+aside{width:240px;background:var(--dark);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.nsec{padding:16px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);font-weight:600}
+.ni{display:flex;align-items:center;padding:9px 14px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--muted);transition:all .15s;border:1px solid transparent}
+.ni:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.ni.active{color:var(--text);background:var(--panel);border-color:var(--border2)}
+main{flex:1;overflow-y:auto;padding:24px}
+.page{display:none}
+.page.active{display:block;animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.pt{font-size:26px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;transition:all .15s;white-space:nowrap}
+.btn-p{background:var(--accent);color:#fff}.btn-p:hover{background:#c93d1e}
+.btn-g{background:var(--panel);color:var(--text);border:1px solid var(--border2)}.btn-g:hover{border-color:var(--muted)}
+.btn-grn{background:var(--green);color:#071a0d;font-weight:700}
+.btn-sm{padding:5px 11px;font-size:12px}
+.btn-danger{background:var(--adim);color:var(--accent);border:1px solid rgba(232,80,42,.25)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.sc{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+.sv{font-size:36px;font-weight:800;line-height:1;margin-bottom:4px}
+.sl{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.sc-a{border-color:var(--accent);background:var(--adim)}.sc-a .sv{color:var(--accent)}
+.sc-g{border-color:var(--green);background:var(--gdim)}.sc-g .sv{color:var(--green)}
+.sc-y{border-color:var(--yellow);background:var(--ydim)}.sc-y .sv{color:var(--yellow)}
+.sc-b{border-color:var(--blue);background:var(--bdim)}.sc-b .sv{color:var(--blue)}
+.pnl{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+.ptitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600}
+.fg input,.fg select,.fg textarea{background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;padding:9px 12px;outline:none;transition:border-color .15s;width:100%}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--accent)}
+.fg select option{background:var(--dark)}
+.fg textarea{resize:vertical;min-height:70px}
+.fg input.err-field{border-color:var(--accent)}
+.full{grid-column:1/-1}
+.fsec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);padding:14px 0 8px;border-bottom:1px solid var(--border);grid-column:1/-1;margin-bottom:4px}
+.tw{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--dark)}
+th{padding:10px 14px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.b-r{background:var(--adim);color:var(--accent);border:1px solid rgba(232,80,42,.25)}
+.b-y{background:var(--ydim);color:var(--yellow);border:1px solid rgba(245,200,66,.25)}
+.b-g{background:var(--gdim);color:var(--green);border:1px solid rgba(62,207,142,.25)}
+.b-b{background:var(--bdim);color:var(--blue);border:1px solid rgba(74,158,255,.25)}
+.sr{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.sr input{flex:1;min-width:180px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;padding:8px 12px;outline:none}
+.sr select{background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;padding:8px 12px;outline:none}
+.alpha-bar{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:12px}
+.ab{background:var(--panel);border:1px solid var(--border);color:var(--muted);padding:4px 8px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;min-width:28px;text-align:center}
+.ab:hover,.ab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.ov.open{display:flex}
+.modal{background:var(--dark);border:1px solid var(--border2);border-radius:16px;padding:28px;width:94%;max-width:680px;max-height:92vh;overflow-y:auto;position:relative}
+.modal.wide{max-width:900px}
+.modal.xl{max-width:1100px;max-height:96vh}
+.mtitle{font-size:20px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:20px;padding-right:36px}
+.mx{position:absolute;top:16px;right:16px;background:var(--panel);border:1px solid var(--border2);color:var(--muted);width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.mx:hover{color:var(--text)}
+.mfoot{display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.notif{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:10px;font-weight:600;font-size:13px;transform:translateY(60px);opacity:0;transition:all .3s;z-index:9000;pointer-events:none}
+.notif.show{transform:translateY(0);opacity:1}
+.notif.ok{background:var(--green);color:#071a0d}
+.notif.err{background:var(--accent);color:#fff}
+.notif.info{background:var(--blue);color:#fff}
+.kz-tag{background:var(--bg);padding:2px 8px;border-radius:4px;font-family:monospace;font-size:12px}
+.empty{text-align:center;padding:50px 20px;color:var(--muted);font-size:14px}
+.ssec{margin-bottom:26px}
+.ssec h3{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:14px}
+.dok-item{display:flex;align-items:center;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;gap:10px}
+.dok-info{flex:1}
+.dok-title{font-weight:600;font-size:13px}
+.dok-meta{font-size:11px;color:var(--muted);margin-top:2px}
+#sig-canvas{background:#fff;border:2px solid var(--border2);border-radius:8px;cursor:crosshair;touch-action:none;display:block;width:100%;height:180px}
+.dok-saved{background:var(--gdim);border:1px solid rgba(62,207,142,.3);color:var(--green);padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;display:none}
+.kunden-row{display:grid;grid-template-columns:120px 1fr 140px 160px 100px 80px;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.kunden-row:hover{background:rgba(255,255,255,.03)}
+.kunden-row:last-child{border-bottom:none}
+.kunden-header{display:grid;grid-template-columns:120px 1fr 140px 160px 100px 80px;gap:10px;padding:10px 14px;background:var(--dark);border-bottom:1px solid var(--border);font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;border-radius:10px 10px 0 0}
+@media print{body *{display:none!important}#print-area{display:block!important;color:#000}}
+#print-area{display:none}
+@media(max-width:768px){aside{display:none}.stats{grid-template-columns:1fr 1fr}.g2,.g3,.fgrid{grid-template-columns:1fr}.full{grid-column:1}.g4{grid-template-columns:1fr 1fr}.kunden-header{display:none}.kunden-row{grid-template-columns:1fr;padding:12px 14px}}
+
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="ll">Reifen<span>Pro</span></div><div class="lb"><div class="lbf"></div></div></div>
+
+<div id="login-screen" style="display:none">
+  <div class="lbox">
+    <div id="ls-login">
+      <div class="llogo">Reifen<span>Pro</span></div>
+      <div class="lsub">Admin-Bereich</div>
+      <div class="lerr" id="lerr"></div>
+      <form id="login-form" onsubmit="event.preventDefault();doLogin()" action="#" method="post" style="display:flex;flex-direction:column;gap:12px">
+        <div class="fg"><label>E-Mail</label><input id="l-email" name="email" type="email" autocomplete="username"></div>
+        <div class="fg"><label>Passwort</label><input id="l-pass" name="password" type="password" autocomplete="current-password"></div>
+        <button type="submit" class="btn btn-p" style="width:100%;justify-content:center;padding:12px">Einloggen</button>
+        <button type="button" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-align:center;padding:4px;font-family:inherit" onclick="zeigePWReset()">Passwort vergessen?</button>
+      </form>
+    </div>
+    <div id="ls-reset" style="display:none">
+      <div class="llogo">Reifen<span>Pro</span></div>
+      <div class="lsub" style="margin-bottom:16px">Passwort zurücksetzen</div>
+      <div class="lerr" id="lerr-reset"></div>
+      <div class="lmsg" id="lmsg-reset"></div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="fg"><label>E-Mail Adresse</label><input id="l-reset-email" type="email" placeholder="Ihre E-Mail-Adresse"></div>
+        <button class="btn btn-p" style="width:100%;justify-content:center;padding:12px" onclick="doResetAnfrage()">Reset-Link senden</button>
+        <button type="button" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-align:center;padding:4px;font-family:inherit" onclick="zeigeLogin()">Zurück zum Login</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="hlogo">Reifen<span>Pro</span></div>
+    <div class="hstats">
+      <div><div class="hstat-v" id="hs-e">0</div><div class="hstat-l">Eingelagert</div></div>
+      <div><div class="hstat-v" style="color:var(--green)" id="hs-f">—</div><div class="hstat-l">Frei</div></div>
+    </div>
+    <div class="huser"><div class="huser-dot"></div><span id="h-user">—</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
+  </header>
+  <div class="body">
+    <aside>
+      <div style="height:10px"></div>
+      <div class="nsec">Verwaltung</div>
+      <div class="ni active" onclick="showPage('dashboard',this)">Dashboard</div>
+      <div class="ni" onclick="showPage('kunden',this)">Kunden</div>
+      <div class="ni" onclick="showPage('einlagerung',this)">Einlagerung</div>
+      <div class="ni" onclick="showPage('lagerplan',this)">Lagerplan</div>
+      <div class="nsec">Betrieb</div>
+      <div class="ni" onclick="showPage('werkstatt',this)">Werkstatt</div>
+      <div class="nsec">Team</div>
+      <div class="ni" onclick="showPage('users',this)">Mitarbeiter</div>
+      <div class="ni" onclick="showPage('dsgvo',this)">DSGVO-Anfragen</div>
+      <div class="nsec">System</div>
+      <div class="ni" onclick="showPage('einstellungen',this)">Einstellungen</div>
+    </aside>
+    <main>
+
+      <!-- DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="ph"><div class="pt">Dashboard</div><button class="btn btn-p" onclick="openModal('ne')">+ Neue Einlagerung</button></div>
+        <div class="stats">
+          <div class="sc sc-a"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
+          <div class="sc sc-y"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
+          <div class="sc sc-g"><div class="sv" id="st-f">—</div><div class="sl">Freie Plätze</div></div>
+          <div class="sc sc-b"><div class="sv" id="st-k">0</div><div class="sl">Kunden</div></div>
+        </div>
+        <div class="g2">
+          <div class="pnl"><div class="ptitle">Letzte Einlagerungen</div><div id="dash-last"><div class="empty">Noch keine Einlagerungen.</div></div></div>
+          <div class="pnl"><div class="ptitle">Reifentypen</div><div id="dash-typ"></div></div>
+        </div>
+      </div>
+
+      <!-- KUNDEN -->
+      <div class="page" id="page-kunden">
+        <div class="ph">
+          <div><div class="pt">Kunden</div><div id="k-count" style="font-size:12px;color:var(--muted);margin-top:2px">0 Kunden</div></div>
+          <button class="btn btn-p" onclick="openModal('nk')">+ Neuer Kunde</button>
+        </div>
+        <div class="sr">
+          <input type="text" id="k-search" placeholder="Name, Kennzeichen, Telefon, E-Mail..." oninput="renderK()">
+          <select id="k-sort" onchange="renderK()">
+            <option value="name">A-Z nach Name</option>
+            <option value="nr">Kunden-Nr.</option>
+            <option value="neu">Neueste zuerst</option>
+          </select>
+          <button class="btn btn-g btn-sm" onclick="renderK()">Suchen</button>
+        </div>
+        <div class="alpha-bar" id="alpha-bar"></div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden">
+          <div class="kunden-header">
+            <span>Kunden-Nr.</span><span>Name</span><span>Kennzeichen</span><span>Fahrzeug</span><span>Einlagerungen</span><span>Aktionen</span>
+          </div>
+          <div id="k-liste"></div>
+        </div>
+      </div>
+
+      <!-- KUNDEN DETAIL -->
+      <div class="page" id="page-kd">
+        <div class="ph">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="btn btn-g btn-sm" onclick="showPage('kunden',null);aktK=null">← Zurück</button>
+            <div class="pt" id="kd-name">Kunde</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-g btn-sm" onclick="openModal('ne')">+ Einlagern</button>
+            <button class="btn btn-g btn-sm" onclick="oeffneDsgvo()">Datenschutz</button>
+            <button class="btn btn-g btn-sm" onclick="oeffneVertrag()">Vertrag</button>
+          </div>
+        </div>
+        <div class="g2" style="margin-bottom:14px">
+          <div class="pnl"><div class="ptitle">Stammdaten</div><div id="kd-stamm"></div></div>
+          <div class="pnl">
+            <div class="ptitle">Fahrzeug &amp; HU</div><div id="kd-fz"></div>
+            <div style="margin-top:14px"><div class="ptitle">Datenschutz-Status</div><div id="kd-dsgvo-status"></div></div>
+          </div>
+        </div>
+        <div class="pnl"><div class="ptitle">Einlagerungen</div><div id="kd-einl"></div></div>
+        <div class="pnl">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div class="ptitle" style="margin-bottom:0">Dokumente</div>
+            <label class="btn btn-g btn-sm" style="cursor:pointer">Scan hochladen<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadScan(this)"></label>
+          </div>
+          <div id="kd-docs"></div>
+        </div>
+      </div>
+
+      <!-- EINLAGERUNG -->
+      <div class="page" id="page-einlagerung">
+        <div class="ph"><div class="pt">Einlagerung</div><button class="btn btn-p" onclick="openModal('ne')">+ Neue Einlagerung</button></div>
+        <div class="sr">
+          <input type="text" id="e-search" placeholder="Kunde, Kennzeichen, Lagerplatz..." oninput="renderE()">
+          <select id="e-sf" onchange="renderE()"><option value="">Alle Status</option><option>Eingelagert</option><option>Abgeholt</option></select>
+          <select id="e-tf" onchange="renderE()"><option value="">Alle Typen</option><option>Winter</option><option>Sommer</option></select>
+          <button class="btn btn-g btn-sm" onclick="renderE()">Suchen</button>
+        </div>
+        <div class="tw"><table><thead><tr><th>Beleg</th><th>Kunde</th><th>KZ</th><th>Größe</th><th>Typ</th><th>Lagerplatz</th><th>Datum</th><th>Profil</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="e-tbody"></tbody></table></div>
+      </div>
+
+      <!-- LAGERPLAN -->
+      <div class="page" id="page-lagerplan">
+        <div class="ph"><div class="pt">Lagerplan</div></div>
+        <div id="lager-wrap"><div class="empty">Noch keine Lagerorte. Bitte in den Einstellungen anlegen.</div></div>
+      </div>
+
+      <!-- WERKSTATT -->
+      <div class="page" id="page-werkstatt">
+        <div class="ph"><div class="pt" id="ws-dat">Werkstatt</div><button class="btn btn-g" onclick="druckListe()">Tagesliste drucken</button></div>
+        <div id="ws-liste"></div>
+      </div>
+
+      <!-- MITARBEITER -->
+      <div class="page" id="page-users">
+        <div class="ph"><div class="pt">Mitarbeiter</div><button class="btn btn-p" onclick="openModal('nu')">+ Neuer Mitarbeiter</button></div>
+        <div id="users-liste"></div>
+      </div>
+
+      <!-- DSGVO -->
+      <div class="page" id="page-dsgvo">
+        <div class="ph"><div class="pt">DSGVO-Anfragen</div></div>
+        <div id="dsgvo-liste"></div>
+      </div>
+
+      <!-- EINSTELLUNGEN -->
+      <div class="page" id="page-einstellungen">
+        <div class="ph"><div class="pt">Einstellungen</div><button class="btn btn-p" onclick="saveEinst()">Speichern</button></div>
+        <div class="ssec"><h3>Firmendaten</h3><div class="g2">
+          <div class="fg"><label>Firmenname *</label><input id="s-fn"></div>
+          <div class="fg"><label>Inhaber / Geschäftsführung *</label><input id="s-ih"></div>
+          <div class="fg"><label>Straße *</label><input id="s-str"></div>
+          <div class="fg"><label>PLZ *</label><input id="s-plz"></div>
+          <div class="fg"><label>Ort *</label><input id="s-ort"></div>
+          <div class="fg"><label>Telefon</label><input id="s-tel"></div>
+          <div class="fg"><label>E-Mail *</label><input id="s-mail" type="email"></div>
+          <div class="fg"><label>Website</label><input id="s-web"></div>
+          <div class="fg"><label>Steuernummer</label><input id="s-steu"></div>
+          <div class="fg"><label>USt-ID *</label><input id="s-ustid" placeholder="DE123456789"></div>
+          <div class="fg"><label>Rechtsform</label><select id="s-rf"><option value="UG (haftungsbeschränkt)">UG (haftungsbeschränkt)</option><option value="GmbH">GmbH</option><option value="GbR">GbR</option><option value="Einzelunternehmen">Einzelunternehmen</option></select></div>
+          <div class="fg"><label>Handelsreg.-Nr.</label><input id="s-hrnr" placeholder="HRB 12345"></div>
+          <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
+          <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
+          <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
+          <div class="fg"><label>Google Bewertungslink</label><input id="s-goog" type="url"></div>
+          <div class="fg full"><label>Logo (JPG/PNG)</label>
+            <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
+            <div id="s-logo-prev" style="margin-top:8px"></div>
+          </div>
+        </div></div>
+        <div class="ssec"><h3>Artikelpreisliste</h3>
+          <div id="artikel-liste" style="margin-bottom:14px"></div>
+          <button class="btn btn-g btn-sm" onclick="openModal('na')">+ Neuer Artikel</button>
+        </div>
+        <div class="ssec"><h3>Vertragseinstellungen</h3><div class="g3">
+          <div class="fg"><label>Vertragsdauer (Monate)</label><input id="s-vd" type="number" value="6"></div>
+          <div class="fg"><label>Abholungsfrist (Wochen)</label><input id="s-af" type="number" value="4"></div>
+          <div class="fg"><label>Lagerungsort</label><input id="s-lo" placeholder="z.B. Firmengelände"></div>
+        </div></div>
+        <div class="ssec"><h3>Lagerstruktur</h3>
+          <div id="lager-einst" style="margin-bottom:12px"></div>
+          <button class="btn btn-g btn-sm" onclick="openModal('nl')">+ Neuer Lagerort</button>
+        </div>
+        <div class="ssec"><h3>E-Mail Texte</h3>
+          <div class="fg" style="margin-bottom:10px"><label>Nach Einlagerung</label><textarea id="s-me" rows="2"></textarea></div>
+          <div class="fg" style="margin-bottom:10px"><label>Abgeholt</label><textarea id="s-ma" rows="2"></textarea></div>
+          <div class="fg" style="margin-bottom:10px"><label>Räder nachziehen</label><textarea id="s-mn" rows="2" placeholder="Bitte Radschrauben nach 50-100 km nachziehen."></textarea></div>
+          <div class="fg"><label>Bewertungsanfrage</label><textarea id="s-mb" rows="2"></textarea></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding-bottom:40px;margin-top:10px">
+          <button class="btn btn-p" style="padding:12px 32px" onclick="saveEinst()">Alle Einstellungen speichern</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- MODAL: Neuer Kunde -->
+<div class="ov" id="m-nk">
+  <div class="modal wide">
+    <button class="mx" onclick="closeModal('nk')">×</button>
+    <div class="mtitle">Neuer Kunde</div>
+    <div class="fgrid">
+      <div class="fsec">Persönliche Daten</div>
+      <div class="fg"><label>Anrede *</label><select id="nk-anrede"><option value="Herr">Herr</option><option value="Frau">Frau</option><option value="Firma">Firma</option><option value="Divers">Divers</option></select></div>
+      <div class="fg"><label>Kundentyp</label><select id="nk-kundentyp" onchange="nkKundentypChange()"><option value="privat">Privatkunde</option><option value="firma">Firmenkunde</option></select></div>
+      <div class="fg" id="nk-firma-wrap" style="display:none;grid-column:1/-1"><label>Firmenname *</label><input id="nk-firmenname" placeholder="z.B. Mustermann GmbH"></div>
+      <div class="fg"><label>Vorname *</label><input id="nk-vn"></div>
+      <div class="fg"><label>Nachname *</label><input id="nk-nn"></div>
+      <div class="fg"><label>Telefon *</label><input id="nk-tel" type="tel" placeholder="+49 8851 ..."></div>
+      <div class="fg"><label>E-Mail</label><input id="nk-mail" type="email" placeholder="name@beispiel.de" oninput="valEmail(this)"></div>
+      <div class="fg"><label>Straße</label><input id="nk-str"></div>
+      <div class="fg"><label>PLZ</label><input id="nk-plz"></div>
+      <div class="fg full"><label>Ort</label><input id="nk-ort"></div>
+      <div class="fsec">Fahrzeug</div>
+      <div class="fg"><label>Fahrzeugtyp</label><select id="nk-fztyp"><option value="PKW">PKW</option><option value="Transporter">Transporter</option><option value="SUV">SUV</option><option value="Kombi">Kombi</option></select></div>
+      <div class="fg"><label>Fahrzeugmarke</label>
+        <select id="nk-mk" onchange="nkLadeModelle()">
+          <option value="">— wählen —</option>
+          <option>Audi</option><option>BMW</option><option>Citroën</option><option>Dacia</option>
+          <option>Fiat</option><option>Ford</option><option>Honda</option><option>Hyundai</option>
+          <option>Kia</option><option>Mazda</option><option>Mercedes-Benz</option><option>Mini</option>
+          <option>Mitsubishi</option><option>Nissan</option><option>Opel</option><option>Peugeot</option>
+          <option>Porsche</option><option>Renault</option><option>Seat</option><option>Skoda</option>
+          <option>Smart</option><option>Subaru</option><option>Suzuki</option><option>Tesla</option>
+          <option>Toyota</option><option>Volkswagen</option><option>Volvo</option><option>Andere</option>
+        </select>
+      </div>
+      <div class="fg"><label>Modell</label>
+        <select id="nk-mo-sel" onchange="nkModellChange()">
+          <option value="">— erst Marke wählen —</option>
+        </select>
+        <input id="nk-mo-man" placeholder="oder manuell eingeben" style="margin-top:6px;display:none">
+      </div>
+      <div class="fg full"><label>Kennzeichen (Ortskennung – Buchstaben – Zahlen)</label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input id="nk-kz1" placeholder="WOR" style="width:80px;text-transform:uppercase;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:9px 12px;outline:none" maxlength="3" oninput="this.value=this.value.toUpperCase()">
+          <span style="color:var(--muted);font-weight:700;font-size:18px">–</span>
+          <input id="nk-kz2" placeholder="AB" style="width:65px;text-transform:uppercase;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:9px 12px;outline:none" maxlength="2" oninput="this.value=this.value.toUpperCase()">
+          <span style="color:var(--muted);font-weight:700;font-size:18px">–</span>
+          <input id="nk-kz3" placeholder="1234" style="width:75px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:9px 12px;outline:none" maxlength="4">
+          <input id="nk-kz4" placeholder="E" style="width:45px;text-transform:uppercase;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:9px 12px;outline:none" maxlength="1" oninput="this.value=this.value.toUpperCase()">
+          <span style="font-size:11px;color:var(--muted)">(E = Elektro)</span>
+        </div>
+      </div>
+      <div class="fg"><label>Erstzulassung</label>
+        <div style="display:flex;gap:6px">
+          <select id="nk-ez-tag" style="width:80px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 8px;outline:none">
+            <option value="">Tag</option>
+          </select>
+          <select id="nk-ez-mon" style="flex:1;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 8px;outline:none">
+            <option value="">Monat</option>
+            <option value="01">Januar</option><option value="02">Februar</option><option value="03">März</option>
+            <option value="04">April</option><option value="05">Mai</option><option value="06">Juni</option>
+            <option value="07">Juli</option><option value="08">August</option><option value="09">September</option>
+            <option value="10">Oktober</option><option value="11">November</option><option value="12">Dezember</option>
+          </select>
+          <select id="nk-ez-jahr" style="width:90px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 8px;outline:none">
+            <option value="">Jahr</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label>HU fällig (Monat/Jahr)</label><input id="nk-hu" type="month"></div>
+      <div class="fsec">Nach dem Speichern</div>
+      <div class="full" style="background:var(--adim);border:1px solid rgba(232,80,42,.2);border-radius:8px;padding:12px;font-size:13px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px"><input type="checkbox" id="nk-dsgvo" checked> Datenschutzerklärung sofort erstellen und anzeigen</label>
+        <div style="font-size:11px;color:var(--muted)">Pflicht bei erstem Kundenkontakt (DSGVO Art. 13)</div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nk')">Abbrechen</button><button class="btn btn-p" onclick="saveNK()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- MODAL: Neue Einlagerung -->
+<div class="ov" id="m-ne">
+  <div class="modal wide">
+    <button class="mx" onclick="closeModal('ne')">×</button>
+    <div class="mtitle">Neue Einlagerung</div>
+    <div class="fgrid">
+      <div class="fsec">Kunde</div>
+      <div class="fg full"><label>Kunde *</label>
+        <div style="display:flex;gap:8px">
+          <select id="ne-k" style="flex:1"><option value="">— Kunden wählen —</option></select>
+          <button class="btn btn-g btn-sm" style="flex-shrink:0" onclick="toggleNEKunde()">+ Neuer Kunde</button>
+        </div>
+      </div>
+      <div id="ne-nk-wrap" class="full" style="display:none;background:var(--panel);border:1px solid var(--border2);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--accent);margin-bottom:10px">Neuen Kunden anlegen</div>
+        <div class="fgrid">
+          <div class="fg"><label>Vorname *</label><input id="nek-vn"></div>
+          <div class="fg"><label>Nachname *</label><input id="nek-nn"></div>
+          <div class="fg"><label>Telefon *</label><input id="nek-tel" type="tel"></div>
+          <div class="fg"><label>E-Mail</label><input id="nek-mail" type="email"></div>
+          <div class="fg"><label>Straße</label><input id="nek-str"></div>
+          <div class="fg"><label>PLZ</label><input id="nek-plz"></div>
+          <div class="fg"><label>Ort</label><input id="nek-ort"></div>
+          <div class="fg"><label>Kennzeichen</label>
+            <div style="display:flex;gap:5px;align-items:center">
+              <input id="nek-kz1" placeholder="WOR" style="width:70px;text-transform:uppercase;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:8px 10px;outline:none" maxlength="3" oninput="this.value=this.value.toUpperCase()">
+              <span style="color:var(--muted);font-weight:700">–</span>
+              <input id="nek-kz2" placeholder="AB" style="width:55px;text-transform:uppercase;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:8px 10px;outline:none" maxlength="2" oninput="this.value=this.value.toUpperCase()">
+              <span style="color:var(--muted);font-weight:700">–</span>
+              <input id="nek-kz3" placeholder="1234" style="width:65px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:8px 10px;outline:none" maxlength="4">
+              <input id="nek-kz4" placeholder="E" style="width:40px;text-transform:uppercase;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-family:monospace;font-size:13px;padding:8px 10px;outline:none" maxlength="1" oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+          <div class="fg"><label>Fahrzeug</label><input id="nek-fz" placeholder="z.B. VW Golf"></div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-p btn-sm" onclick="speichereNEKunde()">Anlegen und auswählen</button>
+          <button class="btn btn-g btn-sm" onclick="toggleNEKunde()">Abbrechen</button>
+        </div>
+      </div>
+      <div class="fsec">Reifendaten</div>
+      <div class="fg full"><label>Reifendimension</label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input id="ne-br" placeholder="205" style="width:68px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 10px;outline:none;text-align:center" maxlength="3" oninput="neUpdateGroesse()">
+          <span style="color:var(--muted);font-size:16px">/</span>
+          <input id="ne-qu" placeholder="55" style="width:55px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 10px;outline:none;text-align:center" maxlength="2" oninput="neUpdateGroesse()">
+          <span style="color:var(--muted);font-size:14px;font-weight:600">R</span>
+          <input id="ne-zo" placeholder="16" style="width:55px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 10px;outline:none;text-align:center" maxlength="2" oninput="neUpdateGroesse()">
+          <input id="ne-li" placeholder="91W" style="width:65px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 10px;outline:none;text-align:center" maxlength="5" oninput="neUpdateGroesse()">
+          <span style="color:var(--muted);font-size:11px">oder manuell:</span>
+          <input id="ne-gr" placeholder="z.B. 205/55 R16 91W" style="flex:1;min-width:140px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;outline:none">
+        </div>
+      </div>
+      <div class="fg"><label>Typ *</label><select id="ne-typ"><option value="Winter">Winterreifen</option><option value="Sommer">Sommerreifen</option></select></div>
+      <div class="fg"><label>Hersteller</label>
+        <select id="ne-mk" onchange="neLadeModelle()">
+          <option value="">— wählen —</option>
+          <optgroup label="Premium"><option>Michelin</option><option>Continental</option><option>Bridgestone</option><option>Goodyear</option><option>Pirelli</option><option>Dunlop</option></optgroup>
+          <optgroup label="Mittelklasse"><option>Hankook</option><option>Yokohama</option><option>Toyo</option><option>Falken</option><option>Nexen</option><option>Kumho</option><option>BFGoodrich</option></optgroup>
+          <optgroup label="Budget"><option>Fulda</option><option>Semperit</option><option>Uniroyal</option><option>Barum</option><option>Sava</option><option>Firestone</option></optgroup>
+          <optgroup label="Weitere"><option>Vredestein</option><option>Nokian</option><option>Cooper</option><option>Maxxis</option><option>Nankang</option></optgroup>
+          <option value="__man__">Anderer Hersteller...</option>
+        </select>
+        <input id="ne-mk-man" placeholder="Hersteller eingeben" style="display:none;margin-top:6px;width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;outline:none">
+      </div>
+      <div class="fg"><label>Modell</label>
+        <select id="ne-mo-sel" onchange="neModellChange()"><option value="">— erst Hersteller wählen —</option></select>
+        <input id="ne-mo-man" placeholder="oder manuell eingeben" style="margin-top:6px;display:none;width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 12px;outline:none">
+      </div>
+      <div class="fg"><label>Anzahl</label><select id="ne-anz"><option value="4">4 Stück (Satz)</option><option value="2">2 Stück</option></select></div>
+      <div class="fg"><label>Felgentyp</label><select id="ne-fel"><option value="Alufelgen">Alufelgen</option><option value="Stahlfelgen">Stahlfelgen</option></select></div>
+      <div class="fg"><label>Radnabendeckel</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;width:fit-content">
+          <input type="checkbox" id="ne-rnd"> <span style="font-size:13px">dabei</span>
+        </label>
+      </div>
+      <div class="fg"><label>DOT</label><input id="ne-dot" placeholder="z.B. 2319"></div>
+      <div class="full">
+        <label style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;display:block;margin-bottom:8px">Profiltiefe (mm) — VL wird auf alle übertragen wenn leer</label>
+        <div class="g4">
+          <div class="fg"><label style="color:var(--blue)">VL *</label><input id="ne-vl" type="text" placeholder="z.B. 6,5" oninput="neAutoP(this)" onblur="neAutoPBlur(this)"></div>
+          <div class="fg"><label style="color:var(--blue)">VR</label><input id="ne-vr" type="text" placeholder="auto"></div>
+          <div class="fg"><label style="color:var(--blue)">HL</label><input id="ne-hl" type="text" placeholder="auto"></div>
+          <div class="fg"><label style="color:var(--blue)">HR</label><input id="ne-hr" type="text" placeholder="auto"></div>
+        </div>
+      </div>
+      <div class="fg full"><label>Bemerkungen / sichtbare Schäden</label><textarea id="ne-bem" rows="2"></textarea></div>
+      <div class="fsec">Lagerplatz</div>
+      <div class="full" id="ne-lager-info" style="padding:12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--muted)">
+        Wird automatisch vergeben
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('ne')">Abbrechen</button><button class="btn btn-p" onclick="saveNE()">Einlagern</button></div>
+  </div>
+</div>
+
+<!-- MODAL: Dokument -->
+<div class="ov" id="m-dok">
+  <div class="modal xl">
+    <button class="mx" onclick="closeModal('dok')">×</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="mtitle" id="dok-titel" style="margin-bottom:0">Dokument</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="dok-saved" id="dok-saved-badge">✓ Gespeichert</div>
+        <button class="btn btn-g btn-sm" id="dok-sw" onclick="switchDok()" style="display:none">Wechseln</button>
+        <button class="btn btn-g btn-sm" onclick="druckUndSpeichereDok()">Drucken</button>
+        <button class="btn btn-p btn-sm" onclick="saveDokOhneSchliessen()">Speichern</button>
+        <button class="btn btn-g btn-sm" onclick="closeModal('dok')">Fertig</button>
+      </div>
+    </div>
+    <div id="sig-wrap" style="margin-bottom:14px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px">Digitale Unterschrift des Kunden</div>
+      <div style="position:relative">
+        <canvas id="sig-canvas" width="900" height="180"></canvas>
+        <button class="btn btn-g btn-sm" style="position:absolute;top:8px;right:8px" onclick="clearSig()">Löschen</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil auf der weißen Fläche unterschreiben.</div>
+    </div>
+    <div style="background:#fff;border-radius:8px;overflow:auto;max-height:52vh"><div id="dok-inhalt"></div></div>
+  </div>
+</div>
+
+<!-- MODAL: Lager Detail -->
+<div class="ov" id="m-ld"><div class="modal" style="max-width:440px"><button class="mx" onclick="closeModal('ld')">×</button><div id="ld-inhalt"></div></div></div>
+
+<!-- MODAL: Neuer Mitarbeiter -->
+<div class="ov" id="m-nu">
+  <div class="modal" style="max-width:500px">
+    <button class="mx" onclick="closeModal('nu')">×</button>
+    <div class="mtitle">Neuer Mitarbeiter</div>
+    <div class="fgrid">
+      <div class="fg"><label>Vorname *</label><input id="nu-vn"></div>
+      <div class="fg"><label>Nachname *</label><input id="nu-nn"></div>
+      <div class="fg"><label>E-Mail *</label><input id="nu-mail" type="email"></div>
+      <div class="fg"><label>Rolle</label><select id="nu-rolle"><option value="mitarbeiter">Mitarbeiter</option><option value="admin">Admin</option></select></div>
+      <div class="fg full"><label>Passwort * (mind. 8 Zeichen)</label><input id="nu-pass" type="password"></div>
+      <div class="fg full"><label>Passwort wiederholen *</label><input id="nu-pass2" type="password"></div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nu')">Abbrechen</button><button class="btn btn-p" onclick="saveNU()">Speichern</button></div>
+  </div>
+</div>
+
+<!-- MODAL: Passwort setzen -->
+<div class="ov" id="m-pw">
+  <div class="modal" style="max-width:420px">
+    <button class="mx" onclick="closeModal('pw')">×</button>
+    <div class="mtitle">Passwort setzen</div>
+    <div id="pw-info" style="margin-bottom:14px;padding:10px;background:var(--panel);border-radius:8px;font-size:13px;color:var(--muted)"></div>
+    <div class="fgrid">
+      <div class="fg full"><label>Neues Passwort (mind. 8 Zeichen)</label><input id="pw-neu" type="password"></div>
+      <div class="fg full"><label>Wiederholen</label><input id="pw-neu2" type="password"></div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('pw')">Abbrechen</button><button class="btn btn-p" onclick="savePW()">Setzen</button></div>
+  </div>
+</div>
+
+<!-- MODAL: Eigenes Passwort -->
+<div class="ov" id="m-mypw">
+  <div class="modal" style="max-width:420px">
+    <button class="mx" onclick="closeModal('mypw')">×</button>
+    <div class="mtitle">Passwort ändern</div>
+    <div class="fgrid">
+      <div class="fg full"><label>Altes Passwort</label><input id="mypw-alt" type="password"></div>
+      <div class="fg full"><label>Neues Passwort (mind. 8 Zeichen)</label><input id="mypw-neu" type="password"></div>
+      <div class="fg full"><label>Wiederholen</label><input id="mypw-neu2" type="password"></div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('mypw')">Abbrechen</button><button class="btn btn-p" onclick="saveMyPW()">Ändern</button></div>
+  </div>
+</div>
+
+<!-- MODAL: Neuer Artikel -->
+<div class="ov" id="m-na">
+  <div class="modal" style="max-width:560px">
+    <button class="mx" onclick="closeModal('na')">×</button>
+    <div class="mtitle">Neuer Artikel</div>
+    <div class="fgrid">
+      <div class="fg full"><label>Artikelname *</label><input id="na-name" placeholder="z.B. Reifeneinlagerung Komplettradsatz"></div>
+      <div class="fg full"><label>Beschreibung (optional)</label><input id="na-bez" placeholder="z.B. pro Saison, inkl. Ein- und Auslagerung"></div>
+      <div class="fg"><label>Preis netto (EUR) *</label><input id="na-preis" type="number" step="0.01" min="0" placeholder="0.00" oninput="naCalcBrutto()"></div>
+      <div class="fg"><label>Steuersatz</label><select id="na-mwst" onchange="naCalcBrutto()"><option value="19">19% MwSt (Standard)</option><option value="7">7% MwSt (ermäßigt)</option><option value="0">0% (steuerfrei)</option></select></div>
+      <div class="fg"><label>Brutto (EUR)</label><div id="na-brutto" style="padding:9px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--green);font-size:13px">0.00</div></div>
+      <div class="fg"><label>Einheit</label><select id="na-einheit"><option value="Saison">Saison</option><option value="Stück">Stück</option><option value="Satz">Satz</option><option value="Stunde">Stunde</option><option value="Pauschal">Pauschal</option></select></div>
+      <div class="fg"><label>Kategorie</label><select id="na-kat"><option value="einlagerung">Einlagerung</option><option value="werkstatt">Werkstatt</option><option value="sonstiges">Sonstiges</option></select></div>
+      <div class="fg"><label>Artikelnummer (optional)</label><input id="na-nr" placeholder="z.B. 1001"></div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('na')">Abbrechen</button><button class="btn btn-p" onclick="saveNA()">Artikel anlegen</button></div>
+  </div>
+</div>
+
+<!-- MODAL: Neuer Lagerort -->
+<div class="ov" id="m-nl">
+  <div class="modal" style="max-width:520px">
+    <button class="mx" onclick="closeModal('nl')">×</button>
+    <div class="mtitle">Neuer Lagerort</div>
+    <div class="fgrid">
+      <div class="fg full"><label>Name des Lagerorts *</label><input id="nl-name" placeholder="z.B. Keller, Container, Werkstatt"></div>
+      <div class="fg full"><label>Beschreibung (optional)</label><input id="nl-bez" placeholder="z.B. Untergeschoss links"></div>
+      <div class="fsec">Erstes Regal</div>
+      <div class="fg"><label>Regalname *</label><input id="nl-rn" placeholder="z.B. Regal A"></div>
+      <div class="fg"><label>Plätze von</label><input id="nl-rv" type="number" value="1" min="1"></div>
+      <div class="fg"><label>Plätze bis</label><input id="nl-rb" type="number" value="20" min="1"></div>
+      <div class="full" style="font-size:12px;color:var(--muted);padding:8px;background:var(--panel);border-radius:6px">Plätze werden als [Lagerort]/[Regal]/[Nr.] vergeben, z.B. Keller/Regal A/001</div>
+    </div>
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nl')">Abbrechen</button><button class="btn btn-p" onclick="saveLagerort()">Anlegen</button></div>
+  </div>
+</div>
+
+<div id="print-area"></div>
+<div class="notif" id="notif"></div>
+<script>
+'use strict';
+
+// ── REIFENMODELLE JE HERSTELLER ──
+var REIFEN_MODELLE = {
+  'Michelin': ['Pilot Sport 4','Pilot Sport 5','CrossClimate 2','Primacy 4','Primacy 4+','Alpin 6','X-Ice North 4'],
+  'Continental': ['PremiumContact 7','PremiumContact 6','WinterContact TS 870','AllSeasonContact 2','SportContact 7','EcoContact 6'],
+  'Bridgestone': ['Turanza T005','Turanza 6','Blizzak LM005','Potenza Sport','Weather Control A005'],
+  'Goodyear': ['EfficientGrip Performance 2','UltraGrip Performance 3','Eagle F1 Asymmetric 6','Vector 4Seasons Gen-3'],
+  'Pirelli': ['Cinturato P7','P Zero','Cinturato Winter 2','Scorpion Verde','Sottozero 3'],
+  'Dunlop': ['Sport Maxx RT2','Winter Sport 5','All Season 2','SportMaxx Race'],
+  'Hankook': ['Ventus S1 evo3','Kinergy 4S2','Winter i*cept evo3','Ventus Prime4'],
+  'Yokohama': ['Advan Sport V107','BluEarth-4S AW21','W.drive V905','Geolandar CV4S'],
+  'Toyo': ['Proxes Sport 2','Celsius AS2','Observe Ice-Freezer 2'],
+  'Falken': ['Azenis FK520','EuroWinter HS02 Pro','EuroAll Season AS220 Pro'],
+  'Nexen': ['N\'Fera Sport','N\'Blue 4Season 2','Winguard Sport 2'],
+  'Kumho': ['Ecsta PS91','Solus 4S HA32','Wintercraft WP72'],
+  'Fulda': ['SportControl 2','Kristall Control HP3','MultiControl'],
+  'Semperit': ['Speed-Life 3','Speed-Grip 5','AllSeason-Grip 3'],
+  'Uniroyal': ['RainSport 5','WinterExpert','AllSeasonExpert 2'],
+  'Barum': ['Bravuris 6','Polaris 6','Quartaris 6'],
+  'Vredestein': ['Ultrac','Quatrac','Wintrac Pro'],
+  'Nokian': ['Hakka Black 2','Weatherproof','Snowproof P'],
+  'BFGoodrich': ['g-Force Sport Comp-2','All-Terrain T/A KO2'],
+  'Cooper': ['Discoverer AT3','Zeon CS8'],
+  'Maxxis': ['Premitra HP5','Arctictrekker AP2'],
+  'Nankang': ['AS-1','NS-25','Sportnex SP-9']
+};
+
+// ── FAHRZEUGMODELLE JE MARKE ──
+var FZMODELLE = {
+  'Audi': ['A1','A3','A4','A5','A6','A7','A8','Q2','Q3','Q4','Q5','Q7','Q8','TT','e-tron'],
+  'BMW': ['1er','2er','3er','4er','5er','6er','7er','8er','X1','X2','X3','X4','X5','X6','X7','iX','i4','i5'],
+  'Mercedes-Benz': ['A-Klasse','B-Klasse','C-Klasse','E-Klasse','S-Klasse','GLA','GLB','GLC','GLE','GLS','CLA','CLS','EQA','EQB','EQC'],
+  'Volkswagen': ['Polo','Golf','Golf Plus','Passat','Tiguan','T-Roc','T-Cross','Touareg','Touran','Sharan','ID.3','ID.4','ID.5','Caddy','Transporter'],
+  'Ford': ['Fiesta','Focus','Kuga','Puma','Mustang Mach-E','Explorer','Transit','Transit Custom'],
+  'Opel': ['Corsa','Astra','Insignia','Mokka','Crossland','Grandland','Zafira'],
+  'Skoda': ['Fabia','Octavia','Superb','Karoq','Kodiaq','Enyaq'],
+  'Seat': ['Ibiza','Leon','Arona','Ateca','Tarraco','Mii'],
+  'Toyota': ['Yaris','Corolla','Camry','RAV4','C-HR','Prius','Land Cruiser','Hilux'],
+  'Renault': ['Clio','Megane','Captur','Kadjar','Zoe','Austral'],
+  'Peugeot': ['208','308','2008','3008','5008','e-208'],
+  'Citroën': ['C3','C4','C5 Aircross','C3 Aircross'],
+  'Hyundai': ['i10','i20','i30','Tucson','Santa Fe','Kona','Ioniq 5','Ioniq 6'],
+  'Kia': ['Picanto','Rio','Ceed','Sportage','Sorento','EV6','Niro'],
+  'Mazda': ['Mazda2','Mazda3','Mazda6','CX-3','CX-5','CX-30','MX-5'],
+  'Porsche': ['Cayenne','Macan','Taycan','Panamera','911','718'],
+  'Tesla': ['Model 3','Model S','Model X','Model Y'],
+  'Volvo': ['V40','V60','V90','XC40','XC60','XC90','C40'],
+  'Mini': ['Mini 3-Türer','Mini 5-Türer','Mini Clubman','Mini Countryman','Mini Cabriolet'],
+  'Fiat': ['500','Panda','Tipo','500X','500L'],
+  'Dacia': ['Sandero','Duster','Logan','Jogger','Spring'],
+  'Nissan': ['Micra','Juke','Qashqai','X-Trail','Leaf','Ariya'],
+  'Honda': ['Civic','Jazz','CR-V','HR-V','e:Ny1'],
+  'Subaru': ['Impreza','Forester','Outback','XV'],
+  'Suzuki': ['Swift','Vitara','S-Cross','Jimny'],
+  'Mitsubishi': ['ASX','Eclipse Cross','Outlander'],
+  'Smart': ['Smart #1','Smart #3','Fortwo'],
+  'Andere': []
+};
+
+// ── GLOBALS ──
+var API = '/reifenpro/api';
+var TOKEN = localStorage.getItem('rp_token');
+var USER = null;
+try { USER = JSON.parse(localStorage.getItem('rp_user') || 'null'); } catch(e) { USER = null; }
+var EINST = {}, allK = [], allE = [], allLager = [], allArtikel = [];
+var aktK = null, aktDokTyp = 'datenschutzerklaerung', aktEinlId = null;
+var allUsers = [], pwUserId = null;
+var sigCtx = null, sigDrw = false, sigHas = false;
+var aktAlpha = '';
+var dokGespeichertId = null;
+
+// ── BOOT ──
+window.addEventListener('load', function() {
+  setTimeout(function() { var el = document.getElementById('loader'); if (el) el.classList.add('out'); }, 1200);
+  setTimeout(function() {
+    var ls = document.getElementById('login-screen');
+    if (!ls) return;
+    if (TOKEN && USER) {
+      fetch(API + '/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json' } })
+        .then(function(r) { if (r.ok) { startApp(); } else { TOKEN = null; USER = null; localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user'); ls.style.display = 'flex'; } })
+        .catch(function() { ls.style.display = 'flex'; });
+    } else { ls.style.display = 'flex'; }
+    // Erstzulassungs-Tage + Jahre befüllen
+    var tagSel = document.getElementById('nk-ez-tag');
+    var jahrSel = document.getElementById('nk-ez-jahr');
+    if (tagSel) { for (var d = 1; d <= 31; d++) { var o = document.createElement('option'); o.value = String(d).padStart(2,'0'); o.textContent = d; tagSel.appendChild(o); } }
+    if (jahrSel) { var jetzt = new Date().getFullYear(); for (var y = jetzt; y >= 1990; y--) { var oy = document.createElement('option'); oy.value = y; oy.textContent = y; jahrSel.appendChild(oy); } }
+  }, 500);
+});
+
+// ── API ──
+function api(method, path, body) {
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  return fetch(API + path, opts).then(function(r) {
+    if (r.status === 401) { doLogout(); return null; }
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Fehler'); });
+    return r.json().catch(function() { return null; });
+  });
+}
+
+// ── AUTH ──
+function doLogin() {
+  var email = document.getElementById('l-email').value.trim();
+  var pass = document.getElementById('l-pass').value;
+  var err = document.getElementById('lerr');
+  err.style.display = 'none';
+  api('POST', '/auth/login', { email: email, passwort: pass }).then(function(r) {
+    if (!r) return;
+    TOKEN = r.token; USER = r.user;
+    localStorage.setItem('rp_token', TOKEN); localStorage.setItem('rp_user', JSON.stringify(USER));
+    document.getElementById('login-screen').style.display = 'none';
+    startApp();
+  }).catch(function(e) { err.textContent = e.message; err.style.display = 'block'; });
+}
+function zeigePWReset() { document.getElementById('ls-login').style.display = 'none'; document.getElementById('ls-reset').style.display = 'block'; document.getElementById('lerr-reset').style.display = 'none'; document.getElementById('lmsg-reset').style.display = 'none'; }
+function zeigeLogin() { document.getElementById('ls-reset').style.display = 'none'; document.getElementById('ls-login').style.display = 'block'; }
+function doResetAnfrage() {
+  var email = document.getElementById('l-reset-email').value.trim();
+  var err = document.getElementById('lerr-reset'); var msg = document.getElementById('lmsg-reset');
+  err.style.display = 'none'; msg.style.display = 'none';
+  if (!email) { err.textContent = 'Bitte E-Mail eingeben.'; err.style.display = 'block'; return; }
+  fetch(API + '/auth/passwort-reset-anfrage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
+    .then(function() { msg.textContent = 'Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet. Bitte prüfen Sie Ihr Postfach.'; msg.style.display = 'block'; document.getElementById('l-reset-email').value = ''; })
+    .catch(function() { msg.textContent = 'Reset-Link wurde gesendet falls die E-Mail bekannt ist.'; msg.style.display = 'block'; });
+}
+function doLogout() {
+  api('POST', '/auth/logout', {}).catch(function() {});
+  TOKEN = null; USER = null; localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user');
+  document.getElementById('app').style.display = 'none'; document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ── APP ──
+function startApp() {
+  document.getElementById('login-screen').style.display = 'none'; document.getElementById('app').style.display = 'flex';
+  document.getElementById('h-user').textContent = USER ? USER.vorname + ' ' + USER.nachname : '—';
+  loadEinst(); loadK(); loadE(); loadLager();
+}
+function showPage(n, el) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  document.querySelectorAll('.ni').forEach(function(i) { i.classList.remove('active'); });
+  var pg = document.getElementById('page-' + n); if (pg) pg.classList.add('active');
+  if (el) el.classList.add('active');
+  if (n === 'lagerplan') renderLager();
+  if (n === 'werkstatt') renderWS();
+  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); }
+  if (n === 'users') loadUsers();
+  if (n === 'dsgvo') loadDsgvo();
+}
+function notify(msg, t) {
+  var n = document.getElementById('notif');
+  n.textContent = msg; n.className = 'notif show ' + (t || 'ok');
+  setTimeout(function() { n.classList.remove('show'); }, 2800);
+}
+function openModal(n) { if (n === 'ne') fillNeForm(); var el = document.getElementById('m-' + n); if (el) el.classList.add('open'); }
+function closeModal(n) { var el = document.getElementById('m-' + n); if (el) el.classList.remove('open'); }
+document.querySelectorAll('.ov').forEach(function(o) { o.addEventListener('click', function(e) { if (e.target === o) o.classList.remove('open'); }); });
+
+// ── HELPERS ──
+function fd(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
+function sbadge(s) { var m = { Eingelagert: 'b-r', Abgeholt: 'b-g' }; return '<span class="badge ' + (m[s] || 'b-b') + '">' + s + '</span>'; }
+function tbadge(t) { var c = { Winter: '#4a9eff', Sommer: '#f5c842', Ganzjahr: '#3ecf8e' }; return '<span style="padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;color:' + (c[t] || '#aaa') + '">' + (t || '') + '</span>'; }
+function normP(v) { if (v === null || v === undefined || v === '') return null; return parseFloat(String(v).replace(',', '.')) || null; }
+function profil(e) {
+  if (!e) return '—';
+  var vl = e.profil_vl != null ? e.profil_vl : e.profiltiefe;
+  if (vl == null) return '—';
+  var mn = Math.min(e.profil_vl || 9, e.profil_vr || 9, e.profil_hl || 9, e.profil_hr || 9);
+  var col = mn < 3 ? 'var(--accent)' : mn < 5 ? 'var(--yellow)' : 'var(--green)';
+  var txt = e.profil_vl != null ? e.profil_vl + '/' + (e.profil_vr || e.profil_vl) + '/' + (e.profil_hl || e.profil_vl) + '/' + (e.profil_hr || e.profil_vl) : vl;
+  return '<span style="color:' + col + ';font-size:11px">' + txt + 'mm</span>';
+}
+function profilTxt(e) {
+  if (!e) return '—';
+  if (e.profil_vl != null) return e.profil_vl + '/' + (e.profil_vr || e.profil_vl) + '/' + (e.profil_hl || e.profil_vl) + '/' + (e.profil_hr || e.profil_vl);
+  return e.profiltiefe ? String(e.profiltiefe) : '—';
+}
+function iz(l, v, mono) { return '<div style="padding:5px 0;border-bottom:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">' + l + '</div><div style="font-size:13px;font-weight:500;' + (mono ? 'color:var(--accent)' : '') + '">' + (v || '—') + '</div></div>'; }
+function gv(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function valEmail(inp) { var ok = !inp.value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inp.value); inp.classList.toggle('err-field', !ok); return ok; }
+function kzAusTeilen(pref) {
+  var k1 = gv(pref + 'kz1'), k2 = gv(pref + 'kz2'), k3 = gv(pref + 'kz3'), k4 = gv(pref + 'kz4');
+  var parts = [k1, k2, k3].filter(Boolean); var kz = parts.join('-'); if (k4) kz += ' ' + k4; return kz.trim();
+}
+
+// ── MODELL-DROPDOWNS ──
+function befuelleModelle(selId, manId, hersteller, reifenOderFz) {
+  var sel = document.getElementById(selId); var man = document.getElementById(manId);
+  if (!sel) return;
+  var liste = reifenOderFz === 'reifen' ? (REIFEN_MODELLE[hersteller] || []) : (FZMODELLE[hersteller] || []);
+  sel.innerHTML = '<option value="">— Modell wählen —</option>';
+  liste.forEach(function(m) { var o = document.createElement('option'); o.value = m; o.textContent = m; sel.appendChild(o); });
+  var oMan = document.createElement('option'); oMan.value = '__man__'; oMan.textContent = 'Anderes Modell...'; sel.appendChild(oMan);
+  sel.style.display = ''; if (man) man.style.display = 'none';
+}
+function nkLadeModelle() { befuelleModelle('nk-mo-sel', 'nk-mo-man', gv('nk-mk'), 'fz'); }
+function neLadeModelle() {
+  var mk = document.getElementById('ne-mk').value;
+  if (mk === '__man__') { document.getElementById('ne-mk-man').style.display = 'block'; document.getElementById('ne-mk').style.display = 'none'; return; }
+  befuelleModelle('ne-mo-sel', 'ne-mo-man', mk, 'reifen');
+}
+function nkModellChange() {
+  var sel = document.getElementById('nk-mo-sel'); var man = document.getElementById('nk-mo-man');
+  if (sel.value === '__man__') { man.style.display = ''; man.focus(); } else { if (man) man.style.display = 'none'; }
+}
+function neModellChange() {
+  var sel = document.getElementById('ne-mo-sel'); var man = document.getElementById('ne-mo-man');
+  if (sel.value === '__man__') { man.style.display = ''; man.focus(); } else { if (man) man.style.display = 'none'; }
+}
+function nkKundentypChange() {
+  var typ = document.getElementById('nk-kundentyp').value;
+  var fw = document.getElementById('nk-firma-wrap');
+  if (fw) fw.style.display = typ === 'firma' ? '' : 'none';
+}
+
+// ── EINSTELLUNGEN ──
+function loadEinst() { api('GET', '/einstellungen').then(function(r) { if (r) EINST = r; renderDash(); }).catch(function() {}); }
+function fillEinst() {
+  var fv = function(id, v) { var el = document.getElementById(id); if (el && v != null) el.value = v; };
+  fv('s-fn',EINST.firmenname);fv('s-ih',EINST.inhaber);fv('s-str',EINST.strasse);fv('s-plz',EINST.plz);fv('s-ort',EINST.ort);
+  fv('s-tel',EINST.telefon);fv('s-mail',EINST.email);fv('s-web',EINST.website);fv('s-steu',EINST.steuernummer);
+  fv('s-ustid',EINST.ust_id);fv('s-rf',EINST.rechtsform);fv('s-hrnr',EINST.handelsreg_nr);
+  fv('s-hrgericht',EINST.registergericht);fv('s-dsb',EINST.datenschutz_beauftragter);
+  fv('s-vers',EINST.versicherung_name);fv('s-goog',EINST.google_bewertung_url);
+  fv('s-vd',EINST.vertragsdauer_monate||6);fv('s-af',EINST.abholungsfrist_wochen||4);fv('s-lo',EINST.lagerungsort);
+  fv('s-me',EINST.email_einlagerung);fv('s-ma',EINST.email_abholbereit);fv('s-mn',EINST.email_raeder_nachziehen);fv('s-mb',EINST.email_bewertung);
+  if (EINST.logo_url) document.getElementById('s-logo-prev').innerHTML = '<img src="' + EINST.logo_url + '" style="max-height:60px;border-radius:6px">';
+}
+function logoUp(inp) { var f = inp.files[0]; if (!f) return; var r = new FileReader(); r.onload = function(e) { EINST.logo_url = e.target.result; document.getElementById('s-logo-prev').innerHTML = '<img src="' + e.target.result + '" style="max-height:60px;border-radius:6px">'; }; r.readAsDataURL(f); }
+function saveEinst() {
+  var data = { firmenname:gv('s-fn'),inhaber:gv('s-ih'),strasse:gv('s-str'),plz:gv('s-plz'),ort:gv('s-ort'),telefon:gv('s-tel'),email:gv('s-mail'),website:gv('s-web'),steuernummer:gv('s-steu'),ust_id:gv('s-ustid'),rechtsform:gv('s-rf'),handelsreg_nr:gv('s-hrnr'),registergericht:gv('s-hrgericht'),datenschutz_beauftragter:gv('s-dsb'),versicherung_name:gv('s-vers'),google_bewertung_url:gv('s-goog'),logo_url:EINST.logo_url||null,vertragsdauer_monate:parseInt(gv('s-vd'))||6,abholungsfrist_wochen:parseInt(gv('s-af'))||4,lagerungsort:gv('s-lo'),email_einlagerung:gv('s-me'),email_abholbereit:gv('s-ma'),email_raeder_nachziehen:gv('s-mn'),email_bewertung:gv('s-mb') };
+  api('PUT','/einstellungen',data).then(function(r){if(r)EINST=r;notify('Einstellungen gespeichert!');}).catch(function(e){notify(e.message,'err');});
+}
+
+// ── ARTIKEL ──
+function loadArtikel() { api('GET','/artikel').then(function(r){allArtikel=r||[];renderArtikel();}).catch(function(){}); }
+function renderArtikel() {
+  var el = document.getElementById('artikel-liste'); if (!el) return;
+  if (!allArtikel.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">Noch keine Artikel.</div>'; return; }
+  var html = '<div class="tw"><table><thead><tr><th>Artikel</th><th>Nr.</th><th>Netto</th><th>MwSt</th><th>Brutto</th><th>Einheit</th><th>Kat.</th><th></th></tr></thead><tbody>';
+  allArtikel.forEach(function(a) {
+    var mwst = parseFloat(a.mwst_satz)||19; var netto = parseFloat(a.preis)||0; var brutto = (netto*(1+mwst/100)).toFixed(2);
+    html += '<tr><td><strong>'+a.name+'</strong>'+(a.beschreibung?'<br><span style="font-size:11px;color:var(--muted)">'+a.beschreibung+'</span>':'')+'</td>';
+    html += '<td style="font-size:12px;color:var(--muted)">'+(a.artikelnr||'—')+'</td>';
+    html += '<td><input type="number" step="0.01" value="'+netto.toFixed(2)+'" data-aid="'+a.id+'" onchange="artikelPreisUpdate(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:5px 8px;width:90px"></td>';
+    html += '<td style="color:var(--muted)">'+mwst+'%</td><td style="color:var(--green)">'+brutto+'</td>';
+    html += '<td style="color:var(--muted)">'+a.einheit+'</td><td><span class="badge '+(a.kategorie==='einlagerung'?'b-r':'b-b')+'">'+a.kategorie+'</span></td>';
+    html += '<td><button class="btn btn-danger btn-sm" data-aid="'+a.id+'" onclick="artikelLoeschen(this)">X</button></td></tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+function artikelPreisUpdate(inp) {
+  var id = inp.getAttribute('data-aid'); var a = allArtikel.find(function(x){return x.id===id;}); if (!a) return;
+  api('PUT','/artikel/'+id,{name:a.name,preis:inp.value,einheit:a.einheit,kategorie:a.kategorie}).then(function(r){if(r)a.preis=r.preis;notify('Preis gespeichert.');}).catch(function(e){notify(e.message,'err');});
+}
+function artikelLoeschen(btn) {
+  var id = btn.getAttribute('data-aid'); if (!confirm('Artikel löschen?')) return;
+  api('DELETE','/artikel/'+id).then(function(){notify('Gelöscht.');loadArtikel();}).catch(function(e){notify(e.message,'err');});
+}
+function naCalcBrutto() { var n=parseFloat(document.getElementById('na-preis').value)||0; var m=parseInt(document.getElementById('na-mwst').value)||19; document.getElementById('na-brutto').textContent=(n*(1+m/100)).toFixed(2); }
+function saveNA() {
+  var name = gv('na-name'); if (!name) { notify('Artikelname ist Pflicht.','err'); return; }
+  api('POST','/artikel',{name:name,beschreibung:gv('na-bez'),preis:gv('na-preis'),mwst_satz:gv('na-mwst'),einheit:gv('na-einheit'),kategorie:gv('na-kat'),artikelnr:gv('na-nr')||null})
+    .then(function(){notify('Artikel angelegt!');closeModal('na');['na-name','na-bez','na-preis','na-nr'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('na-brutto').textContent='0.00';loadArtikel();})
+    .catch(function(e){notify(e.message,'err');});
+}
+
+// ── LAGER ──
+function loadLager() { api('GET','/lager').then(function(r){allLager=r||[];renderDash();}).catch(function(){}); }
+function loadLagerEinst() {
+  api('GET','/lager').then(function(r){
+    allLager=r||[];
+    var el=document.getElementById('lager-einst');if(!el)return;
+    if(!allLager.length){el.innerHTML='<div style="color:var(--muted);font-size:13px">Noch keine Lagerorte angelegt.</div>';return;}
+    var html='';
+    allLager.forEach(function(o){
+      var tot=o.regale.reduce(function(s,r){return s+r.plaetze_total;},0);
+      var frei=o.regale.reduce(function(s,r){return s+r.plaetze_frei;},0);
+      html+='<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">';
+      html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div><div style="font-weight:700;font-size:14px">'+o.name+'</div>';
+      if(o.beschreibung)html+='<div style="font-size:12px;color:var(--muted)">'+o.beschreibung+'</div>';
+      html+='</div><div style="font-size:12px"><span style="color:var(--green)">'+frei+' frei</span> / '+tot+' gesamt</div></div>';
+      if(o.regale.length){html+='<div style="display:flex;gap:6px;flex-wrap:wrap">';o.regale.forEach(function(rg){html+='<span style="background:var(--panel);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;font-size:12px">'+rg.name+' ('+rg.plaetze_von+'-'+rg.plaetze_bis+')</span>';});html+='</div>';}
+      else{html+='<div style="font-size:12px;color:var(--muted)">Noch keine Regale</div>';}
+      html+='<div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-g btn-sm" data-oid="'+o.id+'" data-oname="'+o.name+'" onclick="lagerRegalHinzu(this)">+ Regal</button><button class="btn btn-danger btn-sm" data-oid="'+o.id+'" onclick="lagerOrtLoeschen(this)">Deaktivieren</button></div></div>';
+    });
+    el.innerHTML=html;
+  }).catch(function(){});
+}
+function lagerRegalHinzu(btn) {
+  var ortId=btn.getAttribute('data-oid');var ortName=btn.getAttribute('data-oname');
+  var rn=prompt('Regalname für '+ortName+':');if(!rn)return;
+  var rv=parseInt(prompt('Plätze von:','1'))||1;var rb=parseInt(prompt('Plätze bis:','20'))||20;
+  api('POST','/lager/regale',{ort_id:ortId,name:rn,plaetze_von:rv,plaetze_bis:rb}).then(function(){notify('Regal angelegt!');loadLager();loadLagerEinst();}).catch(function(e){notify(e.message,'err');});
+}
+function lagerOrtLoeschen(btn) {
+  if(!confirm('Lagerort deaktivieren?'))return;
+  api('DELETE','/lager/orte/'+btn.getAttribute('data-oid')).then(function(){notify('Deaktiviert.');loadLager();loadLagerEinst();}).catch(function(e){notify(e.message,'err');});
+}
+function saveLagerort() {
+  var name=gv('nl-name');var rn=gv('nl-rn');if(!name||!rn){notify('Name und Regalname sind Pflicht.','err');return;}
+  api('POST','/lager/orte',{name:name,beschreibung:gv('nl-bez')}).then(function(ort){return api('POST','/lager/regale',{ort_id:ort.id,name:rn,plaetze_von:parseInt(gv('nl-rv'))||1,plaetze_bis:parseInt(gv('nl-rb'))||20});})
+    .then(function(){notify('Lagerort angelegt!');closeModal('nl');['nl-name','nl-bez','nl-rn'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});document.getElementById('nl-rb').value='20';loadLager();loadLagerEinst();})
+    .catch(function(e){notify(e.message,'err');});
+}
+
+// ── KUNDEN ──
+function loadK() { api('GET','/kunden').then(function(r){allK=r||[];buildAlphaBar();renderK();}).catch(function(){}); }
+function buildAlphaBar() {
+  var bar=document.getElementById('alpha-bar');if(!bar)return;
+  var html='<button class="ab'+(aktAlpha===''?' on':'')+'" onclick="setAlpha(\'\')">Alle</button>';
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(function(b){
+    if(allK.some(function(k){return k.nachname&&k.nachname[0].toUpperCase()===b;}))
+      html+='<button class="ab'+(aktAlpha===b?' on':'')+'" onclick="setAlpha(\''+b+'\')">'+b+'</button>';
+  });
+  bar.innerHTML=html;
+}
+function setAlpha(b){aktAlpha=b;buildAlphaBar();renderK();}
+function renderK() {
+  var q=document.getElementById('k-search')?document.getElementById('k-search').value.toLowerCase():'';
+  var sort=document.getElementById('k-sort')?document.getElementById('k-sort').value:'name';
+  var list=allK.filter(function(k){
+    var sq=q.replace(/[-\s]/g,'');
+    var kz=(k.kennzeichen||'').toLowerCase().replace(/[-\s]/g,'');
+    var match=!q||(k.vorname+' '+k.nachname).toLowerCase().indexOf(q)!==-1||kz.indexOf(sq)!==-1||(k.telefon||'').indexOf(q)!==-1||(k.email||'').toLowerCase().indexOf(q)!==-1||(k.fahrzeug_marke||'').toLowerCase().indexOf(q)!==-1;
+    var alpha=!aktAlpha||(k.nachname&&k.nachname[0].toUpperCase()===aktAlpha);
+    return match&&alpha;
+  });
+  if(sort==='name')list.sort(function(a,b){return(a.nachname||'').localeCompare(b.nachname||'','de');});
+  else if(sort==='nr')list.sort(function(a,b){return(a.kunden_nr||'').localeCompare(b.kunden_nr||'');});
+  var el=document.getElementById('k-liste');if(!el)return;
+  var countEl=document.getElementById('k-count');if(countEl)countEl.textContent=allK.length+' Kunden gesamt';
+  if(!list.length){el.innerHTML='<div class="empty">Keine Kunden gefunden.</div>';return;}
+  el.innerHTML=list.map(function(k){
+    var huWarn='';
+    if(k.hu_datum){var diff=Math.round((new Date(k.hu_datum)-new Date())/86400000);if(diff<60)huWarn='<span style="color:var(--accent);font-size:10px;margin-left:4px">HU in '+diff+' Tagen!</span>';}
+    var fz=(k.fahrzeug_marke||'')+(k.fahrzeug_modell?' '+k.fahrzeug_modell:'');
+    var aktEinl=k.aktive_einlagerungen>0?'<span class="badge b-r" style="font-size:10px">'+k.aktive_einlagerungen+' aktiv</span>':'<span style="color:var(--muted);font-size:12px">—</span>';
+    return '<div class="kunden-row" onclick="zeigeK(\''+k.id+'\')">'+
+      '<span style="font-size:12px;color:var(--accent);font-weight:600">'+k.kunden_nr+'</span>'+
+      '<span style="font-weight:600">'+k.vorname+' '+k.nachname+huWarn+'</span>'+
+      '<span>'+(k.kennzeichen?'<span class="kz-tag">'+k.kennzeichen+'</span>':'<span style="color:var(--muted)">—</span>')+'</span>'+
+      '<span style="color:var(--muted);font-size:12px">'+(fz||'—')+'</span>'+
+      '<span>'+aktEinl+'</span>'+
+      '<span><button class="btn btn-g btn-sm" onclick="event.stopPropagation();zeigeK(\''+k.id+'\')">Detail</button></span>'+
+    '</div>';
+  }).join('');
+}
+function zeigeK(id) {
+  aktK=allK.find(function(k){return k.id===id;});if(!aktK)return;
+  document.getElementById('kd-name').textContent=(aktK.anrede?aktK.anrede+' ':'')+aktK.vorname+' '+aktK.nachname;
+  document.getElementById('kd-stamm').innerHTML='<div class="g2">'+iz('Kunden-Nr.',aktK.kunden_nr,true)+iz('Telefon',aktK.telefon)+iz('E-Mail',aktK.email)+iz('Adresse',[aktK.strasse,(aktK.plz||'')+' '+(aktK.ort||'')].filter(Boolean).join(', '))+'</div><div style="margin-top:12px"><button class="btn btn-g btn-sm" onclick="openModal(\'ne\')">+ Einlagern</button></div>';
+  var huTxt=aktK.hu_datum?new Date(aktK.hu_datum).toLocaleDateString('de-DE',{month:'2-digit',year:'numeric'}):'—';
+  var huDiff=aktK.hu_datum?Math.round((new Date(aktK.hu_datum)-new Date())/86400000):null;
+  document.getElementById('kd-fz').innerHTML='<div class="g2">'+iz('Kennzeichen',aktK.kennzeichen,true)+iz('Marke',aktK.fahrzeug_marke)+iz('Modell',aktK.fahrzeug_modell)+iz('Fahrzeugtyp',aktK.fahrzeug_typ||'PKW')+'</div>'+
+    '<div style="padding:5px 0;border-bottom:1px solid var(--border)"><div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">HU fällig</div>'+
+    '<div style="font-size:13px;font-weight:600;'+(huDiff!==null&&huDiff<60?'color:var(--accent)':'')+'">'+huTxt+(huDiff!==null&&huDiff<60?' ('+huDiff+' Tage!)':'')+'</div></div>';
+  document.getElementById('kd-dsgvo-status').innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-top:8px">'+
+    '<div><div style="font-size:13px;font-weight:600">'+(aktK.portal_verifiziert?'Datenschutz unterzeichnet':'Datenschutz ausstehend')+'</div>'+
+    '<div style="font-size:11px;color:var(--muted)">'+(aktK.portal_verifiziert?'Einwilligung liegt vor':'Bitte Datenschutzerklärung vorlegen und unterschreiben lassen')+'</div></div>'+
+    '<button class="btn btn-g btn-sm" onclick="oeffneDsgvo()">Öffnen</button></div>';
+  var einl=allE.filter(function(e){return e.kunden_id===id;});
+  document.getElementById('kd-einl').innerHTML=einl.length?
+    '<div class="tw"><table><thead><tr><th>Beleg</th><th>Größe</th><th>Typ</th><th>Lagerplatz</th><th>Datum</th><th>Profil</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>'+
+    einl.map(function(e){return'<tr><td style="font-size:11px;color:var(--muted)">'+e.beleg_nr+'</td><td style="font-size:12px">'+e.reifen_groesse+'</td><td>'+tbadge(e.reifen_typ)+'</td><td style="font-weight:700;color:var(--accent)">'+e.lagerplatz+'</td><td style="color:var(--muted);font-size:12px">'+fd(e.eingelagert_am)+'</td><td>'+profil(e)+'</td><td>'+sbadge(e.status)+'</td><td><div style="display:flex;gap:3px">'+(e.status==='Eingelagert'?'<button class="btn btn-grn btn-sm" onclick="setS(\''+e.id+'\',\'Abgeholt\')">Abgeholt</button>':'')+'<button class="btn btn-g btn-sm" onclick="zeigeSchein(\''+e.id+'\',\'ein\')">Ein</button><button class="btn btn-g btn-sm" onclick="zeigeSchein(\''+e.id+'\',\'aus\')">Aus</button><button class="btn btn-g btn-sm" onclick="druckEtikett('+e.id+')">🏷</button></div></td></tr>';}).join('')+
+    '</tbody></table></div>':'<div style="color:var(--muted);font-size:13px;padding:10px 0">Noch keine Einlagerungen.</div>';
+  ladeDocs(id);
+  showPage('kd',null);
+  // Warnung nur wenn WIRKLICH kein unterschriebener Datenschutz vorhanden
+  api('GET','/kunden/'+aktK.id+'/dokumente').then(function(docs){
+    var hatDs=docs&&docs.some(function(d){return d.typ==='datenschutzerklaerung'&&d.unterschrieben;});
+    if(!hatDs){setTimeout(function(){if(confirm('Datenschutzerklärung noch nicht unterzeichnet. Jetzt erstellen?'))oeffneDsgvo();},600);}
+  }).catch(function(){});
+}
+function ladeDocs(kid) {
+  api('GET','/kunden/'+kid+'/dokumente').then(function(docs){
+    var el=document.getElementById('kd-docs');if(!el)return;
+    docs=docs||[];
+    if(!docs.length){el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:10px 0">Noch keine Dokumente.</div>';return;}
+    var icons={datenschutzerklaerung:'DS',einlagerungsvertrag:'V',einlagerungsschein:'E',auslagerungsschein:'A',sonstiges:'D',scan:'SCAN'};
+    el.innerHTML=docs.map(function(d){return'<div class="dok-item"><span style="font-size:11px;font-weight:700;color:var(--muted);min-width:36px;text-align:center">['+( icons[d.typ]||'D')+']</span><div class="dok-info"><div class="dok-title">'+d.titel+'</div><div class="dok-meta">'+fd(d.erstellt_am)+(d.unterschrieben?' — Unterschrieben '+fd(d.unterschrift_datum):' — Ausstehend')+'</div></div><div style="display:flex;gap:6px"><button class="btn btn-g btn-sm" onclick="zeigeDok(\''+d.id+'\')">Anzeigen</button><button class="btn btn-danger btn-sm" onclick="loescheDok(\''+d.id+'\')">X</button></div></div>';}).join('');
+  }).catch(function(){});
+}
+function uploadScan(inp) {
+  if(!aktK){notify('Kein Kunde ausgewählt.','err');return;}
+  var f=inp.files[0];if(!f)return;
+  var r=new FileReader();
+  r.onload=function(e){api('POST','/kunden/'+aktK.id+'/dokumente',{typ:'scan',titel:'Scan - '+f.name+' - '+new Date().toLocaleDateString('de-DE'),inhalt_html:'<img src="'+e.target.result+'" style="max-width:100%">',unterschrift_kunde:null,unterschrift_datum:null}).then(function(){notify('Scan hochgeladen!');ladeDocs(aktK.id);}).catch(function(e){notify(e.message,'err');});};
+  r.readAsDataURL(f);
+}
+function saveNK() {
+  var vn=gv('nk-vn'),nn=gv('nk-nn'),tel=gv('nk-tel');
+  if(!vn||!nn||!tel){notify('Vorname, Nachname und Telefon sind Pflicht.','err');return;}
+  var mail=gv('nk-mail');
+  if(mail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)){notify('E-Mail-Adresse ist nicht korrekt.','err');return;}
+  var kz=kzAusTeilen('nk-');
+  var hu=gv('nk-hu')||null;if(hu)hu=hu+'-01';
+  var ezTag=gv('nk-ez-tag'),ezMon=gv('nk-ez-mon'),ezJahr=gv('nk-ez-jahr');
+  var ez=ezJahr&&ezMon?ezJahr+'-'+ezMon+'-'+(ezTag||'01'):null;
+  var moVal=document.getElementById('nk-mo-sel').value==='__man__'?gv('nk-mo-man'):gv('nk-mo-sel');
+  api('POST','/kunden',{
+    vorname:vn,nachname:nn,telefon:tel,email:mail,strasse:gv('nk-str'),plz:gv('nk-plz'),ort:gv('nk-ort'),
+    kennzeichen:kz,fahrzeug_marke:gv('nk-mk'),fahrzeug_modell:moVal,fahrzeug_typ:gv('nk-fztyp'),
+    baujahr:ezJahr?parseInt(ezJahr):null,hu_datum:hu,anrede:gv('nk-anrede'),
+    notizen:document.getElementById('nk-kundentyp').value
+  }).then(function(k){
+    allK.unshift(Object.assign({},k,{aktive_einlagerungen:0}));
+    buildAlphaBar();renderK();closeModal('nk');notify('Kunde gespeichert!');
+    if(document.getElementById('nk-dsgvo').checked){aktK=k;setTimeout(function(){oeffneDsgvo();},400);}
+  }).catch(function(e){notify(e.message,'err');});
+}
+
+// ── EINLAGERUNGEN ──
+function loadE() { api('GET','/einlagerungen').then(function(r){allE=r||[];renderE();renderDash();}).catch(function(){}); }
+function renderE() {
+  var q=(document.getElementById('e-search')?document.getElementById('e-search').value:'').toLowerCase();
+  var fs=document.getElementById('e-sf')?document.getElementById('e-sf').value:'';
+  var ft=document.getElementById('e-tf')?document.getElementById('e-tf').value:'';
+  var list=allE.filter(function(e){return(!q||(e.kundenname||'').toLowerCase().indexOf(q)!==-1||(e.kennzeichen||'').toLowerCase().replace(/[-\s]/g,'').indexOf(q.replace(/[-\s]/g,''))!==-1||(e.lagerplatz||'').toLowerCase().indexOf(q)!==-1||(e.reifen_groesse||'').toLowerCase().indexOf(q)!==-1)&&(!fs||e.status===fs)&&(!ft||e.reifen_typ===ft);});
+  var tb=document.getElementById('e-tbody');if(!tb)return;
+  if(!list.length){tb.innerHTML='<tr><td colspan="10"><div class="empty">Keine Einlagerungen gefunden.</div></td></tr>';return;}
+  tb.innerHTML=list.map(function(e){return'<tr><td style="font-size:11px;color:var(--muted)">'+e.beleg_nr+'</td><td><strong>'+(e.kundenname||e.kunden_id)+'</strong></td><td><span class="kz-tag">'+(e.kennzeichen||'—')+'</span></td><td style="font-size:12px">'+e.reifen_groesse+'</td><td>'+tbadge(e.reifen_typ)+'</td><td style="font-weight:700;color:var(--accent)">'+e.lagerplatz+'</td><td style="color:var(--muted);font-size:12px">'+fd(e.eingelagert_am)+'</td><td>'+profil(e)+'</td><td>'+sbadge(e.status)+'</td><td><div style="display:flex;gap:3px;flex-wrap:wrap">'+(e.status==='Eingelagert'?'<button class="btn btn-grn btn-sm" onclick="setS(\''+e.id+'\',\'Abgeholt\')">Abgeholt</button>':'')+'<button class="btn btn-g btn-sm" onclick="zeigeSchein(\''+e.id+'\',\'ein\')">Ein</button><button class="btn btn-g btn-sm" onclick="zeigeSchein(\''+e.id+'\',\'aus\')">Aus</button><button class="btn btn-g btn-sm" onclick="druckEtikett('+e.id+')">🏷</button></div></td></tr>';}).join('');
+}
+function setS(id,status) {
+  api('PATCH','/einlagerungen/'+id+'/status',{status:status}).then(function(){var i=allE.findIndex(function(e){return e.id===id;});if(i!==-1)allE[i].status=status;renderE();renderDash();renderLager();notify(status==='Abgeholt'?'Abgeholt markiert':'Status aktualisiert');if(aktK)ladeDocs(aktK.id);}).catch(function(e){notify(e.message,'err');});
+}
+function fillNeForm() {
+  var kSel=document.getElementById('ne-k');
+  kSel.innerHTML='<option value="">— Kunden wählen —</option>'+allK.map(function(k){return'<option value="'+k.id+'">'+k.vorname+' '+k.nachname+' ('+(k.kennzeichen||'kein KZ')+')</option>';}).join('');
+  if(aktK)kSel.value=aktK.id;
+  document.getElementById('ne-nk-wrap').style.display='none';
+  var lInfo=document.getElementById('ne-lager-info');
+  if(lInfo){
+    lInfo.textContent='Wird automatisch vergeben...';lInfo.dataset.lagerplatz='';
+    api('GET','/lager/naechster-freier').then(function(r){
+      if(r&&r.verfuegbar){lInfo.innerHTML='<span style="color:var(--green)">Nächster freier Platz: <strong>'+r.lagerplatz+'</strong></span>';lInfo.dataset.lagerplatz=r.lagerplatz;}
+      else{lInfo.innerHTML='<span style="color:var(--accent)">Keine freien Plätze. Bitte Lagerorte in den Einstellungen anlegen.</span>';}
+    }).catch(function(){lInfo.textContent='Lagerorte noch nicht konfiguriert.';});
+    if(aktK){api('GET','/lager/stammplatz/'+aktK.id).then(function(r){if(r&&r.stammplatz&&r.verfuegbar){lInfo.innerHTML='<span style="color:var(--blue)">Stammplatz: <strong>'+r.stammplatz+'</strong></span>';lInfo.dataset.lagerplatz=r.stammplatz;}}).catch(function(){});}
+  }
+  kSel.onchange=function(){var kid=this.value;if(!kid)return;api('GET','/lager/stammplatz/'+kid).then(function(r){if(r&&r.stammplatz&&r.verfuegbar&&lInfo){lInfo.innerHTML='<span style="color:var(--blue)">Stammplatz: <strong>'+r.stammplatz+'</strong></span>';lInfo.dataset.lagerplatz=r.stammplatz;}}).catch(function(){});};
+}
+function toggleNEKunde(){var d=document.getElementById('ne-nk-wrap');d.style.display=d.style.display==='none'?'block':'none';}
+function speichereNEKunde() {
+  var vn=gv('nek-vn'),nn=gv('nek-nn'),tel=gv('nek-tel');
+  if(!vn||!nn||!tel){notify('Vorname, Nachname und Telefon sind Pflicht.','err');return;}
+  (function(){
+      var kz=[gv('nek-kz1'),gv('nek-kz2'),gv('nek-kz3')].filter(Boolean).join('-');var kz4=gv('nek-kz4');if(kz4)kz+=' '+kz4;
+      return api('POST','/kunden',{vorname:vn,nachname:nn,telefon:tel,email:gv('nek-mail'),strasse:gv('nek-str'),plz:gv('nek-plz'),ort:gv('nek-ort'),kennzeichen:kz,fahrzeug_marke:gv('nek-fz')});
+    })()
+    .then(function(k){
+      allK.unshift(Object.assign({},k,{aktive_einlagerungen:0}));buildAlphaBar();renderK();
+      var sel=document.getElementById('ne-k');var opt=document.createElement('option');opt.value=k.id;opt.textContent=k.vorname+' '+k.nachname+' ('+(k.kennzeichen||'kein KZ')+')';opt.selected=true;sel.insertBefore(opt,sel.options[1]||null);sel.value=k.id;
+      document.getElementById('ne-nk-wrap').style.display='none';
+      ['nek-vn','nek-nn','nek-tel','nek-mail','nek-kz','nek-fz'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});
+      notify('Kunde angelegt und ausgewählt!');
+    }).catch(function(e){notify(e.message,'err');});
+}
+function neUpdateGroesse() {
+  var br=gv('ne-br'),qu=gv('ne-qu'),zo=gv('ne-zo'),li=gv('ne-li');
+  if(br&&qu&&zo)document.getElementById('ne-gr').value=br+'/'+qu+' R'+zo+(li?' '+li:'');
+}
+function neAutoP(el) {
+  var v=el.value.replace(',','.');el.value=v;
+}
+function neAutoPBlur(el) {
+  var v=el.value.replace(',','.');el.value=v;
+  if(!v)return;
+  ['ne-vr','ne-hl','ne-hr'].forEach(function(id){var e=document.getElementById(id);if(e&&!e.value)e.value=v;});
+}
+function saveNE() {
+  var kid=gv('ne-k');
+  var gr=gv('ne-gr').trim();
+  if(!gr){var br=gv('ne-br'),qu=gv('ne-qu'),zo=gv('ne-zo'),li=gv('ne-li');if(br&&qu&&zo)gr=br+'/'+qu+' R'+zo+(li?' '+li:'');}
+  if(!kid){notify('Bitte Kunden auswählen.','err');return;}
+  if(!gr){notify('Bitte Reifengröße eingeben.','err');return;}
+  var lInfo=document.getElementById('ne-lager-info');var lp=lInfo?lInfo.dataset.lagerplatz:'';
+  if(!lp){notify('Kein freier Lagerplatz. Bitte Lagerorte in den Einstellungen anlegen.','err');return;}
+  var mk=document.getElementById('ne-mk').value==='__man__'?gv('ne-mk-man'):document.getElementById('ne-mk').value;
+  var moSel=document.getElementById('ne-mo-sel').value;var mo=moSel==='__man__'?gv('ne-mo-man'):moSel;
+  var vl=normP(gv('ne-vl'));
+  api('POST','/einlagerungen',{kunden_id:kid,reifen_groesse:gr,lagerplatz:lp,reifen_typ:document.getElementById('ne-typ').value,reifen_marke:mk,reifen_modell:mo,anzahl:parseInt(gv('ne-anz'))||4,felgen:document.getElementById('ne-fel').value,dot:gv('ne-dot'),radnabendeckel:document.getElementById('ne-rnd')?document.getElementById('ne-rnd').checked:false,profil_vl:vl,profil_vr:normP(gv('ne-vr'))||vl,profil_hl:normP(gv('ne-hl'))||vl,profil_hr:normP(gv('ne-hr'))||vl,bemerkungen:gv('ne-bem')})
+    .then(function(e){
+      var k=allK.find(function(x){return x.id===kid;});
+      allE.unshift(Object.assign({},e,{kundenname:k?k.vorname+' '+k.nachname:'',kennzeichen:k?k.kennzeichen:''}));
+      closeModal('ne');notify('Eingelagert!');renderE();renderDash();renderLager();
+      setTimeout(function(){aktK=k||aktK;zeigeSchein(e.id,'ein');},400);
+    }).catch(function(e){notify(e.message,'err');});
+}
+
+// ── DASHBOARD ──
+function renderDash() {
+  var aktiv=allE.filter(function(e){return e.status!=='Abgeholt';});
+  var gesamtPlaetze=allLager.reduce(function(s,o){return s+o.regale.reduce(function(ss,r){return ss+r.plaetze_total;},0);},0);
+  var frei=gesamtPlaetze>0?Math.max(0,gesamtPlaetze-aktiv.length):null;
+  document.getElementById('st-e').textContent=aktiv.length;
+  document.getElementById('st-a').textContent=aktiv.filter(function(e){return e.status==='Abholbereit';}).length;
+  document.getElementById('st-f').textContent=frei!==null?frei:'—';
+  document.getElementById('st-k').textContent=allK.length;
+  document.getElementById('hs-e').textContent=aktiv.length;
+  document.getElementById('hs-f').textContent=frei!==null?frei:'—';
+  var dl=document.getElementById('dash-last');if(!dl)return;
+  dl.innerHTML=allE.slice(0,6).map(function(e){var kid=e.kunden_id;return'<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="var k=allK.find(function(x){return x.id===\''+kid+'\';});if(k){aktK=k;zeigeK(k.id);}"><div><div style="font-weight:600;font-size:13px">'+(e.kundenname||e.kunden_id)+'</div><div style="font-size:11px;color:var(--muted)">'+e.reifen_groesse+' — '+e.lagerplatz+'</div></div><div style="display:flex;gap:5px">'+tbadge(e.reifen_typ)+' '+sbadge(e.status)+'</div></div>';}).join('')||'<div class="empty">Noch keine Einlagerungen.</div>';
+  var tot=aktiv.length||1;
+  document.getElementById('dash-typ').innerHTML=['Winter','Sommer'].map(function(t){var cnt=aktiv.filter(function(e){return e.reifen_typ===t;}).length;var pct=Math.round(cnt/tot*100);var cols={Winter:'#4a9eff',Sommer:'#f5c842',Ganzjahr:'#3ecf8e'};return'<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px">'+tbadge(t)+'<span style="font-size:13px">'+cnt+'</span></div><div style="background:var(--border);border-radius:3px;height:6px"><div style="background:'+cols[t]+';height:6px;border-radius:3px;width:'+pct+'%"></div></div></div>';}).join('');
+}
+
+// ── LAGERPLAN ──
+function renderLager() {
+  var c=document.getElementById('lager-wrap');if(!c)return;
+  if(!allLager.length){c.innerHTML='<div class="empty">Noch keine Lagerorte.<br><br><button class="btn btn-g" onclick="showPage(\'einstellungen\',null)">Zu den Einstellungen</button></div>';return;}
+  var occ={};allE.filter(function(e){return e.status!=='Abgeholt';}).forEach(function(e){occ[e.lagerplatz]=e;});
+  var html='<div style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)"><span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--panel);border:1px solid var(--border);margin-right:5px"></span>Frei</span><span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(232,80,42,.3);margin-right:5px"></span>Belegt</span></div>';
+  allLager.forEach(function(ort){
+    html+='<div style="margin-bottom:28px"><div style="font-size:15px;font-weight:700;margin-bottom:12px">'+ort.name+'</div>';
+    ort.regale.forEach(function(regal){
+      html+='<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">'+regal.name+' ('+regal.plaetze_frei+' frei / '+regal.plaetze_total+' gesamt)</div><div style="display:flex;gap:3px;flex-wrap:wrap">';
+      for(var p=regal.plaetze_von;p<=regal.plaetze_bis;p++){var pid=ort.name+'/'+regal.name+'/'+String(p).padStart(3,'0');var e=occ[pid];html+='<div onclick="zeigeLager(\''+pid+'\')" title="'+(e?(e.kundenname||'')+' - '+e.reifen_groesse:'Frei')+'" style="width:28px;height:28px;border-radius:4px;border:1px solid '+(e?'rgba(232,80,42,.5)':'var(--border)')+';background:'+(e?'rgba(232,80,42,.28)':'var(--panel)')+';cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px">'+p+'</div>';}
+      html+='</div></div>';
+    });
+    html+='</div>';
+  });
+  c.innerHTML=html;
+}
+function zeigeLager(pid) {
+  var e=allE.find(function(x){return x.lagerplatz===pid&&x.status!=='Abgeholt';});
+  var el=document.getElementById('ld-inhalt');
+  if(e){el.innerHTML='<div class="mtitle">'+pid+'</div><div style="display:flex;gap:6px;margin-bottom:14px">'+sbadge(e.status)+' '+tbadge(e.reifen_typ)+'</div><div class="pnl" style="padding:14px;margin-bottom:10px"><div style="font-weight:700">'+(e.kundenname||'—')+'</div><div style="color:var(--muted);font-size:12px">'+(e.telefon||'')+'</div><div style="font-size:12px;margin-top:4px">'+(e.kennzeichen||'')+'</div></div><div style="display:flex;gap:6px;flex-wrap:wrap">'+(e.status==='Eingelagert'?'<button class="btn btn-grn btn-sm" onclick="setS(\''+e.id+'\',\'Abgeholt\');closeModal(\'ld\')">Abgeholt</button>':'')+'<button class="btn btn-g btn-sm" onclick="zeigeSchein(\''+e.id+'\',\'ein\');closeModal(\'ld\')">Einlagerungsschein</button><button class="btn btn-g btn-sm" onclick="zeigeSchein(\''+e.id+'\',\'aus\');closeModal(\'ld\')">Auslagerungsschein</button></div>';}
+  else{el.innerHTML='<div class="mtitle">'+pid+'</div><div style="text-align:center;padding:30px;color:var(--muted)">Platz ist frei.</div>';}
+  openModal('ld');
+}
+
+// ── WERKSTATT ──
+function renderWS() {
+  var heute=new Date().toLocaleDateString('de-DE',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('ws-dat').textContent='Werkstatt — '+heute;
+  var ab=allE.filter(function(e){return e.status==='Eingelagert';});
+  document.getElementById('ws-liste').innerHTML=ab.length?ab.map(function(e,i){return'<div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px;display:flex;align-items:center;gap:12px"><div style="font-size:22px;font-weight:800;color:var(--muted);width:28px">'+(i+1)+'</div><div style="flex:1"><div style="font-weight:700;font-size:14px">'+(e.kundenname||'—')+'</div><div style="font-size:12px;color:var(--muted)">'+e.reifen_groesse+' '+tbadge(e.reifen_typ)+' — <span style="color:var(--accent)">'+e.lagerplatz+'</span></div>'+(e.bemerkungen?'<div style="font-size:11px;color:var(--yellow);margin-top:2px">'+e.bemerkungen+'</div>':'')+'</div><div style="display:flex;gap:6px"><span class="kz-tag">'+(e.kennzeichen||'—')+'</span><button class="btn btn-grn btn-sm" onclick="setS(\''+e.id+'\',\'Abgeholt\');renderWS()">Abgeholt</button></div></div>';}).join(''):'<div class="empty">Keine aktiven Einlagerungen.</div>';
+}
+function druckListe() {
+  var ab=allE.filter(function(e){return e.status==='Eingelagert';});
+  var heute=new Date().toLocaleDateString('de-DE',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  var pa=document.getElementById('print-area');
+  pa.innerHTML='<div style="font-family:Arial,sans-serif;padding:15mm;color:#111"><div style="display:flex;justify-content:space-between;border-bottom:2px solid #1a3a6e;padding-bottom:5mm;margin-bottom:6mm"><div><div style="font-size:18pt;font-weight:700;color:#1a3a6e">'+(EINST.firmenname||'ReifenPro')+'</div><div>Tagesliste Werkstatt</div></div><div style="text-align:right"><div style="font-size:13pt;font-weight:700">'+heute+'</div><div>'+ab.length+' Einlagerungen</div></div></div><table style="width:100%;border-collapse:collapse;font-size:10pt"><thead><tr style="background:#f0f4ff">'+['#','Kunde','KZ','Reifen','Lagerplatz','Hinweis','OK'].map(function(h){return'<th style="padding:6px 8px;border:1px solid #ddd;text-align:left">'+h+'</th>';}).join('')+'</tr></thead><tbody>'+ab.map(function(e,i){return'<tr style="'+(i%2===0?'background:#fafafa':'')+'"><td style="padding:7px 8px;border:1px solid #ddd;font-weight:700">'+(i+1)+'</td><td style="padding:7px 8px;border:1px solid #ddd">'+(e.kundenname||'—')+'</td><td style="padding:7px 8px;border:1px solid #ddd;font-family:monospace">'+(e.kennzeichen||'—')+'</td><td style="padding:7px 8px;border:1px solid #ddd">'+e.reifen_groesse+' '+e.reifen_typ+'</td><td style="padding:7px 8px;border:1px solid #ddd;font-weight:700;color:#e8502a">'+e.lagerplatz+'</td><td style="padding:7px 8px;border:1px solid #ddd">'+(e.bemerkungen||'')+'</td><td style="padding:7px 8px;border:1px solid #ddd;width:15mm"></td></tr>';}).join('')+'</tbody></table></div>';
+  var w=window.open('','_blank');w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Tagesliste</title></head><body>'+pa.innerHTML+'</body></html>');w.document.close();setTimeout(function(){w.print();},500);pa.innerHTML='';
+}
+
+// ── DOKUMENTE ──
+function oeffneDsgvo(){
+  aktDokTyp='datenschutzerklaerung';aktEinlId=null;
+  // Prüfe ob bereits ein unterschriebener Datenschutz vorhanden
+  if(aktK&&aktK.portal_verifiziert){
+    // Zeige letzten vorhandenen Datenschutz an
+    api('GET','/kunden/'+aktK.id+'/dokumente').then(function(docs){
+      var ds=docs?docs.find(function(d){return d.typ==='datenschutzerklaerung'&&d.unterschrieben;}):null;
+      if(ds){zeigeDok(ds.id);}
+      else{dokGespeichertId=null;zeigeDokVorschau();}
+    }).catch(function(){dokGespeichertId=null;zeigeDokVorschau();});
+  } else {
+    dokGespeichertId=null;zeigeDokVorschau();
+  }
+}
+function oeffneVertrag(){aktDokTyp='einlagerungsvertrag';aktEinlId=null;dokGespeichertId=null;zeigeDokVorschau();}
+function zeigeSchein(eid,typ){aktDokTyp=typ==='ein'?'einlagerungsschein':'auslagerungsschein';aktEinlId=eid;dokGespeichertId=null;zeigeDokVorschau();}
+function switchDok(){aktDokTyp=aktDokTyp==='datenschutzerklaerung'?'einlagerungsvertrag':'datenschutzerklaerung';dokGespeichertId=null;zeigeDokVorschau();}
+function zeigeDokVorschau() {
+  var tm={datenschutzerklaerung:'Datenschutzerklärung',einlagerungsvertrag:'Einlagerungsvertrag',einlagerungsschein:'Einlagerungsschein',auslagerungsschein:'Auslagerungsschein'};
+  document.getElementById('dok-titel').textContent=tm[aktDokTyp]||'Dokument';
+  var sw=document.getElementById('dok-sw');
+  if(aktDokTyp==='datenschutzerklaerung'){sw.textContent='Zum Vertrag';sw.style.display='';}
+  else if(aktDokTyp==='einlagerungsvertrag'){sw.textContent='Zum Datenschutz';sw.style.display='';}
+  else{sw.style.display='none';}
+  document.getElementById('dok-inhalt').innerHTML=genDok();
+  document.getElementById('sig-wrap').style.display='';
+  var badge=document.getElementById('dok-saved-badge');if(badge)badge.style.display='none';
+  initSig();
+  openModal('dok');
+}
+
+// Speichern OHNE schliessen
+function saveDokOhneSchliessen() {
+  if(!aktK){notify('Kein Kunde ausgewählt.','err');return;}
+  var html=document.getElementById('dok-inhalt').innerHTML;
+  var sig=getSig();
+  var titles={datenschutzerklaerung:'Datenschutzerklärung',einlagerungsvertrag:'Einlagerungsvertrag',einlagerungsschein:'Einlagerungsschein',auslagerungsschein:'Auslagerungsschein'};
+  // Wenn bereits gespeichert und neue Unterschrift → update
+  var prom;
+  if(dokGespeichertId){
+    prom=api('POST','/kunden/'+aktK.id+'/dokumente',{typ:aktDokTyp,titel:titles[aktDokTyp]+' — '+new Date().toLocaleDateString('de-DE'),inhalt_html:html,einlagerung_id:aktEinlId||null,unterschrift_kunde:sig||null,unterschrift_datum:sig?new Date().toISOString():null});
+  } else {
+    prom=api('POST','/kunden/'+aktK.id+'/dokumente',{typ:aktDokTyp,titel:titles[aktDokTyp]+' — '+new Date().toLocaleDateString('de-DE'),inhalt_html:html,einlagerung_id:aktEinlId||null,unterschrift_kunde:sig||null,unterschrift_datum:sig?new Date().toISOString():null});
+  }
+  prom.then(function(d){
+    if(d)dokGespeichertId=d.id;
+    var badge=document.getElementById('dok-saved-badge');if(badge)badge.style.display='inline-flex';
+    notify('Dokument gespeichert!','info');
+    if(aktK)ladeDocs(aktK.id);
+    if(aktDokTyp==='datenschutzerklaerung'&&sig&&aktK){
+      api('PUT','/kunden/'+aktK.id,{portal_verifiziert:true}).then(function(){
+        // allK updaten damit Warnung nicht mehr erscheint
+        var idx=allK.findIndex(function(k){return k.id===aktK.id;});
+        if(idx!==-1)allK[idx].portal_verifiziert=true;
+        if(aktK)aktK.portal_verifiziert=true;
+      }).catch(function(){});
+    }
+    // Unterschrift im Dokument anzeigen
+    if(sig){
+      var sigArea=document.getElementById('sig-print-area');
+      if(sigArea)sigArea.innerHTML='Unterschrift des Kunden<br><img src="'+sig+'" style="max-height:55px;margin-top:4px;display:block">';
+    }
+  }).catch(function(e){notify(e.message,'err');});
+}
+
+// Drucken + automatisch speichern
+function druckUndSpeichereDok() {
+  saveDokOhneSchliessen();
+  var inhalt=document.getElementById('dok-inhalt').innerHTML;
+  // Unterschrift ins Druckdokument einbauen
+  var sig=getSig();
+  var druckHtml=inhalt;
+  if(sig){
+    // Unterschrift in Druckversion einbetten
+    druckHtml=druckHtml.replace('Unterschrift des Kunden</div>','Unterschrift des Kunden</div><img src="'+sig+'" style="max-height:60px;margin-top:4px">');
+  }
+  var w=window.open('','_blank');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+document.getElementById('dok-titel').textContent+'</title><style>body{margin:0;padding:0}@media print{body{margin:0}}</style></head><body>'+druckHtml+'</body></html>');
+  w.document.close();
+  setTimeout(function(){w.print();},500);
+}
+
+function zeigeDok(did) {
+  if(!aktK)return;
+  api('GET','/kunden/'+aktK.id+'/dokumente/'+did).then(function(d){
+    if(!d)return;
+    document.getElementById('dok-titel').textContent=d.titel;
+    document.getElementById('dok-sw').style.display='none';
+    document.getElementById('dok-inhalt').innerHTML=d.inhalt_html;
+    document.getElementById('sig-wrap').style.display=d.unterschrift_datum?'none':'';
+    dokGespeichertId=d.id;
+    var badge=document.getElementById('dok-saved-badge');if(badge)badge.style.display='inline-flex';
+    initSig();openModal('dok');
+  }).catch(function(e){notify(e.message,'err');});
+}
+function loescheDok(did) {
+  if(!aktK||!confirm('Dokument löschen?'))return;
+  api('DELETE','/kunden/'+aktK.id+'/dokumente/'+did).then(function(){notify('Gelöscht.');ladeDocs(aktK.id);}).catch(function(e){notify(e.message,'err');});
+}
+
+function genDok() {
+  var k=aktK;var e=aktEinlId?allE.find(function(x){return x.id===aktEinlId;}):null;var f=EINST;
+  var heute=new Date().toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  var ablauf=new Date(Date.now()+(f.vertragsdauer_monate||6)*30*86400000).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  var einlPreis='—';var pA=allArtikel.find(function(a){return a.kategorie==='einlagerung';});
+  if(pA){var n=parseFloat(pA.preis)||0;var m=parseFloat(pA.mwst_satz)||19;einlPreis=(n*(1+m/100)).toFixed(2).replace('.',',')+' EUR brutto (inkl. '+m+'% MwSt.)';}
+  var W=function(s){return'<div style="font-family:Arial,sans-serif;font-size:10pt;padding:12mm;color:#111;background:#fff">'+s+'</div>';};
+  var HDR='<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm">'+(f.logo_url?'<img src="'+f.logo_url+'" style="max-height:50px">':'<div style="font-size:18pt;font-weight:800;color:#1a3a6e">REIFEN<span style="color:#e8502a">PRO</span></div>')+'<div style="font-size:8.5pt;color:#555;line-height:1.6;text-align:right">'+(f.firmenname||'')+'<br>'+(f.strasse||'')+', '+(f.plz||'')+' '+(f.ort||'')+'<br>Tel: '+(f.telefon||'')+' | '+(f.email||'')+'</div></div>';
+  var FTR='<div style="border-top:1px solid #ddd;padding-top:2mm;margin-top:5mm;font-size:7.5pt;color:#666;display:flex;justify-content:space-between"><span>'+(f.firmenname||'')+' | '+(f.rechtsform||'')+' | '+(f.strasse||'')+', '+(f.plz||'')+' '+(f.ort||'')+'</span><span>Steuernr.: '+(f.steuernummer||'')+' | USt-ID: '+(f.ust_id||'')+'</span></div>';
+  var SIG='<div style="display:flex;gap:8mm;margin-top:7mm"><div style="flex:1;border-bottom:1.5px solid #333;min-height:12mm;display:flex;align-items:flex-end;padding-bottom:1mm;font-size:7.5pt;color:#888">Datum: '+heute+'</div><div id="sig-print-area" style="flex:2;border-bottom:1.5px solid #333;min-height:12mm;display:flex;align-items:flex-end;padding-bottom:1mm;font-size:7.5pt;color:#888">Unterschrift des Kunden</div></div>';
+  var SEC=function(t){return'<div style="font-size:9pt;font-weight:700;text-transform:uppercase;color:#1a3a6e;margin:4mm 0 2mm;border-bottom:1px solid #ddd;padding-bottom:1mm">'+t+'</div>';};
+  var ROW=function(l,v){return'<div style="display:flex;gap:3mm;margin-bottom:2mm"><div style="font-size:7.5pt;font-weight:700;color:#666;min-width:28mm;padding-top:1mm">'+l+'</div><div style="flex:1;border-bottom:1px solid #ccc;min-height:6mm;font-size:9.5pt;color:#1a3a6e;font-weight:500">'+(v||'')+'</div></div>';};
+
+  // Kundenname mit Anrede
+  var kundenName=k?(( k.anrede&&k.anrede!=='Firma'?k.anrede+' ':'')+k.vorname+' '+k.nachname):'';
+  var isFirma=k&&k.notizen==='firma';
+
+  if(aktDokTyp==='datenschutzerklaerung'){
+    return W(HDR+
+      '<div style="font-size:15pt;font-weight:700;color:#1a3a6e;margin-bottom:5mm">Datenschutzerklärung und Einwilligungserklärung</div>'+
+      (isFirma?'<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:8px;margin-bottom:10px;font-size:8.5pt">Hinweis: Dieses Dokument gilt für die genannte natürliche Kontaktperson des Unternehmens.</div>':'')+
+      SEC('1. Verantwortlicher (Art. 13 Abs. 1 DSGVO)')+
+      '<p style="font-size:9pt;margin-bottom:3mm">'+(f.firmenname||'')+' '+(f.rechtsform||'')+'<br>Vertreten durch: '+(f.inhaber||'')+'<br>'+(f.strasse||'')+', '+(f.plz||'')+' '+(f.ort||'')+'<br>Tel: '+(f.telefon||'')+' | E-Mail: '+(f.email||'')+(f.handelsreg_nr?'<br>HRB: '+f.handelsreg_nr+', '+(f.registergericht||''):'')+(f.ust_id?'<br>USt-ID: '+f.ust_id:'')+'</p>'+
+      (f.datenschutz_beauftragter?'<p style="font-size:9pt;margin-bottom:3mm">Datenschutzbeauftragter: '+f.datenschutz_beauftragter+'</p>':'')+
+      SEC('2. Verarbeitete Daten')+
+      ROW('Name',kundenName)+ROW('Adresse',k?[k.strasse,(k.plz||'')+' '+(k.ort||'')].filter(Boolean).join(', '):'')+ROW('Telefon',k?k.telefon:'')+ROW('E-Mail',k?k.email:'')+ROW('Kennzeichen',k?k.kennzeichen:'')+ROW('Fahrzeug',k?[k.fahrzeug_marke,k.fahrzeug_modell].filter(Boolean).join(' '):'')+
+      SEC('3. Zwecke und Rechtsgrundlagen (Art. 6 DSGVO)')+
+      '<p style="font-size:8.5pt;line-height:1.55;margin-bottom:3mm">a) Vertragserfüllung (Art. 6 Abs. 1 lit. b): Verwaltung der Reifeneinlagerung und -montage.<br>b) Gesetzliche Pflichten (Art. 6 Abs. 1 lit. c): Aufbewahrung steuerrelevanter Unterlagen gemäß § 257 HGB und § 147 AO für 8 Jahre (BEG IV ab 01.01.2025).<br>c) Berechtigte Interessen (Art. 6 Abs. 1 lit. f): HU-Erinnerungen zur Kundenbindung.</p>'+
+      SEC('4. Speicherdauer')+
+      '<p style="font-size:8.5pt;line-height:1.55;margin-bottom:3mm">Kundendaten werden für die Dauer der Geschäftsbeziehung sowie 8 Jahre nach Ende des Geschäftsjahres gespeichert (§ 257 HGB, BEG IV).</p>'+
+      SEC('5. Einwilligung Klebeetikett (Art. 6 Abs. 1 lit. a DSGVO)')+
+      '<p style="font-size:8.5pt;line-height:1.55;margin-bottom:2mm">Zur Zuordnung eingelagerter Reifen werden Klebeetiketten mit Kundennummer, einem Namenskürzel und Kennzeichen angebracht.</p>'+
+      '<div style="display:flex;gap:8px;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:9pt;margin-bottom:3mm"><div style="width:13px;height:13px;border:1.5px solid #333;flex-shrink:0;margin-top:1px"></div><span>Ich stimme der Anbringung von Klebeetiketten mit Kundennummer, Namenskürzel und Kennzeichen zu.</span></div>'+
+      SEC('6. HU-Erinnerung (Art. 6 Abs. 1 lit. a DSGVO)')+
+      '<div style="display:flex;gap:8px;padding:8px;border:1px solid #ccc;border-radius:4px;font-size:9pt;margin-bottom:3mm"><div style="width:13px;height:13px;border:1.5px solid #333;flex-shrink:0;margin-top:1px"></div><span>Ich möchte per E-Mail an meine nächste Hauptuntersuchung erinnert werden.</span></div>'+
+      SEC('7. Ihre Rechte (Art. 15-21 DSGVO)')+
+      '<p style="font-size:8.5pt;line-height:1.55">Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung (Art. 18), Datenübertragbarkeit (Art. 20), Widerspruch (Art. 21), Widerruf (Art. 7 Abs. 3). Beschwerden: Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach, www.lda.bayern.de.</p>'+
+      SIG+FTR);
+  }
+
+  if(aktDokTyp==='einlagerungsvertrag'){
+    return W(HDR+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5mm"><div style="font-size:15pt;font-weight:700;color:#1a3a6e">Verwahrungsvertrag<div style="font-size:9pt;font-weight:400;color:#555">gemäß §§ 688 ff. BGB</div></div><div style="font-size:9pt;color:#555;text-align:right">Datum: '+heute+(e?'<br>Beleg-Nr.: <strong>'+e.beleg_nr+'</strong>':'')+'</div></div>'+
+      SEC('Vertragsparteien')+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4mm;font-size:9pt;margin-bottom:4mm"><div><strong>Verwahrender:</strong><br>'+(f.firmenname||'')+' '+(f.rechtsform||'')+'<br>'+(f.inhaber||'')+'<br>'+(f.strasse||'')+'<br>'+(f.plz||'')+' '+(f.ort||'')+'</div><div><strong>Hinterleger:</strong><br>'+kundenName+'<br>'+(k?[k.strasse,(k.plz||'')+' '+(k.ort||'')].filter(Boolean).join(', '):'')+' <br>Tel: '+(k?k.telefon||'':'')+'<br>KZ: '+(k?k.kennzeichen||'':'')+'</div></div>'+
+      SEC('Eingelagerte Gegenstände (§ 688 BGB)')+
+      '<table style="width:100%;font-size:9pt;border-collapse:collapse;margin-bottom:4mm">'+
+      [['Reifengröße',e?e.reifen_groesse:'—'],['Fabrikat/Modell',e?(e.reifen_marke||'—')+(e.reifen_modell?' '+e.reifen_modell:''):'—'],['Typ',e?e.reifen_typ:'—'],['Anzahl',e?e.anzahl+' Stück':'4 Stück'],['Felgen',e?e.felgen:'—'],['Profiltiefe VL/VR/HL/HR',profilTxt(e)],['DOT',e?e.dot||'—':'—'],['Lagerplatz','<strong style="color:#e8502a">'+(e?e.lagerplatz:'—')+'</strong>'],['Schäden',e?e.bemerkungen||'Keine sichtbaren Schäden':'—']].map(function(r){return'<tr><td style="padding:3px 8px;border:1px solid #eee;font-weight:700;background:#f9f9f9;width:35%">'+r[0]+'</td><td style="padding:3px 8px;border:1px solid #eee">'+r[1]+'</td></tr>';}).join('')+
+      '</table>'+
+      SEC('Vertragsbedingungen')+
+      '<p style="font-size:8.5pt;line-height:1.6"><strong>§ 1 Vertragsdauer:</strong> '+(f.vertragsdauer_monate||6)+' Monate ab '+heute+' bis '+ablauf+'.<br><strong>§ 2 Vergütung (§ 689 BGB):</strong> '+einlPreis+', zahlbar bei Abholung.<br><strong>§ 3 Abholpflicht:</strong> Abholung spätestens '+(f.abholungsfrist_wochen||4)+' Wochen nach Saisonende. Mahngebühr EUR 15,00/Monat.<br><strong>§ 4 Haftung (§ 690 BGB):</strong> Versichert durch: '+(f.versicherung_name||'[Betriebsinhaltsversicherung]')+'.<br><strong>§ 5 Versicherungshinweis (§ 78 VVG):</strong> Bei Verlust durch Feuer/Diebstahl sind Ansprüche vorrangig gegenüber der Kfz-Versicherung des Hinterlegers geltend zu machen.<br><strong>§ 6 Datenschutz:</strong> Verarbeitung gem. DSGVO. Datenschutzerklärung liegt vor / wird gleichzeitig unterzeichnet.</p>'+
+      '<div style="display:flex;gap:6mm;margin-top:7mm">'+['Datum: '+heute,f.firmenname||'Betrieb','Unterschrift Hinterleger'].map(function(l){return'<div style="flex:1;border-bottom:1.5px solid #333;min-height:13mm;display:flex;align-items:flex-end;padding-bottom:1mm;font-size:7.5pt;color:#888">'+l+'</div>';}).join('')+'</div>'+FTR);
+  }
+
+  var isAus=aktDokTyp==='auslagerungsschein';
+  var ft2=e?e.felgen||'':'';
+  var isAlu=ft2==='Alufelgen';var isStahl=ft2==='Stahlfelgen';
+  var chk=function(on){return'<span style="display:inline-block;width:4mm;height:4mm;border:1.5px solid #333;background:'+(on?'#1a3a6e':'#fff')+';margin-right:2mm;vertical-align:middle">'+(on?'<span style="color:#fff;font-size:7pt;font-weight:700">v</span>':'')+'</span>';};
+  return W(HDR+
+    '<div style="display:flex;justify-content:space-between;align-items:center;border-top:2px solid '+(isAus?'#1a6e3a':'#1a3a6e')+';border-bottom:1px solid #ddd;padding:2mm 0;margin-bottom:4mm"><div style="font-size:14pt;font-weight:700;color:'+(isAus?'#1a6e3a':'#1a3a6e')+'">'+(isAus?'Auslagerungsschein':'Einlagerungsschein')+'</div>'+(e?'<div>Nr. <strong style="font-size:12pt;color:'+(isAus?'#1a6e3a':'#1a3a6e')+'">'+e.beleg_nr+'</strong> Lagerplatz: <strong style="font-size:13pt;color:#e8502a">'+e.lagerplatz+'</strong></div>':'')+'</div>'+
+    ROW('Nachname',k?k.nachname:'')+ROW('Vorname',k?k.vorname:'')+ROW('Straße',k?k.strasse:'')+ROW('PLZ / Ort',k?(k.plz||'')+' '+(k.ort||''):'')+ROW(isAus?'Abholdatum':'Einlagerdatum',heute)+ROW('Telefon',k?k.telefon:'')+ROW('Fahrzeug',k?(k.fahrzeug_marke||'')+' '+(k.fahrzeug_modell||''):'')+ROW('Kennzeichen',k?k.kennzeichen:'')+
+    '<div style="margin:3mm 0 2mm;font-size:8.5pt"><strong>Felgentyp:</strong><br>'+
+    '<div style="margin-top:2mm">'+chk(isAlu)+' Alufelgen '+(isAlu&&e?e.anzahl:'')+' Stück</div>'+
+    '<div style="margin-top:1mm">'+chk(isStahl)+' Stahlfelgen '+(isStahl&&e?e.anzahl:'')+' Stück</div></div>'+
+    ROW('Reifengröße',e?'<strong style="font-size:12pt;color:#1a3a6e">'+e.reifen_groesse+'</strong>':'')+
+    ROW('Fabrikat/Modell',e?(e.reifen_marke||'')+(e.reifen_modell?' '+e.reifen_modell:''):'')+ROW('DOT',e?e.dot||'':'')+
+    '<div style="margin:3mm 0 1mm;font-size:8.5pt;font-weight:700">Profiltiefe (mm)</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3mm;margin-bottom:3mm">'+
+      ['VL','VR','HL','HR'].map(function(pos,i){var v=e?[e.profil_vl,e.profil_vr,e.profil_hl,e.profil_hr][i]:null;return'<div><div style="font-size:7pt;font-weight:700;color:#555;margin-bottom:1mm">'+pos+'</div><div style="border-bottom:1px solid #333;min-height:7mm;font-size:12pt;font-weight:700;color:#1a3a6e">'+(v!=null?v:'')+'</div></div>';}).join('')+
+    '</div>'+
+    ROW('Schäden / Sonstiges',e?e.bemerkungen||'':'')+
+    (isAus?'<div style="margin-top:4mm;font-size:8pt;font-weight:700;margin-bottom:2mm">Empfangsbestätigung</div><div style="display:flex;gap:6mm"><div style="flex:1;border-bottom:1.5px solid #333;min-height:12mm;font-size:7.5pt;color:#888;display:flex;align-items:flex-end;padding-bottom:1mm">Datum</div><div style="flex:2;border-bottom:1.5px solid #333;min-height:12mm;font-size:7.5pt;color:#888;display:flex;align-items:flex-end;padding-bottom:1mm">Unterschrift — Bitte Radschrauben nach 50-100 km nachziehen!</div></div>':SIG)+FTR);
+}
+
+// ── UNTERSCHRIFT ──
+function initSig() {
+  var c=document.getElementById('sig-canvas');if(!c)return;
+  sigCtx=c.getContext('2d');sigCtx.clearRect(0,0,c.width,c.height);
+  sigCtx.strokeStyle='#1a3a6e';sigCtx.lineWidth=2.5;sigCtx.lineCap='round';sigCtx.lineJoin='round';
+  sigHas=false;sigDrw=false;
+  c.onmousedown=function(ev){sigDrw=true;var r=c.getBoundingClientRect();sigCtx.beginPath();sigCtx.moveTo((ev.clientX-r.left)*(c.width/r.width),(ev.clientY-r.top)*(c.height/r.height));sigHas=true;};
+  c.onmousemove=function(ev){if(!sigDrw)return;var r=c.getBoundingClientRect();var x=(ev.clientX-r.left)*(c.width/r.width);var y=(ev.clientY-r.top)*(c.height/r.height);sigCtx.lineTo(x,y);sigCtx.stroke();sigCtx.beginPath();sigCtx.moveTo(x,y);};
+  c.onmouseup=c.onmouseleave=function(){sigDrw=false;};
+  c.ontouchstart=function(ev){ev.preventDefault();var r=c.getBoundingClientRect();var t=ev.touches[0];sigDrw=true;sigCtx.beginPath();sigCtx.moveTo((t.clientX-r.left)*(c.width/r.width),(t.clientY-r.top)*(c.height/r.height));sigHas=true;};
+  c.ontouchmove=function(ev){ev.preventDefault();if(!sigDrw)return;var r=c.getBoundingClientRect();var t=ev.touches[0];var x=(t.clientX-r.left)*(c.width/r.width);var y=(t.clientY-r.top)*(c.height/r.height);sigCtx.lineTo(x,y);sigCtx.stroke();sigCtx.beginPath();sigCtx.moveTo(x,y);};
+  c.ontouchend=function(){sigDrw=false;};
+}
+function clearSig(){if(sigCtx){var c=document.getElementById('sig-canvas');sigCtx.clearRect(0,0,c.width,c.height);}sigHas=false;}
+function getSig(){if(!sigHas)return null;return document.getElementById('sig-canvas').toDataURL('image/png');}
+
+// ── MITARBEITER ──
+function loadUsers(){api('GET','/users').then(function(r){allUsers=r||[];renderUsers();}).catch(function(e){notify(e.message,'err');});}
+function renderUsers(){
+  var el=document.getElementById('users-liste');if(!el)return;
+  if(!allUsers.length){el.innerHTML='<div class="empty">Keine Mitarbeiter.</div>';return;}
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Aktionen</th></tr></thead><tbody>'+
+    allUsers.map(function(u){var istIch=USER&&USER.id===u.id;return'<tr><td><strong>'+u.vorname+' '+u.nachname+'</strong></td><td>'+u.email+'</td><td><span class="badge '+(u.rolle==='admin'?'b-r':'b-b')+'">'+u.rolle+'</span></td><td><span class="badge '+(u.aktiv?'b-g':'b-y')+'">'+(u.aktiv?'Aktiv':'Gesperrt')+'</span></td><td><div style="display:flex;gap:5px"><button class="btn btn-g btn-sm" onclick="oeffnePW(\''+u.id+'\',\''+u.vorname+' '+u.nachname+'\')">Passwort</button>'+(!istIch?'<button class="btn btn-danger btn-sm" onclick="loescheUser(\''+u.id+'\',\''+u.vorname+'\')">Löschen</button>':'<span style="font-size:11px;color:var(--muted)">Eigener Account</span>')+'</div></td></tr>';}).join('')+
+    '</tbody></table></div><div style="margin-top:14px;padding:14px;background:var(--panel);border:1px solid var(--border);border-radius:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Eigenes Passwort</div><button class="btn btn-g btn-sm" onclick="openModal(\'mypw\')">Passwort ändern</button></div>';
+}
+function saveNU(){
+  var vn=gv('nu-vn'),nn=gv('nu-nn'),mail=gv('nu-mail');var rolle=document.getElementById('nu-rolle').value;
+  var pass=document.getElementById('nu-pass').value,pass2=document.getElementById('nu-pass2').value;
+  if(!vn||!nn||!mail||!pass){notify('Alle Felder ausfüllen.','err');return;}
+  if(pass!==pass2){notify('Passwörter ungleich.','err');return;}
+  if(pass.length<8){notify('Mind. 8 Zeichen.','err');return;}
+  api('POST','/users',{vorname:vn,nachname:nn,email:mail,rolle:rolle,passwort:pass}).then(function(){notify('Mitarbeiter gespeichert.');closeModal('nu');['nu-vn','nu-nn','nu-mail','nu-pass','nu-pass2'].forEach(function(id){document.getElementById(id).value='';});loadUsers();}).catch(function(e){notify(e.message,'err');});
+}
+function oeffnePW(id,name){pwUserId=id;document.getElementById('pw-info').textContent='Passwort setzen für: '+name;document.getElementById('pw-neu').value='';document.getElementById('pw-neu2').value='';openModal('pw');}
+function savePW(){var neu=document.getElementById('pw-neu').value,neu2=document.getElementById('pw-neu2').value;if(!neu||neu.length<8){notify('Mind. 8 Zeichen.','err');return;}if(neu!==neu2){notify('Passwörter ungleich.','err');return;}api('POST','/users/'+pwUserId+'/passwort',{neuesPasswort:neu}).then(function(){notify('Passwort gesetzt.');closeModal('pw');}).catch(function(e){notify(e.message,'err');});}
+function saveMyPW(){var alt=document.getElementById('mypw-alt').value;var neu=document.getElementById('mypw-neu').value,neu2=document.getElementById('mypw-neu2').value;if(!alt||!neu){notify('Alle Felder ausfüllen.','err');return;}if(neu.length<8){notify('Mind. 8 Zeichen.','err');return;}if(neu!==neu2){notify('Passwörter ungleich.','err');return;}api('POST','/users/mein-passwort',{altesPasswort:alt,neuesPasswort:neu}).then(function(){notify('Passwort geändert. Neu einloggen.');closeModal('mypw');setTimeout(function(){doLogout();},2000);}).catch(function(e){notify(e.message,'err');});}
+function loescheUser(id,name){if(!confirm('Mitarbeiter '+name+' löschen?'))return;api('DELETE','/users/'+id).then(function(){notify('Gelöscht.');loadUsers();}).catch(function(e){notify(e.message,'err');});}
+
+// ── DSGVO ──
+function loadDsgvo(){api('GET','/dsgvo').then(function(rows){var el=document.getElementById('dsgvo-liste');if(!el)return;rows=rows||[];if(!rows.length){el.innerHTML='<div class="empty">Keine Anfragen vorhanden.</div>';return;}var L={auskunft:'Auskunft (Art.15)',export:'Export (Art.20)',loeschung:'Löschung (Art.17)',berichtigung:'Berichtigung (Art.16)',einschraenkung:'Einschränkung (Art.18)',widerruf:'Widerruf (Art.7)',widerspruch:'Widerspruch (Art.21)'};var offen=rows.filter(function(r){return r.status==='offen';});var fertig=rows.filter(function(r){return r.status!=='offen';});el.innerHTML=(offen.length?'<div style="margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--accent)">Offen ('+offen.length+')</div>':'')+offen.map(function(r){return dsgvoKarte(r,L);}).join('')+(fertig.length?'<div style="margin:16px 0 8px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted)">Erledigt</div>':'')+fertig.map(function(r){return dsgvoKarte(r,L);}).join('');}).catch(function(){});}
+function dsgvoKarte(r,L){var sb=r.status==='offen'?'<span class="badge b-y">Offen</span>':r.status==='bearbeitet'?'<span class="badge b-g">Erledigt</span>':'<span class="badge b-r">Abgelehnt</span>';return'<div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div><div style="font-weight:600">'+(r.kundenname||r.kunden_id)+'</div><div style="font-size:12px;color:var(--muted)">'+(L[r.typ]||r.typ)+' — '+fd(r.erstellt_am)+'</div></div>'+sb+'</div>'+(r.nachricht?'<div style="font-size:12px;padding:8px;background:var(--bg);border-radius:6px;margin-bottom:8px">'+r.nachricht+'</div>':'')+(r.status==='offen'?'<div style="display:flex;gap:6px"><button class="btn btn-g btn-sm" onclick="dsgvoOk(\''+r.id+'\')">Erledigt</button><button class="btn btn-danger btn-sm" onclick="dsgvoNein(\''+r.id+'\')">Ablehnen</button></div>':'')+'</div>';}
+function dsgvoOk(id){api('PATCH','/dsgvo/'+id,{status:'bearbeitet'}).then(function(){notify('Erledigt.');loadDsgvo();}).catch(function(e){notify(e.message,'err');});}
+function dsgvoNein(id){api('PATCH','/dsgvo/'+id,{status:'abgelehnt'}).then(function(){notify('Abgelehnt.');loadDsgvo();}).catch(function(e){notify(e.message,'err');});}
+
+
+// ── KÜRZEL & ETIKETT ──
+function nameKuerzel(vorname, nachname) {
+  var vokale = /[aeiouäöüAEIOUÄÖÜ]/g;
+  var initial = vorname ? vorname[0].toUpperCase() : '';
+  var kuerzel = (nachname || '').replace(vokale, '');
+  // Max 4 Zeichen vom Nachnamen
+  kuerzel = kuerzel.substring(0, 4);
+  return initial + '.' + kuerzel;
+}
+
+function druckEtikett(einlId) {
+  var e = allE.find(function(x) { return x.id === einlId; });
+  if (!e) { notify('Einlagerung nicht gefunden.', 'err'); return; }
+  var k = allK.find(function(x) { return x.id === e.kunden_id; });
+  var kuerzel = k ? nameKuerzel(k.vorname, k.nachname) : '—';
+  var profStr = e.profil_vl != null ? e.profil_vl + 'mm' : '—';
+  var w = window.open('', '_blank', 'width=420,height=300');
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etikett</title>' +
+    '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>' +
+    '<style>' +
+    'body{margin:0;padding:0;font-family:Arial,sans-serif;background:#fff}' +
+    '@page{size:100mm 50mm;margin:0}' +
+    '@media print{body{margin:0}}' +
+    '.label{width:100mm;height:50mm;padding:3mm;display:flex;gap:3mm;border:1px solid #ccc;box-sizing:border-box}' +
+    '.qr{flex-shrink:0;width:40mm;display:flex;align-items:center;justify-content:center}' +
+    '.info{flex:1;display:flex;flex-direction:column;justify-content:space-between}' +
+    '.row1{display:flex;justify-content:space-between;align-items:flex-start}' +
+    '.kundnr{font-size:11pt;font-weight:700;color:#1a3a6e}' +
+    '.kuerzel{font-size:10pt;font-weight:700}' +
+    '.kz{font-size:10pt;font-family:monospace;font-weight:600;color:#e8502a}' +
+    '.reifen{font-size:9pt;font-weight:700;margin:1mm 0}' +
+    '.details{font-size:7.5pt;color:#444;line-height:1.4}' +
+    '.lager{font-size:8pt;font-weight:700;color:#1a3a6e;margin-top:1mm}' +
+    '.noprint{margin:10px;text-align:center}' +
+    '</style></head><body>' +
+    '<div class="noprint"><button onclick="window.print()" style="padding:8px 20px;font-size:14px;cursor:pointer;background:#1a3a6e;color:#fff;border:none;border-radius:6px">Drucken</button>' +
+    ' <button onclick="window.close()" style="padding:8px 20px;font-size:14px;cursor:pointer;margin-left:8px">Schließen</button></div>' +
+    '<div class="label">' +
+      '<div class="qr" id="qrcode"></div>' +
+      '<div class="info">' +
+        '<div class="row1"><span class="kundnr">' + (e.kunden_nr || k && k.kunden_nr || '—') + '</span><span class="kuerzel">' + kuerzel + '</span></div>' +
+        '<div class="kz">' + (k && k.kennzeichen || '—') + '</div>' +
+        '<div class="reifen">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +
+        '<div class="details">' + (e.reifen_marke || '') + (e.reifen_modell ? ' ' + e.reifen_modell : '') + (e.dot ? ' &nbsp; DOT ' + e.dot : '') + '<br>Profil: ' + profStr + (e.radnabendeckel ? ' &nbsp; ✓ RND' : '') + '</div>' +
+        '<div class="lager">' + e.lagerplatz + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<script>new QRCode(document.getElementById("qrcode"),{text:"' + einlId + '",width:128,height:128,correctLevel:QRCode.CorrectLevel.M});<\/script>' +
+    '</body></html>');
+  w.document.close();
+}
+</script>
+</body>
+</html>
