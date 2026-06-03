@@ -1,0 +1,177 @@
+'use strict';
+const express = require('express');
+const router = express.Router();
+const { query } = require('../db/index');
+const { authenticate } = require('../middleware/auth');
+
+// ── GET /api/termine ── Admin: alle Termine
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    const { von, bis, status } = req.query;
+    let sql = `SELECT t.*, 
+      k.vorname || ' ' || k.nachname as kundenname,
+      k.kennzeichen, k.telefon,
+      a.name as artikel_name, a.dauer_minuten, a.farbe
+      FROM termine t
+      LEFT JOIN kunden k ON k.id = t.kunden_id
+      LEFT JOIN artikel a ON a.id = t.artikel_id
+      WHERE 1=1`;
+    const params = [];
+    if (von) { params.push(von); sql += ` AND t.datum >= $${params.length}`; }
+    if (bis) { params.push(bis); sql += ` AND t.datum <= $${params.length}`; }
+    if (status) { params.push(status); sql += ` AND t.status = $${params.length}`; }
+    sql += ' ORDER BY t.datum, t.uhrzeit_von';
+    const { rows } = await query(sql, params);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/termine/statistik ── Monatsauslastung
+router.get('/statistik', authenticate, async (req, res, next) => {
+  try {
+    const { jahr } = req.query;
+    const j = parseInt(jahr) || new Date().getFullYear();
+    const { rows } = await query(
+      `SELECT 
+        EXTRACT(MONTH FROM datum) as monat,
+        COUNT(*) as anzahl,
+        COUNT(CASE WHEN status='storniert' THEN 1 END) as storniert,
+        COUNT(CASE WHEN portal_buchung=true THEN 1 END) as online
+       FROM termine
+       WHERE EXTRACT(YEAR FROM datum) = $1 AND status != 'storniert'
+       GROUP BY monat ORDER BY monat`,
+      [j]
+    );
+    // Alle 12 Monate ausgeben (auch leere)
+    const monate = Array.from({ length: 12 }, (_, i) => {
+      const found = rows.find(r => parseInt(r.monat) === i + 1);
+      return { monat: i + 1, anzahl: found ? parseInt(found.anzahl) : 0, storniert: found ? parseInt(found.storniert) : 0, online: found ? parseInt(found.online) : 0 };
+    });
+    res.json({ jahr: j, monate });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/termine/betriebsurlaub ──
+router.get('/betriebsurlaub', authenticate, async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM betriebsurlaub ORDER BY von_datum');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/termine/betriebsurlaub ──
+router.post('/betriebsurlaub', authenticate, async (req, res, next) => {
+  try {
+    const { von_datum, bis_datum, beschreibung } = req.body;
+    if (!von_datum || !bis_datum) return res.status(400).json({ error: 'Von und Bis erforderlich' });
+    const { rows } = await query(
+      'INSERT INTO betriebsurlaub (von_datum, bis_datum, beschreibung) VALUES ($1,$2,$3) RETURNING *',
+      [von_datum, bis_datum, beschreibung || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// ── DELETE /api/termine/betriebsurlaub/:id ──
+router.delete('/betriebsurlaub/:id', authenticate, async (req, res, next) => {
+  try {
+    await query('DELETE FROM betriebsurlaub WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Gelöscht' });
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/termine/:id ──
+router.get('/:id', authenticate, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT t.*, k.vorname || ' ' || k.nachname as kundenname, k.kennzeichen, k.telefon, a.name as artikel_name, a.dauer_minuten
+       FROM termine t LEFT JOIN kunden k ON k.id=t.kunden_id LEFT JOIN artikel a ON a.id=t.artikel_id
+       WHERE t.id=$1`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/termine ── Admin: Termin anlegen
+router.post('/', authenticate, async (req, res, next) => {
+  try {
+    const { kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern } = req.body;
+    if (!datum || !uhrzeit_von || !uhrzeit_bis) return res.status(400).json({ error: 'Datum und Uhrzeiten erforderlich' });
+    const { rows } = await query(
+      `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt') RETURNING *`,
+      [kunden_id || null, kontakt_name || null, kontakt_telefon || null, kontakt_email || null, datum, uhrzeit_von, uhrzeit_bis, termin_typ || null, artikel_id || null, kennzeichen || null, beschreibung || null, notizen_intern || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// ── PUT /api/termine/:id ──
+router.put('/:id', authenticate, async (req, res, next) => {
+  try {
+    const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status } = req.body;
+    const { rows } = await query(
+      `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, termin_typ=$4, artikel_id=$5,
+       kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=$9, geaendert_am=NOW()
+       WHERE id=$10 RETURNING *`,
+      [datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id || null, kennzeichen, beschreibung, notizen_intern, status || 'bestaetigt', req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// ── DELETE /api/termine/:id ── Admin: Termin absagen
+router.delete('/:id', authenticate, async (req, res, next) => {
+  try {
+    const { grund } = req.body || {};
+    const termin = await query('SELECT t.*, k.portal_email, k.vorname FROM termine t LEFT JOIN kunden k ON k.id=t.kunden_id WHERE t.id=$1', [req.params.id]);
+    if (!termin.rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
+    const t = termin.rows[0];
+    await query('UPDATE termine SET status=$1, storniert_am=NOW(), storniert_von=$2 WHERE id=$3', ['abgesagt', 'admin', req.params.id]);
+    // Kunden informieren falls Portal-Buchung
+    if (t.portal_buchung && t.portal_email) {
+      const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+      const datumF = new Date(t.datum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      await transporter.sendMail({
+        from: '"' + (einst.firmenname || 'ReifenPro') + '" <' + process.env.SMTP_USER + '>',
+        to: t.portal_email,
+        subject: 'Termin abgesagt — ' + datumF,
+        html: '<p>Hallo ' + (t.vorname || '') + ',</p><p>Ihr Termin am ' + datumF + ' um ' + t.uhrzeit_von + ' Uhr muss leider abgesagt werden.' + (grund ? '<br>Grund: ' + grund : '') + '</p><p>Bitte buchen Sie einen neuen Termin oder rufen Sie uns an: ' + (einst.telefon || '') + '</p>'
+      }).catch(() => {});
+    }
+    res.json({ message: 'Termin abgesagt' });
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/termine/portal-freigabe/:kundenId ── Kunde freigeben
+router.post('/portal-freigabe/:kundenId', authenticate, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      'UPDATE kunden SET portal_freigegeben=true, geaendert_am=NOW() WHERE id=$1 RETURNING vorname, nachname, portal_email',
+      [req.params.kundenId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Kunde nicht gefunden' });
+    const k = rows[0];
+    // Willkommens-E-Mail
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+    await transporter.sendMail({
+      from: '"' + (einst.firmenname || 'ReifenPro') + '" <' + process.env.SMTP_USER + '>',
+      to: k.portal_email,
+      subject: 'Ihr Kunden-Portal ist freigeschaltet — ' + (einst.firmenname || 'ReifenPro'),
+      html: '<p>Hallo ' + k.vorname + ',</p><p>Ihr Zugang zum Kunden-Portal wurde freigeschaltet. Sie können sich jetzt einloggen:</p>' +
+        '<p><a href="' + portalUrl + '" style="background:#e8502a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Zum Portal</a></p>' +
+        '<p>Mit freundlichen Grüßen,<br>' + (einst.firmenname || 'ReifenPro') + '</p>'
+    }).catch(() => {});
+    res.json({ message: 'Freigegeben und E-Mail gesendet' });
+  } catch (e) { next(e); }
+});
+
+module.exports = router;
