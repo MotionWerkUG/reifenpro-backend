@@ -217,5 +217,33 @@ router.put('/profil', authKunde, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── POST /api/portal/auth/konto-loeschen ── Loeschauftrag (Art. 17 DSGVO)
+router.post('/konto-loeschen', authKunde, async (req, res, next) => {
+  try {
+    const k = req.kunde;
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    // Bei aktiver Einlagerung gesetzliche Aufbewahrung -> keine Online-Loeschung
+    const aktiv = await query("SELECT COUNT(*)::int AS c FROM einlagerungen WHERE kunden_id=$1 AND status<>'Abgeholt'", [k.id]);
+    if (aktiv.rows[0].c > 0) {
+      return res.status(409).json({
+        code: 'AKTIVE_EINLAGERUNG',
+        error: 'Solange Räder bei uns eingelagert sind, ist eine Löschung nicht möglich. Bitte wenden Sie sich an uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '.'
+      });
+    }
+    await query('UPDATE kunden SET loeschung_beantragt_am=NOW() WHERE id=$1', [k.id]);
+    await query("INSERT INTO dsgvo_anfragen (kunden_id, typ, status, nachricht) VALUES ($1,'loeschung','offen',$2)", [k.id, 'Löschauftrag über das Kundenportal']);
+    if (einst.email) {
+      await sendMail(
+        einst.email,
+        'Löschauftrag (Art. 17 DSGVO) — ' + k.vorname + ' ' + k.nachname,
+        '<p>Ein Kunde hat über das Kundenportal die Löschung seines Kontos beantragt:</p>' +
+        '<p><strong>' + k.vorname + ' ' + k.nachname + '</strong><br>E-Mail: ' + (k.portal_email || k.email || '') + '<br>Kunden-Nr.: ' + (k.kunden_nr || '') + '</p>' +
+        '<p>Bitte im Admin unter DSGVO-Anfragen bearbeiten (gesetzliche Frist: 1 Monat).</p>'
+      ).catch(() => {});
+    }
+    res.json({ message: 'Löschauftrag eingegangen' });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
 module.exports.authKunde = authKunde;
