@@ -1112,7 +1112,13 @@ function api(method, path, body) {
   if (body !== undefined) opts.body = JSON.stringify(body);
   return fetch(API + path, opts).then(function(r) {
     if (r.status === 401) { doLogout(); return null; }
-    if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || e.message || 'Fehler ' + r.status); }).catch(function() { throw new Error('Fehler ' + r.status); });
+    if (!r.ok) {
+      return r.json().catch(function() { return {}; }).then(function(e) {
+        var err = new Error(e.error || e.message || ('Fehler ' + r.status));
+        err.code = e.code; err.status = r.status;
+        throw err;
+      });
+    }
     return r.json().catch(function() { return null; });
   });
 }
@@ -1989,22 +1995,30 @@ function saveNK() {
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { notify('E-Mail-Format ungültig.', 'err'); return; }
   var kz = kzAusTeilen('nk-');
   var hu = gv('nk-hu') || null; if (hu) hu = hu + '-01';
-  var ezTag = gv('nk-ez-tag'), ezMon = gv('nk-ez-mon'), ezJahr = gv('nk-ez-jahr');
+  var ezJahr = gv('nk-ez-jahr');
   var moVal = document.getElementById('nk-mo-sel').value === '__man__' ? gv('nk-mo-man') : gv('nk-mo-sel');
-  api('POST', '/kunden', {
+  var data = {
     vorname: vn, nachname: nn, telefon: tel, email: mail,
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
     fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null,
     hu_datum: hu, anrede: gv('nk-anrede'), notizen: document.getElementById('nk-kundentyp').value
-  }).then(function(k) {
+  };
+  sendeNeuerKunde(data, false);
+}
+function sendeNeuerKunde(data, force) {
+  var payload = force ? Object.assign({}, data, { force: true }) : data;
+  api('POST', '/kunden', payload).then(function(k) {
     allK.unshift(Object.assign({}, k, { aktive_einlagerungen: 0 }));
     buildAlphaBar(); renderK(); closeModal('nk'); notify('Kunde gespeichert!');
     if (document.getElementById('nk-dsgvo').checked) {
       aktK = k;
       setTimeout(function() { oeffneDsgvo(); }, 400);
     }
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    if (e.code === 'EMAIL_EXISTS') { if (confirm(e.message)) sendeNeuerKunde(data, true); return; }
+    notify(e.message, 'err');
+  });
 }
 
 // ── EINLAGERUNGEN ──
