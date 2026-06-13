@@ -2193,8 +2193,9 @@ function renderDash() {
     return '<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;margin-bottom:5px">' + tbadge(t) + '<span style="font-size:13px">' + cnt + '</span></div>' +
       '<div style="background:var(--border);border-radius:3px;height:6px"><div style="background:' + col + ';height:6px;border-radius:3px;width:' + pct + '%"></div></div></div>';
   }).join('');
-  // Heutige Termine
-  var heute = new Date().toISOString().substring(0, 10);
+  // Heutige Termine (lokales Datum, nicht UTC)
+  var _h = new Date();
+  var heute = _h.getFullYear() + '-' + String(_h.getMonth() + 1).padStart(2, '0') + '-' + String(_h.getDate()).padStart(2, '0');
   var hTermine = allTermine.filter(function(t) { return t.datum === heute || (t.datum && t.datum.substring(0, 10) === heute); });
   var dt = document.getElementById('dash-termine');
   if (dt) {
@@ -2378,7 +2379,7 @@ function renderKalenderWoche() {
   document.getElementById('kal-inhalt').innerHTML = html;
 }
 function renderKalenderTag() {
-  var dStr = kalDatum.toISOString().substring(0, 10);
+  var dStr = kalDatum.getFullYear() + '-' + String(kalDatum.getMonth() + 1).padStart(2, '0') + '-' + String(kalDatum.getDate()).padStart(2, '0');
   document.getElementById('kal-titel').textContent = kalDatum.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   var einst = EINST;
   var vonH = einst.mo_fr_von ? parseInt(String(einst.mo_fr_von).substring(0,2)) : 8;
