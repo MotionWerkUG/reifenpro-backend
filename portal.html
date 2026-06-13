@@ -190,6 +190,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   <div class="app-nav">
     <button class="nav-tab on" data-page="ueberblick" onclick="portalNav('ueberblick')" data-i18n="nav_overview">Überblick</button>
     <button class="nav-tab" data-page="einlagerungen" onclick="portalNav('einlagerungen')" data-i18n="nav_storage">Einlagerungen</button>
+    <button class="nav-tab" data-page="fahrzeuge" onclick="portalNav('fahrzeuge')" data-i18n="nav_vehicles">Fahrzeuge</button>
     <button class="nav-tab" data-page="termine" onclick="portalNav('termine')" data-i18n="nav_appointments">Termine</button>
     <button class="nav-tab" data-page="buchen" onclick="portalNav('buchen')" data-i18n="nav_book">Termin buchen</button>
     <button class="nav-tab" data-page="profil" onclick="portalNav('profil')" data-i18n="nav_profile">Profil</button>
@@ -205,6 +206,29 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <!-- EINLAGERUNGEN -->
     <div id="page-einlagerungen" class="page">
       <div id="einlagerungen-liste"></div>
+    </div>
+    <!-- FAHRZEUGE -->
+    <div id="page-fahrzeuge" class="page">
+      <div class="card">
+        <div class="card-titel"><span data-i18n="nav_vehicles">Fahrzeuge</span>
+          <button class="btn btn-g btn-sm" onclick="fzFormZeigen()" data-i18n="add_vehicle">Fahrzeug hinzufügen</button></div>
+        <div id="fahrzeuge-liste"></div>
+      </div>
+      <div class="card" id="fz-form-card" style="display:none">
+        <div class="card-titel" id="fz-form-titel" data-i18n="add_vehicle">Fahrzeug hinzufügen</div>
+        <div class="fg"><label data-i18n="vehicle_type">Fahrzeugtyp</label>
+          <select id="fz-typ"><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
+        <div class="fg"><label data-i18n="brand">Marke</label><input id="fz-marke"></div>
+        <div class="fg"><label data-i18n="model">Modell</label><input id="fz-modell"></div>
+        <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="fz-kennzeichen"></div>
+        <div class="fg"><label data-i18n="year">Baujahr</label><input id="fz-baujahr" type="number" min="1950" max="2099"></div>
+        <div class="fg"><label data-i18n="hu_date">HU fällig (Monat)</label><input id="fz-hu" type="month"></div>
+        <input type="hidden" id="fz-id">
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="btn btn-g btn-sm" onclick="fzFormAbbrechen()" data-i18n="cancel">Abbrechen</button>
+          <button class="btn btn-g btn-sm" onclick="fzSpeichern()" data-i18n="save">Speichern</button>
+        </div>
+      </div>
     </div>
     <!-- TERMINE -->
     <div id="page-termine" class="page">
@@ -282,6 +306,7 @@ var I18N = {
     register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
     reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
     delete_account: 'Konto löschen', delete_account_info: 'Sie haben das Recht, Ihr Konto löschen zu lassen (Art. 17 DSGVO). Bei aktiven Einlagerungen ist dies erst nach Abholung möglich.', delete_account_confirm: 'Möchten Sie Ihr Kundenkonto endgültig löschen lassen? Wir bearbeiten Ihren Antrag gemäß DSGVO.', delete_account_active: 'Solange Räder bei uns eingelagert sind, ist eine Löschung nicht möglich. Bitte wenden Sie sich an uns{tel}. Nach Abholung können Sie Ihr Konto löschen.', delete_account_done: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen.',
+    nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?',
     nav_overview: 'Überblick', nav_storage: 'Einlagerungen', nav_appointments: 'Termine',
     nav_book: 'Termin buchen', nav_profile: 'Profil', welcome: 'Willkommen',
     book_appointment: 'Termin buchen', service: 'Leistung', date: 'Datum',
@@ -312,6 +337,7 @@ var I18N = {
     register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
     reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
     delete_account: 'Delete account', delete_account_info: 'You have the right to have your account deleted (Art. 17 GDPR). With active storage this is only possible after collection.', delete_account_confirm: 'Do you really want your customer account permanently deleted? We will process your request in accordance with GDPR.', delete_account_active: 'As long as wheels are stored with us, deletion is not possible. Please contact us{tel}. After collection you can delete your account.', delete_account_done: 'Your deletion request has been received. We will get back to you.',
+    nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?',
     nav_overview: 'Overview', nav_storage: 'Storage', nav_appointments: 'Appointments',
     nav_book: 'Book appointment', nav_profile: 'Profile', welcome: 'Welcome',
     book_appointment: 'Book appointment', service: 'Service', date: 'Date',
@@ -482,6 +508,7 @@ function portalNav(page) {
   else if (page === 'einlagerungen') ladeEinlagerungen();
   else if (page === 'termine') ladeTermine();
   else if (page === 'buchen') initBuchen();
+  else if (page === 'fahrzeuge') ladeFahrzeuge();
   else if (page === 'profil') ladeProfil();
 }
 // ── DATEN LADEN ──
@@ -680,6 +707,62 @@ function ladeProfil() {
   }).catch(function() {});
 }
 
+function ladeFahrzeuge() {
+  papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    var el = document.getElementById('fahrzeuge-liste');
+    if (!rows || !rows.length) { el.innerHTML = '<div class="empty">' + t('no_vehicles') + '</div>'; return; }
+    el.innerHTML = rows.map(function(f) {
+      var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
+      var meta = [f.typ, f.kennzeichen, f.baujahr].filter(Boolean).join(' · ') + (f.hu_datum ? ' · HU ' + fmtDatum(f.hu_datum) : '');
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px">' +
+        '<div><div style="font-weight:700">' + titel + '</div><div style="font-size:12px;color:var(--muted)">' + meta + '</div></div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button class="btn btn-g btn-sm" onclick="fzEdit(\'' + f.id + '\')">' + t('edit') + '</button>' +
+          '<button class="btn btn-sm" style="background:#c0392b;color:#fff;border:none" onclick="fzLoeschen(\'' + f.id + '\')">x</button>' +
+        '</div></div>';
+    }).join('');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzFormZeigen() {
+  document.getElementById('fz-id').value = '';
+  document.getElementById('fz-form-titel').textContent = t('add_vehicle');
+  document.getElementById('fz-typ').value = 'PKW';
+  ['fz-marke', 'fz-modell', 'fz-kennzeichen', 'fz-baujahr', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('fz-form-card').style.display = '';
+}
+function fzFormAbbrechen() { document.getElementById('fz-form-card').style.display = 'none'; }
+function fzEdit(id) {
+  papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    var f = (rows || []).find(function(x) { return x.id === id; }); if (!f) return;
+    document.getElementById('fz-id').value = f.id;
+    document.getElementById('fz-form-titel').textContent = t('edit_vehicle');
+    document.getElementById('fz-typ').value = f.typ || 'PKW';
+    document.getElementById('fz-marke').value = f.marke || '';
+    document.getElementById('fz-modell').value = f.modell || '';
+    document.getElementById('fz-kennzeichen').value = f.kennzeichen || '';
+    document.getElementById('fz-baujahr').value = f.baujahr || '';
+    document.getElementById('fz-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
+    document.getElementById('fz-form-card').style.display = '';
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzSpeichern() {
+  var hu = document.getElementById('fz-hu').value;
+  var data = {
+    typ: document.getElementById('fz-typ').value,
+    marke: document.getElementById('fz-marke').value.trim(),
+    modell: document.getElementById('fz-modell').value.trim(),
+    kennzeichen: document.getElementById('fz-kennzeichen').value.trim(),
+    baujahr: document.getElementById('fz-baujahr').value ? parseInt(document.getElementById('fz-baujahr').value) : null,
+    hu_datum: hu ? hu + '-01' : null
+  };
+  var id = document.getElementById('fz-id').value;
+  var p = id ? papi('PUT', '/daten/fahrzeuge/' + id, data) : papi('POST', '/daten/fahrzeuge', data);
+  p.then(function() { notify(t('vehicle_saved'), 'ok'); fzFormAbbrechen(); ladeFahrzeuge(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzLoeschen(id) {
+  if (!confirm(t('delete_vehicle_confirm'))) return;
+  papi('DELETE', '/daten/fahrzeuge/' + id).then(function() { notify(t('vehicle_deleted'), 'ok'); ladeFahrzeuge(); }).catch(function(e) { notify(e.message, 'err'); });
+}
 function kontoLoeschen() {
   papi('GET', '/daten/einlagerungen').then(function(rows) {
     var aktiv = (rows || []).filter(function(e) { return e.status !== 'Abgeholt'; });

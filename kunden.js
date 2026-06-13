@@ -137,4 +137,49 @@ router.get('/:id/einlagerungen', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── FAHRZEUGE (Standort pflegt Fahrzeuge eines Kunden) ──
+const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
+
+router.get('/:id/fahrzeuge', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [req.params.id]);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/:id/fahrzeuge', async (req, res, next) => {
+  try {
+    const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
+    const { rows } = await query(
+      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.put('/:id/fahrzeuge/:fid', async (req, res, next) => {
+  try {
+    const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
+    const { rows } = await query(
+      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, hu_datum=$6, notiz=$7, geaendert_am=NOW()
+       WHERE id=$8 AND kunden_id=$9 RETURNING *`,
+      [t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null, req.params.fid, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/fahrzeuge/:fid', async (req, res, next) => {
+  try {
+    const { rows } = await query('DELETE FROM fahrzeuge WHERE id=$1 AND kunden_id=$2 RETURNING id', [req.params.fid, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
+    res.json({ message: 'Gelöscht.' });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

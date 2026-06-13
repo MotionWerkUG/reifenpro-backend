@@ -361,7 +361,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <div class="g2" style="margin-bottom:14px">
           <div class="pnl"><div class="ptitle">Stammdaten</div><div id="kd-stamm"></div></div>
           <div class="pnl">
-            <div class="ptitle">Fahrzeug</div><div id="kd-fz"></div>
+            <div class="ptitle">Fahrzeuge</div><div id="kd-fz"></div>
             <div style="margin-top:14px"><div class="ptitle">Datenschutz-Status</div><div id="kd-dsgvo-status"></div></div>
           </div>
         </div>
@@ -902,6 +902,24 @@ tr:hover td { background: rgba(255,255,255,.02); }
     </div>
     <input type="hidden" id="na-edit-id">
     <div class="mfoot"><button class="btn btn-g" onclick="closeModal('na')">Abbrechen</button><button class="btn btn-p" onclick="saveNA()">Speichern</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-fz">
+  <div class="modal" style="max-width:520px">
+    <button class="mx" onclick="closeModal('fz')">x</button>
+    <div class="mtitle" id="fz-titel">Fahrzeug</div>
+    <div class="fgrid">
+      <div class="fg"><label>Fahrzeugtyp</label><select id="fz-a-typ"><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
+      <div class="fg"><label>Kennzeichen</label><input id="fz-a-kennzeichen"></div>
+      <div class="fg"><label>Marke</label><input id="fz-a-marke"></div>
+      <div class="fg"><label>Modell</label><input id="fz-a-modell"></div>
+      <div class="fg"><label>Baujahr</label><input id="fz-a-baujahr" type="number" min="1950" max="2099"></div>
+      <div class="fg"><label>HU fällig (Monat)</label><input id="fz-a-hu" type="month"></div>
+      <div class="fg full"><label>Notiz</label><input id="fz-a-notiz"></div>
+    </div>
+    <input type="hidden" id="fz-a-id">
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('fz')">Abbrechen</button><button class="btn btn-p" onclick="fzAdminSave()">Speichern</button></div>
   </div>
 </div>
 
@@ -1874,20 +1892,8 @@ function zeigeK(id) {
     iz('E-Mail', aktK.email) +
     iz('Adresse', [aktK.strasse, (aktK.plz || '') + ' ' + (aktK.ort || '')].filter(Boolean).join(', ')) +
     '</div><div style="margin-top:12px"><button class="btn btn-g btn-sm" onclick="openModal(\'ne\')">+ Einlagern</button></div>';
-  // Fahrzeug
-  var huTxt = aktK.hu_datum ? new Date(aktK.hu_datum).toLocaleDateString('de-DE', { month: '2-digit', year: 'numeric' }) : '-';
-  var huDiff = aktK.hu_datum ? Math.round((new Date(aktK.hu_datum) - new Date()) / 86400000) : null;
-  document.getElementById('kd-fz').innerHTML =
-    '<div class="g2">' +
-    iz('Kennzeichen', aktK.kennzeichen, true) +
-    iz('Marke', aktK.fahrzeug_marke) +
-    iz('Modell', aktK.fahrzeug_modell) +
-    iz('Fahrzeugtyp', aktK.fahrzeug_typ || 'PKW') +
-    '</div>' +
-    '<div style="padding:5px 0;border-bottom:1px solid var(--border)">' +
-    '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">HU fällig</div>' +
-    '<div style="font-size:13px;font-weight:600;' + (huDiff !== null && huDiff < 60 ? 'color:var(--accent)' : '') + '">' +
-    huTxt + (huDiff !== null && huDiff < 60 ? ' (' + huDiff + ' Tage!)' : '') + '</div></div>';
+  // Fahrzeuge (mehrere pro Kunde)
+  ladeFahrzeugeAdmin(id);
   // Datenschutz Status
   document.getElementById('kd-dsgvo-status').innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-top:8px">' +
@@ -1956,6 +1962,60 @@ function portalFreigeben(kid) {
   api('POST', '/termine/portal-freigabe/' + kid)
     .then(function() { notify('Portal freigeschaltet! Willkommens-E-Mail gesendet.'); loadK(); })
     .catch(function(e) { notify(e.message, 'err'); });
+}
+function ladeFahrzeugeAdmin(kid) {
+  api('GET', '/kunden/' + kid + '/fahrzeuge').then(function(rows) {
+    var el = document.getElementById('kd-fz'); if (!el) return;
+    rows = rows || [];
+    var liste = rows.length ? rows.map(function(f) {
+      var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
+      var huTxt = f.hu_datum ? new Date(f.hu_datum + 'T12:00:00').toLocaleDateString('de-DE', { month: '2-digit', year: 'numeric' }) : '';
+      var meta = [f.typ, f.kennzeichen, f.baujahr].filter(Boolean).join(' · ') + (huTxt ? ' · HU ' + huTxt : '');
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">' +
+        '<div><div style="font-weight:600;font-size:13px">' + titel + '</div><div style="font-size:11px;color:var(--muted)">' + meta + '</div></div>' +
+        '<div style="display:flex;gap:5px">' +
+          '<button class="btn btn-g btn-sm" onclick="fzAdminEdit(\'' + f.id + '\')">Bearb.</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="fzAdminDelete(\'' + f.id + '\')">X</button>' +
+        '</div></div>';
+    }).join('') : '<div style="color:var(--muted);font-size:13px">Keine Fahrzeuge.</div>';
+    el.innerHTML = liste + '<div style="margin-top:10px"><button class="btn btn-g btn-sm" onclick="fzAdminNeu()">+ Fahrzeug</button></div>';
+  }).catch(function() {});
+}
+function fzAdminNeu() {
+  if (!aktK) return;
+  document.getElementById('fz-a-id').value = '';
+  document.getElementById('fz-titel').textContent = 'Neues Fahrzeug';
+  document.getElementById('fz-a-typ').value = 'PKW';
+  ['fz-a-kennzeichen', 'fz-a-marke', 'fz-a-modell', 'fz-a-baujahr', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
+  openModal('fz');
+}
+function fzAdminEdit(fid) {
+  if (!aktK) return;
+  api('GET', '/kunden/' + aktK.id + '/fahrzeuge').then(function(rows) {
+    var f = (rows || []).find(function(x) { return x.id === fid; }); if (!f) return;
+    document.getElementById('fz-a-id').value = f.id;
+    document.getElementById('fz-titel').textContent = 'Fahrzeug bearbeiten';
+    document.getElementById('fz-a-typ').value = f.typ || 'PKW';
+    document.getElementById('fz-a-kennzeichen').value = f.kennzeichen || '';
+    document.getElementById('fz-a-marke').value = f.marke || '';
+    document.getElementById('fz-a-modell').value = f.modell || '';
+    document.getElementById('fz-a-baujahr').value = f.baujahr || '';
+    document.getElementById('fz-a-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
+    document.getElementById('fz-a-notiz').value = f.notiz || '';
+    openModal('fz');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzAdminSave() {
+  if (!aktK) return;
+  var hu = gv('fz-a-hu');
+  var data = { typ: gv('fz-a-typ'), kennzeichen: gv('fz-a-kennzeichen'), marke: gv('fz-a-marke'), modell: gv('fz-a-modell'), baujahr: gv('fz-a-baujahr') ? parseInt(gv('fz-a-baujahr')) : null, hu_datum: hu ? hu + '-01' : null, notiz: gv('fz-a-notiz') };
+  var fid = gv('fz-a-id');
+  var p = fid ? api('PUT', '/kunden/' + aktK.id + '/fahrzeuge/' + fid, data) : api('POST', '/kunden/' + aktK.id + '/fahrzeuge', data);
+  p.then(function() { notify('Fahrzeug gespeichert!'); closeModal('fz'); ladeFahrzeugeAdmin(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzAdminDelete(fid) {
+  if (!aktK || !confirm('Fahrzeug löschen?')) return;
+  api('DELETE', '/kunden/' + aktK.id + '/fahrzeuge/' + fid).then(function() { notify('Gelöscht.'); ladeFahrzeugeAdmin(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });
 }
 function ladeDocs(kid) {
   api('GET', '/kunden/' + kid + '/dokumente').then(function(docs) {
