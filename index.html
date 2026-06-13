@@ -499,9 +499,13 @@ tr:hover td { background: rgba(255,255,255,.02); }
             </select>
           </div>
           <div class="fg"><label>Handelsreg.-Nr.</label><input id="s-hrnr" placeholder="HRB 12345"></div>
-          <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht Muenchen"></div>
+          <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
           <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
           <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
+          <div class="fg"><label>Bank</label><input id="s-bank" placeholder="Sparkasse ..."></div>
+          <div class="fg"><label>IBAN</label><input id="s-iban" placeholder="DE00 0000 0000 0000 0000 00"></div>
+          <div class="fg"><label>BIC</label><input id="s-bic" placeholder="XXXXDE00XXX"></div>
+          <div class="fg"><label>Zahlungsziel (Tage)</label><input id="s-zzt" type="number" min="0" placeholder="14"></div>
           <div class="fg"><label>Portal-URL</label><input id="s-purl" placeholder="https://..."></div>
           <div class="fg full"><label>Logo (JPG/PNG)</label>
             <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
@@ -1323,6 +1327,8 @@ function fillEinst() {
   fv('s-rf', EINST.rechtsform); fv('s-hrnr', EINST.handelsreg_nr);
   fv('s-hrgericht', EINST.registergericht); fv('s-dsb', EINST.datenschutz_beauftragter);
   fv('s-vers', EINST.versicherung_name); fv('s-purl', EINST.portal_url);
+  fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
+  fv('s-zzt', EINST.zahlungsziel_tage || 14);
   // Oeffnungszeiten
   if (EINST.mo_fr_von) fv('s-mfv', String(EINST.mo_fr_von).substring(0, 5));
   if (EINST.mo_fr_bis) fv('s-mfb', String(EINST.mo_fr_bis).substring(0, 5));
@@ -1360,6 +1366,8 @@ function saveEinst() {
     ust_id: gv('s-ustid'), rechtsform: gv('s-rf'), handelsreg_nr: gv('s-hrnr'),
     registergericht: gv('s-hrgericht'), datenschutz_beauftragter: gv('s-dsb'),
     versicherung_name: gv('s-vers'), portal_url: gv('s-purl'),
+    bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
+    zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
     logo_url: EINST.logo_url || null,
     mo_fr_von: gv('s-mfv') || null, mo_fr_bis: gv('s-mfb') || null,
     sa_von: gv('s-sav') || null, sa_bis: gv('s-sab') || null,
@@ -2808,10 +2816,10 @@ function genDsgvo() {
     '<div class="sek">2. Rechtsgrundlage</div>' +
     '<div class="para">Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfullung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung). Fuer Marketing-E-Mails und Saison-Erinnerungen auf Grundlage von Art. 6 Abs. 1 lit. a DSGVO (Einwilligung).</div>' +
     '<div class="sek">3. Speicherdauer</div>' +
-    '<div class="para">Vertragsdaten werden fuer die Dauer der Geschäftsbeziehung sowie daruber hinaus fuer die gesetzlich vorgeschriebene Aufbewahrungsfrist von 10 Jahren aufbewahrt. Danach werden die Daten gelöscht oder anonymisiert.</div>' +
-    '<div class="sek">4. Ihre Rechte</div>' +
-    '<div class="para">Sie haben jederzeit das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Beschwerden koennen Sie bei der zustaendigen Aufsichtsbehorde einreichen. Bayerisches Landesamt fuer Datenschutzaufsicht (BayLDA), Promenade 27, 91522 Ansbach.</div>' +
-    '<div class="sek">5. Einwilligung</div>' +
+    '<div class="para">Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Buchungsbelege und Rechnungen 8 Jahre, Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 147 AO, § 257 HGB). Nach Ablauf dieser Fristen werden die Daten gelöscht oder anonymisiert, sofern keine weitere Rechtsgrundlage besteht.</div>' +
+    '<div class="sek">4. Auftragsverarbeiter</div>' + '<div class="para">Zur Erbringung unserer Leistungen setzen wir sorgfältig ausgewählte Dienstleister ein, mit denen Vereinbarungen zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Hosting des Servers (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe Ihrer Daten an Dritte zu anderen Zwecken erfolgt nicht.</div>' + '<div class="sek">5. Ihre Rechte</div>' +
+    '<div class="para">Sie haben jederzeit das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen. Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach, Telefon 0981 53 1300, poststelle@lda.bayern.de.</div>' +
+    '<div class="sek">6. Einwilligung</div>' +
     '<div class="para">Mit Ihrer Unterschrift bestaetigen Sie, dass Sie diese Datenschutzerklärung erhalten und verstanden haben und einer Verarbeitung Ihrer personenbezogenen Daten zum Zweck der Vertragsdurchfuehrung zustimmen. Ihre Einwilligung ist freiwillig und kann jederzeit widerrufen werden.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift des Kunden</div><div class="sig-line">' + k.vorname + ' ' + k.nachname + ', ' + datum + '</div></div>' +
@@ -2855,9 +2863,9 @@ function genVertrag() {
     '<div class="iz"><div class="iz-l">Lagerungsort</div><div class="iz-v">' + (f.lagerungsort || adresse) + '</div></div>' +
     '</div>' +
     '<div class="para-t">1. Leistungsgegenstand</div>' +
-    '<div class="para">Der Auftragnehmer uebernimmt die Einlagerung und Aufbewahrung der oben bezeichneten Reifen/Komplettrader fuer den vereinbarten Zeitraum.</div>' +
+    '<div class="para">Der Auftragnehmer übernimmt die Einlagerung und Aufbewahrung der oben bezeichneten Reifen/Kompletträder für den vereinbarten Zeitraum.</div>' +
     '<div class="para-t">2. Sorgfaltspflicht / Haftung</div>' +
-    '<div class="para">Der Auftragnehmer uebernimmt die übliche Sorgfaltspflicht bei der Lagerung. Eine Haftung fuer Schaden durch Material-, Alters- oder Wettereinflusse ist ausgeschlossen. Die Lagerung erfolgt trocken und geschutzt. Versicherungsschutz: ' + (f.versicherung_name || 'Laut Police des Auftragnehmers') + '.</div>' +
+    '<div class="para">Der Auftragnehmer übernimmt die übliche Sorgfaltspflicht bei der Lagerung. Eine Haftung für Schäden durch Material-, Alters- oder Wettereinflüsse ist ausgeschlossen. Die Lagerung erfolgt trocken und geschützt. Versicherungsschutz: ' + (f.versicherung_name || 'Laut Police des Auftragnehmers') + '.</div>' +
     '<div class="para-t">3. Abholung</div>' +
     '<div class="para">Der Auftraggeber verpflichtet sich, die Reifen spätestens ' + (f.abholungsfrist_wochen || 4) + ' Wochen nach Vertragsende abzuholen. Bei Nicht-Abholung ist der Auftragnehmer berechtigt, die Reifen zu entsorgen.</div>' +
     '<div class="para-t">4. Reifencheck</div>' +
@@ -2877,7 +2885,7 @@ function genSchein(e, typ) {
   var istEin = typ === 'ein';
   var titel = istEin ? 'Einlagerungsschein' : 'Auslagerungsschein';
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
-  if (!e) return '<div class="dok">' + dokStyle() + '<div class="hdr"><div class="firmenname">' + (f.firmenname||'') + '</div></div><div class="dok-titel">' + titel + '</div><div style="padding:20px;color:red">Keine Einlagerung ausgewaehlt.</div></div>';
+  if (!e) return '<div class="dok">' + dokStyle() + '<div class="hdr"><div class="firmenname">' + (f.firmenname||'') + '</div></div><div class="dok-titel">' + titel + '</div><div style="padding:20px;color:red">Keine Einlagerung ausgewählt.</div></div>';
   return '<div class="dok">' + dokStyle() +
     '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || '') + '</div>' +
     '<div class="hdr-sub">' + adresse + ' | Tel: ' + (f.telefon || '') + '</div></div>' +
@@ -2895,7 +2903,7 @@ function genSchein(e, typ) {
     '<div class="g3">' +
     '<div class="iz"><div class="iz-l">Größe</div><div class="iz-v">' + (e.reifen_groesse || '-') + '</div></div>' +
     '<div class="iz"><div class="iz-l">Typ</div><div class="iz-v">' + (e.reifen_typ || '-') + '</div></div>' +
-    '<div class="iz"><div class="iz-l">Anzahl</div><div class="iz-v">' + (e.anzahl || 4) + ' Stueck</div></div>' +
+    '<div class="iz"><div class="iz-l">Anzahl</div><div class="iz-v">' + (e.anzahl || 4) + ' Stück</div></div>' +
     '<div class="iz"><div class="iz-l">Hersteller</div><div class="iz-v">' + (e.reifen_marke || '-') + '</div></div>' +
     '<div class="iz"><div class="iz-l">Modell</div><div class="iz-v">' + (e.reifen_modell || '-') + '</div></div>' +
     '<div class="iz"><div class="iz-l">DOT</div><div class="iz-v">' + (e.dot || '-') + '</div></div>' +

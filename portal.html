@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Kundenportal — Schröder & Scholz</title>
+<style>
+:root {
+  --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2a3441;
+  --border2: #374151; --text: #e6edf3; --muted: #8b949e; --accent: #eab308;
+  --accent2: #f59e0b; --blue: #4a9eff; --green: #3ecf8e; --yellow: #f0c000;
+  --red: #f85149; --ydim: #2a2410;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5; font-size: 15px; }
+input, select, textarea, button { font-family: inherit; font-size: 16px; }
+.hidden { display: none !important; }
+
+/* Login/Register */
+.auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.auth-box { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px 28px; }
+.auth-logo { text-align: center; font-size: 28px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 4px; }
+.auth-logo span { color: var(--accent); }
+.auth-sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.fg { margin-bottom: 14px; }
+.fg label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+.fg input, .fg select, .fg textarea { width: 100%; background: var(--panel2); border: 1px solid var(--border2);
+  border-radius: 9px; color: var(--text); padding: 11px 13px; outline: none; transition: border 0.15s; }
+.fg input:focus, .fg select:focus, .fg textarea:focus { border-color: var(--accent); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: var(--panel2); border: 1px solid var(--border2); border-radius: 9px;
+  color: var(--text); padding: 11px 18px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn:active { transform: scale(0.98); }
+.btn-p { background: var(--accent); border-color: var(--accent); color: #171717; font-weight: 800; width: 100%; padding: 13px; }
+.btn-p:hover { background: var(--accent2); }
+.btn-g { background: var(--panel2); }
+.btn-sm { padding: 7px 12px; font-size: 13px; }
+.auth-switch { text-align: center; margin-top: 18px; font-size: 13px; color: var(--muted); }
+.auth-switch a { color: var(--accent); cursor: pointer; text-decoration: none; font-weight: 600; }
+.auth-err { background: rgba(248,81,73,0.12); border: 1px solid rgba(248,81,73,0.3); color: var(--red);
+  padding: 10px 13px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+.auth-ok { background: rgba(62,207,142,0.12); border: 1px solid rgba(62,207,142,0.3); color: var(--green);
+  padding: 10px 13px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+.check-row { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.check-row input { width: 18px; height: 18px; margin-top: 1px; flex-shrink: 0; accent-color: var(--accent); }
+.check-row a { color: var(--accent); cursor: pointer; }
+
+/* Lang switch */
+.lang-switch { position: fixed; top: 16px; right: 16px; display: flex; gap: 4px; z-index: 100; }
+.lang-btn { background: var(--panel); border: 1px solid var(--border2); border-radius: 7px;
+  color: var(--muted); padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 700; }
+.lang-btn.on { background: var(--accent); border-color: var(--accent); color: #171717; }
+
+/* App */
+.app-header { background: var(--panel); border-bottom: 1px solid var(--border);
+  padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.app-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+.app-logo span { color: var(--accent); }
+.app-nav { display: flex; gap: 6px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+  overflow-x: auto; position: sticky; top: 57px; z-index: 49; }
+.nav-tab { background: transparent; border: 1px solid transparent; border-radius: 9px; color: var(--muted);
+  padding: 9px 15px; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 14px; }
+.nav-tab.on { background: var(--accent); color: #171717; font-weight: 800; }
+.app-main { max-width: 800px; margin: 0 auto; padding: 20px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+.card-titel { font-size: 16px; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.page { display: none; }
+.page.on { display: block; }
+.empty { text-align: center; color: var(--muted); padding: 30px; font-size: 14px; }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.b-g { background: rgba(62,207,142,0.15); color: var(--green); }
+.b-y { background: rgba(240,192,0,0.15); color: var(--yellow); }
+.b-r { background: rgba(248,81,73,0.15); color: var(--red); }
+.b-b { background: rgba(74,158,255,0.15); color: var(--blue); }
+.iz { background: var(--panel2); border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; }
+.iz-l { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.iz-v { font-weight: 600; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lager-tag { font-size: 18px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+.notify { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--panel2); border: 1px solid var(--border2); border-radius: 10px;
+  padding: 13px 20px; font-size: 14px; z-index: 200; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+.notify.err { border-color: var(--red); color: var(--red); }
+.notify.ok { border-color: var(--green); color: var(--green); }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 12px; }
+.slot { background: var(--panel2); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 10px; text-align: center; cursor: pointer; font-weight: 700; font-size: 14px; }
+.slot:hover { border-color: var(--accent); }
+.slot.sel { background: var(--accent); border-color: var(--accent); color: #171717; font-weight: 800; }
+@media (max-width: 600px) { .g2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="lang-switch">
+  <button class="lang-btn on" id="lang-de" onclick="setLang('de')">DE</button>
+  <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+</div>
+
+<!-- LOGIN -->
+<div id="screen-login" class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="login_sub">Kundenportal — Anmeldung</div>
+    <div id="login-err" class="auth-err hidden"></div>
+    <div id="login-ok" class="auth-ok hidden"></div>
+    <div class="fg">
+      <label data-i18n="email">E-Mail</label>
+      <input id="li-email" type="email" autocapitalize="none" autocorrect="off" autocomplete="username" onkeydown="if(event.key==='Enter')portalLogin()">
+    </div>
+    <div class="fg">
+      <label data-i18n="password">Passwort</label>
+      <input id="li-pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')portalLogin()">
+    </div>
+    <button class="btn btn-p" onclick="portalLogin()" data-i18n="login_btn">Anmelden</button>
+    <div style="text-align:center;margin-top:12px">
+      <a onclick="zeigePwReset()" style="color:var(--muted);font-size:12px;cursor:pointer;text-decoration:none" data-i18n="forgot_pw">Passwort vergessen?</a>
+    </div>
+    <div class="auth-switch">
+      <span data-i18n="no_account">Noch kein Konto?</span> <a onclick="zeigeScreen('register')" data-i18n="register_now">Jetzt registrieren</a>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div id="screen-register" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="register_sub">Neues Kundenkonto erstellen</div>
+    <div id="reg-err" class="auth-err hidden"></div>
+    <div id="reg-ok" class="auth-ok hidden"></div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="firstname">Vorname</label><input id="reg-vorname"></div>
+      <div class="fg"><label data-i18n="lastname">Nachname</label><input id="reg-nachname"></div>
+    </div>
+    <div class="fg"><label data-i18n="email">E-Mail</label><input id="reg-email" type="email" autocapitalize="none" autocorrect="off"></div>
+    <div class="fg"><label data-i18n="phone">Telefon (optional)</label><input id="reg-telefon" type="tel"></div>
+    <div class="fg"><label data-i18n="password">Passwort (mind. 8 Zeichen)</label><input id="reg-pass" type="password"></div>
+    <div class="fg"><label data-i18n="password_repeat">Passwort wiederholen</label><input id="reg-pass2" type="password"></div>
+    <label class="check-row">
+      <input type="checkbox" id="reg-dsgvo">
+      <span><span data-i18n="accept_dsgvo">Ich habe die</span> <a onclick="zeigeDsgvo()" data-i18n="dsgvo_link">Datenschutzerklärung</a> <span data-i18n="accept_read">gelesen und akzeptiere sie.</span></span>
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="reg-agb">
+      <span><span data-i18n="accept_agb">Ich akzeptiere die</span> <a onclick="zeigeAgb()" data-i18n="agb_link">AGB</a>.</span>
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="reg-saison">
+      <span data-i18n="accept_saison">Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).</span>
+    </label>
+    <button class="btn btn-p" onclick="portalRegister()" data-i18n="register_btn">Registrieren</button>
+    <div class="auth-switch">
+      <span data-i18n="have_account">Bereits registriert?</span> <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORT RESET -->
+<div id="screen-reset" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="reset_sub">Passwort zurücksetzen</div>
+    <div id="reset-err" class="auth-err hidden"></div>
+    <div id="reset-ok" class="auth-ok hidden"></div>
+    <div class="fg">
+      <label data-i18n="email">E-Mail</label>
+      <input id="reset-email" type="email" autocapitalize="none" autocorrect="off">
+    </div>
+    <button class="btn btn-p" onclick="portalPwReset()" data-i18n="reset_btn">Reset-Link senden</button>
+    <div class="auth-switch">
+      <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
+  </div>
+</div>
+<!-- APP -->
+<div id="screen-app" class="hidden">
+  <div class="app-header">
+    <div class="app-logo" style="display:flex;align-items:center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="200" height="35" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span id="app-username" style="font-size:13px;color:var(--muted)"></span>
+      <button class="btn btn-g btn-sm" onclick="portalLogout()" data-i18n="logout">Abmelden</button>
+    </div>
+  </div>
+  <div class="app-nav">
+    <button class="nav-tab on" data-page="ueberblick" onclick="portalNav('ueberblick')" data-i18n="nav_overview">Überblick</button>
+    <button class="nav-tab" data-page="einlagerungen" onclick="portalNav('einlagerungen')" data-i18n="nav_storage">Einlagerungen</button>
+    <button class="nav-tab" data-page="termine" onclick="portalNav('termine')" data-i18n="nav_appointments">Termine</button>
+    <button class="nav-tab" data-page="buchen" onclick="portalNav('buchen')" data-i18n="nav_book">Termin buchen</button>
+    <button class="nav-tab" data-page="profil" onclick="portalNav('profil')" data-i18n="nav_profile">Profil</button>
+  </div>
+  <div class="app-main">
+    <!-- UEBERBLICK -->
+    <div id="page-ueberblick" class="page on">
+      <div class="card">
+        <div class="card-titel" data-i18n="welcome">Willkommen</div>
+        <div id="ueberblick-inhalt"></div>
+      </div>
+    </div>
+    <!-- EINLAGERUNGEN -->
+    <div id="page-einlagerungen" class="page">
+      <div id="einlagerungen-liste"></div>
+    </div>
+    <!-- TERMINE -->
+    <div id="page-termine" class="page">
+      <div id="termine-liste"></div>
+    </div>
+    <!-- BUCHEN -->
+    <div id="page-buchen" class="page">
+      <div class="card">
+        <div class="card-titel" data-i18n="book_appointment">Termin buchen</div>
+        <div class="fg">
+          <label data-i18n="service">Leistung</label>
+          <select id="buchen-artikel" onchange="buchenSlotsLaden()"></select>
+        </div>
+        <div class="fg">
+          <label data-i18n="date">Datum</label>
+          <input id="buchen-datum" type="date" onchange="buchenSlotsLaden()">
+        </div>
+        <div class="fg">
+          <label data-i18n="license_plate">Kennzeichen (optional)</label>
+          <input id="buchen-kz" placeholder="WOR-AB-1234">
+        </div>
+        <div id="buchen-slots-wrap" class="hidden">
+          <label style="font-size:12px;color:var(--muted);font-weight:600" data-i18n="available_times">Verfügbare Zeiten</label>
+          <div id="buchen-slots" class="slot-grid"></div>
+        </div>
+        <div class="fg" style="margin-top:14px">
+          <label data-i18n="notes">Anmerkung (optional)</label>
+          <textarea id="buchen-notiz" rows="2"></textarea>
+        </div>
+        <button class="btn btn-p" onclick="terminBuchen()" data-i18n="book_btn">Termin buchen</button>
+      </div>
+    </div>
+    <!-- PROFIL -->
+    <div id="page-profil" class="page">
+      <div class="card">
+        <div class="card-titel" data-i18n="my_data">Meine Daten</div>
+        <div id="profil-inhalt"></div>
+      </div>
+      <div class="card">
+        <div class="card-titel" data-i18n="change_password">Passwort ändern</div>
+        <div class="fg"><label data-i18n="new_password">Neues Passwort</label><input id="profil-pw" type="password"></div>
+        <button class="btn btn-g btn-sm" onclick="profilPwAendern()" data-i18n="save">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="notify-el"></div>
+<script>
+'use strict';
+var API = '/reifenpro/api/portal';
+var TOKEN = localStorage.getItem('rp_portal_token');
+var KUNDE = null;
+var LANG = localStorage.getItem('rp_portal_lang') || 'de';
+var artikelListe = [];
+
+// ── ÜBERSETZUNGEN ──
+var I18N = {
+  de: {
+    login_sub: 'Kundenportal — Anmeldung', email: 'E-Mail', password: 'Passwort',
+    login_btn: 'Anmelden', forgot_pw: 'Passwort vergessen?', no_account: 'Noch kein Konto?',
+    register_now: 'Jetzt registrieren', register_sub: 'Neues Kundenkonto erstellen',
+    firstname: 'Vorname', lastname: 'Nachname', phone: 'Telefon (optional)',
+    password_repeat: 'Passwort wiederholen', accept_dsgvo: 'Ich habe die',
+    dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
+    accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
+    accept_saison: 'Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).',
+    register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
+    reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
+    nav_overview: 'Überblick', nav_storage: 'Einlagerungen', nav_appointments: 'Termine',
+    nav_book: 'Termin buchen', nav_profile: 'Profil', welcome: 'Willkommen',
+    book_appointment: 'Termin buchen', service: 'Leistung', date: 'Datum',
+    license_plate: 'Kennzeichen (optional)', available_times: 'Verfügbare Zeiten',
+    notes: 'Anmerkung (optional)', book_btn: 'Termin buchen', my_data: 'Meine Daten',
+    change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
+    password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
+    accept_required: 'Bitte Datenschutz und AGB akzeptieren', reg_success: 'Registrierung erfolgreich. Bitte bestätigen Sie Ihre E-Mail.',
+    login_failed: 'Anmeldung fehlgeschlagen', reset_sent: 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+    no_storage: 'Keine Einlagerungen vorhanden.', no_appointments: 'Keine Termine vorhanden.',
+    storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', status: 'Status',
+    profile_depth: 'Profiltiefe', stored_since: 'Eingelagert seit', notes_damage: 'Bemerkungen/Schäden',
+    cancel: 'Stornieren', cancel_confirm: 'Termin wirklich stornieren?', cancelled: 'Termin storniert',
+    booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
+    pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
+    upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
+    no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...'
+  },
+  en: {
+    login_sub: 'Customer Portal — Sign In', email: 'Email', password: 'Password',
+    login_btn: 'Sign In', forgot_pw: 'Forgot password?', no_account: 'No account yet?',
+    register_now: 'Register now', register_sub: 'Create new customer account',
+    firstname: 'First name', lastname: 'Last name', phone: 'Phone (optional)',
+    password_repeat: 'Repeat password', accept_dsgvo: 'I have read the',
+    dsgvo_link: 'Privacy Policy', accept_read: 'and accept it.',
+    accept_agb: 'I accept the', agb_link: 'Terms',
+    accept_saison: 'I would like to receive seasonal tire change reminders by email (optional, revocable anytime).',
+    register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
+    reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
+    nav_overview: 'Overview', nav_storage: 'Storage', nav_appointments: 'Appointments',
+    nav_book: 'Book appointment', nav_profile: 'Profile', welcome: 'Welcome',
+    book_appointment: 'Book appointment', service: 'Service', date: 'Date',
+    license_plate: 'License plate (optional)', available_times: 'Available times',
+    notes: 'Note (optional)', book_btn: 'Book appointment', my_data: 'My data',
+    change_password: 'Change password', new_password: 'New password', save: 'Save',
+    password_mismatch: 'Passwords do not match',
+    accept_required: 'Please accept privacy policy and terms', reg_success: 'Registration successful. Please confirm your email.',
+    login_failed: 'Login failed', reset_sent: 'If the email exists, a link has been sent.',
+    no_storage: 'No storage items.', no_appointments: 'No appointments.',
+    storage_place: 'Storage location', tire: 'Tire', season: 'Season', status: 'Status',
+    profile_depth: 'Tread depth', stored_since: 'Stored since', notes_damage: 'Notes/Damage',
+    cancel: 'Cancel', cancel_confirm: 'Really cancel appointment?', cancelled: 'Appointment cancelled',
+    booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
+    pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
+    upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
+    no_slots: 'No available times on this day.', loading: 'Loading...'
+  }
+};
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) || (I18N.de[key]) || key; }
+
+function setLang(l) {
+  LANG = l;
+  localStorage.setItem('rp_portal_lang', l);
+  document.getElementById('lang-de').classList.toggle('on', l === 'de');
+  document.getElementById('lang-en').classList.toggle('on', l === 'en');
+  document.documentElement.lang = l;
+  applyI18n();
+}
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    var txt = t(key);
+    if (txt) el.textContent = txt;
+  });
+  // Aktive Seite neu rendern
+  if (KUNDE) {
+    var active = document.querySelector('.page.on');
+    if (active) portalNav(active.id.replace('page-', ''));
+  }
+}
+// ── API HELPER ──
+function papi(method, path, body) {
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API + path, opts).then(function(r) {
+    if (r.status === 401) { portalLogout(); throw new Error(t('login_failed')); }
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Fehler'); });
+    return r.status === 204 ? null : r.json();
+  });
+}
+
+function notify(msg, typ) {
+  var el = document.getElementById('notify-el');
+  el.innerHTML = '<div class="notify ' + (typ || 'ok') + '">' + msg + '</div>';
+  setTimeout(function() { el.innerHTML = ''; }, 3500);
+}
+
+function zeigeScreen(s) {
+  ['login', 'register', 'reset', 'app'].forEach(function(x) {
+    document.getElementById('screen-' + x).classList.add('hidden');
+  });
+  document.getElementById('screen-' + s).classList.remove('hidden');
+}
+
+// ── AUTH ──
+function portalLogin() {
+  var email = document.getElementById('li-email').value.trim();
+  var pass = document.getElementById('li-pass').value;
+  var errEl = document.getElementById('login-err');
+  errEl.classList.add('hidden');
+  if (!email || !pass) { errEl.textContent = t('login_failed'); errEl.classList.remove('hidden'); return; }
+  papi('POST', '/auth/login', { email: email, passwort: pass }).then(function(r) {
+    TOKEN = r.token;
+    localStorage.setItem('rp_portal_token', TOKEN);
+    KUNDE = r.kunde;
+    startPortal();
+  }).catch(function(e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  });
+}
+
+function portalRegister() {
+  var errEl = document.getElementById('reg-err');
+  var okEl = document.getElementById('reg-ok');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  var vorname = document.getElementById('reg-vorname').value.trim();
+  var nachname = document.getElementById('reg-nachname').value.trim();
+  var email = document.getElementById('reg-email').value.trim();
+  var telefon = document.getElementById('reg-telefon').value.trim();
+  var pass = document.getElementById('reg-pass').value;
+  var pass2 = document.getElementById('reg-pass2').value;
+  var dsgvo = document.getElementById('reg-dsgvo').checked;
+  var agb = document.getElementById('reg-agb').checked;
+  var saison = document.getElementById('reg-saison').checked;
+
+  if (!vorname || !nachname || !email || !pass) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+  if (pass.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
+  if (pass !== pass2) { errEl.textContent = t('password_mismatch'); errEl.classList.remove('hidden'); return; }
+  if (!dsgvo || !agb) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+
+  papi('POST', '/auth/registrieren', {
+    vorname: vorname, nachname: nachname, email: email, telefon: telefon,
+    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison
+  }).then(function() {
+    okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
+    setTimeout(function() { zeigeScreen('login'); }, 3000);
+  }).catch(function(e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  });
+}
+
+function portalPwReset() {
+  var email = document.getElementById('reset-email').value.trim();
+  var okEl = document.getElementById('reset-ok');
+  var errEl = document.getElementById('reset-err');
+  errEl.classList.add('hidden');
+  papi('POST', '/auth/passwort-vergessen', { email: email }).then(function() {
+    okEl.textContent = t('reset_sent'); okEl.classList.remove('hidden');
+  }).catch(function(e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  });
+}
+
+function zeigePwReset() { zeigeScreen('reset'); }
+
+function portalLogout() {
+  TOKEN = null; KUNDE = null;
+  localStorage.removeItem('rp_portal_token');
+  zeigeScreen('login');
+}
+
+function startPortal() {
+  zeigeScreen('app');
+  document.getElementById('app-username').textContent = KUNDE ? (KUNDE.vorname + ' ' + KUNDE.nachname) : '';
+  ladeArtikel();
+  portalNav('ueberblick');
+}
+
+// ── NAVIGATION ──
+function portalNav(page) {
+  document.querySelectorAll('.nav-tab').forEach(function(t) {
+    t.classList.toggle('on', t.getAttribute('data-page') === page);
+  });
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('on'); });
+  document.getElementById('page-' + page).classList.add('on');
+  if (page === 'ueberblick') ladeUeberblick();
+  else if (page === 'einlagerungen') ladeEinlagerungen();
+  else if (page === 'termine') ladeTermine();
+  else if (page === 'buchen') initBuchen();
+  else if (page === 'profil') ladeProfil();
+}
+// ── DATEN LADEN ──
+function saisonText(s) {
+  if (!s) return '';
+  var sl = s.toLowerCase();
+  if (sl.indexOf('winter') !== -1) return t('winter');
+  if (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1) return t('sommer');
+  if (sl.indexOf('ganz') !== -1 || sl.indexOf('all') !== -1) return t('ganzjahres');
+  return s;
+}
+
+function fmtDatum(d) {
+  if (!d) return '-';
+  var dt = new Date(d.substring(0,10) + 'T12:00:00');
+  return dt.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function ladeUeberblick() {
+  var el = document.getElementById('ueberblick-inhalt');
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  Promise.all([
+    papi('GET', '/daten/einlagerungen').catch(function() { return []; }),
+    papi('GET', '/daten/termine').catch(function() { return []; })
+  ]).then(function(res) {
+    var einl = (res[0] || []).filter(function(e) { return e.status === 'Eingelagert'; });
+    var termine = (res[1] || []).filter(function(tm) {
+      return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= new Date().toISOString().substring(0,10);
+    });
+    var html = '';
+    html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + KUNDE.vorname + '</strong></div>';
+    html += '<div class="g2">';
+    html += '<div class="iz"><div class="iz-l">' + t('active_storage') + '</div><div class="iz-v" style="font-size:24px;color:var(--accent)">' + einl.length + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('upcoming') + '</div><div class="iz-v" style="font-size:24px;color:var(--blue)">' + termine.length + '</div></div>';
+    html += '</div>';
+    html += '<button class="btn btn-p" style="margin-top:16px" onclick="portalNav(\'buchen\')">' + t('book_now') + '</button>';
+    el.innerHTML = html;
+  });
+}
+
+function ladeEinlagerungen() {
+  var el = document.getElementById('einlagerungen-liste');
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  papi('GET', '/daten/einlagerungen').then(function(rows) {
+    if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_storage') + '</div></div>'; return; }
+    el.innerHTML = rows.map(function(e) {
+      var html = '<div class="card">';
+      html += '<div class="card-titel">';
+      html += '<span class="lager-tag">' + (e.lagerplatz || '-') + '</span>';
+      html += '<span class="badge ' + (e.status === 'Eingelagert' ? 'b-g' : 'b-y') + '">' + (e.status || '') + '</span>';
+      html += '</div>';
+      html += '<div class="g2">';
+      if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + e.kennzeichen + '</div></div>';
+      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).join(' ');
+      if (reifen) html += '<div class="iz"><div class="iz-l">' + t('tire') + '</div><div class="iz-v">' + reifen + '</div></div>';
+      if (e.saison) html += '<div class="iz"><div class="iz-l">' + t('season') + '</div><div class="iz-v">' + saisonText(e.saison) + '</div></div>';
+      if (e.eingelagert_am) html += '<div class="iz"><div class="iz-l">' + t('stored_since') + '</div><div class="iz-v">' + fmtDatum(e.eingelagert_am) + '</div></div>';
+      // Profiltiefen
+      var pt = [];
+      if (e.profil_vl) pt.push('VL ' + e.profil_vl);
+      if (e.profil_vr) pt.push('VR ' + e.profil_vr);
+      if (e.profil_hl) pt.push('HL ' + e.profil_hl);
+      if (e.profil_hr) pt.push('HR ' + e.profil_hr);
+      if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pt.join(', ') + ' mm</div></div>';
+      html += '</div>';
+      if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + e.bemerkungen + '</div></div>';
+      html += '</div>';
+      return html;
+    }).join('');
+  }).catch(function(e) {
+    el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
+  });
+}
+
+function ladeTermine() {
+  var el = document.getElementById('termine-liste');
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  papi('GET', '/daten/termine').then(function(rows) {
+    if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>'; return; }
+    var heute = new Date().toISOString().substring(0,10);
+    el.innerHTML = rows.sort(function(a,b) {
+      return (b.datum||'').localeCompare(a.datum||'');
+    }).map(function(tm) {
+      var vergangen = tm.datum && tm.datum.substring(0,10) < heute;
+      var storniert = tm.status === 'storniert';
+      var html = '<div class="card" style="' + (vergangen || storniert ? 'opacity:0.6' : '') + '">';
+      html += '<div class="card-titel">';
+      html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
+      var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
+      html += '<span class="badge ' + badge + '">' + (tm.status || '') + '</span>';
+      html += '</div>';
+      html += '<div class="iz"><div class="iz-v">' + (tm.artikel_name || tm.termin_typ || '') + '</div></div>';
+      if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + tm.kennzeichen + '</div>';
+      if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + tm.beschreibung + '</div>';
+      // Stornieren wenn zukünftig und nicht storniert
+      if (!vergangen && !storniert) {
+        html += '<button class="btn btn-g btn-sm" style="margin-top:12px;color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>';
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+  }).catch(function(e) {
+    el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
+  });
+}
+
+function terminStornieren(id) {
+  if (!confirm(t('cancel_confirm'))) return;
+  papi('DELETE', '/daten/termine/' + id).then(function() {
+    notify(t('cancelled'), 'ok');
+    ladeTermine();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+// ── BUCHEN ──
+function ladeArtikel() {
+  papi('GET', '/daten/artikel').then(function(rows) {
+    artikelListe = rows || [];
+    var sel = document.getElementById('buchen-artikel');
+    sel.innerHTML = artikelListe.map(function(a) {
+      return '<option value="' + a.id + '">' + a.name + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
+    }).join('');
+  }).catch(function() {});
+}
+
+function initBuchen() {
+  // Datum auf heute setzen (min = heute)
+  var d = document.getElementById('buchen-datum');
+  var heute = new Date().toISOString().substring(0,10);
+  d.min = heute;
+  if (!d.value) d.value = heute;
+  // KZ vorausfüllen wenn Kunde eines hat
+  var kzEl = document.getElementById('buchen-kz');
+  if (KUNDE && KUNDE.kennzeichen && !kzEl.value) kzEl.value = KUNDE.kennzeichen;
+}
+
+var selectedSlot = null;
+function buchenSlotsLaden() {
+  var artikelId = document.getElementById('buchen-artikel').value;
+  var datum = document.getElementById('buchen-datum').value;
+  var wrap = document.getElementById('buchen-slots-wrap');
+  var slotsEl = document.getElementById('buchen-slots');
+  selectedSlot = null;
+  if (!artikelId || !datum) { wrap.classList.add('hidden'); return; }
+  slotsEl.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  wrap.classList.remove('hidden');
+  papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + artikelId).then(function(r) {
+    var slots = (r && r.slots) || r || [];
+    if (!slots.length) { slotsEl.innerHTML = '<div class="empty">' + t('no_slots') + '</div>'; return; }
+    slotsEl.innerHTML = slots.map(function(s) {
+      var zeit = typeof s === 'string' ? s : s.uhrzeit || s.zeit;
+      return '<div class="slot" data-zeit="' + zeit + '" onclick="slotWaehlen(this)">' + zeit.substring(0,5) + '</div>';
+    }).join('');
+  }).catch(function(e) {
+    slotsEl.innerHTML = '<div class="empty">' + e.message + '</div>';
+  });
+}
+
+function slotWaehlen(el) {
+  document.querySelectorAll('.slot').forEach(function(s) { s.classList.remove('sel'); });
+  el.classList.add('sel');
+  selectedSlot = el.getAttribute('data-zeit');
+}
+
+function terminBuchen() {
+  var artikelId = document.getElementById('buchen-artikel').value;
+  var datum = document.getElementById('buchen-datum').value;
+  var kz = document.getElementById('buchen-kz').value.trim();
+  var notiz = document.getElementById('buchen-notiz').value.trim();
+  if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
+  papi('POST', '/daten/termine', {
+    datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
+    kennzeichen: kz || null, beschreibung: notiz || null
+  }).then(function() {
+    notify(t('booked'), 'ok');
+    document.getElementById('buchen-notiz').value = '';
+    selectedSlot = null;
+    portalNav('termine');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── PROFIL ──
+function ladeProfil() {
+  papi('GET', '/auth/me').then(function(k) {
+    KUNDE = k;
+    var el = document.getElementById('profil-inhalt');
+    var html = '<div class="g2">';
+    html += '<div class="iz"><div class="iz-l">' + t('firstname') + '</div><div class="iz-v">' + (k.vorname || '') + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('lastname') + '</div><div class="iz-v">' + (k.nachname || '') + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('email') + '</div><div class="iz-v">' + (k.portal_email || k.email || '') + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('phone') + '</div><div class="iz-v">' + (k.telefon || '-') + '</div></div>';
+    if (k.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + k.kennzeichen + '</div></div>';
+    if (k.kunden_nr) html += '<div class="iz"><div class="iz-l">Kunden-Nr.</div><div class="iz-v">' + k.kunden_nr + '</div></div>';
+    html += '</div>';
+    el.innerHTML = html;
+  }).catch(function() {});
+}
+
+function profilPwAendern() {
+  var pw = document.getElementById('profil-pw').value;
+  if (pw.length < 8) { notify(t('pw_min'), 'err'); return; }
+  papi('PUT', '/auth/profil', { passwort: pw }).then(function() {
+    notify(t('pw_changed'), 'ok');
+    document.getElementById('profil-pw').value = '';
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── DSGVO / AGB Anzeige ──
+function zeigeDsgvo() {
+  window.open('/reifenpro/portal/datenschutz.html', '_blank');
+}
+function zeigeAgb() {
+  window.open('/reifenpro/portal/agb.html', '_blank');
+}
+
+// ── BESTÄTIGUNG / RESET aus URL ──
+function checkUrlParams() {
+  var params = new URLSearchParams(window.location.search);
+  var bestaetigen = params.get('bestaetigen');
+  var reset = params.get('reset');
+  if (bestaetigen) {
+    papi('GET', '/auth/bestaetigen/' + bestaetigen).then(function() {
+      var okEl = document.getElementById('login-ok');
+      okEl.textContent = LANG === 'en' ? 'Email confirmed. We will activate your account shortly.' : 'E-Mail bestätigt. Wir schalten Ihr Konto in Kürze frei.';
+      okEl.classList.remove('hidden');
+    }).catch(function(e) {
+      var errEl = document.getElementById('login-err');
+      errEl.textContent = e.message; errEl.classList.remove('hidden');
+    });
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  if (reset) {
+    // Reset-Formular zeigen (vereinfacht: Passwort neu setzen)
+    var np = prompt(LANG === 'en' ? 'Enter new password (min. 8 chars):' : 'Neues Passwort eingeben (mind. 8 Zeichen):');
+    if (np && np.length >= 8) {
+      papi('POST', '/auth/passwort-reset', { token: reset, passwort: np }).then(function() {
+        notify(t('pw_changed'), 'ok');
+      }).catch(function(e) { notify(e.message, 'err'); });
+    }
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+// ── INIT ──
+function initPortal() {
+  setLang(LANG);
+  checkUrlParams();
+  if (TOKEN) {
+    papi('GET', '/auth/me').then(function(k) {
+      KUNDE = k;
+      startPortal();
+    }).catch(function() {
+      portalLogout();
+    });
+  } else {
+    zeigeScreen('login');
+  }
+}
+initPortal();
+</script>
+</body>
+</html>

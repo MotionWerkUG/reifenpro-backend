@@ -11,7 +11,7 @@ router.get('/', authenticate, async (req, res, next) => {
     let sql = `SELECT t.*, 
       k.vorname || ' ' || k.nachname as kundenname,
       k.kennzeichen, k.telefon,
-      a.name as artikel_name, a.dauer_minuten, a.farbe
+      a.name as artikel_name, a.dauer_minuten
       FROM termine t
       LEFT JOIN kunden k ON k.id = t.kunden_id
       LEFT JOIN artikel a ON a.id = t.artikel_id

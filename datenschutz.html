@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Datenschutzerklärung — Schröder & Scholz</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; font-size:15px; }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 22px 60px; }
+  .logo { display:flex; align-items:center; margin-bottom:8px; }
+  h1 { font-size:24px; margin:24px 0 6px; font-weight:800; }
+  h2 { font-size:17px; margin:26px 0 8px; font-weight:700; color:var(--accent); }
+  p { margin-bottom:12px; color:#c9d1d9; }
+  .meta { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .box { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+  a { color:var(--accent); }
+  .lang-toggle { position:fixed; top:14px; right:14px; display:flex; gap:4px; }
+  .lang-toggle button { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--muted); padding:5px 11px; cursor:pointer; font-weight:700; font-size:12px; }
+  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent); }
+  .back { display:inline-block; margin-top:24px; color:var(--accent); text-decoration:none; font-weight:600; }
+  ul { margin:0 0 12px 20px; color:#c9d1d9; }
+  li { margin-bottom:5px; }
+</style>
+</head>
+<body>
+<div class="lang-toggle">
+  <button id="dl-de" class="on" onclick="setDsLang('de')">DE</button>
+  <button id="dl-en" onclick="setDsLang('en')">EN</button>
+</div>
+<div class="wrap">
+  <div class="logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+  </div>
+  <div id="ds-content"></div>
+  <a href="/reifenpro/portal/" class="back">← Zurück zum Portal</a>
+</div>
+
+<script>
+var API = '/reifenpro/api/portal';
+var FIRMA = {};
+var DSLANG = 'de';
+
+function setDsLang(l) {
+  DSLANG = l;
+  document.getElementById('dl-de').classList.toggle('on', l==='de');
+  document.getElementById('dl-en').classList.toggle('on', l==='en');
+  document.documentElement.lang = l;
+  render();
+}
+
+function lade() {
+  fetch(API + '/daten/firmendaten').then(function(r){return r.json();}).then(function(f){
+    FIRMA = f || {};
+    render();
+  }).catch(function(){ render(); });
+}
+
+function render() {
+  var f = FIRMA;
+  var adresse = [f.strasse, (f.plz||'') + ' ' + (f.ort||'')].filter(function(x){return x && x.trim();}).join(', ');
+  var firma = f.firmenname || 'Schröder & Scholz';
+  var rechtsform = f.rechtsform || '';
+  var inhaber = f.inhaber || '';
+  var tel = f.telefon || '';
+  var mail = f.email || '';
+  var ustId = f.ust_id || '';
+  var dsb = f.datenschutz_beauftragter || '';
+
+  if (DSLANG === 'de') {
+    document.getElementById('ds-content').innerHTML =
+      '<h1>Datenschutzerklärung</h1>' +
+      '<div class="meta">Gemäß Art. 13, 14 DSGVO · Stand: ' + new Date().toLocaleDateString('de-DE') + '</div>' +
+      '<div class="box"><h2 style="margin-top:0">1. Verantwortlicher</h2>' +
+      '<p>' + firma + (rechtsform ? ' (' + rechtsform + ')' : '') + '<br>' +
+      (inhaber ? 'Inhaber/Geschäftsführer: ' + inhaber + '<br>' : '') +
+      (adresse ? adresse + '<br>' : '') +
+      (tel ? 'Telefon: ' + tel + '<br>' : '') +
+      (mail ? 'E-Mail: ' + mail : '') + '</p>' +
+      (dsb ? '<p>Datenschutzbeauftragter: ' + dsb + '</p>' : '') + '</div>' +
+      '<h2>2. Welche Daten wir verarbeiten</h2>' +
+      '<p>Im Rahmen unseres Reifenservice- und Einlagerungsgeschäfts sowie des Kundenportals verarbeiten wir:</p>' +
+      '<ul><li>Stammdaten: Name, Anschrift, Telefonnummer, E-Mail-Adresse</li>' +
+      '<li>Fahrzeugdaten: Kennzeichen, Fahrzeugmarke und -modell</li>' +
+      '<li>Reifendaten: Dimension, Marke, Profiltiefe, Lagerplatz, Zustand und Bemerkungen</li>' +
+      '<li>Termindaten: gebuchte Leistungen, Datum, Uhrzeit</li>' +
+      '<li>Zugangsdaten: E-Mail und verschlüsseltes Passwort für das Kundenportal</li></ul>' +
+      '<h2>3. Zweck und Rechtsgrundlage</h2>' +
+      '<p>Die Verarbeitung erfolgt zur Erfüllung des Vertrages (Art. 6 Abs. 1 lit. b DSGVO), zur Erfüllung gesetzlicher Aufbewahrungspflichten (Art. 6 Abs. 1 lit. c DSGVO) sowie – bei Saison-Erinnerungen – auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), die Sie jederzeit widerrufen können.</p>' +
+      '<h2>4. Speicherdauer</h2>' +
+      '<p>Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach deren Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Buchungsbelege und Rechnungen 8 Jahre, Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 147 AO, § 257 HGB). Danach werden die Daten gelöscht.</p>' +
+      '<h2>5. Auftragsverarbeiter</h2>' +
+      '<p>Wir setzen sorgfältig ausgewählte Dienstleister ein, mit denen Verträge zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Server-Hosting (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe an Dritte zu anderen Zwecken erfolgt nicht.</p>' +
+      '<h2>6. Ihre Rechte</h2>' +
+      '<p>Sie haben das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch (Art. 21). Sie können eine erteilte Einwilligung jederzeit widerrufen.</p>' +
+      '<h2>7. Beschwerderecht</h2>' +
+      '<p>Sie haben das Recht, sich bei einer Aufsichtsbehörde zu beschweren. Zuständig ist:<br>' +
+      'Bayerisches Landesamt für Datenschutzaufsicht (BayLDA)<br>Promenade 18, 91522 Ansbach<br>Telefon: 0981 53 1300<br>E-Mail: poststelle@lda.bayern.de</p>';
+  } else {
+    document.getElementById('ds-content').innerHTML =
+      '<h1>Privacy Policy</h1>' +
+      '<div class="meta">Pursuant to Art. 13, 14 GDPR · As of: ' + new Date().toLocaleDateString('en-GB') + '</div>' +
+      '<div class="box"><h2 style="margin-top:0">1. Controller</h2>' +
+      '<p>' + firma + (rechtsform ? ' (' + rechtsform + ')' : '') + '<br>' +
+      (inhaber ? 'Owner/Managing Director: ' + inhaber + '<br>' : '') +
+      (adresse ? adresse + '<br>' : '') +
+      (tel ? 'Phone: ' + tel + '<br>' : '') +
+      (mail ? 'Email: ' + mail : '') + '</p>' +
+      (dsb ? '<p>Data Protection Officer: ' + dsb + '</p>' : '') + '</div>' +
+      '<h2>2. Data we process</h2>' +
+      '<p>As part of our tire service, storage business and customer portal, we process:</p>' +
+      '<ul><li>Master data: name, address, phone number, email address</li>' +
+      '<li>Vehicle data: license plate, vehicle make and model</li>' +
+      '<li>Tire data: dimensions, brand, tread depth, storage location, condition and notes</li>' +
+      '<li>Appointment data: booked services, date, time</li>' +
+      '<li>Login data: email and encrypted password for the customer portal</li></ul>' +
+      '<h2>3. Purpose and legal basis</h2>' +
+      '<p>Processing is carried out to fulfill the contract (Art. 6(1)(b) GDPR), to comply with legal retention obligations (Art. 6(1)(c) GDPR) and – for seasonal reminders – based on your consent (Art. 6(1)(a) GDPR), which you can withdraw at any time.</p>' +
+      '<h2>4. Retention period</h2>' +
+      '<p>Contract data is processed for the duration of the business relationship. After termination, statutory retention periods apply: accounting documents and invoices 8 years, contract documents 8 years from end of contract, other business correspondence 6 years (§ 147 AO, § 257 HGB). The data is then deleted.</p>' +
+      '<h2>5. Processors</h2>' +
+      '<p>We use carefully selected service providers with whom data processing agreements pursuant to Art. 28 GDPR exist: server hosting (Contabo GmbH, Munich) and email delivery (IONOS SE, Montabaur). No data is shared with third parties for other purposes.</p>' +
+      '<h2>6. Your rights</h2>' +
+      '<p>You have the right to access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection (Art. 21). You can withdraw consent at any time.</p>' +
+      '<h2>7. Right to complain</h2>' +
+      '<p>You have the right to lodge a complaint with a supervisory authority. The competent authority is:<br>' +
+      'Bavarian State Office for Data Protection Supervision (BayLDA)<br>Promenade 18, 91522 Ansbach, Germany<br>Phone: +49 981 53 1300<br>Email: poststelle@lda.bayern.de</p>';
+  }
+}
+lade();
+</script>
+</body>
+</html>

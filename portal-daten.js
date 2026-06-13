@@ -276,6 +276,19 @@ router.get('/oeffnungszeiten', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+router.get('/firmendaten', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT firmenname, rechtsform, inhaber, strasse, plz, ort, telefon, email,
+       ust_id, handelsreg_nr, registergericht, datenschutz_beauftragter,
+       vertragsdauer_monate, abholungsfrist_wochen, lagerungsort, stornierung_frist_h,
+       mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis
+       FROM einstellungen LIMIT 1`
+    );
+    res.json(rows[0] || {});
+  } catch (e) { next(e); }
+});
+
 // ── Hilfsfunktionen ──
 function zeitZuMin(zeitStr) {
   if (!zeitStr) return 0;

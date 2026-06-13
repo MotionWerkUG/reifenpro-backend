@@ -213,3 +213,4 @@ router.put('/profil', authKunde, async (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.authKunde = authKunde;
