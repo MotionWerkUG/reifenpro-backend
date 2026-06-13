@@ -124,6 +124,18 @@ router.put('/:id', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PATCH /api/termine/:id/status ── nur Status setzen (z.B. Werkstatt: erledigt)
+router.patch('/:id/status', authenticate, async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    const erlaubt = ['angefragt', 'bestaetigt', 'abgeschlossen', 'storniert'];
+    if (!erlaubt.includes(status)) return res.status(400).json({ error: 'Ungültiger Status.' });
+    const { rows } = await query('UPDATE termine SET status=$1, geaendert_am=NOW() WHERE id=$2 RETURNING *', [status, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden.' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
 // ── DELETE /api/termine/:id ── Admin: Termin absagen
 router.delete('/:id', authenticate, async (req, res, next) => {
   try {

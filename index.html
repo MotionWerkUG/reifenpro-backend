@@ -1421,6 +1421,7 @@ function rechnungPdf(id) {
 }
 
 // ── HELPERS ──
+function isoLocal(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function notify(msg, t) {
   var n = document.getElementById('notif');
   n.textContent = msg; n.className = 'notif show ' + (t || 'ok');
@@ -2673,7 +2674,7 @@ function wsHeute() { wsTagDatum = new Date(); loadTermineWerkstatt(); }
 function wsVorherig() { wsTagDatum.setDate(wsTagDatum.getDate() - 1); loadTermineWerkstatt(); }
 function wsNaechster() { wsTagDatum.setDate(wsTagDatum.getDate() + 1); loadTermineWerkstatt(); }
 function loadTermineWerkstatt() {
-  var dStr = wsTagDatum.toISOString().substring(0, 10);
+  var dStr = isoLocal(wsTagDatum);
   api('GET', '/termine?von=' + dStr + '&bis=' + dStr).then(function(r) {
     var fresh = r || [];
     allTermine = allTermine.filter(function(t){
@@ -2684,7 +2685,7 @@ function loadTermineWerkstatt() {
 }
 
 function renderWS() {
-  var dStr = wsTagDatum.toISOString().substring(0, 10);
+  var dStr = isoLocal(wsTagDatum);
   var heute = wsTagDatum.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   document.getElementById('ws-dat').textContent = 'Werkstatt — ' + heute;
   var tTermine = allTermine.filter(function(t) {
@@ -2695,53 +2696,69 @@ function renderWS() {
     el.innerHTML = '<div class="empty">Keine Termine heute.</div>';
     return;
   }
-  var html = '';
-  tTermine.forEach(function(t) {
-    // Kundenname ohne Selbstlaute
+  var offen = tTermine.filter(function(t) { return t.status !== 'abgeschlossen'; });
+  var erledigt = tTermine.filter(function(t) { return t.status === 'abgeschlossen'; });
+
+  function karte(t, idx, istErledigt) {
     var name = t.kundenname || t.kontakt_name || '';
     var kuerzel = name ? nameKuerzelFn(name.split(' ')[0], name.split(' ').slice(1).join(' ')) : '-';
-    // Einlagerung aus internen Notizen oder Kundendaten
     var einlInfo = t.notizen_intern || '';
     var kz = t.kennzeichen || '';
     var leistung = t.artikel_name || t.termin_typ || '';
-    // Lagerplatz aus Einlagerungen des Kunden
     var lagerplaetze = '';
     if (t.kunden_id) {
       var kEinl = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status === 'Eingelagert'; });
-      if (kEinl.length) {
-        lagerplaetze = kEinl.map(function(e) { return e.lagerplatz; }).join(', ');
-      }
+      if (kEinl.length) lagerplaetze = kEinl.map(function(e) { return e.lagerplatz; }).join(', ');
     }
-    html += '<div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">' +
-      '<div style="display:flex;align-items:flex-start;gap:12px">' +
-      // Zeit
-      '<div style="font-size:22px;font-weight:900;color:var(--blue);min-width:60px;line-height:1">' + (t.uhrzeit_von||'').substring(0,5) + '</div>' +
+    var istNaechster = !istErledigt && idx === 0;
+    var rand = istNaechster ? '2px solid var(--accent)' : '1px solid var(--border)';
+    var dim = istErledigt ? 'opacity:0.55;' : '';
+    var h = '<div style="background:var(--panel);border:' + rand + ';border-radius:10px;padding:14px;margin-bottom:10px;' + dim + '">';
+    if (istNaechster) h += '<div style="font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">ALS NÄCHSTES</div>';
+    h += '<div style="display:flex;align-items:flex-start;gap:12px">' +
+      '<div style="font-size:22px;font-weight:900;color:' + (istErledigt ? 'var(--muted)' : 'var(--blue)') + ';min-width:60px;line-height:1">' + (t.uhrzeit_von||'').substring(0,5) + '</div>' +
       '<div style="flex:1">' +
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">' +
-          // Leistung prominent
-          '<div style="font-size:15px;font-weight:800;color:var(--text)">' + leistung + '</div>' +
-          // Kennzeichen
+          '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
+          (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
-          // Kundenname als Kürzel
           '<span style="font-size:13px;color:var(--muted)">' + kuerzel + '</span>' +
-          // Lagerplatz GROSS wenn vorhanden
           (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent);letter-spacing:1px">' + lagerplaetze + '</span>' : '') +
         '</div>' +
-        // Interne Notizen
         (einlInfo ? '<div style="font-size:11px;color:var(--yellow);margin-top:6px;padding:5px 8px;background:var(--ydim);border-radius:5px">' + einlInfo + '</div>' : '') +
-        // Beschreibung für Kunden
         (t.beschreibung ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + t.beschreibung + '</div>' : '') +
       '</div>' +
-      '<button class="btn btn-danger btn-sm" data-tid="' + t.id + '" onclick="terminAbsagen(this.getAttribute(\"data-tid\"))">Absagen</button>' +
+      '<div style="display:flex;flex-direction:column;gap:6px">' +
+        (istErledigt
+          ? '<button class="btn btn-g btn-sm" data-tid="' + t.id + '" onclick="terminWiederOeffnen(this.getAttribute(\'data-tid\'))">Wieder öffnen</button>'
+          : '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
+            '<button class="btn btn-danger btn-sm" data-tid="' + t.id + '" onclick="terminAbsagen(this.getAttribute(\'data-tid\'))">Absagen</button>') +
+      '</div>' +
       '</div></div>';
-  });
+    return h;
+  }
+
+  var html = '<div style="font-size:13px;font-weight:700;color:var(--muted);margin:4px 0 10px">Offen (' + offen.length + ')</div>';
+  html += offen.length
+    ? offen.map(function(t, i) { return karte(t, i, false); }).join('')
+    : '<div style="color:var(--muted);font-size:13px;margin-bottom:14px">Alles erledigt für heute.</div>';
+  if (erledigt.length) {
+    html += '<div style="font-size:13px;font-weight:700;color:var(--muted);margin:18px 0 10px">Erledigt (' + erledigt.length + ')</div>';
+    html += erledigt.map(function(t, i) { return karte(t, i, true); }).join('');
+  }
   el.innerHTML = html;
+}
+function terminErledigt(id) {
+  api('PATCH', '/termine/' + id + '/status', { status: 'abgeschlossen' }).then(function() { notify('Als erledigt markiert.'); loadTermineWerkstatt(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function terminWiederOeffnen(id) {
+  api('PATCH', '/termine/' + id + '/status', { status: 'bestaetigt' }).then(function() { notify('Wieder geöffnet.'); loadTermineWerkstatt(); }).catch(function(e) { notify(e.message, 'err'); });
 }
 
 function druckListe() {
-  var dStr = wsTagDatum.toISOString().substring(0, 10);
+  var dStr = isoLocal(wsTagDatum);
   var heute = wsTagDatum.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   var tTermine = allTermine.filter(function(t) {
     return t.datum && t.datum.substring(0,10) === dStr && t.status !== 'storniert' && t.status !== 'abgesagt';
