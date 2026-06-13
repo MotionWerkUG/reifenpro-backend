@@ -363,6 +363,17 @@ function zeigeScreen(s) {
     document.getElementById('screen-' + x).classList.add('hidden');
   });
   document.getElementById('screen-' + s).classList.remove('hidden');
+  if (s === 'register') resetRegForm();
+}
+function resetRegForm() {
+  ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
+    var e = document.getElementById(id); if (e) e.value = '';
+  });
+  ['reg-dsgvo', 'reg-agb', 'reg-saison'].forEach(function(id) {
+    var e = document.getElementById(id); if (e) e.checked = false;
+  });
+  var err = document.getElementById('reg-err'); if (err) err.classList.add('hidden');
+  var ok = document.getElementById('reg-ok'); if (ok) ok.classList.add('hidden');
 }
 
 // ── AUTH ──
@@ -406,6 +417,8 @@ function portalRegister() {
     passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison
   }).then(function() {
     okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
+    document.getElementById('reg-pass').value = '';
+    document.getElementById('reg-pass2').value = '';
     setTimeout(function() { zeigeScreen('login'); }, 3000);
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
