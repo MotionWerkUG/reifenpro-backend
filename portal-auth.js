@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { query } = require('../db/index');
+const { portalMailHtml } = require('../lib/mail-template');
 
 // ── Middleware: Kunde authentifizieren ──
 async function authKunde(req, res, next) {
@@ -34,7 +35,7 @@ async function sendMail(to, subject, html) {
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
   });
   await transporter.sendMail({
-    from: '"' + (einst.firmenname || 'ReifenPro') + '" <' + process.env.SMTP_USER + '>',
+    from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>',
     to, subject, html
   });
 }
@@ -48,12 +49,12 @@ router.post('/registrieren', async (req, res, next) => {
     if (passwort.length < 8) return res.status(400).json({ error: 'Passwort muss mind. 8 Zeichen haben' });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-Mail ungültig' });
 
-    // Prüfe ob E-Mail bereits als Portal-Account existiert
-    const existiert = await query('SELECT id FROM kunden WHERE portal_email=$1', [email.toLowerCase()]);
+    // Prüfe ob E-Mail bereits als Portal-Account existiert (case-insensitiv)
+    const existiert = await query('SELECT id FROM kunden WHERE LOWER(portal_email)=$1', [email.toLowerCase()]);
     if (existiert.rows.length) return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
 
-    // Prüfe ob Kunde bereits in DB (über normale E-Mail)
-    const bestandskunde = await query('SELECT id FROM kunden WHERE email=$1 AND aktiv=true', [email.toLowerCase()]);
+    // Prüfe ob Kunde bereits in DB (über normale E-Mail, case-insensitiv) -> verknüpfen statt duplizieren
+    const bestandskunde = await query('SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true', [email.toLowerCase()]);
 
     const hash = await bcrypt.hash(passwort, 12);
     const token = crypto.randomBytes(32).toString('hex');
@@ -75,8 +76,8 @@ router.post('/registrieren', async (req, res, next) => {
         [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId]
       );
     } else {
-      // Neuer Kunde anlegen
-      const nr = 'K-' + String((await query('SELECT COUNT(*) FROM kunden')).rows[0].count * 1 + 1).padStart(4, '0');
+      // Neuer Kunde anlegen (Kundennummer aus Sequenz wie im Admin -> keine Doppelnummern)
+      const nr = 'K-' + String((await query("SELECT nextval('seq_kunden_nr') AS n")).rows[0].n).padStart(4, '0');
       const neu = await query(
         `INSERT INTO kunden (kunden_nr, vorname, nachname, email, telefon,
          portal_email, portal_password, portal_aktiv, portal_freigegeben,
@@ -97,13 +98,17 @@ router.post('/registrieren', async (req, res, next) => {
     const link = portalUrl + '?bestaetigen=' + token;
     await sendMail(
       email,
-      'E-Mail bestätigen — ' + (einst.firmenname || 'ReifenPro'),
-      '<p>Hallo ' + vorname + ',</p>' +
-      '<p>Bitte bestätigen Sie Ihre E-Mail-Adresse:</p>' +
-      '<p><a href="' + link + '" style="background:#e8502a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">E-Mail bestätigen</a></p>' +
-      '<p>Der Link ist 24 Stunden gültig.</p>' +
-      '<p>Nach der Bestätigung schalten wir Ihr Konto frei.</p>' +
-      '<p>Mit freundlichen Grüßen,<br>' + (einst.firmenname || 'ReifenPro') + '</p>'
+      'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
+      portalMailHtml(einst, {
+        titel: 'Willkommen im Kundenportal',
+        name: vorname,
+        absaetze: [
+          'vielen Dank für Ihre Registrierung im Kundenportal von Schröder &amp; Scholz.',
+          'Bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button. Anschließend prüfen wir Ihren Zugang und schalten ihn frei — danach können Sie Ihre eingelagerten Räder einsehen und Termine bequem online buchen.'
+        ],
+        button: { text: 'E-Mail bestätigen', url: link },
+        hinweis: 'Der Bestätigungslink ist 24 Stunden gültig. Falls Sie sich nicht registriert haben, können Sie diese E-Mail ignorieren.'
+      })
     );
 
     // Admin informieren

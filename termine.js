@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/index');
 const { authenticate } = require('../middleware/auth');
+const { portalMailHtml } = require('../lib/mail-template');
 
 // ── GET /api/termine ── Admin: alle Termine
 router.get('/', authenticate, async (req, res, next) => {
@@ -163,12 +164,18 @@ router.post('/portal-freigabe/:kundenId', authenticate, async (req, res, next) =
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
     await transporter.sendMail({
-      from: '"' + (einst.firmenname || 'ReifenPro') + '" <' + process.env.SMTP_USER + '>',
+      from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>',
       to: k.portal_email,
-      subject: 'Ihr Kunden-Portal ist freigeschaltet — ' + (einst.firmenname || 'ReifenPro'),
-      html: '<p>Hallo ' + k.vorname + ',</p><p>Ihr Zugang zum Kunden-Portal wurde freigeschaltet. Sie können sich jetzt einloggen:</p>' +
-        '<p><a href="' + portalUrl + '" style="background:#e8502a;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Zum Portal</a></p>' +
-        '<p>Mit freundlichen Grüßen,<br>' + (einst.firmenname || 'ReifenPro') + '</p>'
+      subject: 'Ihr Kundenportal ist freigeschaltet — Schröder & Scholz',
+      html: portalMailHtml(einst, {
+        titel: 'Ihr Kundenportal ist freigeschaltet',
+        name: k.vorname,
+        absaetze: [
+          'Ihr Zugang zum Kundenportal von Schröder &amp; Scholz ist ab sofort freigeschaltet.',
+          'Sie können sich jetzt anmelden, Ihre eingelagerten Räder einsehen und bequem online Ihre Termine buchen.'
+        ],
+        button: { text: 'Zum Kundenportal', url: portalUrl }
+      })
     }).catch(() => {});
     res.json({ message: 'Freigegeben und E-Mail gesendet' });
   } catch (e) { next(e); }
