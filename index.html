@@ -288,6 +288,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="ni" data-page="kalender">Kalender</div>
       <div class="ni" data-page="werkstatt">Werkstatt</div>
       <div class="ni" data-page="statistik">Statistik</div>
+      <div class="ni" data-page="rechnungen">Rechnungen</div>
       <div class="nsec">Team</div>
       <div class="ni" data-page="users">Mitarbeiter</div>
       <div class="ni" data-page="dsgvo">DSGVO-Anfragen</div>
@@ -474,6 +475,21 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="page" id="page-dsgvo">
         <div class="ph"><div class="pt">DSGVO-Anfragen</div></div>
         <div id="dsgvo-liste"></div>
+      </div>
+
+      <!-- RECHNUNGEN -->
+      <div class="page" id="page-rechnungen">
+        <div class="ph"><div class="pt">Rechnungen</div><button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button></div>
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <select id="r-filter-status" onchange="renderRechnungen()" style="max-width:200px">
+            <option value="">Alle Status</option>
+            <option value="entwurf">Entwürfe</option>
+            <option value="festgeschrieben">Festgeschrieben</option>
+            <option value="storniert">Storniert</option>
+          </select>
+          <input id="r-filter-suche" oninput="renderRechnungen()" placeholder="Suche Nr. / Kunde" style="max-width:240px">
+        </div>
+        <div id="rechnungen-liste"></div>
       </div>
 
       <!-- EINSTELLUNGEN -->
@@ -888,6 +904,35 @@ tr:hover td { background: rgba(255,255,255,.02); }
   </div>
 </div>
 
+<div class="ov" id="m-nr">
+  <div class="modal" style="max-width:780px">
+    <button class="mx" onclick="closeModal('nr')">x</button>
+    <div class="mtitle" id="nr-titel">Neue Rechnung</div>
+    <div class="fgrid">
+      <div class="fg full"><label>Kunde *</label><select id="nr-kunde"></select></div>
+      <div class="fg"><label>Rechnungsdatum</label><input id="nr-rdatum" type="date"></div>
+      <div class="fg"><label>Leistungsdatum</label><input id="nr-ldatum" type="date"></div>
+    </div>
+    <div style="margin:16px 0 6px;font-weight:600">Positionen</div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+      <select id="nr-artikel-add" onchange="nrArtikelAdd(this)" style="max-width:340px"><option value="">Artikel übernehmen…</option></select>
+      <button class="btn btn-g btn-sm" onclick="addPositionRow(null)">+ Freie Position</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 70px 90px 100px 70px 32px;gap:6px;font-size:11px;color:var(--muted);margin-bottom:4px">
+      <div>Bezeichnung</div><div style="text-align:right">Menge</div><div>Einheit</div><div style="text-align:right">Einzel netto</div><div style="text-align:right">MwSt</div><div></div>
+    </div>
+    <div id="nr-positionen"></div>
+    <div style="text-align:right;margin-top:12px;line-height:1.6">
+      <div>Netto: <strong id="nr-sum-netto">0,00 €</strong></div>
+      <div>MwSt: <strong id="nr-sum-mwst">0,00 €</strong></div>
+      <div style="font-size:16px;color:var(--green)">Brutto: <strong id="nr-sum-brutto">0,00 €</strong></div>
+    </div>
+    <div class="fg full" style="margin-top:12px"><label>Notiz (optional)</label><input id="nr-notizen"></div>
+    <input type="hidden" id="nr-edit-id">
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nr')">Abbrechen</button><button class="btn btn-p" onclick="saveRechnung()">Als Entwurf speichern</button></div>
+  </div>
+</div>
+
 <div class="ov" id="m-nl">
   <div class="modal" style="max-width:520px">
     <button class="mx" onclick="closeModal('nl')">x</button>
@@ -1133,6 +1178,7 @@ function startApp() {
   loadE();
   loadLager();
   loadArtikel();
+  loadRechnungen();
   startUhr();
   befuelleJahrDropdown();
 }
@@ -1179,9 +1225,192 @@ function showPage(n) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
+  if (n === 'rechnungen') loadRechnungen();
   if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
+}
+
+// ── RECHNUNGEN ──
+var allRechnungen = [];
+function rEur(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+function rDatum(d) { if (!d) return '-'; var t = new Date(d); return String(t.getDate()).padStart(2, '0') + '.' + String(t.getMonth() + 1).padStart(2, '0') + '.' + t.getFullYear(); }
+function rStatusBadge(s) {
+  var map = { entwurf: ['Entwurf', '#888'], festgeschrieben: ['Festgeschrieben', '#1a7f37'], storniert: ['Storniert', '#c0392b'] };
+  var m = map[s] || [s, '#888'];
+  return '<span style="background:' + m[1] + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">' + m[0] + '</span>';
+}
+function loadRechnungen() {
+  api('GET', '/rechnungen').then(function(r) { allRechnungen = r || []; renderRechnungen(); }).catch(function() {});
+}
+function renderRechnungen() {
+  var el = document.getElementById('rechnungen-liste'); if (!el) return;
+  var fStatus = (document.getElementById('r-filter-status') || {}).value || '';
+  var fq = ((document.getElementById('r-filter-suche') || {}).value || '').toLowerCase();
+  var list = allRechnungen.filter(function(r) {
+    if (fStatus && r.status !== fStatus) return false;
+    if (fq) { var hay = ((r.rechnungsnr || '') + ' ' + (r.kundenname || '')).toLowerCase(); if (hay.indexOf(fq) < 0) return false; }
+    return true;
+  });
+  if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Keine Rechnungen.</div>'; return; }
+  var html = '<div class="tw"><table><thead><tr><th>Nr.</th><th>Kunde</th><th>Datum</th><th>Brutto</th><th>Status</th><th>Zahlung</th><th></th></tr></thead><tbody>';
+  list.forEach(function(r) {
+    var akt = '';
+    if (r.status === 'entwurf') {
+      akt += '<button class="btn btn-g btn-sm" onclick="editRechnung(\'' + r.id + '\')">Bearb.</button>';
+      akt += '<button class="btn btn-p btn-sm" onclick="festschreibenRechnung(\'' + r.id + '\')">Festschreiben</button>';
+      akt += '<button class="btn btn-danger btn-sm" onclick="loescheRechnung(\'' + r.id + '\')">X</button>';
+    } else {
+      akt += '<button class="btn btn-g btn-sm" onclick="rechnungPdf(\'' + r.id + '\')">PDF</button>';
+      if (r.status === 'festgeschrieben') {
+        akt += '<button class="btn btn-g btn-sm" onclick="toggleBezahlt(\'' + r.id + '\',' + (r.zahlungsstatus === 'bezahlt' ? 'false' : 'true') + ')">' + (r.zahlungsstatus === 'bezahlt' ? 'Als offen' : 'Als bezahlt') + '</button>';
+        akt += '<button class="btn btn-danger btn-sm" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
+      }
+    }
+    var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>') : '-';
+    html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
+      '<td>' + (r.kundenname || '') + '</td>' +
+      '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
+      '<td>' + rEur(r.brutto_summe) + '</td>' +
+      '<td>' + rStatusBadge(r.status) + '</td>' +
+      '<td>' + zahlung + '</td>' +
+      '<td style="white-space:nowrap">' + akt + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+function nrFuelleKunden(sel) {
+  var s = document.getElementById('nr-kunde'); if (!s) return;
+  s.innerHTML = '<option value="">— Kunde wählen —</option>' + (allK || []).map(function(k) {
+    return '<option value="' + k.id + '">' + (k.nachname || '') + ', ' + (k.vorname || '') + (k.kennzeichen ? (' (' + k.kennzeichen + ')') : '') + '</option>';
+  }).join('');
+  if (sel) s.value = sel;
+}
+function nrFuelleArtikelDropdown() {
+  var s = document.getElementById('nr-artikel-add'); if (!s) return;
+  s.innerHTML = '<option value="">Artikel übernehmen…</option>' + (allArtikel || []).map(function(a) {
+    return '<option value="' + a.id + '">' + a.name + '</option>';
+  }).join('');
+}
+function nrHeuteISO() { var d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function openNeueRechnung() {
+  document.getElementById('nr-edit-id').value = '';
+  document.getElementById('nr-titel').textContent = 'Neue Rechnung';
+  nrFuelleKunden(); nrFuelleArtikelDropdown();
+  document.getElementById('nr-rdatum').value = nrHeuteISO();
+  document.getElementById('nr-ldatum').value = nrHeuteISO();
+  document.getElementById('nr-notizen').value = '';
+  document.getElementById('nr-positionen').innerHTML = '';
+  addPositionRow(null);
+  recalcRechnung();
+  openModal('nr');
+}
+function addPositionRow(art) {
+  var c = document.getElementById('nr-positionen');
+  var row = document.createElement('div');
+  row.className = 'nr-pos-row';
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 70px 90px 100px 70px 32px;gap:6px;align-items:center;margin-bottom:6px';
+  row.innerHTML =
+    '<input class="nr-p-bez" placeholder="Bezeichnung">' +
+    '<input class="nr-p-menge" type="number" step="0.01" value="1" oninput="recalcRechnung()" style="text-align:right">' +
+    '<input class="nr-p-einheit" placeholder="Einheit">' +
+    '<input class="nr-p-preis" type="number" step="0.01" placeholder="netto" oninput="recalcRechnung()" style="text-align:right">' +
+    '<select class="nr-p-mwst" onchange="recalcRechnung()"><option value="19">19%</option><option value="7">7%</option><option value="0">0%</option></select>' +
+    '<button class="btn btn-danger btn-sm" onclick="this.closest(\'.nr-pos-row\').remove();recalcRechnung()">x</button>';
+  c.appendChild(row);
+  if (art) {
+    row.querySelector('.nr-p-bez').value = art.name || '';
+    row.querySelector('.nr-p-einheit').value = art.einheit || '';
+    row.querySelector('.nr-p-preis').value = art.preis != null ? Number(art.preis).toFixed(2) : '';
+    row.querySelector('.nr-p-mwst').value = String(parseInt(art.mwst_satz) || 19);
+  }
+}
+function nrArtikelAdd(sel) {
+  var id = sel.value; if (!id) return;
+  var a = (allArtikel || []).find(function(x) { return x.id === id; });
+  if (a) addPositionRow(a);
+  sel.value = '';
+  recalcRechnung();
+}
+function nrSammlePositionen() {
+  return Array.prototype.map.call(document.querySelectorAll('#nr-positionen .nr-pos-row'), function(row) {
+    return {
+      bezeichnung: row.querySelector('.nr-p-bez').value.trim(),
+      menge: parseFloat(row.querySelector('.nr-p-menge').value) || 0,
+      einheit: row.querySelector('.nr-p-einheit').value.trim() || null,
+      einzelpreis_netto: parseFloat(row.querySelector('.nr-p-preis').value) || 0,
+      mwst_satz: parseInt(row.querySelector('.nr-p-mwst').value) || 0
+    };
+  }).filter(function(p) { return p.bezeichnung; });
+}
+function recalcRechnung() {
+  var pos = nrSammlePositionen();
+  var netto = 0, brutto = 0;
+  pos.forEach(function(p) {
+    var zn = Math.round(p.menge * p.einzelpreis_netto * 100) / 100;
+    var zb = Math.round(zn * (1 + p.mwst_satz / 100) * 100) / 100;
+    netto += zn; brutto += zb;
+  });
+  netto = Math.round(netto * 100) / 100; brutto = Math.round(brutto * 100) / 100;
+  document.getElementById('nr-sum-netto').textContent = rEur(netto);
+  document.getElementById('nr-sum-mwst').textContent = rEur(Math.round((brutto - netto) * 100) / 100);
+  document.getElementById('nr-sum-brutto').textContent = rEur(brutto);
+}
+function saveRechnung() {
+  var kunde = gv('nr-kunde');
+  if (!kunde) { notify('Bitte Kunde wählen.', 'err'); return; }
+  var pos = nrSammlePositionen();
+  if (!pos.length) { notify('Mindestens eine Position mit Bezeichnung.', 'err'); return; }
+  var data = { kunden_id: kunde, rechnungsdatum: gv('nr-rdatum') || null, leistungsdatum: gv('nr-ldatum') || null, notizen: gv('nr-notizen') || null, positionen: pos };
+  var id = gv('nr-edit-id');
+  var prom = id ? api('PUT', '/rechnungen/' + id, data) : api('POST', '/rechnungen', data);
+  prom.then(function() { notify('Entwurf gespeichert!'); closeModal('nr'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function editRechnung(id) {
+  api('GET', '/rechnungen/' + id).then(function(r) {
+    if (!r) return;
+    document.getElementById('nr-edit-id').value = r.id;
+    document.getElementById('nr-titel').textContent = 'Rechnung bearbeiten (Entwurf)';
+    nrFuelleKunden(r.kunden_id); nrFuelleArtikelDropdown();
+    document.getElementById('nr-rdatum').value = (r.rechnungsdatum || '').toString().substring(0, 10);
+    document.getElementById('nr-ldatum').value = (r.leistungsdatum || '').toString().substring(0, 10);
+    document.getElementById('nr-notizen').value = r.notizen || '';
+    document.getElementById('nr-positionen').innerHTML = '';
+    (r.positionen || []).forEach(function(p) {
+      addPositionRow(null);
+      var rows = document.querySelectorAll('#nr-positionen .nr-pos-row');
+      var row = rows[rows.length - 1];
+      row.querySelector('.nr-p-bez').value = p.bezeichnung || '';
+      row.querySelector('.nr-p-menge').value = p.menge;
+      row.querySelector('.nr-p-einheit').value = p.einheit || '';
+      row.querySelector('.nr-p-preis').value = Number(p.einzelpreis_netto).toFixed(2);
+      row.querySelector('.nr-p-mwst').value = String(parseInt(p.mwst_satz) || 0);
+    });
+    if (!(r.positionen || []).length) addPositionRow(null);
+    recalcRechnung();
+    openModal('nr');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function festschreibenRechnung(id) {
+  if (!confirm('Rechnung verbindlich festschreiben? Danach ist sie unveränderbar und erhält eine fortlaufende Rechnungsnummer.')) return;
+  api('POST', '/rechnungen/' + id + '/festschreiben').then(function(r) { if (r) { notify('Festgeschrieben: ' + r.rechnungsnr); loadRechnungen(); } }).catch(function(e) { notify(e.message, 'err'); });
+}
+function loescheRechnung(id) {
+  if (!confirm('Entwurf löschen?')) return;
+  api('DELETE', '/rechnungen/' + id).then(function() { notify('Gelöscht.'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function stornoRechnung(id) {
+  if (!confirm('Diese Rechnung stornieren? Es wird eine Stornorechnung erzeugt; das Original bleibt erhalten.')) return;
+  api('POST', '/rechnungen/' + id + '/storno').then(function(r) { if (r) { notify('Storniert. Stornorechnung: ' + r.rechnungsnr); loadRechnungen(); } }).catch(function(e) { notify(e.message, 'err'); });
+}
+function toggleBezahlt(id, bezahlt) {
+  api('PATCH', '/rechnungen/' + id + '/bezahlt', { bezahlt: bezahlt }).then(function() { notify('Aktualisiert.'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function rechnungPdf(id) {
+  fetch(API + '/rechnungen/' + id + '/pdf', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error('PDF nicht verfügbar'); return r.blob(); })
+    .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
+    .catch(function(e) { notify(e.message, 'err'); });
 }
 
 // ── HELPERS ──
