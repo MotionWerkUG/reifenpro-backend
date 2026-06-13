@@ -179,6 +179,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   <div class="app-header">
     <div class="app-logo" style="display:flex;align-items:center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="200" height="35" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
     <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;gap:4px">
+        <button class="lang-btn on" id="lang-de2" onclick="setLang('de')">DE</button>
+        <button class="lang-btn" id="lang-en2" onclick="setLang('en')">EN</button>
+      </div>
       <span id="app-username" style="font-size:13px;color:var(--muted)"></span>
       <button class="btn btn-g btn-sm" onclick="portalLogout()" data-i18n="logout">Abmelden</button>
     </div>
@@ -255,6 +259,7 @@ var API = '/reifenpro/api/portal';
 var TOKEN = localStorage.getItem('rp_portal_token');
 var KUNDE = null;
 var LANG = localStorage.getItem('rp_portal_lang') || 'de';
+var STORNO_FRIST = 24;
 var artikelListe = [];
 
 // ── ÜBERSETZUNGEN ──
@@ -282,7 +287,7 @@ var I18N = {
     no_storage: 'Keine Einlagerungen vorhanden.', no_appointments: 'Keine Termine vorhanden.',
     storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', status: 'Status',
     profile_depth: 'Profiltiefe', stored_since: 'Eingelagert seit', notes_damage: 'Bemerkungen/Schäden',
-    cancel: 'Stornieren', cancel_confirm: 'Termin wirklich stornieren?', cancelled: 'Termin storniert',
+    cancel: 'Stornieren', cancel_confirm: 'Eine kostenfreie Stornierung ist nur bis {h} Stunden vor dem Termin möglich. Termin jetzt stornieren?', cancel_hint: 'Hinweis: Eine kostenfreie Stornierung ist bis {h} Stunden vor dem Termin möglich. Danach kann eine Gebühr anfallen.', cancelled: 'Termin storniert',
     booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
@@ -311,7 +316,7 @@ var I18N = {
     no_storage: 'No storage items.', no_appointments: 'No appointments.',
     storage_place: 'Storage location', tire: 'Tire', season: 'Season', status: 'Status',
     profile_depth: 'Tread depth', stored_since: 'Stored since', notes_damage: 'Notes/Damage',
-    cancel: 'Cancel', cancel_confirm: 'Really cancel appointment?', cancelled: 'Appointment cancelled',
+    cancel: 'Cancel', cancel_confirm: 'A free cancellation is only possible up to {h} hours before the appointment. Cancel now?', cancel_hint: 'Note: A free cancellation is possible up to {h} hours before the appointment. After that a fee may apply.', cancelled: 'Appointment cancelled',
     booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
@@ -325,6 +330,8 @@ function setLang(l) {
   localStorage.setItem('rp_portal_lang', l);
   document.getElementById('lang-de').classList.toggle('on', l === 'de');
   document.getElementById('lang-en').classList.toggle('on', l === 'en');
+  var de2 = document.getElementById('lang-de2'); if (de2) de2.classList.toggle('on', l === 'de');
+  var en2 = document.getElementById('lang-en2'); if (en2) en2.classList.toggle('on', l === 'en');
   document.documentElement.lang = l;
   applyI18n();
 }
@@ -364,6 +371,9 @@ function zeigeScreen(s) {
   });
   document.getElementById('screen-' + s).classList.remove('hidden');
   if (s === 'register') resetRegForm();
+  // Fixen Sprachschalter nur auf Auth-Screens zeigen (im App-Header sitzt ein eigener)
+  var ls = document.querySelector('.lang-switch');
+  if (ls) ls.style.display = (s === 'app') ? 'none' : 'flex';
 }
 function resetRegForm() {
   ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
@@ -449,6 +459,7 @@ function startPortal() {
   zeigeScreen('app');
   document.getElementById('app-username').textContent = KUNDE ? (KUNDE.vorname + ' ' + KUNDE.nachname) : '';
   ladeArtikel();
+  papi('GET', '/daten/firmendaten').then(function(f) { if (f && f.stornierung_frist_h) STORNO_FRIST = f.stornierung_frist_h; }).catch(function() {});
   portalNav('ueberblick');
 }
 
@@ -543,7 +554,8 @@ function ladeTermine() {
   papi('GET', '/daten/termine').then(function(rows) {
     if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>'; return; }
     var heute = new Date().toISOString().substring(0,10);
-    el.innerHTML = rows.sort(function(a,b) {
+    var stornoHinweis = '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
+    el.innerHTML = stornoHinweis + rows.sort(function(a,b) {
       return (b.datum||'').localeCompare(a.datum||'');
     }).map(function(tm) {
       var vergangen = tm.datum && tm.datum.substring(0,10) < heute;
@@ -570,7 +582,7 @@ function ladeTermine() {
 }
 
 function terminStornieren(id) {
-  if (!confirm(t('cancel_confirm'))) return;
+  if (!confirm(t('cancel_confirm').replace('{h}', STORNO_FRIST))) return;
   papi('DELETE', '/daten/termine/' + id).then(function() {
     notify(t('cancelled'), 'ok');
     ladeTermine();
