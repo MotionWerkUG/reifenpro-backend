@@ -129,12 +129,14 @@ async function huWarnung() {
   const datumStr = inVierWochen.toISOString().substring(0, 10);
 
   const { rows } = await query(
-    `SELECT id, vorname, nachname, portal_email, email, kennzeichen, hu_datum
-     FROM kunden
-     WHERE hu_datum = $1
-       AND (portal_email IS NOT NULL OR email IS NOT NULL)
-       AND aktiv = true
-       AND (hu_erinnerung_gesendet IS NULL OR hu_erinnerung_gesendet = false)`,
+    `SELECT f.id AS fahrzeug_id, f.kennzeichen, f.hu_datum,
+            k.vorname, k.nachname, k.portal_email, k.email
+     FROM fahrzeuge f
+     JOIN kunden k ON k.id = f.kunden_id
+     WHERE f.hu_datum = $1
+       AND (k.portal_email IS NOT NULL OR k.email IS NOT NULL)
+       AND k.aktiv = true
+       AND (f.hu_erinnerung_gesendet IS NULL OR f.hu_erinnerung_gesendet = false)`,
     [datumStr]
   );
 
@@ -151,10 +153,10 @@ async function huWarnung() {
         '<p>Vereinbaren Sie rechtzeitig einen Termin.</p>' +
         '<p>Mit freundlichen Grüßen,<br>' + (einst.firmenname || 'Schröder & Scholz') + '</p>'
       );
-      await query('UPDATE kunden SET hu_erinnerung_gesendet = true WHERE id = $1', [k.id]);
+      await query('UPDATE fahrzeuge SET hu_erinnerung_gesendet = true WHERE id = $1', [k.fahrzeug_id]);
       gesendet++;
     } catch (e) {
-      console.error('Fehler HU-Warnung ' + k.id + ':', e.message);
+      console.error('Fehler HU-Warnung ' + k.fahrzeug_id + ':', e.message);
     }
   }
   console.log('[' + new Date().toISOString() + '] HU-Warnungen gesendet:', gesendet);

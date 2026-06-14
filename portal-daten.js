@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/index');
 const { authKunde } = require('./portal-auth');
+const { resolvePreis } = require('../lib/preis');
 
 // ── GET /api/portal/daten/einlagerungen ──
 router.get('/einlagerungen', authKunde, async (req, res, next) => {
@@ -61,10 +62,12 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
     if (!einst) return res.status(500).json({ error: 'Einstellungen fehlen' });
 
-    // Artikel-Dauer laden
-    const artRes = await query('SELECT dauer_minuten, name FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
+    // Artikel + Preisstaffel laden, effektive Dauer nach Typ/Zoll ermitteln
+    const artRes = await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
     if (!artRes.rows.length) return res.status(404).json({ error: 'Artikel nicht gefunden' });
-    const dauer = artRes.rows[0].dauer_minuten || 30;
+    const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [artikel_id])).rows;
+    const eff = resolvePreis(artRes.rows[0], varianten, req.query.typ || null, req.query.zoll);
+    const dauer = eff.dauer_minuten || 30;
 
     // Wochentag bestimmen
     const d = new Date(datum);
@@ -142,13 +145,15 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
 // ── POST /api/portal/daten/termine ──
 router.post('/termine', authKunde, async (req, res, next) => {
   try {
-    const { datum, uhrzeit_von, artikel_id, beschreibung, kennzeichen } = req.body;
+    const { datum, uhrzeit_von, artikel_id, beschreibung, kennzeichen, fahrzeug_id, typ, zoll } = req.body;
     if (!datum || !uhrzeit_von || !artikel_id) return res.status(400).json({ error: 'Pflichtfelder fehlen' });
 
     const artRes = await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
     if (!artRes.rows.length) return res.status(404).json({ error: 'Artikel nicht gefunden' });
     const art = artRes.rows[0];
-    const dauer = art.dauer_minuten || 30;
+    const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [artikel_id])).rows;
+    const eff = resolvePreis(art, varianten, typ || null, zoll);
+    const dauer = eff.dauer_minuten || 30;
     const vonMin = zeitZuMin(uhrzeit_von);
     const uhrzeit_bis = minZuZeit(vonMin + dauer);
 
@@ -169,11 +174,11 @@ router.post('/termine', authKunde, async (req, res, next) => {
     const { rows } = await query(
       `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
        datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung,
-       artikel_id, status, portal_buchung)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'bestaetigt',true) RETURNING *`,
+       artikel_id, fahrzeug_id, status, portal_buchung)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true) RETURNING *`,
       [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
        datum, uhrzeit_von, uhrzeit_bis, art.name,
-       kennzeichen || k.kennzeichen, beschreibung || null, artikel_id]
+       kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fahrzeug_id || null]
     );
 
     // Bestaetigungs-E-Mail an Kunden
@@ -265,6 +270,16 @@ router.get('/artikel', authKunde, async (req, res, next) => {
       'SELECT id, name, beschreibung, preis, mwst_satz, einheit, dauer_minuten, kategorie FROM artikel WHERE aktiv=true AND dauer_minuten IS NOT NULL ORDER BY sortierung, name'
     );
     res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// ── GET /api/portal/daten/artikel/:id/preis ── effektiver Preis/Dauer nach Typ+Zoll
+router.get('/artikel/:id/preis', authKunde, async (req, res, next) => {
+  try {
+    const a = (await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [req.params.id])).rows[0];
+    if (!a) return res.status(404).json({ error: 'Artikel nicht gefunden' });
+    const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [req.params.id])).rows;
+    res.json(resolvePreis(a, varianten, req.query.typ || null, req.query.zoll));
   } catch (e) { next(e); }
 });
 

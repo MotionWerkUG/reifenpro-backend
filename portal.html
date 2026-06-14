@@ -243,6 +243,15 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
           <select id="buchen-artikel" onchange="buchenSlotsLaden()"></select>
         </div>
         <div class="fg">
+          <label data-i18n="vehicle">Fahrzeug</label>
+          <select id="buchen-fahrzeug" onchange="buchenFahrzeugChange()"><option value="">—</option></select>
+        </div>
+        <div class="fg">
+          <label data-i18n="inch">Zollgröße</label>
+          <select id="buchen-zoll" onchange="buchenSlotsLaden()"><option value="">—</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option></select>
+        </div>
+        <div id="buchen-preis" style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:10px"></div>
+        <div class="fg">
           <label data-i18n="date">Datum</label>
           <input id="buchen-datum" type="date" onchange="buchenSlotsLaden()">
         </div>
@@ -306,7 +315,7 @@ var I18N = {
     register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
     reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
     delete_account: 'Konto löschen', delete_account_info: 'Sie haben das Recht, Ihr Konto löschen zu lassen (Art. 17 DSGVO). Bei aktiven Einlagerungen ist dies erst nach Abholung möglich.', delete_account_confirm: 'Möchten Sie Ihr Kundenkonto endgültig löschen lassen? Wir bearbeiten Ihren Antrag gemäß DSGVO.', delete_account_active: 'Solange Räder bei uns eingelagert sind, ist eine Löschung nicht möglich. Bitte wenden Sie sich an uns{tel}. Nach Abholung können Sie Ihr Konto löschen.', delete_account_done: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen.',
-    nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?',
+    nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?', vehicle: 'Fahrzeug', inch: 'Zollgröße', price: 'Preis',
     nav_overview: 'Überblick', nav_storage: 'Einlagerungen', nav_appointments: 'Termine',
     nav_book: 'Termin buchen', nav_profile: 'Profil', welcome: 'Willkommen',
     book_appointment: 'Termin buchen', service: 'Leistung', date: 'Datum',
@@ -337,7 +346,7 @@ var I18N = {
     register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
     reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
     delete_account: 'Delete account', delete_account_info: 'You have the right to have your account deleted (Art. 17 GDPR). With active storage this is only possible after collection.', delete_account_confirm: 'Do you really want your customer account permanently deleted? We will process your request in accordance with GDPR.', delete_account_active: 'As long as wheels are stored with us, deletion is not possible. Please contact us{tel}. After collection you can delete your account.', delete_account_done: 'Your deletion request has been received. We will get back to you.',
-    nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?',
+    nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?', vehicle: 'Vehicle', inch: 'Wheel size (inch)', price: 'Price',
     nav_overview: 'Overview', nav_storage: 'Storage', nav_appointments: 'Appointments',
     nav_book: 'Book appointment', nav_profile: 'Profile', welcome: 'Welcome',
     book_appointment: 'Book appointment', service: 'Service', date: 'Date',
@@ -635,32 +644,63 @@ function ladeArtikel() {
 }
 
 function initBuchen() {
-  // Datum auf heute setzen (min = heute)
   var d = document.getElementById('buchen-datum');
-  var heute = new Date().toISOString().substring(0,10);
+  var n = new Date();
+  var heute = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
   d.min = heute;
   if (!d.value) d.value = heute;
-  // KZ vorausfüllen wenn Kunde eines hat
   var kzEl = document.getElementById('buchen-kz');
   if (KUNDE && KUNDE.kennzeichen && !kzEl.value) kzEl.value = KUNDE.kennzeichen;
+  // Fahrzeuge des Kunden in die Auswahl laden
+  papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    var sel = document.getElementById('buchen-fahrzeug');
+    sel.innerHTML = '<option value="">—</option>' + (rows || []).map(function(f) {
+      var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
+      return '<option value="' + f.id + '" data-typ="' + (f.typ || '') + '" data-kz="' + (f.kennzeichen || '') + '">' + label + '</option>';
+    }).join('');
+  }).catch(function() {});
+}
+function buchenTyp() {
+  var sel = document.getElementById('buchen-fahrzeug');
+  var opt = sel.options[sel.selectedIndex];
+  return opt ? (opt.getAttribute('data-typ') || '') : '';
+}
+function buchenFahrzeugChange() {
+  var sel = document.getElementById('buchen-fahrzeug');
+  var opt = sel.options[sel.selectedIndex];
+  var kz = opt ? opt.getAttribute('data-kz') : '';
+  if (kz) document.getElementById('buchen-kz').value = kz;
+  buchenSlotsLaden();
 }
 
 var selectedSlot = null;
 function buchenSlotsLaden() {
   var artikelId = document.getElementById('buchen-artikel').value;
   var datum = document.getElementById('buchen-datum').value;
+  var typ = buchenTyp();
+  var zoll = document.getElementById('buchen-zoll').value;
   var wrap = document.getElementById('buchen-slots-wrap');
   var slotsEl = document.getElementById('buchen-slots');
+  var preisEl = document.getElementById('buchen-preis');
   selectedSlot = null;
-  if (!artikelId || !datum) { wrap.classList.add('hidden'); return; }
+  preisEl.textContent = '';
+  if (!artikelId) { wrap.classList.add('hidden'); return; }
+  // Preis + Dauer aus Staffel (Typ + Zoll) anzeigen
+  papi('GET', '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(p) {
+    if (p && p.preis != null) {
+      var brutto = Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100);
+      preisEl.textContent = t('price') + ': ' + brutto.toFixed(2).replace('.', ',') + ' €' + (p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '');
+    }
+  }).catch(function() {});
+  if (!datum) { wrap.classList.add('hidden'); return; }
   slotsEl.innerHTML = '<div class="empty">' + t('loading') + '</div>';
   wrap.classList.remove('hidden');
-  papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + artikelId).then(function(r) {
+  papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + artikelId + '&typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(r) {
     var slots = (r && r.slots) || r || [];
     if (!slots.length) { slotsEl.innerHTML = '<div class="empty">' + t('no_slots') + '</div>'; return; }
     slotsEl.innerHTML = slots.map(function(s) {
-      var zeit = typeof s === 'string' ? s : s.uhrzeit || s.zeit;
-      return '<div class="slot" data-zeit="' + zeit + '" onclick="slotWaehlen(this)">' + zeit.substring(0,5) + '</div>';
+      var zeit = typeof s === 'string' ? s : (s.von || s.uhrzeit || s.zeit);
+      return '<div class="slot" data-zeit="' + zeit + '" onclick="slotWaehlen(this)">' + zeit.substring(0, 5) + '</div>';
     }).join('');
   }).catch(function(e) {
     slotsEl.innerHTML = '<div class="empty">' + e.message + '</div>';
@@ -679,9 +719,12 @@ function terminBuchen() {
   var kz = document.getElementById('buchen-kz').value.trim();
   var notiz = document.getElementById('buchen-notiz').value.trim();
   if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
+  var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
+  var zoll = document.getElementById('buchen-zoll').value || null;
   papi('POST', '/daten/termine', {
     datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
-    kennzeichen: kz || null, beschreibung: notiz || null
+    kennzeichen: kz || null, beschreibung: notiz || null,
+    fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll
   }).then(function() {
     notify(t('booked'), 'ok');
     document.getElementById('buchen-notiz').value = '';
