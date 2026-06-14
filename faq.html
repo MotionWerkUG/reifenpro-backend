@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Häufige Fragen — Schröder & Scholz</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; font-size:15px; }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 22px 60px; }
+  .logo { display:flex; align-items:center; margin-bottom:8px; }
+  h1 { font-size:24px; margin:24px 0 6px; font-weight:800; }
+  .meta { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .box { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
+  .q { font-weight:700; color:var(--accent); margin-bottom:6px; font-size:16px; }
+  .a { color:#c9d1d9; }
+  a { color:var(--accent); }
+  .lang-toggle { position:fixed; top:14px; right:14px; display:flex; gap:4px; }
+  .lang-toggle button { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--muted); padding:5px 11px; cursor:pointer; font-weight:700; font-size:12px; }
+  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent); }
+  .back { display:inline-block; margin-top:24px; color:var(--accent); text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="lang-toggle">
+  <button id="fl-de" class="on" onclick="setFaqLang('de')">DE</button>
+  <button id="fl-en" onclick="setFaqLang('en')">EN</button>
+</div>
+<div class="wrap">
+  <div class="logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+  </div>
+  <div id="faq-content"></div>
+  <a href="/reifenpro/portal/" class="back">← Zurück zum Portal</a>
+</div>
+<script>
+var API = '/reifenpro/api/portal';
+var FIRMA = {};
+var FAQLANG = 'de';
+function setFaqLang(l) {
+  FAQLANG = l;
+  document.getElementById('fl-de').classList.toggle('on', l === 'de');
+  document.getElementById('fl-en').classList.toggle('on', l === 'en');
+  document.documentElement.lang = l;
+  render();
+}
+function hm(t) { return t ? String(t).substring(0, 5) : ''; }
+function lade() {
+  fetch(API + '/daten/firmendaten').then(function(r) { return r.json(); }).then(function(f) { FIRMA = f || {}; render(); }).catch(function() { render(); });
+}
+function oeffnungszeiten(de) {
+  var f = FIRMA, z = [];
+  if (f.mo_fr_von && f.mo_fr_bis) z.push((de ? 'Mo–Fr: ' : 'Mon–Fri: ') + hm(f.mo_fr_von) + '–' + hm(f.mo_fr_bis));
+  if (f.sa_offen && f.sa_von && f.sa_bis) z.push((de ? 'Sa: ' : 'Sat: ') + hm(f.sa_von) + '–' + hm(f.sa_bis));
+  if (f.so_offen && f.so_von && f.so_bis) z.push((de ? 'So: ' : 'Sun: ') + hm(f.so_von) + '–' + hm(f.so_bis));
+  return z.length ? z.join('<br>') : (de ? 'Bitte erfragen Sie unsere aktuellen Öffnungszeiten.' : 'Please ask for our current opening hours.');
+}
+function render() {
+  var f = FIRMA, de = FAQLANG === 'de';
+  var frist = f.stornierung_frist_h || 24;
+  var tel = f.telefon || '';
+  var mail = f.email || '';
+  var faqs = de ? [
+    ['Wie buche ich online einen Termin?', 'Melden Sie sich im Kundenportal an und wählen Sie „Termin buchen". Wählen Sie Leistung, Fahrzeug und Zollgröße – Preis und Dauer werden automatisch angezeigt – danach einen freien Zeitpunkt.'],
+    ['Kann ich einen Termin verschieben oder stornieren?', 'Ja, im Portal unter „Termine". Eine kostenfreie Stornierung oder Verschiebung ist bis ' + frist + ' Stunden vor dem Termin möglich. Danach wenden Sie sich bitte telefonisch an uns.'],
+    ['Was bedeutet Reifeneinlagerung?', 'Wir lagern Ihre Winter- bzw. Sommerräder fachgerecht und trocken bei uns ein, bis zur nächsten Saison. Beim Räderwechsel holen wir den passenden Satz aus dem Lager.'],
+    ['Wo sehe ich meine eingelagerten Räder?', 'Im Kundenportal unter „Einlagerungen" sehen Sie alle bei uns eingelagerten Radsätze mit Status.'],
+    ['Wie verwalte ich meine Fahrzeuge?', 'Unter „Fahrzeuge" können Sie Ihre Fahrzeuge mit Kennzeichen anlegen und bearbeiten. So ist beim Buchen alles vorausgefüllt.'],
+    ['Was sollte ich zum Termin mitbringen?', 'Bei Felgenschlössern bitte den passenden Adapter mitbringen. Ihre Kontakt- und Fahrzeugdaten haben wir bereits aus dem Portal.'],
+    ['Öffnungszeiten', oeffnungszeiten(true)],
+    ['Kontakt', (tel ? 'Telefon: ' + tel + '<br>' : '') + (mail ? 'E-Mail: <a href="mailto:' + mail + '">' + mail + '</a>' : '')]
+  ] : [
+    ['How do I book an appointment online?', 'Log in to the customer portal and choose “Book appointment”. Select service, vehicle and wheel size – price and duration are shown automatically – then pick an available time.'],
+    ['Can I reschedule or cancel an appointment?', 'Yes, in the portal under “Appointments”. Free cancellation or rescheduling is possible up to ' + frist + ' hours before the appointment. After that, please call us.'],
+    ['What does tire storage mean?', 'We store your winter or summer wheels properly and dry until the next season and fit the right set at your wheel change.'],
+    ['Where can I see my stored wheels?', 'In the portal under “Storage” you can see all wheel sets stored with us and their status.'],
+    ['How do I manage my vehicles?', 'Under “Vehicles” you can add and edit your vehicles with their plate, so booking is pre-filled.'],
+    ['What should I bring to the appointment?', 'If you have wheel locks, please bring the matching adapter. We already have your contact and vehicle data from the portal.'],
+    ['Opening hours', oeffnungszeiten(false)],
+    ['Contact', (tel ? 'Phone: ' + tel + '<br>' : '') + (mail ? 'Email: <a href="mailto:' + mail + '">' + mail + '</a>' : '')]
+  ];
+  var html = '<h1>' + (de ? 'Häufige Fragen' : 'Frequently asked questions') + '</h1><div class="meta">Schröder &amp; Scholz · Reifenservice und Fahrzeugtechnik</div>';
+  html += faqs.map(function(q) { return '<div class="box"><div class="q">' + q[0] + '</div><div class="a">' + q[1] + '</div></div>'; }).join('');
+  document.getElementById('faq-content').innerHTML = html;
+}
+lade();
+</script>
+</body>
+</html>

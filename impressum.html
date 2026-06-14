@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Impressum — Schröder & Scholz</title>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; font-size:15px; }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 22px 60px; }
+  .logo { display:flex; align-items:center; margin-bottom:8px; }
+  h1 { font-size:24px; margin:24px 0 6px; font-weight:800; }
+  h2 { font-size:17px; margin:26px 0 8px; font-weight:700; color:var(--accent); }
+  p { margin-bottom:12px; color:#c9d1d9; }
+  .meta { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .box { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:16px; }
+  a { color:var(--accent); }
+  .lang-toggle { position:fixed; top:14px; right:14px; display:flex; gap:4px; }
+  .lang-toggle button { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--muted); padding:5px 11px; cursor:pointer; font-weight:700; font-size:12px; }
+  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent); }
+  .back { display:inline-block; margin-top:24px; color:var(--accent); text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<div class="lang-toggle">
+  <button id="il-de" class="on" onclick="setImLang('de')">DE</button>
+  <button id="il-en" onclick="setImLang('en')">EN</button>
+</div>
+<div class="wrap">
+  <div class="logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+  </div>
+  <div id="im-content"></div>
+  <a href="/reifenpro/portal/" class="back">← Zurück zum Portal</a>
+</div>
+<script>
+var API = '/reifenpro/api/portal';
+var FIRMA = {};
+var IMLANG = 'de';
+function setImLang(l) {
+  IMLANG = l;
+  document.getElementById('il-de').classList.toggle('on', l === 'de');
+  document.getElementById('il-en').classList.toggle('on', l === 'en');
+  document.documentElement.lang = l;
+  render();
+}
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function lade() {
+  fetch(API + '/daten/firmendaten').then(function(r) { return r.json(); }).then(function(f) { FIRMA = f || {}; render(); }).catch(function() { render(); });
+}
+function render() {
+  var f = FIRMA;
+  var firma = esc(f.firmenname || 'Schröder & Scholz') + (f.rechtsform ? ' ' + esc(f.rechtsform) : '');
+  var adresse = [f.strasse, (f.plz || '') + ' ' + (f.ort || '')].filter(function(x) { return x && x.trim(); }).map(esc).join('<br>');
+  var inhaber = f.inhaber ? esc(f.inhaber) : '';
+  var tel = f.telefon ? esc(f.telefon) : '';
+  var mail = f.email ? esc(f.email) : '';
+  var ustId = f.ust_id ? esc(f.ust_id) : '';
+  var hrb = f.handelsreg_nr ? esc(f.handelsreg_nr) : '';
+  var gericht = f.registergericht ? esc(f.registergericht) : '';
+  var de = IMLANG === 'de';
+
+  var html = '<h1>' + (de ? 'Impressum' : 'Legal notice') + '</h1>';
+  html += '<div class="meta">' + (de ? 'Angaben gemäß § 5 DDG' : 'Information pursuant to § 5 DDG') + '</div>';
+  html += '<div class="box">';
+  html += '<p><strong>' + firma + '</strong><br>' + (adresse || '<span style="color:#8b949e">Anschrift noch nicht hinterlegt</span>') + '</p>';
+  if (inhaber) html += '<p>' + (de ? 'Vertreten durch' : 'Represented by') + ': ' + inhaber + '</p>';
+  html += '<h2>' + (de ? 'Kontakt' : 'Contact') + '</h2>';
+  html += '<p>' + (tel ? (de ? 'Telefon: ' : 'Phone: ') + tel + '<br>' : '') + (mail ? 'E-Mail: <a href="mailto:' + mail + '">' + mail + '</a>' : '') + '</p>';
+  if (ustId) html += '<h2>' + (de ? 'Umsatzsteuer-ID' : 'VAT ID') + '</h2><p>' + (de ? 'Umsatzsteuer-Identifikationsnummer gemäß § 27a UStG: ' : 'VAT identification number: ') + ustId + '</p>';
+  if (hrb || gericht) html += '<h2>' + (de ? 'Registereintrag' : 'Register entry') + '</h2><p>' + (gericht ? (de ? 'Registergericht: ' : 'Register court: ') + gericht + '<br>' : '') + (hrb ? (de ? 'Handelsregister-Nr.: ' : 'Register no.: ') + hrb : '') + '</p>';
+  html += '</div>';
+  html += '<div class="box"><h2 style="margin-top:0">' + (de ? 'Verbraucherstreitbeilegung' : 'Consumer dispute resolution') + '</h2><p>' +
+    (de ? 'Wir sind nicht bereit und nicht verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.'
+        : 'We are neither willing nor obliged to participate in dispute resolution proceedings before a consumer arbitration board.') + '</p></div>';
+  document.getElementById('im-content').innerHTML = html;
+}
+lade();
+</script>
+</body>
+</html>
