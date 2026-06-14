@@ -6,6 +6,7 @@ const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { erzeugeRechnungPdf } = require('../lib/rechnung-pdf');
 const { resolvePreis } = require('../lib/preis');
+const { portalMailHtml } = require('../lib/mail-template');
 
 router.use(authenticate, requireStaff);
 
@@ -382,6 +383,46 @@ router.get('/:id/pdf', async (req, res, next) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="' + (r.rows[0].rechnungsnr || 'rechnung') + '.pdf"');
     fs.createReadStream(r.rows[0].pdf_pfad).pipe(res);
+  } catch (e) { next(e); }
+});
+
+// ── POST /:id/mahnung ── Zahlungserinnerung / Mahnung per E-Mail
+router.post('/:id/mahnung', async (req, res, next) => {
+  try {
+    const r = (await query(
+      `SELECT r.*, k.email AS k_email, k.portal_email, k.vorname
+       FROM rechnungen r LEFT JOIN kunden k ON k.id = r.kunden_id WHERE r.id = $1`,
+      [req.params.id]
+    )).rows[0];
+    if (!r) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
+    if (r.status !== 'festgeschrieben' || r.zahlungsstatus !== 'offen') {
+      return res.status(400).json({ error: 'Nur offene, festgeschriebene Rechnungen können gemahnt werden.' });
+    }
+    const mail = r.k_email || r.portal_email;
+    if (!mail) return res.status(400).json({ error: 'Für diesen Kunden ist keine E-Mail hinterlegt.' });
+
+    const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    const stufe = (r.mahnstufe || 0) + 1;
+    const betreff = stufe === 1 ? 'Zahlungserinnerung' : (stufe - 1) + '. Mahnung';
+    const betrag = (Number(r.brutto_summe) || 0).toFixed(2).replace('.', ',') + ' €';
+    const rdat = r.rechnungsdatum ? String(r.rechnungsdatum).substring(0, 10).split('-').reverse().join('.') : '';
+    const bank = [einst.bank, einst.iban ? 'IBAN ' + einst.iban : null, einst.bic ? 'BIC ' + einst.bic : null].filter(Boolean).join('  ·  ');
+    const html = portalMailHtml(einst, {
+      titel: betreff + ' — Rechnung ' + r.rechnungsnr,
+      name: r.vorname,
+      absaetze: [
+        'zu unserer Rechnung <strong>' + r.rechnungsnr + '</strong> vom ' + rdat + ' über <strong>' + betrag + '</strong> konnten wir bisher keinen Zahlungseingang feststellen.',
+        'Wir bitten Sie, den offenen Betrag zeitnah zu begleichen. Falls Sie die Zahlung bereits veranlasst haben, betrachten Sie diese Nachricht bitte als gegenstandslos.'
+      ],
+      hinweis: bank ? 'Bankverbindung: ' + bank : ''
+    });
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+    await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: mail, subject: betreff + ' — Rechnung ' + r.rechnungsnr, html: html });
+
+    await query('UPDATE rechnungen SET mahnstufe=$1, mahnung_am=CURRENT_DATE WHERE id=$2', [stufe, r.id]);
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.mahnung', tabelle: 'rechnungen', datensatzId: r.id, neueWerte: { mahnstufe: stufe }, req });
+    res.json({ message: betreff + ' gesendet.', mahnstufe: stufe });
   } catch (e) { next(e); }
 });
 

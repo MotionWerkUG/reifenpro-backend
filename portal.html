@@ -843,8 +843,14 @@ function ladeFahrzeuge() {
     el.innerHTML = rows.map(function(f) {
       var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
       var meta = [f.typ, f.kennzeichen, f.baujahr].filter(Boolean).join(' · ') + (f.hu_datum ? ' · HU ' + fmtDatum(f.hu_datum) : '');
+      var huHinweis = '';
+      if (f.hu_datum) {
+        var diff = Math.round((new Date(String(f.hu_datum).substring(0, 10) + 'T12:00:00') - new Date()) / 86400000);
+        if (diff < 0) huHinweis = '<span style="color:#c0392b;font-weight:700"> · HU überfällig</span>';
+        else if (diff < 60) huHinweis = '<span style="color:#eab308;font-weight:700"> · HU bald fällig</span>';
+      }
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px">' +
-        '<div><div style="font-weight:700">' + titel + '</div><div style="font-size:12px;color:var(--muted)">' + meta + '</div></div>' +
+        '<div><div style="font-weight:700">' + titel + '</div><div style="font-size:12px;color:var(--muted)">' + meta + huHinweis + '</div></div>' +
         '<div style="display:flex;gap:6px">' +
           '<button class="btn btn-g btn-sm" onclick="fzEdit(\'' + f.id + '\')">' + t('edit') + '</button>' +
           '<button class="btn btn-sm" style="background:#c0392b;color:#fff;border:none" onclick="fzLoeschen(\'' + f.id + '\')">x</button>' +

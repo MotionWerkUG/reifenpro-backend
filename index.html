@@ -1344,6 +1344,10 @@ function loadRechnungStatistik() {
       '</div>';
   }).catch(function() {});
 }
+function mahnen(id) {
+  if (!confirm('Zahlungserinnerung / Mahnung per E-Mail an den Kunden senden?')) return;
+  api('POST', '/rechnungen/' + id + '/mahnung').then(function(r) { if (r) { notify(r.message || 'Gesendet.'); loadRechnungen(); } }).catch(function(e) { notify(e.message, 'err'); });
+}
 function rechnungAusTermin(terminId) {
   api('POST', '/rechnungen/aus-termin/' + terminId).then(function(r) {
     if (r && r.id) { notify('Rechnungsentwurf erstellt.'); showPage('rechnungen'); setTimeout(function() { editRechnung(r.id); }, 300); }
@@ -1370,10 +1374,11 @@ function renderRechnungen() {
       akt += '<button class="btn btn-g btn-sm" onclick="rechnungPdf(\'' + r.id + '\')">PDF</button>';
       if (r.status === 'festgeschrieben') {
         akt += '<button class="btn btn-g btn-sm" onclick="toggleBezahlt(\'' + r.id + '\',' + (r.zahlungsstatus === 'bezahlt' ? 'false' : 'true') + ')">' + (r.zahlungsstatus === 'bezahlt' ? 'Als offen' : 'Als bezahlt') + '</button>';
+        if (r.zahlungsstatus !== 'bezahlt') akt += '<button class="btn btn-g btn-sm" onclick="mahnen(\'' + r.id + '\')">Mahnen</button>';
         akt += '<button class="btn btn-danger btn-sm" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
-    var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>') : '-';
+    var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
       '<td>' + (r.kundenname || '') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
