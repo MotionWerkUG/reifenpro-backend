@@ -5,6 +5,7 @@ const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { query } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
+const { authenticate, requireStaff } = require('../middleware/auth');
 
 const limiter = rateLimit({ windowMs: 900000, max: 5, message: { error: 'Zu viele Anfragen. Bitte versuchen Sie es später erneut.' } });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,6 +55,53 @@ router.post('/', limiter, async (req, res, next) => {
     } catch (mailErr) { console.error('[Kontakt-Mail]', mailErr.message); }
 
     res.json({ message: 'ok' });
+  } catch (e) { next(e); }
+});
+
+// ── Ab hier: nur fuer angemeldete Mitarbeiter (Admin-Dashboard) ──
+
+// Liste aller Kontaktanfragen
+router.get('/', authenticate, requireStaff, async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id, name, email, telefon, nachricht, erledigt, erstellt_am FROM kontakt_anfragen ORDER BY erstellt_am DESC');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// Erledigt-Status setzen
+router.patch('/:id', authenticate, requireStaff, async (req, res, next) => {
+  try {
+    const { rows } = await query('UPDATE kontakt_anfragen SET erledigt=$1 WHERE id=$2 RETURNING id', [req.body.erledigt === true, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
+    res.json({ message: 'ok' });
+  } catch (e) { next(e); }
+});
+
+// Antwort per E-Mail senden (markiert die Anfrage als erledigt)
+router.post('/:id/antwort', authenticate, requireStaff, async (req, res, next) => {
+  try {
+    const text = (req.body.text || '').toString().trim();
+    if (!text) return res.status(400).json({ error: 'Bitte einen Antworttext eingeben.' });
+    const a = (await query('SELECT * FROM kontakt_anfragen WHERE id=$1', [req.params.id])).rows[0];
+    if (!a) return res.status(404).json({ error: 'Anfrage nicht gefunden.' });
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587,
+      secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    const html = portalMailHtml(einst, {
+      titel: 'Ihre Anfrage an Schröder & Scholz',
+      absaetze: [esc(text).replace(/\n/g, '<br>')],
+      ohneGruss: true
+    });
+    await transporter.sendMail({
+      from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>',
+      to: a.email, subject: 'Antwort auf Ihre Anfrage – Schröder & Scholz', html,
+      replyTo: einst.email || process.env.SMTP_USER
+    });
+    await query('UPDATE kontakt_anfragen SET erledigt=true WHERE id=$1', [req.params.id]);
+    res.json({ message: 'Antwort gesendet.' });
   } catch (e) { next(e); }
 });
 

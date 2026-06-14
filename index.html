@@ -305,6 +305,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="ni" data-page="werkstatt">Werkstatt</div>
       <div class="ni" data-page="statistik">Statistik</div>
       <div class="ni" data-page="rechnungen">Rechnungen</div>
+      <div class="ni" data-page="kontakt">Kontaktanfragen</div>
       <div class="nsec">Team</div>
       <div class="ni" data-page="users">Mitarbeiter</div>
       <div class="ni" data-page="dsgvo">DSGVO-Anfragen</div>
@@ -320,6 +321,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <button class="btn btn-p" onclick="openModal('ne')">+ Neue Einlagerung</button>
         </div>
         <div id="dash-freischalten"></div>
+        <div id="dash-kontakt"></div>
         <div class="stats">
           <div class="sc sc-a clickable" onclick="showPage('einlagerung')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
           <div class="sc sc-y"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
@@ -334,6 +336,15 @@ tr:hover td { background: rgba(255,255,255,.02); }
           </div>
         </div>
         <div class="pnl"><div class="ptitle">Letzte Aktivität</div><div id="dash-aktivitaet"></div></div>
+      </div>
+
+      <!-- KONTAKTANFRAGEN -->
+      <div class="page" id="page-kontakt">
+        <div class="ph">
+          <div><div class="pt">Kontaktanfragen</div><div id="ka-count" style="font-size:12px;color:var(--muted);margin-top:2px"></div></div>
+          <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ka-erledigte" onchange="renderKontakt()"> erledigte anzeigen</label>
+        </div>
+        <div id="ka-liste"></div>
       </div>
 
       <!-- KUNDEN -->
@@ -1271,6 +1282,7 @@ function startApp() {
   loadArtikel();
   loadRechnungen();
   loadAktivitaet();
+  loadKontakt();
   startUhr();
   befuelleJahrDropdown();
   if (!window._popBound) {
@@ -1333,12 +1345,64 @@ function showPage(n, fromPop) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
-  if (n === 'dashboard') loadAktivitaet();
+  if (n === 'dashboard') { loadAktivitaet(); loadKontakt(); }
+  if (n === 'kontakt') loadKontakt();
   if (n === 'rechnungen') loadRechnungen();
   if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
 }
+
+// ── KONTAKTANFRAGEN ──
+var allKontakt = [];
+function kEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function loadKontakt() {
+  api('GET', '/kontakt').then(function(r) { allKontakt = r || []; renderKontakt(); kontaktBanner(); }).catch(function() {});
+}
+function kontaktBanner() {
+  var el = document.getElementById('dash-kontakt'); if (!el) return;
+  var offen = allKontakt.filter(function(a) { return !a.erledigt; }).length;
+  el.innerHTML = offen
+    ? '<div class="pnl clickable" style="border-left:3px solid var(--accent);cursor:pointer;margin-bottom:14px" onclick="showPage(\'kontakt\')"><strong>' + offen + ' offene Kontaktanfrage' + (offen > 1 ? 'n' : '') + '</strong> — zum Bearbeiten klicken</div>'
+    : '';
+}
+function renderKontakt() {
+  var cb = document.getElementById('ka-erledigte');
+  var zeigeErl = cb && cb.checked;
+  var offen = allKontakt.filter(function(a) { return !a.erledigt; }).length;
+  var cnt = document.getElementById('ka-count'); if (cnt) cnt.textContent = offen + ' offen · ' + allKontakt.length + ' gesamt';
+  var el = document.getElementById('ka-liste'); if (!el) return;
+  var list = allKontakt.filter(function(a) { return zeigeErl || !a.erledigt; });
+  if (!list.length) { el.innerHTML = '<div class="pnl" style="color:var(--muted)">Keine offenen Anfragen.</div>'; return; }
+  el.innerHTML = list.map(function(a) {
+    var vorname = (a.name || '').trim().split(' ')[0] || a.name || '';
+    var pre = 'Hallo ' + vorname + ',\n\n\n\nMit freundlichen Grüßen\nSchröder & Scholz';
+    return '<div class="pnl" style="margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
+      '<div><strong>' + kEsc(a.name) + '</strong>' + (a.erledigt ? ' <span style="color:#1a7f37;font-size:12px">erledigt</span>' : '') + '<br>' +
+      '<a href="mailto:' + kEsc(a.email) + '">' + kEsc(a.email) + '</a>' + (a.telefon ? ' · ' + kEsc(a.telefon) : '') + '</div>' +
+      '<div style="font-size:12px;color:var(--muted)">' + rDatum(a.erstellt_am) + '</div></div>' +
+      '<div style="margin:10px 0;white-space:pre-wrap;background:var(--bg,#f6f7f9);padding:10px 12px;border-radius:8px">' + kEsc(a.nachricht) + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+      '<button class="btn btn-p btn-sm" onclick="kontaktAntwortToggle(\'' + a.id + '\')">Antworten</button>' +
+      (a.erledigt
+        ? '<button class="btn btn-g btn-sm" onclick="kontaktErledigt(\'' + a.id + '\',false)">Als offen markieren</button>'
+        : '<button class="btn btn-g btn-sm" onclick="kontaktErledigt(\'' + a.id + '\',true)">Als erledigt markieren</button>') +
+      '</div>' +
+      '<div id="ka-reply-' + a.id + '" style="display:none;margin-top:12px">' +
+      '<textarea id="ka-text-' + a.id + '" style="width:100%;min-height:160px;font-family:inherit">' + kEsc(pre) + '</textarea>' +
+      '<div style="margin-top:8px;color:var(--muted);font-size:12px">Die Antwort wird per E-Mail an ' + kEsc(a.email) + ' gesendet.</div>' +
+      '<div style="margin-top:8px"><button class="btn btn-p btn-sm" onclick="kontaktSenden(\'' + a.id + '\')">Antwort senden</button></div>' +
+      '</div></div>';
+  }).join('');
+}
+function kontaktAntwortToggle(id) { var e = document.getElementById('ka-reply-' + id); if (e) e.style.display = (e.style.display === 'none' ? 'block' : 'none'); }
+function kontaktSenden(id) {
+  var t = (document.getElementById('ka-text-' + id).value || '').trim();
+  if (!t) { notify('Bitte einen Antworttext eingeben.', 'err'); return; }
+  api('POST', '/kontakt/' + id + '/antwort', { text: t }).then(function() { notify('Antwort gesendet.'); loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function kontaktErledigt(id, val) { api('PATCH', '/kontakt/' + id, { erledigt: val }).then(function() { loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); }); }
 
 // ── RECHNUNGEN ──
 var allRechnungen = [];
