@@ -24,7 +24,8 @@ router.get('/', async (req, res, next) => {
       params.push(`%${suche}%`);
       sql += ` AND (k.vorname ILIKE $1 OR k.nachname ILIKE $1
                OR k.kennzeichen ILIKE $1 OR k.telefon ILIKE $1
-               OR k.kunden_nr ILIKE $1 OR k.email ILIKE $1)`;
+               OR k.kunden_nr ILIKE $1 OR k.email ILIKE $1
+               OR EXISTS (SELECT 1 FROM fahrzeuge f WHERE f.kunden_id=k.id AND f.kennzeichen ILIKE $1))`;
     }
     params.push(parseInt(limit));
     sql += ` ORDER BY k.nachname, k.vorname LIMIT $${params.length}`;
@@ -140,6 +141,15 @@ router.get('/:id/einlagerungen', async (req, res, next) => {
 // ── FAHRZEUGE (Standort pflegt Fahrzeuge eines Kunden) ──
 const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 
+// Spiegelt das zuletzt gepflegte Fahrzeug in die Kunden-Stammfelder (fuer Suche/Profil/Buchung/HU-Warnung)
+async function syncPrimaerFahrzeug(kundenId, fz) {
+  if (!fz) return;
+  await query(
+    'UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3, hu_datum=COALESCE($4, hu_datum) WHERE id=$5',
+    [fz.kennzeichen || null, fz.marke || null, fz.modell || null, fz.hu_datum || null, kundenId]
+  );
+}
+
 router.get('/:id/fahrzeuge', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT * FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [req.params.id]);
@@ -157,6 +167,7 @@ router.post('/:id/fahrzeuge', async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [req.params.id, t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null]
     );
+    await syncPrimaerFahrzeug(req.params.id, rows[0]);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -172,6 +183,7 @@ router.put('/:id/fahrzeuge/:fid', async (req, res, next) => {
       [t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null, req.params.fid, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
+    await syncPrimaerFahrzeug(req.params.id, rows[0]);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

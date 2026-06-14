@@ -9,13 +9,15 @@ const { portalMailHtml } = require('../lib/mail-template');
 router.get('/', authenticate, async (req, res, next) => {
   try {
     const { von, bis, status } = req.query;
-    let sql = `SELECT t.*, 
+    let sql = `SELECT t.*,
       k.vorname || ' ' || k.nachname as kundenname,
       k.kennzeichen, k.telefon,
-      a.name as artikel_name, a.dauer_minuten
+      a.name as artikel_name, a.dauer_minuten,
+      f.marke as fahrzeug_marke, f.modell as fahrzeug_modell
       FROM termine t
       LEFT JOIN kunden k ON k.id = t.kunden_id
       LEFT JOIN artikel a ON a.id = t.artikel_id
+      LEFT JOIN fahrzeuge f ON f.id = t.fahrzeug_id
       WHERE 1=1`;
     const params = [];
     if (von) { params.push(von); sql += ` AND t.datum >= $${params.length}`; }

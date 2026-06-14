@@ -377,6 +377,15 @@ router.get('/rechnungen/:id/pdf', authKunde, async (req, res, next) => {
 // ── FAHRZEUGE (Kunde pflegt eigene) ──
 const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 
+// Spiegelt das zuletzt gepflegte Fahrzeug in die Kunden-Stammfelder (Suche/Profil/Buchung/HU)
+async function syncKundeFz(kundenId, fz) {
+  if (!fz) return;
+  await query(
+    'UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3, hu_datum=COALESCE($4, hu_datum) WHERE id=$5',
+    [fz.kennzeichen || null, fz.marke || null, fz.modell || null, fz.hu_datum || null, kundenId]
+  );
+}
+
 router.get('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
     const { rows } = await query('SELECT * FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [req.kunde.id]);
@@ -394,6 +403,7 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [req.kunde.id, t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null]
     );
+    await syncKundeFz(req.kunde.id, rows[0]);
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
 });
@@ -409,6 +419,7 @@ router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
       [t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null, req.params.id, req.kunde.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden' });
+    await syncKundeFz(req.kunde.id, rows[0]);
     res.json(rows[0]);
   } catch (e) { next(e); }
 });

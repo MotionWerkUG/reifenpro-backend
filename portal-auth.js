@@ -60,6 +60,9 @@ router.post('/registrieren', async (req, res, next) => {
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 24 * 3600000);
     const now = new Date();
+    // Nachweis der Einwilligung: IP (via nginx-Header) + Stand der akzeptierten Dokumente
+    const einwilligungIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+    const agbVersion = 'Stand ' + now.toISOString().substring(0, 10);
 
     let kundeId;
     if (bestandskunde.rows.length) {
@@ -71,9 +74,9 @@ router.post('/registrieren', async (req, res, next) => {
          portal_bestaetigung_token=$3, portal_token_ablauf=$4,
          portal_registriert_am=$5, portal_agb_akzeptiert=$6, portal_agb_datum=$5,
          portal_dsgvo_akzeptiert=$6, portal_dsgvo_datum=$5,
-         einwilligung_saison_erinnerung=$7
+         einwilligung_saison_erinnerung=$7, einwilligung_ip=$9, agb_version=$10
          WHERE id=$8`,
-        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId]
+        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion]
       );
     } else {
       // Neuer Kunde anlegen (Kundennummer aus Sequenz wie im Admin -> keine Doppelnummern)
@@ -83,11 +86,12 @@ router.post('/registrieren', async (req, res, next) => {
          portal_email, portal_password, portal_aktiv, portal_freigegeben,
          portal_email_bestaetigt, portal_bestaetigung_token, portal_token_ablauf,
          portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
-         portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung, aktiv)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,true)
+         portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
+         einwilligung_ip, agb_version, aktiv)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,true)
          RETURNING id`,
         [nr, vorname, nachname, email.toLowerCase(), telefon || null,
-         email.toLowerCase(), hash, token, ablauf, now, saison ? true : false]
+         email.toLowerCase(), hash, token, ablauf, now, saison ? true : false, einwilligungIp, agbVersion]
       );
       kundeId = neu.rows[0].id;
     }

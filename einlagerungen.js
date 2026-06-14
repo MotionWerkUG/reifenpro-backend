@@ -24,9 +24,11 @@ router.get('/', async (req, res, next) => {
       SELECT e.*,
         k.kunden_nr,
         k.vorname || ' ' || k.nachname AS kundenname,
-        k.kennzeichen, k.telefon, k.email, k.firma
+        k.kennzeichen, k.telefon, k.email, k.firma,
+        f.kennzeichen AS fahrzeug_kennzeichen, f.marke AS fahrzeug_marke
       FROM einlagerungen e
       JOIN kunden k ON e.kunden_id = k.id
+      LEFT JOIN fahrzeuge f ON f.id = e.fahrzeug_id
       WHERE 1=1`;
     const params = [];
     if (status) {

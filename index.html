@@ -671,7 +671,6 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <select id="nk-ez-jahr" style="width:90px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 8px;outline:none"><option value="">Jahr</option></select>
         </div>
       </div>
-      <div class="fg"><label>HU fällig</label><input id="nk-hu" type="month"></div>
       <div class="fsec">Nach dem Speichern</div>
       <div class="full" style="background:var(--adim);border:1px solid rgba(232,80,42,.2);border-radius:8px;padding:12px">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:6px"><input type="checkbox" id="nk-dsgvo" checked> Datenschutzerklärung sofort erstellen</label>
@@ -2086,7 +2085,7 @@ function buildEinlTabelle(einl) {
       aktionen += '<button class="btn btn-g btn-sm" onclick="zeigeSchein(\'' + e.id + '\',\'aus\')">Aus</button>';
       aktionen += '<button class="btn btn-g btn-sm" onclick="druckEtikett(\'' + e.id + '\')">Etikett</button>';
       aktionen += '</div>';
-      return '<tr><td style="font-size:11px;color:var(--muted)">' + e.beleg_nr + '</td>' +
+      return '<tr><td style="font-size:11px;color:var(--muted)">' + e.beleg_nr + (e.fahrzeug_kennzeichen ? '<br><span style="font-size:10px">' + e.fahrzeug_kennzeichen + '</span>' : '') + '</td>' +
         '<td style="font-size:12px">' + e.reifen_groesse + '</td>' +
         '<td>' + tbadge(e.reifen_typ) + '</td>' +
         '<td style="font-weight:700;color:var(--accent)">' + e.lagerplatz + '</td>' +
@@ -2196,7 +2195,6 @@ function saveNK() {
   var mail = gv('nk-mail');
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { notify('E-Mail-Format ungültig.', 'err'); return; }
   var kz = kzAusTeilen('nk-');
-  var hu = gv('nk-hu') || null; if (hu) hu = hu + '-01';
   var ezJahr = gv('nk-ez-jahr');
   var moVal = document.getElementById('nk-mo-sel').value === '__man__' ? gv('nk-mo-man') : gv('nk-mo-sel');
   var data = {
@@ -2204,7 +2202,7 @@ function saveNK() {
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
     fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null,
-    hu_datum: hu, anrede: gv('nk-anrede'), notizen: document.getElementById('nk-kundentyp').value
+    anrede: gv('nk-anrede'), notizen: document.getElementById('nk-kundentyp').value
   };
   sendeNeuerKunde(data, false);
 }
@@ -2981,6 +2979,7 @@ function renderWS() {
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
           '<span style="font-size:13px;color:var(--muted)">' + kuerzel + '</span>' +
+          (t.fahrzeug_marke ? '<span style="font-size:12px;color:var(--muted)">' + t.fahrzeug_marke + (t.fahrzeug_modell ? ' ' + t.fahrzeug_modell : '') + '</span>' : '') +
           (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent);letter-spacing:1px">' + lagerplaetze + '</span>' : '') +
         '</div>' +
         (einlInfo ? '<div style="font-size:11px;color:var(--yellow);margin-top:6px;padding:5px 8px;background:var(--ydim);border-radius:5px">' + einlInfo + '</div>' : '') +
