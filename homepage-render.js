@@ -32,6 +32,14 @@ function jsonLd(f) {
   return JSON.stringify(data);
 }
 
+// Wortmarke exakt wie im Kundenportal (heller Text fuer dunklen Hintergrund).
+function logoSvg(w, h) {
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="' + w + '" height="' + h + '" style="display:block">' +
+    '<text x="0" y="52" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text>' +
+    '<rect x="2" y="68" width="46" height="5" fill="#eab308"/>' +
+    '<text x="58" y="74" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>';
+}
+
 function renderLeistungen(group) {
   var cards = group.map(function(s, i) {
     var nr = String(i + 1).padStart(2, '0');
@@ -130,14 +138,13 @@ function renderHomepage(sektionen, f) {
     '<script type="application/ld+json">' + jsonLd(f) + '</scr' + 'ipt>' +
     '<style>' + css() + '</style></head><body>' +
     '<header class="nav"><div class="nav-in">' +
-    '<a href="/" class="wm">SCHRÖDER <span>&amp;</span> SCHOLZ</a>' +
+    '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
     '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
     '<a class="btn-sm" href="/portal/">Kundenportal</a></nav>' +
     '</div></header>' +
     '<main>' + body + '</main>' +
     '<footer class="foot"><div class="inner">' +
-    '<div class="foot-wm">SCHRÖDER <span>&amp;</span> SCHOLZ</div>' +
-    '<div class="foot-sub">Reifenservice und Fahrzeugtechnik</div>' +
+    '<div class="foot-logo">' + logoSvg(252, 45) + '</div>' +
     '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a></div>' +
     '</div></footer>' + script() + '</body></html>';
 }
@@ -149,7 +156,7 @@ function css() {
     ".inner{max-width:1100px;margin:0 auto;padding:0 24px}.narrow{max-width:760px}" +
     ".nav{position:sticky;top:0;z-index:50;background:#171717;border-bottom:3px solid #eab308}" +
     ".nav-in{max-width:1100px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}" +
-    ".wm{font-weight:800;letter-spacing:.5px;color:#fff;font-size:20px}.wm span{color:#eab308}" +
+    ".wm{display:inline-flex;align-items:center}.wm svg{height:38px;width:auto}" +
     ".nav-links{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.nav-links a{color:#e6e6e6;font-size:14px;font-weight:600}.nav-links a:hover{color:#eab308}" +
     ".btn-sm{background:#eab308;color:#171717!important;padding:8px 16px;border-radius:8px}" +
     ".hero{min-height:62vh;display:flex;align-items:center;background-size:cover;background-position:center;color:#fff}" +
@@ -179,10 +186,9 @@ function css() {
     ".kf-check{font-size:13px;color:#555;display:flex;gap:8px;align-items:flex-start;line-height:1.5}.kf-check input{width:auto;margin-top:3px}.kf-check a{color:#171717;text-decoration:underline}" +
     ".kf-ok{display:none;background:#e7f7ee;color:#0f6b3e;border:1px solid #b7e4cd;border-radius:8px;padding:12px 14px;font-size:14px}" +
     ".kf-err{display:none;background:#fdecea;color:#b3261e;border:1px solid #f5c6c2;border-radius:8px;padding:12px 14px;font-size:14px}" +
-    ".foot{background:#171717;color:#cfcfcf;padding:40px 0;text-align:center}.foot-wm{font-weight:800;color:#fff;font-size:18px}.foot-wm span{color:#eab308}" +
-    ".foot-sub{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8b949e;margin:6px 0 16px}" +
+    ".foot{background:#171717;color:#cfcfcf;padding:40px 0;text-align:center}.foot-logo{display:flex;justify-content:center;margin-bottom:18px}.foot-logo svg{max-width:90%;height:auto}" +
     ".foot-links{font-size:13px}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:#eab308}" +
-    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}}";
+    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}.wm svg{height:30px}}";
 }
 
 function script() {

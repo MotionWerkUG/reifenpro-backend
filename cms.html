@@ -3,66 +3,110 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Homepage-Inhalte — Schröder & Scholz</title>
+<title>Homepage verwalten — Schröder & Scholz</title>
 <meta name="robots" content="noindex">
 <style>
-  :root { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; --green:#3ecf8e; }
+  :root { --bg:#0d1117; --panel:#161b22; --panel2:#1c232d; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; --green:#3ecf8e; --red:#e5534b; }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:15px; }
-  .top { background:#171717; border-bottom:3px solid var(--accent); padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-  .wm { font-weight:800; color:#fff; letter-spacing:.5px; } .wm span { color:var(--accent); }
+  a { color:var(--accent); }
+
+  /* Kopfleiste */
+  .top { position:sticky; top:0; z-index:40; background:#171717; border-bottom:3px solid var(--accent); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .top-l { display:flex; align-items:center; gap:14px; }
+  .top-l svg { height:34px; width:auto; display:block; }
+  .top-tag { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); border-left:1px solid #3a3a3a; padding-left:14px; }
+  .top-r { display:flex; gap:8px; }
   .top a, .top button { color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px 14px; text-decoration:none; cursor:pointer; font-size:13px; font-family:inherit; }
   .top .view { background:var(--accent); color:#171717; border:none; font-weight:700; }
-  .wrap { max-width:820px; margin:0 auto; padding:22px 18px 60px; }
-  .hint { color:var(--muted); font-size:13px; margin-bottom:18px; }
-  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
-  .card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
-  .badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#171717; background:var(--accent); padding:3px 9px; border-radius:20px; }
+
+  .wrap { max-width:860px; margin:0 auto; padding:22px 18px 80px; }
+  .intro { background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:10px; padding:14px 16px; color:var(--muted); font-size:13px; line-height:1.6; margin-bottom:20px; }
+  .intro b { color:var(--text); }
+
+  /* Abschnitts-Karte */
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; margin-bottom:12px; overflow:hidden; transition:border-color .15s; }
+  .card:hover { border-color:#3a4654; }
+  .card.hidden-sec { opacity:.6; }
+  .card-head { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; user-select:none; }
+  .card-head:hover { background:var(--panel2); }
+  .chev { color:var(--muted); font-size:13px; transition:transform .15s; width:12px; flex:none; }
+  .card:not(.collapsed) .chev { transform:rotate(90deg); }
+  .ord { font-size:12px; font-weight:800; color:var(--muted); width:20px; flex:none; }
+  .badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#171717; background:var(--accent); padding:3px 9px; border-radius:20px; flex:none; }
   .badge.auto { background:#3a4250; color:#cfd6df; }
-  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
-  input, textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; padding:9px 11px; outline:none; }
+  .head-title { flex:1; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .tag-hidden { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); border:1px solid var(--border); border-radius:20px; padding:2px 8px; flex:none; }
+  .sw { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); flex:none; }
+  .sw input { width:34px; height:20px; -webkit-appearance:none; appearance:none; background:var(--border); border-radius:20px; position:relative; cursor:pointer; transition:.15s; }
+  .sw input:checked { background:var(--green); }
+  .sw input::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:.15s; }
+  .sw input:checked::after { left:16px; }
+
+  .card-body { padding:4px 16px 16px; border-top:1px solid var(--border); }
+  .card.collapsed .card-body { display:none; }
+  label { display:block; font-size:12px; color:var(--muted); margin:12px 0 5px; font-weight:600; }
+  input[type=text], input[type=email], input[type=password], input:not([type]), textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; padding:10px 12px; outline:none; }
   input:focus, textarea:focus { border-color:var(--accent); }
-  textarea { min-height:80px; resize:vertical; }
-  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
-  .btn { border:none; border-radius:8px; padding:9px 16px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; }
-  .btn-p { background:var(--accent); color:#171717; } .btn-g { background:var(--bg); color:var(--text); border:1px solid var(--border); }
-  .btn-d { background:#c0392b; color:#fff; } .btn-i { background:var(--bg); color:var(--text); border:1px solid var(--border); padding:6px 11px; }
-  .sw { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-left:auto; }
-  .imgbox { aspect-ratio:4/3; max-width:260px; border-radius:10px; margin-top:8px; overflow:hidden; background:#0b0e13; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; position:relative; }
+  textarea { min-height:90px; resize:vertical; line-height:1.5; }
+
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+  .btn { border:none; border-radius:8px; padding:10px 16px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700; }
+  .btn-p { background:var(--accent); color:#171717; } .btn-g { background:var(--bg); color:var(--text); border:1px solid var(--border); font-weight:600; }
+  .btn-d { background:transparent; color:var(--red); border:1px solid var(--red); } .btn-d:hover { background:var(--red); color:#fff; }
+  .btn-icon { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:8px; width:38px; height:38px; cursor:pointer; font-size:15px; }
+  .btn-icon:disabled { opacity:.35; cursor:default; }
+
+  /* Bild */
+  .imgbox { aspect-ratio:4/3; max-width:280px; border-radius:10px; margin-top:6px; overflow:hidden; background:#0b0e13; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; position:relative; }
   .imgbox.wide { aspect-ratio:1600/760; max-width:100%; }
   .imgbox img { width:100%; height:100%; object-fit:cover; display:block; }
   .imgph { color:var(--muted); font-size:13px; }
   .imgbox.busy::after { content:'Wird verarbeitet …'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(13,17,23,.85); color:var(--accent); font-weight:700; font-size:13px; }
   .uprow { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
-  .filebtn { display:inline-block; background:var(--accent); color:#171717; font-weight:700; font-size:13px; padding:9px 16px; border-radius:8px; cursor:pointer; margin:0; }
-  .imghint { color:var(--muted); font-size:12px; margin-top:6px; line-height:1.5; }
-  .add { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
-  .notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--green); color:#06281a; padding:10px 18px; border-radius:10px; font-weight:700; opacity:0; transition:.2s; pointer-events:none; }
-  .notice.show { opacity:1; } .notice.err { background:#c0392b; color:#fff; }
-  #login { max-width:340px; margin:80px auto; }
-  #login h1 { font-size:18px; margin-bottom:4px; } #login .hint { margin-bottom:16px; }
+  .filebtn { display:inline-block; background:var(--accent); color:#171717; font-weight:700; font-size:13px; padding:10px 16px; border-radius:8px; cursor:pointer; }
+  .imghint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.5; }
+  .autohint { color:var(--muted); font-size:13px; margin-top:12px; background:var(--bg); border-radius:8px; padding:10px 12px; line-height:1.5; }
+
+  .add { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+  .notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--green); color:#06281a; padding:11px 20px; border-radius:10px; font-weight:700; opacity:0; transition:.2s; pointer-events:none; z-index:60; box-shadow:0 8px 24px rgba(0,0,0,.3); }
+  .notice.show { opacity:1; } .notice.err { background:var(--red); color:#fff; }
+
+  /* Login */
+  #login { max-width:360px; margin:70px auto; padding:0 18px; }
+  #login .login-logo { display:flex; justify-content:center; margin-bottom:22px; }
+  #login .login-logo svg { height:42px; width:auto; }
+  #login .box { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:26px 24px; }
+  #login h1 { font-size:17px; margin-bottom:4px; } #login .hint { color:var(--muted); font-size:13px; margin-bottom:18px; }
+  #login label { margin-top:14px; }
 </style>
 </head>
 <body>
 <div id="login" style="display:none">
-  <h1>Homepage-Inhalte</h1>
-  <div class="hint">Bitte mit Ihrem Mitarbeiter-Konto anmelden.</div>
-  <label>E-Mail</label><input id="l-email" type="email" autocapitalize="none">
-  <label>Passwort</label><input id="l-pass" type="password" onkeydown="if(event.key==='Enter')doLogin()">
-  <div class="row"><button class="btn btn-p" onclick="doLogin()">Anmelden</button></div>
-  <div style="margin-top:14px"><a href="#" onclick="pwVergessen();return false" style="color:var(--muted);font-size:13px">Passwort vergessen?</a></div>
+  <div class="login-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="280" height="50"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+  <div class="box">
+    <h1>Homepage verwalten</h1>
+    <div class="hint">Bitte mit Ihrem Mitarbeiter-Konto anmelden.</div>
+    <label>E-Mail</label><input id="l-email" type="email" autocapitalize="none">
+    <label>Passwort</label><input id="l-pass" type="password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="row" style="border:none;padding:0;margin-top:18px"><button class="btn btn-p" onclick="doLogin()">Anmelden</button></div>
+    <div style="margin-top:14px"><a href="#" onclick="pwVergessen();return false" style="color:var(--muted);font-size:13px">Passwort vergessen?</a></div>
+  </div>
 </div>
 
 <div id="cms" style="display:none">
   <div class="top">
-    <div class="wm">SCHRÖDER <span>&amp;</span> SCHOLZ — Homepage</div>
-    <div style="display:flex;gap:8px">
+    <div class="top-l">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="190" height="34"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+      <span class="top-tag">Homepage-Verwaltung</span>
+    </div>
+    <div class="top-r">
       <a class="view" href="https://www.schroeder-scholz.de/" target="_blank" rel="noopener">Homepage ansehen</a>
       <button onclick="logout()">Abmelden</button>
     </div>
   </div>
   <div class="wrap">
-    <div class="hint">Texte und Bilder bearbeiten, Abschnitte ein-/ausblenden, mit den Pfeilen umsortieren. Jede Speicherung aktualisiert die Homepage sofort. „Öffnungszeiten" und „Kontakt" werden automatisch aus den Einstellungen gefüllt.</div>
+    <div class="intro">Tippen Sie auf einen Abschnitt, um ihn zu <b>bearbeiten</b>. Mit dem Schalter rechts blenden Sie ihn <b>ein/aus</b>, mit den Pfeilen ändern Sie die <b>Reihenfolge</b>. Jede Speicherung aktualisiert die Homepage sofort. <b>Öffnungszeiten</b> und <b>Kontakt</b> werden automatisch aus Ihren Firmendaten (Einstellungen) gefüllt.</div>
     <div id="liste"></div>
     <div class="add">
       <button class="btn btn-g" onclick="addSektion('text')">+ Text-Abschnitt</button>
@@ -77,7 +121,8 @@
 var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
 var TOKEN = localStorage.getItem('rp_token');
 var SEK = [];
-var TYP_LABEL = { hero: 'Start (Hero)', leistung: 'Leistung', text: 'Text', oeffnungszeiten: 'Öffnungszeiten', kontakt: 'Kontakt' };
+var OFFEN = {};
+var TYP_LABEL = { hero: 'Start', leistung: 'Leistung', text: 'Text', oeffnungszeiten: 'Öffnungszeiten', kontakt: 'Kontakt' };
 
 function notify(m, err) { var n = document.getElementById('notice'); n.textContent = m; n.className = 'notice show' + (err ? ' err' : ''); setTimeout(function(){ n.className = 'notice'; }, 2600); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
@@ -120,14 +165,30 @@ function laden() {
 function feld(id, label, val, ta) {
   return '<label>' + label + '</label>' + (ta
     ? '<textarea id="' + id + '">' + esc(val) + '</textarea>'
-    : '<input id="' + id + '" value="' + esc(val) + '">');
+    : '<input type="text" id="' + id + '" value="' + esc(val) + '">');
+}
+function toggleCard(id) {
+  OFFEN[id] = !OFFEN[id];
+  var c = document.getElementById('card-' + id);
+  if (c) c.classList.toggle('collapsed', !OFFEN[id]);
 }
 function render() {
   var html = SEK.map(function(s, idx) {
     var auto = (s.typ === 'oeffnungszeiten' || s.typ === 'kontakt');
-    var h = '<div class="card">';
-    h += '<div class="card-top"><span class="badge' + (auto ? ' auto' : '') + '">' + (TYP_LABEL[s.typ] || s.typ) + '</span>' +
-      '<span class="sw"><label style="margin:0">sichtbar</label><input type="checkbox" style="width:auto" id="v-' + s.id + '"' + (s.sichtbar ? ' checked' : '') + '></span></div>';
+    var titel = s.headline || (s.typ === 'hero' ? 'Startbereich' : 'Ohne Titel');
+    var c = 'card' + (OFFEN[s.id] ? '' : ' collapsed') + (s.sichtbar ? '' : ' hidden-sec');
+    var h = '<div class="' + c + '" id="card-' + s.id + '">';
+    // Kopf (klickbar)
+    h += '<div class="card-head" onclick="toggleCard(\'' + s.id + '\')">' +
+      '<span class="chev">&#9656;</span>' +
+      '<span class="ord">' + String(idx + 1).padStart(2, '0') + '</span>' +
+      '<span class="badge' + (auto ? ' auto' : '') + '">' + (TYP_LABEL[s.typ] || s.typ) + '</span>' +
+      '<span class="head-title">' + esc(titel) + '</span>' +
+      (s.sichtbar ? '' : '<span class="tag-hidden">ausgeblendet</span>') +
+      '<span class="sw" onclick="event.stopPropagation()"><span>sichtbar</span><input type="checkbox" id="v-' + s.id + '"' + (s.sichtbar ? ' checked' : '') + ' onchange="speichern(\'' + s.id + '\',\'Sichtbarkeit aktualisiert.\')"></span>' +
+      '</div>';
+    // Inhalt
+    h += '<div class="card-body">';
     h += feld('h-' + s.id, 'Überschrift', s.headline);
     if (s.typ === 'hero') h += feld('sub-' + s.id, 'Unterzeile', s.subline);
     if (!auto) h += feld('i-' + s.id, 'Text', s.inhalt, true);
@@ -142,12 +203,13 @@ function render() {
       h += '<div class="imghint">Beliebiges Foto möglich – es wird automatisch passend zugeschnitten (' +
         (fmt === 'hero' ? 'breites Querformat' : 'Format 4:3') + ') und fürs schnelle Laden optimiert. Die Vorschau zeigt den späteren Ausschnitt.</div>';
     }
-    if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel', s.cta_url); }
-    if (auto) h += '<div class="hint" style="margin:10px 0 0">Inhalt kommt automatisch aus den Einstellungen (Firmendaten).</div>';
+    if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel (z. B. /portal/?registrieren)', s.cta_url); }
+    if (auto) h += '<div class="autohint">Der Inhalt dieses Abschnitts wird automatisch aus Ihren Firmendaten (Einstellungen) erzeugt – inklusive Adresse, Telefon und Karte.</div>';
     h += '<div class="row"><button class="btn btn-p" onclick="speichern(\'' + s.id + '\')">Speichern</button>' +
-      '<button class="btn btn-g" onclick="move(\'' + s.id + '\',\'up\')"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
-      '<button class="btn btn-g" onclick="move(\'' + s.id + '\',\'down\')"' + (idx === SEK.length - 1 ? ' disabled' : '') + '>↓</button>';
+      '<button class="btn-icon" title="nach oben" onclick="move(\'' + s.id + '\',\'up\')"' + (idx === 0 ? ' disabled' : '') + '>&#8593;</button>' +
+      '<button class="btn-icon" title="nach unten" onclick="move(\'' + s.id + '\',\'down\')"' + (idx === SEK.length - 1 ? ' disabled' : '') + '>&#8595;</button>';
     if (s.typ !== 'hero' && !auto) h += '<button class="btn btn-d" style="margin-left:auto" onclick="loeschen(\'' + s.id + '\')">Löschen</button>';
+    h += '</div>';
     h += '</div></div>';
     return h;
   }).join('');
@@ -187,7 +249,7 @@ function bildEntfernen(id) {
 }
 function move(id, dir) { api('POST', '/homepage/sektionen/' + id + '/move', { dir: dir }).then(function(){ laden(); }).catch(function(e){ notify(e.message, true); }); }
 function loeschen(id) { if (!confirm('Abschnitt wirklich löschen?')) return; api('DELETE', '/homepage/sektionen/' + id).then(function(){ notify('Gelöscht.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
-function addSektion(typ) { api('POST', '/homepage/sektionen', { typ: typ }).then(function(){ notify('Abschnitt hinzugefügt.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
+function addSektion(typ) { api('POST', '/homepage/sektionen', { typ: typ }).then(function(r){ if (r && r.id) OFFEN[r.id] = true; notify('Abschnitt hinzugefügt.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
 
 zeige();
 </script>
