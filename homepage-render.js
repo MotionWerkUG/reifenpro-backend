@@ -17,7 +17,8 @@ function oeffnungszeilen(f) {
 function jsonLd(f) {
   var data = {
     '@context': 'https://schema.org', '@type': 'AutoRepair',
-    name: f.firmenname || 'Schröder & Scholz',
+    name: 'Schröder & Scholz',
+    description: 'Reifenservice und Fahrzeugtechnik: Räderwechsel, Reifeneinlagerung, Reifen & Felgen, HU/TÜV-Service.',
     url: 'https://www.schroeder-scholz.de/',
     image: 'https://www.schroeder-scholz.de/uploads/hero.jpg'
   };
@@ -89,8 +90,8 @@ function renderHomepage(sektionen, f) {
     } else { body += renderSektion(aktiv[i], f); i++; }
   }
   var ort = f.ort ? ' in ' + f.ort : '';
-  var title = (f.firmenname || 'Schröder & Scholz') + ' – Reifenservice und Fahrzeugtechnik' + ort;
-  var desc = 'Reifenservice und Fahrzeugtechnik' + ort + ': Räderwechsel, Reifeneinlagerung, Reifen & Felgen, HU und Service. Jetzt online Termin buchen.';
+  var title = 'Schröder & Scholz – Reifenservice, Räderwechsel & Reifeneinlagerung' + ort;
+  var desc = 'Schröder & Scholz – Ihr Reifenservice' + ort + ': schneller Räderwechsel, sichere Reifeneinlagerung, Reifen & Felgen sowie HU/TÜV-Service. Jetzt bequem online Termin buchen.';
 
   return '<!DOCTYPE html><html lang="de"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
