@@ -28,7 +28,14 @@
   .btn-p { background:var(--accent); color:#171717; } .btn-g { background:var(--bg); color:var(--text); border:1px solid var(--border); }
   .btn-d { background:#c0392b; color:#fff; } .btn-i { background:var(--bg); color:var(--text); border:1px solid var(--border); padding:6px 11px; }
   .sw { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-left:auto; }
-  .prev { max-height:90px; border-radius:8px; margin-top:8px; display:block; }
+  .imgbox { aspect-ratio:4/3; max-width:260px; border-radius:10px; margin-top:8px; overflow:hidden; background:#0b0e13; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; position:relative; }
+  .imgbox.wide { aspect-ratio:1600/760; max-width:100%; }
+  .imgbox img { width:100%; height:100%; object-fit:cover; display:block; }
+  .imgph { color:var(--muted); font-size:13px; }
+  .imgbox.busy::after { content:'Wird verarbeitet …'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(13,17,23,.85); color:var(--accent); font-weight:700; font-size:13px; }
+  .uprow { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .filebtn { display:inline-block; background:var(--accent); color:#171717; font-weight:700; font-size:13px; padding:9px 16px; border-radius:8px; cursor:pointer; margin:0; }
+  .imghint { color:var(--muted); font-size:12px; margin-top:6px; line-height:1.5; }
   .add { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
   .notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--green); color:#06281a; padding:10px 18px; border-radius:10px; font-weight:700; opacity:0; transition:.2s; pointer-events:none; }
   .notice.show { opacity:1; } .notice.err { background:#c0392b; color:#fff; }
@@ -117,10 +124,15 @@ function render() {
     if (s.typ === 'hero') h += feld('sub-' + s.id, 'Unterzeile', s.subline);
     if (!auto) h += feld('i-' + s.id, 'Text', s.inhalt, true);
     if (s.typ === 'hero' || s.typ === 'text' || s.typ === 'leistung') {
+      var fmt = (s.typ === 'hero') ? 'hero' : 'inhalt';
       h += '<label>Bild</label>';
-      h += '<input id="b-' + s.id + '" value="' + esc(s.bild_url) + '" placeholder="/uploads/... oder leer">';
-      if (s.bild_url) h += '<img class="prev" src="' + esc(s.bild_url) + '" alt="">';
-      h += '<div style="margin-top:6px"><label style="display:inline">Bild hochladen: </label><input type="file" accept="image/*" onchange="bildUpload(\'' + s.id + '\', this)" class="btn-i"></div>';
+      h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="box-' + s.id + '">' +
+        (s.bild_url ? '<img src="' + esc(s.bild_url) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
+      h += '<input type="hidden" id="b-' + s.id + '" value="' + esc(s.bild_url) + '">';
+      h += '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="bildUpload(\'' + s.id + '\',\'' + fmt + '\',this)"></label>' +
+        (s.bild_url ? '<button class="btn btn-g" onclick="bildEntfernen(\'' + s.id + '\')">Bild entfernen</button>' : '') + '</div>';
+      h += '<div class="imghint">Beliebiges Foto möglich – es wird automatisch passend zugeschnitten (' +
+        (fmt === 'hero' ? 'breites Querformat' : 'Format 4:3') + ') und fürs schnelle Laden optimiert. Die Vorschau zeigt den späteren Ausschnitt.</div>';
     }
     if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel', s.cta_url); }
     if (auto) h += '<div class="hint" style="margin:10px 0 0">Inhalt kommt automatisch aus den Einstellungen (Firmendaten).</div>';
@@ -134,7 +146,7 @@ function render() {
   document.getElementById('liste').innerHTML = html;
 }
 function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
-function speichern(id) {
+function speichern(id, meldung) {
   var s = SEK.find(function(x){ return x.id === id; }); if (!s) return;
   var data = {
     headline: v('h-' + id),
@@ -145,18 +157,25 @@ function speichern(id) {
     cta_url: v('cu-' + id) !== undefined ? v('cu-' + id) : s.cta_url,
     sichtbar: document.getElementById('v-' + id).checked
   };
-  api('PUT', '/homepage/sektionen/' + id, data).then(function(){ notify('Gespeichert – Homepage aktualisiert.'); laden(); }).catch(function(e){ notify(e.message, true); });
+  api('PUT', '/homepage/sektionen/' + id, data).then(function(){ notify(meldung || 'Gespeichert – Homepage aktualisiert.'); laden(); }).catch(function(e){ notify(e.message, true); });
 }
-function bildUpload(id, inp) {
+function bildUpload(id, fmt, inp) {
   var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('box-' + id);
+  if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : '') + ' busy';
   var r = new FileReader();
   r.onload = function(e) {
-    api('POST', '/homepage/bild', { data: e.target.result }).then(function(res){
+    api('POST', '/homepage/bild', { data: e.target.result, format: fmt }).then(function(res){
       document.getElementById('b-' + id).value = res.url;
-      notify('Bild hochgeladen – jetzt „Speichern".');
-    }).catch(function(err){ notify(err.message, true); });
+      speichern(id, 'Bild hochgeladen und gespeichert.');
+    }).catch(function(err){ if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); notify(err.message, true); });
   };
   r.readAsDataURL(f);
+}
+function bildEntfernen(id) {
+  if (!confirm('Bild wirklich entfernen?')) return;
+  document.getElementById('b-' + id).value = '';
+  speichern(id, 'Bild entfernt.');
 }
 function move(id, dir) { api('POST', '/homepage/sektionen/' + id + '/move', { dir: dir }).then(function(){ laden(); }).catch(function(e){ notify(e.message, true); }); }
 function loeschen(id) { if (!confirm('Abschnitt wirklich löschen?')) return; api('DELETE', '/homepage/sektionen/' + id).then(function(){ notify('Gelöscht.'); laden(); }).catch(function(e){ notify(e.message, true); }); }

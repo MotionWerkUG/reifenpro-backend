@@ -5,6 +5,7 @@ const path = require('path');
 const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { regenerate } = require('../lib/homepage-generate');
+const { verarbeite } = require('../lib/bildverarbeitung');
 
 const UPLOAD_DIR = '/var/www/schroeder-homepage/uploads';
 const TYPEN = ['hero', 'leistung', 'text', 'oeffnungszeiten', 'kontakt'];
@@ -74,13 +75,14 @@ router.post('/sektionen/:id/move', async (req, res, next) => {
 
 router.post('/bild', async (req, res, next) => {
   try {
-    const { data } = req.body;
-    const m = /^data:(image\/(png|jpe?g|webp|gif));base64,(.+)$/.exec(data || '');
-    if (!m) return res.status(400).json({ error: 'Ungültiges Bildformat (PNG/JPG/WEBP/GIF).' });
-    const ext = m[2] === 'jpeg' ? 'jpg' : m[2];
+    const { data, format } = req.body;
+    const m = /^data:(image\/(png|jpe?g|webp|gif|heic|heif));base64,(.+)$/.exec(data || '');
+    if (!m) return res.status(400).json({ error: 'Ungültiges Bildformat (JPG/PNG/WEBP/HEIC).' });
     if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-    const name = 'img-' + Date.now() + '-' + Math.floor(Math.random() * 1e6) + '.' + ext;
-    fs.writeFileSync(path.join(UPLOAD_DIR, name), Buffer.from(m[3], 'base64'));
+    // Jedes Bild wird passend zugeschnitten und komprimiert -> JPG.
+    const out = await verarbeite(Buffer.from(m[3], 'base64'), format === 'hero' ? 'hero' : 'inhalt');
+    const name = 'img-' + Date.now() + '-' + Math.floor(Math.random() * 1e6) + '.jpg';
+    fs.writeFileSync(path.join(UPLOAD_DIR, name), out);
     res.json({ url: '/uploads/' + name });
   } catch (e) { next(e); }
 });
