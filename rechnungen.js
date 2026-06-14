@@ -5,6 +5,7 @@ const { query, withTransaction } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { erzeugeRechnungPdf } = require('../lib/rechnung-pdf');
+const { resolvePreis } = require('../lib/preis');
 
 router.use(authenticate, requireStaff);
 
@@ -101,6 +102,27 @@ router.get('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── GET /statistik ── Umsatz + offene Posten (muss vor /:id stehen)
+router.get('/statistik', async (req, res, next) => {
+  try {
+    const jahr = parseInt(req.query.jahr) || new Date().getFullYear();
+    const { rows } = await query(
+      `SELECT
+         COALESCE(SUM(brutto_summe),0) AS umsatz_brutto,
+         COALESCE(SUM(netto_summe),0)  AS umsatz_netto,
+         COUNT(*) AS anzahl,
+         COALESCE(SUM(brutto_summe) FILTER (WHERE zahlungsstatus='offen'),0) AS offen_summe,
+         COUNT(*) FILTER (WHERE zahlungsstatus='offen') AS offen_anzahl,
+         COALESCE(SUM(brutto_summe) FILTER (WHERE zahlungsstatus='offen' AND faelligkeit < CURRENT_DATE),0) AS ueberfaellig_summe,
+         COUNT(*) FILTER (WHERE zahlungsstatus='offen' AND faelligkeit < CURRENT_DATE) AS ueberfaellig_anzahl
+       FROM rechnungen
+       WHERE status='festgeschrieben' AND storno_von_id IS NULL AND EXTRACT(YEAR FROM rechnungsdatum)=$1`,
+      [jahr]
+    );
+    res.json(Object.assign({ jahr: jahr }, rows[0]));
+  } catch (e) { next(e); }
+});
+
 // ── GET /:id ── Detail inkl. Positionen
 router.get('/:id', async (req, res, next) => {
   try {
@@ -138,6 +160,52 @@ router.post('/', async (req, res, next) => {
       return ins.rows[0];
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.entwurf', tabelle: 'rechnungen', datensatzId: result.id, req });
+    res.status(201).json(result);
+  } catch (e) { next(e); }
+});
+
+// ── POST /aus-termin/:terminId ── Entwurf aus erledigtem Termin (Leistung + Staffelpreis)
+router.post('/aus-termin/:terminId', async (req, res, next) => {
+  try {
+    const t = (await query(
+      `SELECT t.*, a.id AS aid, a.name AS artikel_name, a.einheit AS artikel_einheit, a.preis AS artikel_preis, a.mwst_satz AS artikel_mwst
+       FROM termine t LEFT JOIN artikel a ON a.id = t.artikel_id WHERE t.id = $1`,
+      [req.params.terminId]
+    )).rows[0];
+    if (!t) return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    if (!t.kunden_id) return res.status(400).json({ error: 'Termin ohne Kundenkonto — Rechnung bitte manuell anlegen.' });
+
+    let typ = null;
+    if (t.fahrzeug_id) {
+      const f = (await query('SELECT typ FROM fahrzeuge WHERE id=$1', [t.fahrzeug_id])).rows[0];
+      if (f) typ = f.typ;
+    }
+    let preis = t.artikel_preis != null ? Number(t.artikel_preis) : 0;
+    let mwst = t.artikel_mwst != null ? Number(t.artikel_mwst) : 19;
+    if (t.aid) {
+      const a = (await query('SELECT * FROM artikel WHERE id=$1', [t.aid])).rows[0];
+      const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [t.aid])).rows;
+      const eff = resolvePreis(a, varianten, typ, null);
+      preis = Number(eff.preis) || 0;
+      mwst = eff.mwst_satz != null ? Number(eff.mwst_satz) : 19;
+    }
+    const bez = (t.artikel_name || t.termin_typ || 'Leistung') + (t.kennzeichen ? ' — ' + t.kennzeichen : '');
+    const s = berechneSummen([{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: preis, mwst_satz: mwst, artikel_id: t.aid || null }]);
+    const emp = await ladeEmpfaenger(t.kunden_id);
+    const rdatum = heute();
+    const result = await withTransaction(async (client) => {
+      const ins = await client.query(
+        `INSERT INTO rechnungen
+           (status, kunden_id, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
+            rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+        [t.kunden_id, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
+         rdatum, t.datum || rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), 'Aus Termin vom ' + (t.datum || ''), req.user.id]
+      );
+      await insertPositionen(client, ins.rows[0].id, s.positionen);
+      return ins.rows[0];
+    });
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.aus_termin', tabelle: 'rechnungen', datensatzId: result.id, req });
     res.status(201).json(result);
   } catch (e) { next(e); }
 });

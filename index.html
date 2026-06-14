@@ -494,6 +494,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <!-- RECHNUNGEN -->
       <div class="page" id="page-rechnungen">
         <div class="ph"><div class="pt">Rechnungen</div><button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button></div>
+        <div id="r-statistik"></div>
         <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <select id="r-filter-status" onchange="renderRechnungen()" style="max-width:200px">
             <option value="">Alle Status</option>
@@ -1312,6 +1313,24 @@ function rStatusBadge(s) {
 }
 function loadRechnungen() {
   api('GET', '/rechnungen').then(function(r) { allRechnungen = r || []; renderRechnungen(); }).catch(function() {});
+  loadRechnungStatistik();
+}
+function loadRechnungStatistik() {
+  api('GET', '/rechnungen/statistik').then(function(s) {
+    var el = document.getElementById('r-statistik'); if (!el || !s) return;
+    var eur = function(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; };
+    el.innerHTML = '<div class="stats" style="margin-bottom:16px">' +
+      '<div class="sc sc-g"><div class="sv">' + eur(s.umsatz_brutto) + '</div><div class="sl">Umsatz ' + s.jahr + ' (brutto)</div></div>' +
+      '<div class="sc sc-b"><div class="sv">' + s.anzahl + '</div><div class="sl">Rechnungen</div></div>' +
+      '<div class="sc sc-y"><div class="sv">' + eur(s.offen_summe) + '</div><div class="sl">Offen (' + s.offen_anzahl + ')</div></div>' +
+      '<div class="sc sc-a"><div class="sv">' + eur(s.ueberfaellig_summe) + '</div><div class="sl">Überfällig (' + s.ueberfaellig_anzahl + ')</div></div>' +
+      '</div>';
+  }).catch(function() {});
+}
+function rechnungAusTermin(terminId) {
+  api('POST', '/rechnungen/aus-termin/' + terminId).then(function(r) {
+    if (r && r.id) { notify('Rechnungsentwurf erstellt.'); showPage('rechnungen'); setTimeout(function() { editRechnung(r.id); }, 300); }
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function renderRechnungen() {
   var el = document.getElementById('rechnungen-liste'); if (!el) return;
@@ -2930,7 +2949,8 @@ function renderWS() {
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px">' +
         (istErledigt
-          ? '<button class="btn btn-g btn-sm" data-tid="' + t.id + '" onclick="terminWiederOeffnen(this.getAttribute(\'data-tid\'))">Wieder öffnen</button>'
+          ? '<button class="btn btn-g btn-sm" data-tid="' + t.id + '" onclick="terminWiederOeffnen(this.getAttribute(\'data-tid\'))">Wieder öffnen</button>' +
+            (t.kunden_id ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="rechnungAusTermin(this.getAttribute(\'data-tid\'))">Rechnung</button>' : '')
           : '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
             '<button class="btn btn-danger btn-sm" data-tid="' + t.id + '" onclick="terminAbsagen(this.getAttribute(\'data-tid\'))">Absagen</button>') +
       '</div>' +
