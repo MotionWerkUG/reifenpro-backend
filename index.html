@@ -956,7 +956,16 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <div class="mtitle" id="fz-titel">Fahrzeug</div>
     <div class="fgrid">
       <div class="fg"><label>Fahrzeugtyp</label><select id="fz-a-typ"><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
-      <div class="fg"><label>Kennzeichen</label><input id="fz-a-kennzeichen"></div>
+      <div class="fg"><label>Kennzeichen *</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="fz-a-kz1" maxlength="3" placeholder="WOR" style="width:70px;text-transform:uppercase;text-align:center" oninput="this.value=this.value.toUpperCase()">
+          <span style="color:var(--muted)">-</span>
+          <input id="fz-a-kz2" maxlength="2" placeholder="AB" style="width:55px;text-transform:uppercase;text-align:center" oninput="this.value=this.value.toUpperCase()">
+          <span style="color:var(--muted)">-</span>
+          <input id="fz-a-kz3" maxlength="4" placeholder="1234" style="width:62px;text-align:center">
+          <input id="fz-a-kz4" maxlength="1" placeholder="E" style="width:40px;text-transform:uppercase;text-align:center" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
       <div class="fg"><label>Marke</label><input id="fz-a-marke"></div>
       <div class="fg"><label>Modell</label><input id="fz-a-modell"></div>
       <div class="fg"><label>Baujahr</label><input id="fz-a-baujahr" type="number" min="1950" max="2099"></div>
@@ -1598,6 +1607,12 @@ function kzAusTeilen(pref) {
   if (k4) kz += ' ' + k4;
   return kz.trim();
 }
+function kzInTeile(pref, kz) {
+  kz = (kz || '').trim();
+  var t1 = '', t2 = '', t3 = '', t4 = '';
+  if (kz) { var p = kz.split('-'); t1 = p[0] || ''; t2 = p[1] || ''; var r = (p[2] || '').trim().split(' '); t3 = r[0] || ''; t4 = r[1] || ''; }
+  ['kz1', 'kz2', 'kz3', 'kz4'].forEach(function(s, i) { var e = document.getElementById(pref + s); if (e) e.value = [t1, t2, t3, t4][i]; });
+}
 function nameKuerzel(vorname, nachname) {
   var vokale = /[aeiouaeoüAEIOUAEOU]/g;
   var initial = vorname ? vorname[0].toUpperCase() : '';
@@ -2109,7 +2124,8 @@ function fzAdminNeu() {
   document.getElementById('fz-a-id').value = '';
   document.getElementById('fz-titel').textContent = 'Neues Fahrzeug';
   document.getElementById('fz-a-typ').value = 'PKW';
-  ['fz-a-kennzeichen', 'fz-a-marke', 'fz-a-modell', 'fz-a-baujahr', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['fz-a-marke', 'fz-a-modell', 'fz-a-baujahr', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
+  kzInTeile('fz-a-', '');
   openModal('fz');
 }
 function fzAdminEdit(fid) {
@@ -2119,7 +2135,7 @@ function fzAdminEdit(fid) {
     document.getElementById('fz-a-id').value = f.id;
     document.getElementById('fz-titel').textContent = 'Fahrzeug bearbeiten';
     document.getElementById('fz-a-typ').value = f.typ || 'PKW';
-    document.getElementById('fz-a-kennzeichen').value = f.kennzeichen || '';
+    kzInTeile('fz-a-', f.kennzeichen || '');
     document.getElementById('fz-a-marke').value = f.marke || '';
     document.getElementById('fz-a-modell').value = f.modell || '';
     document.getElementById('fz-a-baujahr').value = f.baujahr || '';
@@ -2130,9 +2146,10 @@ function fzAdminEdit(fid) {
 }
 function fzAdminSave() {
   if (!aktK) return;
-  if (!gv('fz-a-marke') || !gv('fz-a-modell') || !gv('fz-a-kennzeichen')) { notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return; }
+  var kennz = kzAusTeilen('fz-a-');
+  if (!gv('fz-a-marke') || !gv('fz-a-modell') || !kennz) { notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return; }
   var hu = gv('fz-a-hu');
-  var data = { typ: gv('fz-a-typ'), kennzeichen: gv('fz-a-kennzeichen'), marke: gv('fz-a-marke'), modell: gv('fz-a-modell'), baujahr: gv('fz-a-baujahr') ? parseInt(gv('fz-a-baujahr')) : null, hu_datum: hu ? hu + '-01' : null, notiz: gv('fz-a-notiz') };
+  var data = { typ: gv('fz-a-typ'), kennzeichen: kennz, marke: gv('fz-a-marke'), modell: gv('fz-a-modell'), baujahr: gv('fz-a-baujahr') ? parseInt(gv('fz-a-baujahr')) : null, hu_datum: hu ? hu + '-01' : null, notiz: gv('fz-a-notiz') };
   var fid = gv('fz-a-id');
   var p = fid ? api('PUT', '/kunden/' + aktK.id + '/fahrzeuge/' + fid, data) : api('POST', '/kunden/' + aktK.id + '/fahrzeuge', data);
   p.then(function() { notify('Fahrzeug gespeichert!'); closeModal('fz'); ladeFahrzeugeAdmin(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });

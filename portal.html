@@ -228,7 +228,16 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
           <select id="fz-typ"><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
         <div class="fg"><label data-i18n="brand">Marke</label><input id="fz-marke"></div>
         <div class="fg"><label data-i18n="model">Modell</label><input id="fz-modell"></div>
-        <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="fz-kennzeichen"></div>
+        <div class="fg"><label data-i18n="license_plate_req">Kennzeichen *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="fz-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="fz-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="fz-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center">
+            <input id="fz-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+          </div>
+        </div>
         <div class="fg"><label data-i18n="year">Baujahr</label><input id="fz-baujahr" type="number" min="1950" max="2099"></div>
         <div class="fg"><label data-i18n="hu_date">HU fällig (Monat)</label><input id="fz-hu" type="month"></div>
         <input type="hidden" id="fz-id">
@@ -337,7 +346,7 @@ var I18N = {
     nav_overview: 'Überblick', nav_storage: 'Einlagerungen', nav_appointments: 'Termine',
     nav_book: 'Termin buchen', nav_profile: 'Profil', welcome: 'Willkommen',
     book_appointment: 'Termin buchen', service: 'Leistung', date: 'Datum',
-    license_plate: 'Kennzeichen (optional)', available_times: 'Verfügbare Zeiten',
+    license_plate: 'Kennzeichen', license_plate_req: 'Kennzeichen *', available_times: 'Verfügbare Zeiten',
     notes: 'Anmerkung (optional)', book_btn: 'Termin buchen', my_data: 'Meine Daten',
     change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
     password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
@@ -368,7 +377,7 @@ var I18N = {
     nav_overview: 'Overview', nav_storage: 'Storage', nav_appointments: 'Appointments',
     nav_book: 'Book appointment', nav_profile: 'Profile', welcome: 'Welcome',
     book_appointment: 'Book appointment', service: 'Service', date: 'Date',
-    license_plate: 'License plate (optional)', available_times: 'Available times',
+    license_plate: 'License plate', license_plate_req: 'License plate *', available_times: 'Available times',
     notes: 'Note (optional)', book_btn: 'Book appointment', my_data: 'My data',
     change_password: 'Change password', new_password: 'New password', save: 'Save',
     password_mismatch: 'Passwords do not match',
@@ -862,7 +871,8 @@ function fzFormZeigen() {
   document.getElementById('fz-id').value = '';
   document.getElementById('fz-form-titel').textContent = t('add_vehicle');
   document.getElementById('fz-typ').value = 'PKW';
-  ['fz-marke', 'fz-modell', 'fz-kennzeichen', 'fz-baujahr', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['fz-marke', 'fz-modell', 'fz-baujahr', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
+  fzKzInTeile('');
   document.getElementById('fz-form-card').style.display = '';
 }
 function fzFormAbbrechen() { document.getElementById('fz-form-card').style.display = 'none'; }
@@ -874,14 +884,24 @@ function fzEdit(id) {
     document.getElementById('fz-typ').value = f.typ || 'PKW';
     document.getElementById('fz-marke').value = f.marke || '';
     document.getElementById('fz-modell').value = f.modell || '';
-    document.getElementById('fz-kennzeichen').value = f.kennzeichen || '';
+    fzKzInTeile(f.kennzeichen || '');
     document.getElementById('fz-baujahr').value = f.baujahr || '';
     document.getElementById('fz-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
     document.getElementById('fz-form-card').style.display = '';
   }).catch(function(e) { notify(e.message, 'err'); });
 }
+function fzKzAusTeilen() {
+  var k1 = document.getElementById('fz-kz1').value.trim(), k2 = document.getElementById('fz-kz2').value.trim(), k3 = document.getElementById('fz-kz3').value.trim(), k4 = document.getElementById('fz-kz4').value.trim();
+  var kz = [k1, k2, k3].filter(Boolean).join('-'); if (k4) kz += ' ' + k4; return kz.trim();
+}
+function fzKzInTeile(kz) {
+  var k1 = '', k2 = '', k3 = '', k4 = ''; kz = (kz || '').trim();
+  if (kz) { var teile = kz.split('-'); k1 = teile[0] || ''; k2 = teile[1] || ''; var rest = (teile[2] || '').trim().split(' '); k3 = rest[0] || ''; k4 = rest[1] || ''; }
+  document.getElementById('fz-kz1').value = k1; document.getElementById('fz-kz2').value = k2; document.getElementById('fz-kz3').value = k3; document.getElementById('fz-kz4').value = k4;
+}
 function fzSpeichern() {
-  if (!document.getElementById('fz-marke').value.trim() || !document.getElementById('fz-modell').value.trim() || !document.getElementById('fz-kennzeichen').value.trim()) {
+  var kennz = fzKzAusTeilen();
+  if (!document.getElementById('fz-marke').value.trim() || !document.getElementById('fz-modell').value.trim() || !kennz) {
     notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return;
   }
   var hu = document.getElementById('fz-hu').value;
@@ -889,7 +909,7 @@ function fzSpeichern() {
     typ: document.getElementById('fz-typ').value,
     marke: document.getElementById('fz-marke').value.trim(),
     modell: document.getElementById('fz-modell').value.trim(),
-    kennzeichen: document.getElementById('fz-kennzeichen').value.trim(),
+    kennzeichen: kennz,
     baujahr: document.getElementById('fz-baujahr').value ? parseInt(document.getElementById('fz-baujahr').value) : null,
     hu_datum: hu ? hu + '-01' : null
   };
