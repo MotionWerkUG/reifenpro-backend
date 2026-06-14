@@ -1252,6 +1252,16 @@ function startApp() {
   loadAktivitaet();
   startUhr();
   befuelleJahrDropdown();
+  if (!window._popBound) {
+    window._popBound = true;
+    window.addEventListener('popstate', function(e) {
+      var m = document.querySelector('.ov.open');
+      if (m) { m.classList.remove('open'); if (history.pushState) { try { history.pushState({ page: currentPage }, '', '#' + currentPage); } catch (x) {} } return; }
+      closeNav();
+      showPage((e.state && e.state.page) || 'dashboard', true);
+    });
+    if (history.replaceState) { try { history.replaceState({ page: 'dashboard' }, '', '#dashboard'); } catch (x) {} }
+  }
 }
 function startUhr() {
   function tick() {
@@ -1287,8 +1297,11 @@ function kalSetMonat() {
 // ── NAVIGATION ──
 function toggleNav() { document.getElementById('app').classList.toggle('nav-open'); }
 function closeNav() { document.getElementById('app').classList.remove('nav-open'); }
-function showPage(n) {
+var currentPage = 'dashboard';
+function showPage(n, fromPop) {
   closeNav();
+  currentPage = n;
+  if (!fromPop && window.history && history.pushState) { try { history.pushState({ page: n }, '', '#' + n); } catch (e) {} }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   document.querySelectorAll('.ni').forEach(function(i) { i.classList.remove('active'); });
   var pg = document.getElementById('page-' + n);

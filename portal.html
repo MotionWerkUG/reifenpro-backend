@@ -510,11 +510,20 @@ function startPortal() {
   document.getElementById('app-username').textContent = KUNDE ? (KUNDE.vorname + ' ' + KUNDE.nachname) : '';
   ladeArtikel();
   papi('GET', '/daten/firmendaten').then(function(f) { if (f) { if (f.stornierung_frist_h) STORNO_FRIST = f.stornierung_frist_h; FIRMA_TEL = f.telefon || ''; } }).catch(function() {});
-  portalNav('ueberblick');
+  portalNav('ueberblick', true);
+  if (!window._popBoundP) {
+    window._popBoundP = true;
+    window.addEventListener('popstate', function(e) {
+      if (document.getElementById('screen-app').classList.contains('hidden')) return;
+      portalNav((e.state && e.state.portal) || 'ueberblick', true);
+    });
+  }
+  if (history.replaceState) { try { history.replaceState({ portal: 'ueberblick' }, '', '#ueberblick'); } catch (x) {} }
 }
 
 // ── NAVIGATION ──
-function portalNav(page) {
+function portalNav(page, fromPop) {
+  if (!fromPop && window.history && history.pushState) { try { history.pushState({ portal: page }, '', '#' + page); } catch (e) {} }
   document.querySelectorAll('.nav-tab').forEach(function(t) {
     t.classList.toggle('on', t.getAttribute('data-page') === page);
   });
