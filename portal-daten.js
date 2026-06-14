@@ -216,6 +216,49 @@ router.post('/termine', authKunde, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PUT /api/portal/daten/termine/:id ── Termin verschieben (Kunde)
+router.put('/termine/:id', authKunde, async (req, res, next) => {
+  try {
+    const { datum, uhrzeit_von } = req.body;
+    if (!datum || !uhrzeit_von) return res.status(400).json({ error: 'Datum und Uhrzeit erforderlich' });
+    const t = (await query('SELECT * FROM termine WHERE id=$1 AND kunden_id=$2', [req.params.id, req.kunde.id])).rows[0];
+    if (!t) return res.status(404).json({ error: 'Termin nicht gefunden' });
+    if (['storniert', 'abgesagt', 'abgeschlossen'].includes(t.status)) return res.status(400).json({ error: 'Dieser Termin kann nicht mehr verschoben werden.' });
+
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const fristH = einst.stornierung_frist_h || 24;
+    const terminZeit = new Date(String(t.datum).substring(0, 10) + 'T' + String(t.uhrzeit_von || '00:00:00'));
+    if ((terminZeit - new Date()) / 3600000 < fristH) {
+      return res.status(400).json({ error: 'Verschieben ist nur bis ' + fristH + ' Stunden vor dem Termin möglich. Bitte rufen Sie uns an: ' + (einst.telefon || '') });
+    }
+
+    let dauer = 30;
+    if (t.artikel_id) {
+      const a = (await query('SELECT * FROM artikel WHERE id=$1', [t.artikel_id])).rows[0];
+      if (a) {
+        const v = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [t.artikel_id])).rows;
+        let typ = null;
+        if (t.fahrzeug_id) { const f = (await query('SELECT typ FROM fahrzeuge WHERE id=$1', [t.fahrzeug_id])).rows[0]; if (f) typ = f.typ; }
+        dauer = resolvePreis(a, v, typ, null).dauer_minuten || a.dauer_minuten || 30;
+      }
+    }
+    const uhrzeit_bis = minZuZeit(zeitZuMin(uhrzeit_von) + dauer);
+    const maxParallel = einst.max_parallele_termine || 1;
+    const konflikt = await query(
+      `SELECT COUNT(*) FROM termine WHERE datum=$1 AND id<>$2 AND status NOT IN ('storniert','abgesagt')
+       AND uhrzeit_von < $4 AND uhrzeit_bis > $3`,
+      [datum, t.id, uhrzeit_von, uhrzeit_bis]
+    );
+    if (parseInt(konflikt.rows[0].count) >= maxParallel) return res.status(409).json({ error: 'Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.' });
+
+    const { rows } = await query(
+      'UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, geaendert_am=NOW() WHERE id=$4 RETURNING *',
+      [datum, uhrzeit_von, uhrzeit_bis, t.id]
+    );
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
 // ── DELETE /api/portal/daten/termine/:id ──
 router.delete('/termine/:id', authKunde, async (req, res, next) => {
   try {
