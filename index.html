@@ -905,6 +905,26 @@ tr:hover td { background: rgba(255,255,255,.02); }
   </div>
 </div>
 
+<div class="ov" id="m-ap">
+  <div class="modal" style="max-width:680px">
+    <button class="mx" onclick="closeModal('ap')">x</button>
+    <div class="mtitle">Preis-/Zeitstaffel — <span id="ap-artikel-name"></span></div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Varianten je Fahrzeugtyp und Zollgröße. Greift keine Variante, gilt der Standardpreis des Artikels.</div>
+    <div id="ap-liste"></div>
+    <div class="ssec" style="margin-top:14px"><h3 style="font-size:13px">Variante hinzufügen</h3>
+      <div class="fgrid">
+        <div class="fg"><label>Fahrzeugtyp</label><select id="ap-typ"><option value="">Alle</option><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
+        <div class="fg"><label>Zoll von</label><input id="ap-zmin" type="number" min="10" max="30" placeholder="z.B. 16"></div>
+        <div class="fg"><label>Zoll bis</label><input id="ap-zmax" type="number" min="10" max="30" placeholder="z.B. 18"></div>
+        <div class="fg"><label>Preis netto (EUR)</label><input id="ap-preis" type="number" step="0.01" min="0"></div>
+        <div class="fg"><label>MwSt</label><select id="ap-mwst"><option value="19">19%</option><option value="7">7%</option><option value="0">0%</option></select></div>
+        <div class="fg"><label>Dauer (Min., optional)</label><input id="ap-dauer" type="number" min="0"></div>
+      </div>
+      <button class="btn btn-p btn-sm" onclick="apSpeichern()">Variante speichern</button>
+    </div>
+  </div>
+</div>
+
 <div class="ov" id="m-fz">
   <div class="modal" style="max-width:520px">
     <button class="mx" onclick="closeModal('fz')">x</button>
@@ -1694,6 +1714,7 @@ function renderArtikel() {
     html += '<td><span class="badge ' + (a.kategorie === 'einlagerung' ? 'b-r' : 'b-b') + '">' + a.kategorie + '</span></td>';
     html += '<td><div style="display:flex;gap:4px">' +
       '<button class="btn btn-g btn-sm" onclick="editArtikel(\'' + a.id + '\')">Bearb.</button>' +
+      '<button class="btn btn-g btn-sm" onclick="oeffneArtikelPreise(\'' + a.id + '\')">Staffel</button>' +
       '<button class="btn btn-danger btn-sm" onclick="artikelLoeschen(\'' + a.id + '\')">X</button>' +
       '</div></td>';
     html += '</tr>';
@@ -1721,6 +1742,42 @@ function editArtikel(id) {
 function artikelLoeschen(id) {
   if (!confirm('Artikel löschen?')) return;
   api('DELETE', '/artikel/' + id).then(function() { notify('Gelöscht.'); loadArtikel(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+var apArtikelId = null;
+function oeffneArtikelPreise(id) {
+  var a = allArtikel.find(function(x) { return x.id === id; }); if (!a) return;
+  apArtikelId = id;
+  document.getElementById('ap-artikel-name').textContent = a.name;
+  document.getElementById('ap-typ').value = '';
+  ['ap-zmin', 'ap-zmax', 'ap-preis', 'ap-dauer'].forEach(function(i) { document.getElementById(i).value = ''; });
+  document.getElementById('ap-mwst').value = a.mwst_satz || '19';
+  apLaden();
+  openModal('ap');
+}
+function apLaden() {
+  api('GET', '/artikel/' + apArtikelId + '/preise').then(function(rows) {
+    var el = document.getElementById('ap-liste'); rows = rows || [];
+    if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Varianten — es gilt der Standardpreis.</div>'; return; }
+    el.innerHTML = '<div class="tw"><table><thead><tr><th>Typ</th><th>Zoll</th><th>Netto</th><th>MwSt</th><th>Dauer</th><th></th></tr></thead><tbody>' +
+      rows.map(function(v) {
+        var zoll = (v.zoll_min != null || v.zoll_max != null) ? ((v.zoll_min != null ? v.zoll_min : '') + '–' + (v.zoll_max != null ? v.zoll_max : '') + '"') : 'alle';
+        return '<tr><td>' + (v.fahrzeug_typ || 'Alle') + '</td><td>' + zoll + '</td><td>' + parseFloat(v.preis).toFixed(2) + '</td><td>' + v.mwst_satz + '%</td><td>' + (v.dauer_minuten != null ? v.dauer_minuten + ' min' : '–') + '</td>' +
+          '<td><button class="btn btn-danger btn-sm" onclick="apLoeschen(\'' + v.id + '\')">X</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }).catch(function() {});
+}
+function apSpeichern() {
+  if (!gv('ap-preis')) { notify('Preis erforderlich.', 'err'); return; }
+  var data = { fahrzeug_typ: gv('ap-typ'), zoll_min: gv('ap-zmin') || null, zoll_max: gv('ap-zmax') || null, preis: gv('ap-preis'), mwst_satz: gv('ap-mwst'), dauer_minuten: gv('ap-dauer') || null };
+  api('POST', '/artikel/' + apArtikelId + '/preise', data).then(function() {
+    notify('Variante gespeichert!');
+    ['ap-zmin', 'ap-zmax', 'ap-preis', 'ap-dauer'].forEach(function(i) { document.getElementById(i).value = ''; });
+    apLaden();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function apLoeschen(vid) {
+  if (!confirm('Variante löschen?')) return;
+  api('DELETE', '/artikel/' + apArtikelId + '/preise/' + vid).then(function() { notify('Gelöscht.'); apLaden(); }).catch(function(e) { notify(e.message, 'err'); });
 }
 function naCalcBrutto() {
   var n = parseFloat(document.getElementById('na-preis').value) || 0;
