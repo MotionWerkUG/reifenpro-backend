@@ -1164,6 +1164,8 @@ window.addEventListener('load', function() {
 
   // Auth pruefen
   var ls = document.getElementById('login-screen');
+  var _resetToken = new URLSearchParams(location.search).get('reset');
+  if (_resetToken) { if (ls) ls.style.display = 'flex'; pwResetAbschluss(_resetToken); return; }
   if (TOKEN && USER) {
     fetch(API + '/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
       .then(function(r) {
@@ -1237,6 +1239,17 @@ function doResetAnfrage() {
     msg.textContent = 'Reset-Link wurde gesendet falls die E-Mail bekannt ist.';
     msg.style.display = 'block';
   });
+}
+function pwResetAbschluss(token) {
+  var np = prompt('Neues Passwort eingeben (mind. 8 Zeichen):');
+  if (np === null) { history.replaceState({}, '', location.pathname); return; }
+  if (np.length < 8) { alert('Das Passwort muss mindestens 8 Zeichen haben.'); return pwResetAbschluss(token); }
+  fetch(API + '/auth/passwort-reset', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: token, passwort: np })
+  }).then(function(r) { return r.json().then(function(j) { if (!r.ok) throw new Error(j.error || 'Fehler'); return j; }); })
+    .then(function() { alert('Passwort geändert. Bitte melden Sie sich mit dem neuen Passwort an.'); history.replaceState({}, '', location.pathname); })
+    .catch(function(e) { alert(e.message); history.replaceState({}, '', location.pathname); });
 }
 function doLogout() {
   api('POST', '/auth/logout', {}).catch(function() {});

@@ -50,6 +50,7 @@
   <label>E-Mail</label><input id="l-email" type="email" autocapitalize="none">
   <label>Passwort</label><input id="l-pass" type="password" onkeydown="if(event.key==='Enter')doLogin()">
   <div class="row"><button class="btn btn-p" onclick="doLogin()">Anmelden</button></div>
+  <div style="margin-top:14px"><a href="#" onclick="pwVergessen();return false" style="color:var(--muted);font-size:13px">Passwort vergessen?</a></div>
 </div>
 
 <div id="cms" style="display:none">
@@ -105,6 +106,13 @@ function doLogin() {
     .catch(function(e){ notify(e.message, true); });
 }
 function logout() { TOKEN = null; localStorage.removeItem('rp_token'); zeige(); }
+function pwVergessen() {
+  var email = (document.getElementById('l-email').value || '').trim();
+  if (!email) { notify('Bitte zuerst Ihre E-Mail eingeben.', true); return; }
+  fetch(API + '/auth/passwort-reset-anfrage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
+    .then(function() { notify('Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet.'); })
+    .catch(function() { notify('Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet.'); });
+}
 
 function laden() {
   api('GET', '/homepage/sektionen').then(function(rows){ SEK = rows || []; render(); }).catch(function(e){ notify(e.message, true); });

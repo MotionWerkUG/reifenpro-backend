@@ -1003,7 +1003,9 @@ function initPortal() {
       portalLogout();
     });
   } else {
-    zeigeScreen('login');
+    var _p = new URLSearchParams(window.location.search);
+    var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
+    zeigeScreen(wantReg ? 'register' : 'login');
   }
 }
 initPortal();
