@@ -198,6 +198,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <button class="nav-tab on" data-page="ueberblick" onclick="portalNav('ueberblick')" data-i18n="nav_overview">Überblick</button>
     <button class="nav-tab" data-page="einlagerungen" onclick="portalNav('einlagerungen')" data-i18n="nav_storage">Einlagerungen</button>
     <button class="nav-tab" data-page="fahrzeuge" onclick="portalNav('fahrzeuge')" data-i18n="nav_vehicles">Fahrzeuge</button>
+    <button class="nav-tab" data-page="rechnungen" onclick="portalNav('rechnungen')" data-i18n="nav_invoices">Rechnungen</button>
     <button class="nav-tab" data-page="termine" onclick="portalNav('termine')" data-i18n="nav_appointments">Termine</button>
     <button class="nav-tab" data-page="buchen" onclick="portalNav('buchen')" data-i18n="nav_book">Termin buchen</button>
     <button class="nav-tab" data-page="profil" onclick="portalNav('profil')" data-i18n="nav_profile">Profil</button>
@@ -240,6 +241,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <!-- TERMINE -->
     <div id="page-termine" class="page">
       <div id="termine-liste"></div>
+    </div>
+    <!-- RECHNUNGEN -->
+    <div id="page-rechnungen" class="page">
+      <div class="card"><div class="card-titel" data-i18n="nav_invoices">Rechnungen</div><div id="rechnungen-liste"></div></div>
     </div>
     <!-- BUCHEN -->
     <div id="page-buchen" class="page">
@@ -322,7 +327,7 @@ var I18N = {
     register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
     reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
     delete_account: 'Konto löschen', delete_account_info: 'Sie haben das Recht, Ihr Konto löschen zu lassen (Art. 17 DSGVO). Bei aktiven Einlagerungen ist dies erst nach Abholung möglich.', delete_account_confirm: 'Möchten Sie Ihr Kundenkonto endgültig löschen lassen? Wir bearbeiten Ihren Antrag gemäß DSGVO.', delete_account_active: 'Solange Räder bei uns eingelagert sind, ist eine Löschung nicht möglich. Bitte wenden Sie sich an uns{tel}. Nach Abholung können Sie Ihr Konto löschen.', delete_account_done: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen.',
-    nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?', vehicle: 'Fahrzeug', inch: 'Zollgröße', price: 'Preis',
+    nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?', vehicle: 'Fahrzeug', inch: 'Zollgröße', price: 'Preis', nav_invoices: 'Rechnungen', no_invoices: 'Noch keine Rechnungen.', invoice_paid: 'bezahlt',
     nav_overview: 'Überblick', nav_storage: 'Einlagerungen', nav_appointments: 'Termine',
     nav_book: 'Termin buchen', nav_profile: 'Profil', welcome: 'Willkommen',
     book_appointment: 'Termin buchen', service: 'Leistung', date: 'Datum',
@@ -353,7 +358,7 @@ var I18N = {
     register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
     reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
     delete_account: 'Delete account', delete_account_info: 'You have the right to have your account deleted (Art. 17 GDPR). With active storage this is only possible after collection.', delete_account_confirm: 'Do you really want your customer account permanently deleted? We will process your request in accordance with GDPR.', delete_account_active: 'As long as wheels are stored with us, deletion is not possible. Please contact us{tel}. After collection you can delete your account.', delete_account_done: 'Your deletion request has been received. We will get back to you.',
-    nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?', vehicle: 'Vehicle', inch: 'Wheel size (inch)', price: 'Price',
+    nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?', vehicle: 'Vehicle', inch: 'Wheel size (inch)', price: 'Price', nav_invoices: 'Invoices', no_invoices: 'No invoices yet.', invoice_paid: 'paid',
     nav_overview: 'Overview', nav_storage: 'Storage', nav_appointments: 'Appointments',
     nav_book: 'Book appointment', nav_profile: 'Profile', welcome: 'Welcome',
     book_appointment: 'Book appointment', service: 'Service', date: 'Date',
@@ -534,6 +539,7 @@ function portalNav(page, fromPop) {
   else if (page === 'termine') ladeTermine();
   else if (page === 'buchen') initBuchen();
   else if (page === 'fahrzeuge') ladeFahrzeuge();
+  else if (page === 'rechnungen') ladeRechnungen();
   else if (page === 'profil') ladeProfil();
 }
 // ── DATEN LADEN ──
@@ -766,6 +772,27 @@ function ladeProfil() {
   }).catch(function() {});
 }
 
+function ladeRechnungen() {
+  papi('GET', '/daten/rechnungen').then(function(rows) {
+    var el = document.getElementById('rechnungen-liste');
+    if (!rows || !rows.length) { el.innerHTML = '<div class="empty">' + t('no_invoices') + '</div>'; return; }
+    el.innerHTML = rows.map(function(r) {
+      var betrag = (Number(r.brutto_summe) || 0).toFixed(2).replace('.', ',') + ' €';
+      var storno = r.status === 'storniert';
+      var extra = storno ? ' · ' + t('cancelled') : (r.zahlungsstatus === 'bezahlt' ? ' · ' + t('invoice_paid') : '');
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px' + (storno ? ';opacity:.6' : '') + '">' +
+        '<div><div style="font-weight:700">' + (r.rechnungsnr || '') + '</div>' +
+        '<div style="font-size:12px;color:var(--muted)">' + fmtDatum(r.rechnungsdatum) + ' · ' + betrag + extra + '</div></div>' +
+        '<button class="btn btn-g btn-sm" onclick="rechnungPdf(\'' + r.id + '\')">PDF</button></div>';
+    }).join('');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function rechnungPdf(id) {
+  fetch(API + '/daten/rechnungen/' + id + '/pdf', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error('PDF nicht verfügbar'); return r.blob(); })
+    .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
 function ladeFahrzeuge() {
   papi('GET', '/daten/fahrzeuge').then(function(rows) {
     var el = document.getElementById('fahrzeuge-liste');

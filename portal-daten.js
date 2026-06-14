@@ -4,6 +4,7 @@ const router = express.Router();
 const { query } = require('../db/index');
 const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
+const fs = require('fs');
 
 // ── GET /api/portal/daten/einlagerungen ──
 router.get('/einlagerungen', authKunde, async (req, res, next) => {
@@ -301,6 +302,32 @@ router.get('/firmendaten', async (req, res, next) => {
        FROM einstellungen LIMIT 1`
     );
     res.json(rows[0] || {});
+  } catch (e) { next(e); }
+});
+
+// ── RECHNUNGEN (Kunde sieht eigene) ──
+router.get('/rechnungen', authKunde, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, rechnungsnr, to_char(rechnungsdatum,'YYYY-MM-DD') AS rechnungsdatum,
+              brutto_summe, status, zahlungsstatus
+       FROM rechnungen
+       WHERE kunden_id=$1 AND status IN ('festgeschrieben','storniert')
+       ORDER BY erstellt_am DESC`,
+      [req.kunde.id]
+    );
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+router.get('/rechnungen/:id/pdf', authKunde, async (req, res, next) => {
+  try {
+    const r = await query('SELECT rechnungsnr, pdf_pfad FROM rechnungen WHERE id=$1 AND kunden_id=$2', [req.params.id, req.kunde.id]);
+    if (!r.rows.length || !r.rows[0].pdf_pfad) return res.status(404).json({ error: 'Kein PDF vorhanden' });
+    if (!fs.existsSync(r.rows[0].pdf_pfad)) return res.status(404).json({ error: 'PDF-Datei fehlt' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline; filename="' + (r.rows[0].rechnungsnr || 'rechnung') + '.pdf"');
+    fs.createReadStream(r.rows[0].pdf_pfad).pipe(res);
   } catch (e) { next(e); }
 });
 
