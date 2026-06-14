@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { query } = require('../db/index');
 const { authenticate, requireAdmin } = require('../middleware/auth');
+const { regenerate } = require('../lib/homepage-generate');
 
 // Editierbare Spalten (Whitelist). id und geaendert_am werden nie direkt gesetzt.
 // Spaltennamen stammen ausschliesslich aus dieser festen Liste -> keine SQL-Injection.
@@ -82,6 +83,7 @@ router.put('/', authenticate, requireAdmin, async (req, res, next) => {
         'UPDATE einstellungen SET ' + sets.join(', ') + ', geaendert_am=NOW() WHERE id=$' + params.length + ' RETURNING *',
         params
       );
+      regenerate().catch(function () {});
       return res.json(rows[0]);
     }
 
@@ -93,6 +95,7 @@ router.put('/', authenticate, requireAdmin, async (req, res, next) => {
       'INSERT INTO einstellungen (' + insertCols.join(', ') + ') VALUES (' + ph.join(', ') + ') RETURNING *',
       params
     );
+    regenerate().catch(function () {});
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

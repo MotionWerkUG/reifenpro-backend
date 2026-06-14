@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homepage-Inhalte — Schröder & Scholz</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; --green:#3ecf8e; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:15px; }
+  .top { background:#171717; border-bottom:3px solid var(--accent); padding:14px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .wm { font-weight:800; color:#fff; letter-spacing:.5px; } .wm span { color:var(--accent); }
+  .top a, .top button { color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px 14px; text-decoration:none; cursor:pointer; font-size:13px; font-family:inherit; }
+  .top .view { background:var(--accent); color:#171717; border:none; font-weight:700; }
+  .wrap { max-width:820px; margin:0 auto; padding:22px 18px 60px; }
+  .hint { color:var(--muted); font-size:13px; margin-bottom:18px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+  .card-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#171717; background:var(--accent); padding:3px 9px; border-radius:20px; }
+  .badge.auto { background:#3a4250; color:#cfd6df; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input, textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; padding:9px 11px; outline:none; }
+  input:focus, textarea:focus { border-color:var(--accent); }
+  textarea { min-height:80px; resize:vertical; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  .btn { border:none; border-radius:8px; padding:9px 16px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; }
+  .btn-p { background:var(--accent); color:#171717; } .btn-g { background:var(--bg); color:var(--text); border:1px solid var(--border); }
+  .btn-d { background:#c0392b; color:#fff; } .btn-i { background:var(--bg); color:var(--text); border:1px solid var(--border); padding:6px 11px; }
+  .sw { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); margin-left:auto; }
+  .prev { max-height:90px; border-radius:8px; margin-top:8px; display:block; }
+  .add { display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; }
+  .notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--green); color:#06281a; padding:10px 18px; border-radius:10px; font-weight:700; opacity:0; transition:.2s; pointer-events:none; }
+  .notice.show { opacity:1; } .notice.err { background:#c0392b; color:#fff; }
+  #login { max-width:340px; margin:80px auto; }
+  #login h1 { font-size:18px; margin-bottom:4px; } #login .hint { margin-bottom:16px; }
+</style>
+</head>
+<body>
+<div id="login" style="display:none">
+  <h1>Homepage-Inhalte</h1>
+  <div class="hint">Bitte mit Ihrem Mitarbeiter-Konto anmelden.</div>
+  <label>E-Mail</label><input id="l-email" type="email" autocapitalize="none">
+  <label>Passwort</label><input id="l-pass" type="password" onkeydown="if(event.key==='Enter')doLogin()">
+  <div class="row"><button class="btn btn-p" onclick="doLogin()">Anmelden</button></div>
+</div>
+
+<div id="cms" style="display:none">
+  <div class="top">
+    <div class="wm">SCHRÖDER <span>&amp;</span> SCHOLZ — Homepage</div>
+    <div style="display:flex;gap:8px">
+      <a class="view" href="https://www.schroeder-scholz.de/" target="_blank" rel="noopener">Homepage ansehen</a>
+      <button onclick="logout()">Abmelden</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="hint">Texte und Bilder bearbeiten, Abschnitte ein-/ausblenden, mit den Pfeilen umsortieren. Jede Speicherung aktualisiert die Homepage sofort. „Öffnungszeiten" und „Kontakt" werden automatisch aus den Einstellungen gefüllt.</div>
+    <div id="liste"></div>
+    <div class="add">
+      <button class="btn btn-g" onclick="addSektion('text')">+ Text-Abschnitt</button>
+      <button class="btn btn-g" onclick="addSektion('leistung')">+ Leistung</button>
+    </div>
+  </div>
+</div>
+<div class="notice" id="notice"></div>
+
+<script>
+'use strict';
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
+var TOKEN = localStorage.getItem('rp_token');
+var SEK = [];
+var TYP_LABEL = { hero: 'Start (Hero)', leistung: 'Leistung', text: 'Text', oeffnungszeiten: 'Öffnungszeiten', kontakt: 'Kontakt' };
+
+function notify(m, err) { var n = document.getElementById('notice'); n.textContent = m; n.className = 'notice show' + (err ? ' err' : ''); setTimeout(function(){ n.className = 'notice'; }, 2600); }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+function api(method, path, body) {
+  var o = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) o.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body !== undefined) o.body = JSON.stringify(body);
+  return fetch(API + path, o).then(function(r) {
+    if (r.status === 401) { TOKEN = null; localStorage.removeItem('rp_token'); zeige(); throw new Error('Bitte anmelden'); }
+    if (!r.ok) return r.json().catch(function(){return {};}).then(function(e){ throw new Error(e.error || ('Fehler ' + r.status)); });
+    return r.json().catch(function(){ return null; });
+  });
+}
+function zeige() {
+  document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
+  document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
+  if (TOKEN) laden();
+}
+function doLogin() {
+  var email = document.getElementById('l-email').value.trim();
+  var passwort = document.getElementById('l-pass').value;
+  fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, passwort: passwort }) })
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||'Login fehlgeschlagen'); return j; }); })
+    .then(function(j){ TOKEN = j.token; localStorage.setItem('rp_token', TOKEN); zeige(); })
+    .catch(function(e){ notify(e.message, true); });
+}
+function logout() { TOKEN = null; localStorage.removeItem('rp_token'); zeige(); }
+
+function laden() {
+  api('GET', '/homepage/sektionen').then(function(rows){ SEK = rows || []; render(); }).catch(function(e){ notify(e.message, true); });
+}
+function feld(id, label, val, ta) {
+  return '<label>' + label + '</label>' + (ta
+    ? '<textarea id="' + id + '">' + esc(val) + '</textarea>'
+    : '<input id="' + id + '" value="' + esc(val) + '">');
+}
+function render() {
+  var html = SEK.map(function(s, idx) {
+    var auto = (s.typ === 'oeffnungszeiten' || s.typ === 'kontakt');
+    var h = '<div class="card">';
+    h += '<div class="card-top"><span class="badge' + (auto ? ' auto' : '') + '">' + (TYP_LABEL[s.typ] || s.typ) + '</span>' +
+      '<span class="sw"><label style="margin:0">sichtbar</label><input type="checkbox" style="width:auto" id="v-' + s.id + '"' + (s.sichtbar ? ' checked' : '') + '></span></div>';
+    h += feld('h-' + s.id, 'Überschrift', s.headline);
+    if (s.typ === 'hero') h += feld('sub-' + s.id, 'Unterzeile', s.subline);
+    if (!auto) h += feld('i-' + s.id, 'Text', s.inhalt, true);
+    if (s.typ === 'hero' || s.typ === 'text' || s.typ === 'leistung') {
+      h += '<label>Bild</label>';
+      h += '<input id="b-' + s.id + '" value="' + esc(s.bild_url) + '" placeholder="/uploads/... oder leer">';
+      if (s.bild_url) h += '<img class="prev" src="' + esc(s.bild_url) + '" alt="">';
+      h += '<div style="margin-top:6px"><label style="display:inline">Bild hochladen: </label><input type="file" accept="image/*" onchange="bildUpload(\'' + s.id + '\', this)" class="btn-i"></div>';
+    }
+    if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel', s.cta_url); }
+    if (auto) h += '<div class="hint" style="margin:10px 0 0">Inhalt kommt automatisch aus den Einstellungen (Firmendaten).</div>';
+    h += '<div class="row"><button class="btn btn-p" onclick="speichern(\'' + s.id + '\')">Speichern</button>' +
+      '<button class="btn btn-g" onclick="move(\'' + s.id + '\',\'up\')"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="btn btn-g" onclick="move(\'' + s.id + '\',\'down\')"' + (idx === SEK.length - 1 ? ' disabled' : '') + '>↓</button>';
+    if (s.typ !== 'hero' && !auto) h += '<button class="btn btn-d" style="margin-left:auto" onclick="loeschen(\'' + s.id + '\')">Löschen</button>';
+    h += '</div></div>';
+    return h;
+  }).join('');
+  document.getElementById('liste').innerHTML = html;
+}
+function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
+function speichern(id) {
+  var s = SEK.find(function(x){ return x.id === id; }); if (!s) return;
+  var data = {
+    headline: v('h-' + id),
+    subline: v('sub-' + id) !== undefined ? v('sub-' + id) : s.subline,
+    inhalt: v('i-' + id) !== undefined ? v('i-' + id) : s.inhalt,
+    bild_url: v('b-' + id) !== undefined ? v('b-' + id) : s.bild_url,
+    cta_text: v('ct-' + id) !== undefined ? v('ct-' + id) : s.cta_text,
+    cta_url: v('cu-' + id) !== undefined ? v('cu-' + id) : s.cta_url,
+    sichtbar: document.getElementById('v-' + id).checked
+  };
+  api('PUT', '/homepage/sektionen/' + id, data).then(function(){ notify('Gespeichert – Homepage aktualisiert.'); laden(); }).catch(function(e){ notify(e.message, true); });
+}
+function bildUpload(id, inp) {
+  var f = inp.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    api('POST', '/homepage/bild', { data: e.target.result }).then(function(res){
+      document.getElementById('b-' + id).value = res.url;
+      notify('Bild hochgeladen – jetzt „Speichern".');
+    }).catch(function(err){ notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
+}
+function move(id, dir) { api('POST', '/homepage/sektionen/' + id + '/move', { dir: dir }).then(function(){ laden(); }).catch(function(e){ notify(e.message, true); }); }
+function loeschen(id) { if (!confirm('Abschnitt wirklich löschen?')) return; api('DELETE', '/homepage/sektionen/' + id).then(function(){ notify('Gelöscht.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
+function addSektion(typ) { api('POST', '/homepage/sektionen', { typ: typ }).then(function(){ notify('Abschnitt hinzugefügt.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
+
+zeige();
+</script>
+</body>
+</html>
