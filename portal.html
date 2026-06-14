@@ -89,7 +89,14 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   padding: 10px; text-align: center; cursor: pointer; font-weight: 700; font-size: 14px; }
 .slot:hover { border-color: var(--accent); }
 .slot.sel { background: var(--accent); border-color: var(--accent); color: #171717; font-weight: 800; }
-@media (max-width: 600px) { .g2 { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .g2 { grid-template-columns: 1fr; }
+  .app-header { padding: 12px 14px; }
+  .app-logo svg { width: 150px; height: auto; }
+  #app-username { display: none; }
+  .app-nav { padding: 10px 12px; }
+  .app-main { padding: 16px 14px; }
+}
 </style>
 </head>
 <body>
