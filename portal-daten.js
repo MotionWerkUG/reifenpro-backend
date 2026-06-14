@@ -317,6 +317,7 @@ router.get('/fahrzeuge', authKunde, async (req, res, next) => {
 router.post('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
     const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
     const { rows } = await query(
       `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz)
@@ -330,6 +331,7 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
 router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
   try {
     const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
     const { rows } = await query(
       `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, hu_datum=$6, notiz=$7, geaendert_am=NOW()

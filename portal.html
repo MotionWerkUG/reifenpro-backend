@@ -789,6 +789,9 @@ function fzEdit(id) {
   }).catch(function(e) { notify(e.message, 'err'); });
 }
 function fzSpeichern() {
+  if (!document.getElementById('fz-marke').value.trim() || !document.getElementById('fz-modell').value.trim() || !document.getElementById('fz-kennzeichen').value.trim()) {
+    notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return;
+  }
   var hu = document.getElementById('fz-hu').value;
   var data = {
     typ: document.getElementById('fz-typ').value,

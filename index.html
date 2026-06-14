@@ -317,6 +317,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
             <div class="pnl"><div class="ptitle">Heutige Termine</div><div id="dash-termine"></div></div>
           </div>
         </div>
+        <div class="pnl"><div class="ptitle">Letzte Aktivität</div><div id="dash-aktivitaet"></div></div>
       </div>
 
       <!-- KUNDEN -->
@@ -1224,6 +1225,7 @@ function startApp() {
   loadLager();
   loadArtikel();
   loadRechnungen();
+  loadAktivitaet();
   startUhr();
   befuelleJahrDropdown();
 }
@@ -1270,6 +1272,7 @@ function showPage(n) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
+  if (n === 'dashboard') loadAktivitaet();
   if (n === 'rechnungen') loadRechnungen();
   if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); }
   if (n === 'users') loadUsers();
@@ -2064,6 +2067,7 @@ function fzAdminEdit(fid) {
 }
 function fzAdminSave() {
   if (!aktK) return;
+  if (!gv('fz-a-marke') || !gv('fz-a-modell') || !gv('fz-a-kennzeichen')) { notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return; }
   var hu = gv('fz-a-hu');
   var data = { typ: gv('fz-a-typ'), kennzeichen: gv('fz-a-kennzeichen'), marke: gv('fz-a-marke'), modell: gv('fz-a-modell'), baujahr: gv('fz-a-baujahr') ? parseInt(gv('fz-a-baujahr')) : null, hu_datum: hu ? hu + '-01' : null, notiz: gv('fz-a-notiz') };
   var fid = gv('fz-a-id');
@@ -2302,6 +2306,24 @@ function saveNE() {
 }
 
 // ── DASHBOARD ──
+function loadAktivitaet() {
+  api('GET', '/aktivitaet').then(function(rows) {
+    var el = document.getElementById('dash-aktivitaet'); if (!el) return;
+    rows = rows || [];
+    if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Aktivität.</div>'; return; }
+    var farbe = { registrierung: '#eab308', buchung: '#4a9eff', einlagerung: '#3ecf8e' };
+    var label = { registrierung: 'Registrierung', buchung: 'Buchung', einlagerung: 'Einlagerung' };
+    el.innerHTML = rows.map(function(e) {
+      var z = new Date(e.zeit);
+      var zt = String(z.getDate()).padStart(2, '0') + '.' + String(z.getMonth() + 1).padStart(2, '0') + '. ' + String(z.getHours()).padStart(2, '0') + ':' + String(z.getMinutes()).padStart(2, '0');
+      var c = farbe[e.typ] || '#888';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)' + (e.kunden_id ? ';cursor:pointer' : '') + '"' + (e.kunden_id ? ' onclick="zeigeK(\'' + e.kunden_id + '\')"' : '') + '>' +
+        '<span style="font-size:10px;font-weight:700;color:#fff;background:' + c + ';padding:2px 7px;border-radius:10px;white-space:nowrap">' + (label[e.typ] || e.typ) + '</span>' +
+        '<span style="font-size:13px;flex:1">' + e.text + '</span>' +
+        '<span style="font-size:11px;color:var(--muted);white-space:nowrap">' + zt + '</span></div>';
+    }).join('');
+  }).catch(function() {});
+}
 function renderDash() {
   var aktiv = allE.filter(function(e) { return e.status !== 'Abgeholt'; });
   var gesamtPlaetze = allLager.reduce(function(s, o) { return s + o.regale.reduce(function(ss, r) { return ss + r.plaetze_total; }, 0); }, 0);
