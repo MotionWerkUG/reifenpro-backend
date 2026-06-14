@@ -33,11 +33,11 @@
   </div>
   <div id="agb-content"></div>
   <div class="hinweis" id="agb-hinweis"></div>
-  <a href="/reifenpro/portal/" class="back">← Zurück zum Portal</a>
+  <a href="./" class="back">← Zurück zum Portal</a>
 </div>
 
 <script>
-var API = '/reifenpro/api/portal';
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api/portal' : '/api/portal';
 var FIRMA = {};
 var AGBLANG = 'de';
 

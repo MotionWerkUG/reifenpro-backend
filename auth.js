@@ -104,7 +104,7 @@ router.post('/passwort-reset-anfrage', resetLimiter, async (req, res, next) => {
       host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
     });
-    const resetUrl = 'http://161.97.187.239/reifenpro/?reset=' + token;
+    const resetUrl = 'https://admin.schroeder-scholz.de/?reset=' + token;
     await transporter.sendMail({
       from: '"' + (f.firmenname || 'ReifenPro') + '" <' + process.env.SMTP_USER + '>',
       to: user.email,

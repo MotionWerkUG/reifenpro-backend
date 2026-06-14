@@ -329,7 +329,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 <div id="notify-el"></div>
 <script>
 'use strict';
-var API = '/reifenpro/api/portal';
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api/portal' : '/api/portal';
 var TOKEN = localStorage.getItem('rp_portal_token');
 var KUNDE = null;
 var LANG = localStorage.getItem('rp_portal_lang') || 'de';

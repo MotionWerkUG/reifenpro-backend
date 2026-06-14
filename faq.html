@@ -32,10 +32,10 @@
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
   </div>
   <div id="faq-content"></div>
-  <a href="/reifenpro/portal/" class="back">← Zurück zum Portal</a>
+  <a href="./" class="back">← Zurück zum Portal</a>
 </div>
 <script>
-var API = '/reifenpro/api/portal';
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api/portal' : '/api/portal';
 var FIRMA = {};
 var FAQLANG = 'de';
 function setFaqLang(l) {

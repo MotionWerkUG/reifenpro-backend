@@ -1043,7 +1043,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
 'use strict';
 
 // ── KONSTANTEN ──
-var API = '/reifenpro/api';
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
 var TOKEN = localStorage.getItem('rp_token');
 var USER = null;
 try { USER = JSON.parse(localStorage.getItem('rp_user') || 'null'); } catch(e) {}
