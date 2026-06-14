@@ -63,14 +63,37 @@ function renderSektion(s, f) {
       '<table class="oz">' + rows + '</table></div></section>';
   }
   if (s.typ === 'kontakt') {
+    var hasAdr = !!(f.strasse || f.ort);
+    var q = [f.firmenname, f.strasse, f.plz, f.ort].filter(Boolean).join(' ');
     var adr = [f.strasse, ((f.plz || '') + ' ' + (f.ort || '')).trim()].filter(Boolean).map(esc).join('<br>');
-    var maps = (f.strasse || f.ort) ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([f.firmenname, f.strasse, f.plz, f.ort].filter(Boolean).join(' ')) : '';
-    return '<section class="sec" id="kontakt"><div class="inner narrow"><h2>' + esc(s.headline || 'Kontakt & Anfahrt') + '</h2>' +
+    var mapsLink = hasAdr ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q) : '';
+    var embed = hasAdr ? 'https://www.google.com/maps?q=' + encodeURIComponent(q) + '&output=embed' : '';
+    var info = '<div class="k-card">' +
+      '<h3>' + esc(f.firmenname || 'Schröder & Scholz') + '</h3>' +
       '<p>' + (adr || '<span style="color:#8b949e">Adresse folgt in Kürze.</span>') + '</p>' +
       (f.telefon ? '<p>Telefon: <a href="tel:' + esc(f.telefon) + '">' + esc(f.telefon) + '</a></p>' : '') +
       (f.email ? '<p>E-Mail: <a href="mailto:' + esc(f.email) + '">' + esc(f.email) + '</a></p>' : '') +
-      (maps ? '<p><a class="btn-ghost" href="' + maps + '" target="_blank" rel="noopener">Route planen</a></p>' : '') +
-      '</div></section>';
+      (mapsLink ? '<p style="margin-top:14px"><a class="btn-ghost" href="' + mapsLink + '" target="_blank" rel="noopener">Route planen</a></p>' : '') +
+      '</div>';
+    var map = embed ? '<div class="k-map" id="kmap" data-embed="' + esc(embed) + '">' +
+      '<div class="k-map-ph"><p>Standort auf der Karte</p>' +
+      '<button type="button" class="btn-ghost" onclick="ladeKarte()">Karte anzeigen</button>' +
+      '<span class="k-map-note">Beim Anzeigen werden Daten an Google Maps übertragen. Details in der <a href="/portal/datenschutz.html">Datenschutzerklärung</a>.</span>' +
+      '</div></div>' : '';
+    var form = '<form class="k-form" onsubmit="return sendeKontakt(event)">' +
+      '<h3>Nachricht senden</h3>' +
+      '<div class="kf-ok" id="kf-ok">Vielen Dank! Ihre Anfrage wurde gesendet. Wir melden uns zeitnah.</div>' +
+      '<div class="kf-err" id="kf-err"></div>' +
+      '<input type="text" id="kf-name" placeholder="Name" required>' +
+      '<input type="email" id="kf-email" placeholder="E-Mail" required>' +
+      '<input type="tel" id="kf-telefon" placeholder="Telefon (optional)">' +
+      '<textarea id="kf-nachricht" placeholder="Ihre Nachricht" required></textarea>' +
+      '<label class="kf-check"><input type="checkbox" id="kf-dsgvo" required> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und bin mit der Verarbeitung meiner Angaben zur Bearbeitung der Anfrage einverstanden.</span></label>' +
+      '<input type="text" id="kf-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">' +
+      '<button type="submit" class="btn">Anfrage senden</button>' +
+      '</form>';
+    return '<section class="sec" id="kontakt"><div class="inner"><h2>' + esc(s.headline || 'Kontakt & Anfahrt') + '</h2>' +
+      '<div class="k-grid"><div class="k-left">' + info + map + '</div>' + form + '</div></div></section>';
   }
   // text
   var img = s.bild_url ? '<div class="t-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" loading="lazy"></div>' : '';
@@ -116,7 +139,7 @@ function renderHomepage(sektionen, f) {
     '<div class="foot-wm">SCHRÖDER <span>&amp;</span> SCHOLZ</div>' +
     '<div class="foot-sub">Reifenservice und Fahrzeugtechnik</div>' +
     '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a></div>' +
-    '</div></footer></body></html>';
+    '</div></footer>' + script() + '</body></html>';
 }
 
 function css() {
@@ -145,10 +168,38 @@ function css() {
     ".t-img{aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#eef0f3}.t-img img{width:100%;height:100%;object-fit:cover;display:block}" +
     ".oz{width:100%;border-collapse:collapse;font-size:16px}.oz td{padding:12px 0;border-bottom:1px solid #e6e8ec}.oz td:last-child{text-align:right;font-weight:700}" +
     "#kontakt p{margin-bottom:10px;font-size:16px}" +
+    ".k-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}" +
+    ".k-card{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:24px;margin-bottom:20px}.k-card h3{font-size:20px;margin-bottom:10px}" +
+    ".k-map{aspect-ratio:16/10;border-radius:14px;overflow:hidden;border:1px solid #e6e8ec;background:#eef0f3}.k-map iframe{width:100%;height:100%;border:0;display:block}" +
+    ".k-map-ph{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}.k-map-ph p{font-weight:700;color:#444;margin:0}" +
+    ".k-map-note{font-size:12px;color:#777;max-width:340px;line-height:1.5}.k-map-note a{color:#171717;text-decoration:underline}" +
+    ".k-form{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px}.k-form h3{font-size:20px;margin-bottom:4px}" +
+    ".k-form input,.k-form textarea{width:100%;border:1px solid #d5d9e0;border-radius:8px;padding:12px 14px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}" +
+    ".k-form input:focus,.k-form textarea:focus{outline:none;border-color:#eab308}.k-form textarea{min-height:130px;resize:vertical}.k-form .btn{border:none;cursor:pointer;font-family:inherit;align-self:flex-start}" +
+    ".kf-check{font-size:13px;color:#555;display:flex;gap:8px;align-items:flex-start;line-height:1.5}.kf-check input{width:auto;margin-top:3px}.kf-check a{color:#171717;text-decoration:underline}" +
+    ".kf-ok{display:none;background:#e7f7ee;color:#0f6b3e;border:1px solid #b7e4cd;border-radius:8px;padding:12px 14px;font-size:14px}" +
+    ".kf-err{display:none;background:#fdecea;color:#b3261e;border:1px solid #f5c6c2;border-radius:8px;padding:12px 14px;font-size:14px}" +
     ".foot{background:#171717;color:#cfcfcf;padding:40px 0;text-align:center}.foot-wm{font-weight:800;color:#fff;font-size:18px}.foot-wm span{color:#eab308}" +
     ".foot-sub{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8b949e;margin:6px 0 16px}" +
     ".foot-links{font-size:13px}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:#eab308}" +
-    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}}";
+    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}}";
+}
+
+function script() {
+  return "<scr" + "ipt>" +
+    "function ladeKarte(){var m=document.getElementById('kmap');if(!m)return;var u=m.getAttribute('data-embed');" +
+    "m.innerHTML='<iframe src=\"'+u+'\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" title=\"Standortkarte\"></iframe>';}" +
+    "function kfv(id){var e=document.getElementById(id);return e?e.value.trim():'';}" +
+    "function sendeKontakt(ev){ev.preventDefault();var ok=document.getElementById('kf-ok'),er=document.getElementById('kf-err');ok.style.display='none';er.style.display='none';" +
+    "var d={name:kfv('kf-name'),email:kfv('kf-email'),telefon:kfv('kf-telefon'),nachricht:kfv('kf-nachricht'),datenschutz:document.getElementById('kf-dsgvo').checked,website:kfv('kf-hp')};" +
+    "if(!d.name||!d.email||!d.nachricht||!d.datenschutz){er.textContent='Bitte Name, E-Mail und Nachricht ausfüllen und den Datenschutz bestätigen.';er.style.display='block';return false;}" +
+    "var b=ev.target.querySelector('button[type=submit]');b.disabled=true;var bt=b.textContent;b.textContent='Wird gesendet …';" +
+    "fetch('/api/kontakt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})" +
+    ".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Fehler beim Senden.');return j;});})" +
+    ".then(function(){ev.target.reset();ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
+    ".catch(function(x){er.textContent=x.message;er.style.display='block';})" +
+    ".then(function(){b.disabled=false;b.textContent=bt;});return false;}" +
+    "</scr" + "ipt>";
 }
 
 module.exports = { renderHomepage };
