@@ -189,8 +189,12 @@ function pwVergessen() {
   var email = (document.getElementById('l-email').value || '').trim();
   if (!email) { notify('Bitte zuerst Ihre E-Mail eingeben.', true); return; }
   fetch(API + '/auth/passwort-reset-anfrage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
-    .then(function() { notify('Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet.'); })
-    .catch(function() { notify('Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet.'); });
+    .then(function(r) {
+      if (r.status === 429) { notify('Zu viele Anfragen. Bitte ein paar Minuten warten.', true); return; }
+      if (!r.ok) { notify('Senden fehlgeschlagen. Bitte später erneut versuchen.', true); return; }
+      notify('Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet (auch Spam prüfen).');
+    })
+    .catch(function() { notify('Senden fehlgeschlagen (Netzwerk).', true); });
 }
 
 function laden() {

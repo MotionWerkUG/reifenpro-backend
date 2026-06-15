@@ -1254,13 +1254,14 @@ function doResetAnfrage() {
   fetch(API + '/auth/passwort-reset-anfrage', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email })
-  }).then(function() {
-    msg.textContent = 'Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet.';
+  }).then(function(r) {
+    if (r.status === 429) { err.textContent = 'Zu viele Anfragen. Bitte ein paar Minuten warten und erneut versuchen.'; err.style.display = 'block'; return; }
+    if (!r.ok) { err.textContent = 'Senden fehlgeschlagen. Bitte später erneut versuchen.'; err.style.display = 'block'; return; }
+    msg.textContent = 'Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet. Bitte auch den Spam-Ordner prüfen.';
     msg.style.display = 'block';
     document.getElementById('l-reset-email').value = '';
   }).catch(function() {
-    msg.textContent = 'Reset-Link wurde gesendet falls die E-Mail bekannt ist.';
-    msg.style.display = 'block';
+    err.textContent = 'Senden fehlgeschlagen (Netzwerk). Bitte später erneut versuchen.'; err.style.display = 'block';
   });
 }
 function pwResetAbschluss(token) {
@@ -1275,7 +1276,10 @@ function pwResetAbschluss(token) {
     .catch(function(e) { alert(e.message); history.replaceState({}, '', location.pathname); });
 }
 function doLogout() {
-  api('POST', '/auth/logout', {}).catch(function() {});
+  // Direkter fetch (NICHT api()), sonst loest ein 401 erneut doLogout() aus -> Endlosschleife
+  try {
+    fetch(API + '/auth/logout', { method: 'POST', headers: TOKEN ? { 'Authorization': 'Bearer ' + TOKEN } : {} }).catch(function() {});
+  } catch (e) {}
   TOKEN = null; USER = null;
   localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user');
   document.getElementById('app').style.display = 'none';
