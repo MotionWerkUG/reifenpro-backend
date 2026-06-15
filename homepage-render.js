@@ -45,7 +45,7 @@ function bannerHtml(f) {
   if (!f.aktion_aktiv || !f.aktion_text) return '';
   var pos = f.aktion_position || 'leiste';
   var code = f.aktion_code ? '<span class="akt-code">' + esc(f.aktion_code) + '</span>' : '';
-  var link = f.aktion_link || '/portal/?registrieren';
+  var link = f.aktion_link || '/portal/?buchen';
   var cta = '<a class="akt-cta" href="' + esc(link) + '">Jetzt Termin buchen</a>';
   var inner = '<span class="akt-text">' + esc(f.aktion_text) + '</span>' + code + cta;
   if (pos === 'leiste') return '<div class="akt-leiste">' + inner + '</div>';

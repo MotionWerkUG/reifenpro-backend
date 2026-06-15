@@ -1011,7 +1011,8 @@ function initPortal() {
       portalLogout();
     });
   } else {
-    zeigeScreen((wantReg || wantBuchen) ? 'register' : 'login');
+    // Stammkunden zuerst zur Login-Maske (Registrierung nur bei ausdruecklichem ?registrieren)
+    zeigeScreen(wantReg ? 'register' : 'login');
   }
 }
 initPortal();
