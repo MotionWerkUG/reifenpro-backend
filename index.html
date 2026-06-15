@@ -3350,20 +3350,22 @@ function druckEtikett(einlId) {
   function genLabel(pos, profil) {
     var posColor = { 'VL': '#1a3a6e', 'VR': '#1a3a6e', 'HL': '#555', 'HR': '#555' };
     return '<div class="label-page">' +
-      // Positions-Markierung gross oben rechts
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3mm">' +
+      // Kopf: Kunde links, Positions-Markierung gross rechts
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
         '<div>' +
-          '<div style="font-size:7pt;color:#777">' + kundenNr + ' &nbsp; ' + kuerzel + '</div>' +
-          '<div style="font-size:9pt;font-weight:700;color:#e8502a;font-family:monospace">' + kennz + '</div>' +
+          '<div style="font-size:8.5pt;color:#777">' + kundenNr + ' &nbsp; ' + kuerzel + '</div>' +
+          '<div style="font-size:14pt;font-weight:700;color:#e8502a;font-family:monospace;line-height:1.1">' + kennz + '</div>' +
         '</div>' +
-        '<div style="font-size:36pt;font-weight:900;color:' + posColor[pos] + ';line-height:1">' + pos + '</div>' +
+        '<div style="font-size:46pt;font-weight:900;color:' + posColor[pos] + ';line-height:.85">' + pos + '</div>' +
       '</div>' +
-      // Lagerplatz riesig
-      '<div style="font-size:28pt;font-weight:900;color:#1a3a6e;letter-spacing:1px;line-height:1;margin-bottom:2mm;border-bottom:2px solid #1a3a6e;padding-bottom:1mm">' + e.lagerplatz + '</div>' +
+      // Lagerplatz riesig, fuellt die Mitte
+      '<div style="text-align:center;font-size:42pt;font-weight:900;color:#1a3a6e;letter-spacing:2px;line-height:1;border-top:2.5px solid #1a3a6e;border-bottom:2.5px solid #1a3a6e;padding:2.5mm 0">' + e.lagerplatz + '</div>' +
       // Reifen-Info
-      '<div style="font-size:8pt;font-weight:700;margin-bottom:1mm">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +
-      '<div style="font-size:7pt;color:#444;margin-bottom:2mm">' + (fabrik || '') + (e.dot ? ' &nbsp; DOT ' + e.dot : '') + (profil ? ' &nbsp; Profil: ' + profil + 'mm' : '') + '</div>' +
-      // Barcode
+      '<div>' +
+        '<div style="font-size:12pt;font-weight:700">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +
+        '<div style="font-size:9pt;color:#444;margin-top:0.5mm">' + (fabrik || '') + (e.dot ? ' &nbsp; DOT ' + e.dot : '') + (profil ? ' &nbsp; Profil: ' + profil + 'mm' : '') + '</div>' +
+      '</div>' +
+      // Barcode unten
       '<div>' + makeBarcode(idClean) + '</div>' +
     '</div>';
   }
@@ -3402,7 +3404,7 @@ function etikettDrucken() {
     '<style>' +
     '@page { size: A7 landscape; margin: 4mm; }' +
     'html, body { margin: 0; padding: 0; background: #fff; }' +
-    '.label-page { width: 100%; min-height: 70mm; padding: 3mm; box-sizing: border-box; font-family: Arial, sans-serif; page-break-after: always; background: #fff; }' +
+    '.label-page { width: 100%; height: 65mm; padding: 1.5mm 1mm; box-sizing: border-box; font-family: Arial, sans-serif; page-break-after: always; background: #fff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }' +
     '.label-page:last-child { page-break-after: avoid; }' +
     '</style></head><body>' +
     seiten +
@@ -3428,7 +3430,9 @@ function genDok() {
 }
 
 function dokStyle() {
-  return '<style>*{box-sizing:border-box;margin:0;padding:0}body,.dok{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#111;padding:10mm 12mm;max-width:210mm;margin:auto}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm}.hdr-l{}.firmenname{font-size:16pt;font-weight:700;color:#1a3a6e;letter-spacing:1px}.hdr-sub{font-size:7.5pt;color:#555;margin-top:2px}.dok-titel{font-size:14pt;font-weight:700;color:#1a3a6e;margin-bottom:4mm;padding-bottom:2mm;border-bottom:1px solid #d0d8e8}.sek{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a3a6e;padding:3mm 0 1.5mm;border-bottom:1px solid #d0d8e8;margin-bottom:2mm}.g2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 5mm}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm 4mm}.iz{padding:2mm 0;border-bottom:1px solid #eef}.iz-l{font-size:7pt;color:#777;text-transform:uppercase;letter-spacing:.5px}.iz-v{font-size:9.5pt;font-weight:600}.para{margin-bottom:2.5mm;font-size:8.5pt;line-height:1.5}.para-t{font-weight:700;margin-top:3mm;margin-bottom:1mm}.sig-box{display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:6mm}.sig-line{border-top:1.5px solid #1a3a6e;padding-top:1.5mm;font-size:7.5pt;color:#555}.sig-area{min-height:18mm;border:1px dashed #aaa;border-radius:3px;padding:2mm;margin-bottom:2mm;font-size:7pt;color:#999}.fuss{margin-top:6mm;padding-top:3mm;border-top:1px solid #ddd;font-size:7pt;color:#777;text-align:center}@media print{body{padding:0}.dok{padding:8mm 10mm}}</style>';
+  // WICHTIG: alle Regeln auf .dok scopen – sonst wirken *{} und body{} global und
+  // verformen die ganze Admin-Seite (Style bleibt nach Schliessen des Modals im DOM).
+  return '<style>.dok,.dok *{box-sizing:border-box;margin:0;padding:0}.dok{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#111;padding:10mm 12mm;max-width:210mm;margin:auto}.dok .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm}.dok .firmenname{font-size:16pt;font-weight:700;color:#1a3a6e;letter-spacing:1px}.dok .hdr-sub{font-size:7.5pt;color:#555;margin-top:2px}.dok .dok-titel{font-size:14pt;font-weight:700;color:#1a3a6e;margin-bottom:4mm;padding-bottom:2mm;border-bottom:1px solid #d0d8e8}.dok .sek{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a3a6e;padding:3mm 0 1.5mm;border-bottom:1px solid #d0d8e8;margin-bottom:2mm}.dok .g2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 5mm}.dok .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm 4mm}.dok .iz{padding:2mm 0;border-bottom:1px solid #eef}.dok .iz-l{font-size:7pt;color:#777;text-transform:uppercase;letter-spacing:.5px}.dok .iz-v{font-size:9.5pt;font-weight:600}.dok .para{margin-bottom:2.5mm;font-size:8.5pt;line-height:1.5}.dok .para-t{font-weight:700;margin-top:3mm;margin-bottom:1mm}.dok .sig-box{display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:6mm}.dok .sig-line{border-top:1.5px solid #1a3a6e;padding-top:1.5mm;font-size:7.5pt;color:#555}.dok .sig-area{min-height:18mm;border:1px dashed #aaa;border-radius:3px;padding:2mm;margin-bottom:2mm;font-size:7pt;color:#999}.dok .fuss{margin-top:6mm;padding-top:3mm;border-top:1px solid #ddd;font-size:7pt;color:#777;text-align:center}@media print{.dok{padding:8mm 10mm}}</style>';
 }
 
 function genDsgvo() {
