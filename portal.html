@@ -541,7 +541,9 @@ function startPortal() {
   document.getElementById('app-username').textContent = KUNDE ? (KUNDE.vorname + ' ' + KUNDE.nachname) : '';
   ladeArtikel();
   papi('GET', '/daten/firmendaten').then(function(f) { if (f) { if (f.stornierung_frist_h) STORNO_FRIST = f.stornierung_frist_h; FIRMA_TEL = f.telefon || ''; } }).catch(function() {});
-  portalNav('ueberblick', true);
+  var ziel = (ZIEL_NACH_LOGIN === 'buchen') ? 'buchen' : 'ueberblick';
+  ZIEL_NACH_LOGIN = null;
+  portalNav(ziel, true);
   if (!window._popBoundP) {
     window._popBoundP = true;
     window.addEventListener('popstate', function(e) {
@@ -549,7 +551,7 @@ function startPortal() {
       portalNav((e.state && e.state.portal) || 'ueberblick', true);
     });
   }
-  if (history.replaceState) { try { history.replaceState({ portal: 'ueberblick' }, '', '#ueberblick'); } catch (x) {} }
+  if (history.replaceState) { try { history.replaceState({ portal: ziel }, '', '#' + ziel); } catch (x) {} }
 }
 
 // ── NAVIGATION ──
@@ -992,9 +994,15 @@ function checkUrlParams() {
 }
 
 // ── INIT ──
+var ZIEL_NACH_LOGIN = null;
 function initPortal() {
   setLang(LANG);
   checkUrlParams();
+  var _p = new URLSearchParams(window.location.search);
+  var wantBuchen = _p.has('buchen') || window.location.hash === '#buchen';
+  var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
+  // Wer ueber "Termin buchen" kommt, soll nach Login/Registrierung direkt zur Buchung
+  if (wantBuchen || wantReg) ZIEL_NACH_LOGIN = 'buchen';
   if (TOKEN) {
     papi('GET', '/auth/me').then(function(k) {
       KUNDE = k;
@@ -1003,9 +1011,7 @@ function initPortal() {
       portalLogout();
     });
   } else {
-    var _p = new URLSearchParams(window.location.search);
-    var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
-    zeigeScreen(wantReg ? 'register' : 'login');
+    zeigeScreen((wantReg || wantBuchen) ? 'register' : 'login');
   }
 }
 initPortal();
