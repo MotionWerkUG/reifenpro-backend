@@ -91,4 +91,28 @@ router.post('/render', async (req, res, next) => {
   try { await regenerate(); res.json({ message: 'Homepage neu erzeugt.' }); } catch (e) { next(e); }
 });
 
+// Aktionsbanner laden
+router.get('/banner', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT aktion_aktiv, aktion_text, aktion_code, aktion_position, aktion_link FROM einstellungen ORDER BY id LIMIT 1');
+    res.json(rows[0] || {});
+  } catch (e) { next(e); }
+});
+
+// Aktionsbanner speichern + Homepage neu erzeugen
+router.put('/banner', async (req, res, next) => {
+  try {
+    const { aktion_aktiv, aktion_text, aktion_code, aktion_position, aktion_link } = req.body;
+    const pos = ['leiste', 'ecke-links', 'ecke-rechts'].includes(aktion_position) ? aktion_position : 'leiste';
+    const upd = await query(
+      `UPDATE einstellungen SET aktion_aktiv=$1, aktion_text=$2, aktion_code=$3, aktion_position=$4, aktion_link=$5
+       WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1) RETURNING aktion_aktiv`,
+      [aktion_aktiv === true, aktion_text || null, aktion_code || null, pos, aktion_link || null]
+    );
+    if (!upd.rows.length) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
+    await regenerate();
+    res.json({ message: 'Banner gespeichert.' });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

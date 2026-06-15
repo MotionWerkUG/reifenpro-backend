@@ -107,6 +107,39 @@
   </div>
   <div class="wrap">
     <div class="intro">Tippen Sie auf einen Abschnitt, um ihn zu <b>bearbeiten</b>. Mit dem Schalter rechts blenden Sie ihn <b>ein/aus</b>, mit den Pfeilen ändern Sie die <b>Reihenfolge</b>. Jede Speicherung aktualisiert die Homepage sofort. <b>Öffnungszeiten</b> und <b>Kontakt</b> werden automatisch aus Ihren Firmendaten (Einstellungen) gefüllt.</div>
+    <div class="card" style="margin-bottom:12px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 style="font-size:16px;margin-bottom:4px">Aktionsbanner / Werbung</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:8px">Blendet oben auf der Homepage ein Werbebanner mit Gutschein-Code ein – z. B. zum Saisonstart.</div>
+      <label style="display:flex;align-items:center;gap:9px;margin:10px 0"><span class="sw"><input type="checkbox" id="ak-aktiv"></span> Banner anzeigen</label>
+      <label>Text</label><input type="text" id="ak-text" placeholder="Buche jetzt deinen Termin und sichere dir 10% Rabatt!">
+      <label>Gutschein-Code (optional, wird hervorgehoben)</label><input type="text" id="ak-code" placeholder="SAISON10">
+      <label>Position</label>
+      <select id="ak-pos" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px">
+        <option value="leiste">Leiste oben (über die ganze Breite)</option>
+        <option value="ecke-links">Ecke oben links</option>
+        <option value="ecke-rechts">Ecke oben rechts</option>
+      </select>
+      <label>Button-Ziel</label><input type="text" id="ak-link" placeholder="/portal/?registrieren">
+      <div class="row"><button class="btn btn-p" onclick="bannerSpeichern()">Banner speichern</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 style="font-size:16px;margin-bottom:4px">Gutscheine</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:10px">Codes für Rabatte. Aktive, gültige Codes lassen sich beim Erstellen einer Rechnung anwenden.</div>
+      <div id="gs-liste"></div>
+      <div style="margin-top:12px;border-top:1px dashed var(--border);padding-top:14px">
+        <label>Neuen Gutschein anlegen</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="gs-code" placeholder="Code z. B. SAISON10" style="flex:1;min-width:150px">
+          <input type="number" id="gs-rabatt" placeholder="Rabatt %" min="1" max="100" style="width:120px">
+          <input type="date" id="gs-bis" title="gültig bis (optional)" style="width:170px">
+        </div>
+        <input type="text" id="gs-besch" placeholder="Beschreibung (optional, intern)" style="margin-top:8px">
+        <div class="row"><button class="btn btn-p" onclick="gutscheinAnlegen()">Gutschein anlegen</button></div>
+      </div>
+    </div></div>
+
+    <h2 style="font-size:16px;margin:6px 2px 10px">Abschnitte</h2>
     <div id="liste"></div>
     <div class="add">
       <button class="btn btn-g" onclick="addSektion('text')">+ Text-Abschnitt</button>
@@ -121,6 +154,7 @@
 var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
 var TOKEN = localStorage.getItem('rp_token');
 var SEK = [];
+var GS = [];
 var OFFEN = {};
 var TYP_LABEL = { hero: 'Start', leistung: 'Leistung', text: 'Text', oeffnungszeiten: 'Öffnungszeiten', kontakt: 'Kontakt' };
 
@@ -140,7 +174,7 @@ function api(method, path, body) {
 function zeige() {
   document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
   document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
-  if (TOKEN) laden();
+  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); }
 }
 function doLogin() {
   var email = document.getElementById('l-email').value.trim();
@@ -162,6 +196,53 @@ function pwVergessen() {
 function laden() {
   api('GET', '/homepage/sektionen').then(function(rows){ SEK = rows || []; render(); }).catch(function(e){ notify(e.message, true); });
 }
+// ── Aktionsbanner ──
+function bannerLaden() {
+  api('GET', '/homepage/banner').then(function(b){
+    b = b || {};
+    document.getElementById('ak-aktiv').checked = !!b.aktion_aktiv;
+    document.getElementById('ak-text').value = b.aktion_text || '';
+    document.getElementById('ak-code').value = b.aktion_code || '';
+    document.getElementById('ak-pos').value = b.aktion_position || 'leiste';
+    document.getElementById('ak-link').value = b.aktion_link || '';
+  }).catch(function(){});
+}
+function bannerSpeichern() {
+  api('PUT', '/homepage/banner', {
+    aktion_aktiv: document.getElementById('ak-aktiv').checked,
+    aktion_text: document.getElementById('ak-text').value,
+    aktion_code: document.getElementById('ak-code').value,
+    aktion_position: document.getElementById('ak-pos').value,
+    aktion_link: document.getElementById('ak-link').value
+  }).then(function(){ notify('Banner gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
+}
+// ── Gutscheine ──
+function gutscheineLaden() {
+  api('GET', '/gutscheine').then(function(rows){ GS = rows || []; gutscheineRender(); }).catch(function(){});
+}
+function gutscheineRender() {
+  var el = document.getElementById('gs-liste'); if (!el) return;
+  if (!GS.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Gutscheine angelegt.</div>'; return; }
+  el.innerHTML = GS.map(function(g){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
+      '<strong style="color:var(--accent);letter-spacing:.5px">' + esc(g.code) + '</strong>' +
+      '<span>' + g.rabatt_prozent + '%</span>' +
+      '<span style="color:var(--muted);font-size:12px">' + (g.gueltig_bis ? 'gültig bis ' + g.gueltig_bis : 'unbegrenzt') + '</span>' +
+      '<span class="sw" style="margin-left:auto"><span style="font-size:12px;color:var(--muted)">aktiv</span><input type="checkbox" ' + (g.aktiv ? 'checked' : '') + ' onchange="gutscheinAktiv(\'' + g.id + '\',this.checked)"></span>' +
+      '<button class="btn btn-d" style="padding:5px 11px" onclick="gutscheinLoeschen(\'' + g.id + '\')">Löschen</button>' +
+      '</div>';
+  }).join('');
+}
+function gutscheinAnlegen() {
+  var code = document.getElementById('gs-code').value.trim();
+  var rabatt = parseInt(document.getElementById('gs-rabatt').value);
+  if (!code || !(rabatt >= 1 && rabatt <= 100)) { notify('Code und Rabatt (1–100 %) angeben.', true); return; }
+  api('POST', '/gutscheine', { code: code, rabatt_prozent: rabatt, gueltig_bis: document.getElementById('gs-bis').value || null, beschreibung: document.getElementById('gs-besch').value || null })
+    .then(function(){ notify('Gutschein angelegt.'); ['gs-code','gs-rabatt','gs-bis','gs-besch'].forEach(function(i){ document.getElementById(i).value=''; }); gutscheineLaden(); })
+    .catch(function(e){ notify(e.message, true); });
+}
+function gutscheinAktiv(id, val) { api('PATCH', '/gutscheine/' + id, { aktiv: val }).then(function(){ notify('Aktualisiert.'); }).catch(function(e){ notify(e.message, true); }); }
+function gutscheinLoeschen(id) { if (!confirm('Gutschein wirklich löschen?')) return; api('DELETE', '/gutscheine/' + id).then(function(){ notify('Gelöscht.'); gutscheineLaden(); }).catch(function(e){ notify(e.message, true); }); }
 function feld(id, label, val, ta) {
   return '<label>' + label + '</label>' + (ta
     ? '<textarea id="' + id + '">' + esc(val) + '</textarea>'

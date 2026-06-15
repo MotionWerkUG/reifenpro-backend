@@ -40,6 +40,19 @@ function logoSvg(w, h) {
     '<text x="58" y="74" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>';
 }
 
+// Aktionsbanner (Gutschein/Werbung) – aus den Einstellungen.
+function bannerHtml(f) {
+  if (!f.aktion_aktiv || !f.aktion_text) return '';
+  var pos = f.aktion_position || 'leiste';
+  var code = f.aktion_code ? '<span class="akt-code">' + esc(f.aktion_code) + '</span>' : '';
+  var link = f.aktion_link || '/portal/?registrieren';
+  var cta = '<a class="akt-cta" href="' + esc(link) + '">Jetzt Termin buchen</a>';
+  var inner = '<span class="akt-text">' + esc(f.aktion_text) + '</span>' + code + cta;
+  if (pos === 'leiste') return '<div class="akt-leiste">' + inner + '</div>';
+  var seite = pos === 'ecke-links' ? ' links' : ' rechts';
+  return '<div class="akt-ecke' + seite + '"><button class="akt-x" onclick="this.parentNode.remove()" aria-label="schließen">&times;</button>' + inner + '</div>';
+}
+
 function renderLeistungen(group) {
   var cards = group.map(function(s, i) {
     var nr = String(i + 1).padStart(2, '0');
@@ -137,6 +150,7 @@ function renderHomepage(sektionen, f) {
     '<meta property="og:image" content="https://www.schroeder-scholz.de/uploads/hero.jpg">' +
     '<script type="application/ld+json">' + jsonLd(f) + '</scr' + 'ipt>' +
     '<style>' + css() + '</style></head><body>' +
+    bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
     '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
@@ -154,6 +168,15 @@ function css() {
     "body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1a1a1a;background:#fff;line-height:1.6}" +
     "a{color:inherit;text-decoration:none}" +
     ".inner{max-width:1100px;margin:0 auto;padding:0 24px}.narrow{max-width:760px}" +
+    ".akt-leiste{background:#eab308;color:#171717;display:flex;gap:14px;align-items:center;justify-content:center;flex-wrap:wrap;padding:11px 18px;font-weight:600;font-size:14.5px;text-align:center}" +
+    ".akt-code{background:#171717;color:#eab308;padding:3px 12px;border-radius:6px;font-weight:800;letter-spacing:1.5px}" +
+    ".akt-cta{background:#171717;color:#fff;padding:7px 16px;border-radius:8px;font-weight:700;white-space:nowrap}" +
+    ".akt-ecke{position:fixed;top:88px;z-index:60;max-width:280px;background:#171717;color:#fff;border:2px solid #eab308;border-radius:14px;padding:18px 18px 16px;box-shadow:0 12px 30px rgba(0,0,0,.35)}" +
+    ".akt-ecke.links{left:18px}.akt-ecke.rechts{right:18px}" +
+    ".akt-ecke .akt-text{display:block;font-weight:600;font-size:15px;margin-bottom:12px;line-height:1.45}" +
+    ".akt-ecke .akt-code{display:inline-block;margin-bottom:12px}.akt-ecke .akt-cta{display:inline-block}" +
+    ".akt-x{position:absolute;top:6px;right:10px;background:none;border:none;color:#cfcfcf;font-size:20px;line-height:1;cursor:pointer}" +
+    "@media(max-width:600px){.akt-ecke{left:12px;right:12px;max-width:none;top:auto;bottom:12px}}" +
     ".nav{position:sticky;top:0;z-index:50;background:#171717;border-bottom:3px solid #eab308}" +
     ".nav-in{max-width:1100px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}" +
     ".wm{display:inline-flex;align-items:center}.wm svg{height:38px;width:auto}" +

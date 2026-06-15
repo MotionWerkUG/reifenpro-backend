@@ -1000,6 +1000,8 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
       <select id="nr-artikel-add" onchange="nrArtikelAdd(this)" style="max-width:340px"><option value="">Artikel übernehmen…</option></select>
       <button class="btn btn-g btn-sm" onclick="addPositionRow(null)">+ Freie Position</button>
+      <input id="nr-gutschein" placeholder="Gutschein-Code" style="max-width:160px">
+      <button class="btn btn-g btn-sm" onclick="gutscheinAnwenden()">Gutschein anwenden</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 70px 90px 100px 70px 32px;gap:6px;font-size:11px;color:var(--muted);margin-bottom:4px">
       <div>Bezeichnung</div><div style="text-align:right">Menge</div><div>Einheit</div><div style="text-align:right">Einzel netto</div><div style="text-align:right">MwSt</div><div></div>
@@ -1520,6 +1522,21 @@ function addPositionRow(art) {
     row.querySelector('.nr-p-preis').value = art.preis != null ? Number(art.preis).toFixed(2) : '';
     row.querySelector('.nr-p-mwst').value = String(parseInt(art.mwst_satz) || 19);
   }
+}
+function gutscheinAnwenden() {
+  var code = (document.getElementById('nr-gutschein').value || '').trim();
+  if (!code) { notify('Bitte einen Gutschein-Code eingeben.', 'err'); return; }
+  var pos = nrSammlePositionen();
+  var netto = 0;
+  pos.forEach(function(p) { netto += Math.round(p.menge * p.einzelpreis_netto * 100) / 100; });
+  if (netto <= 0) { notify('Bitte zuerst Positionen erfassen, bevor ein Rabatt angewendet wird.', 'err'); return; }
+  api('GET', '/gutscheine/pruefen/' + encodeURIComponent(code)).then(function(g) {
+    var rabatt = Math.round(netto * (g.rabatt_prozent / 100) * 100) / 100;
+    addPositionRow({ name: 'Gutschein ' + g.code + ' (-' + g.rabatt_prozent + '%)', einheit: '', preis: -rabatt, mwst_satz: 19 });
+    recalcRechnung();
+    document.getElementById('nr-gutschein').value = '';
+    notify('Gutschein ' + g.code + ' angewendet: -' + rEur(rabatt));
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function nrArtikelAdd(sel) {
   var id = sel.value; if (!id) return;
