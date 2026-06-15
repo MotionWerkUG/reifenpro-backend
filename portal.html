@@ -474,14 +474,16 @@ function portalLogin() {
   var errEl = document.getElementById('login-err');
   errEl.classList.add('hidden');
   if (!email || !pass) { errEl.textContent = t('login_failed'); errEl.classList.remove('hidden'); return; }
-  papi('POST', '/auth/login', { email: email, passwort: pass }).then(function(r) {
-    TOKEN = r.token;
-    localStorage.setItem('rp_portal_token', TOKEN);
-    KUNDE = r.kunde;
-    startPortal();
-  }).catch(function(e) {
-    errEl.textContent = e.message; errEl.classList.remove('hidden');
-  });
+  // Direkter fetch (NICHT papi()), damit 401 als "Anmeldung fehlgeschlagen" gezeigt und nicht als Logout verschluckt wird
+  fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, passwort: pass }) })
+    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error(j.error || t('login_failed')); return j; }); })
+    .then(function(r) {
+      TOKEN = r.token;
+      localStorage.setItem('rp_portal_token', TOKEN);
+      KUNDE = r.kunde;
+      startPortal();
+    })
+    .catch(function(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); });
 }
 
 function portalRegister() {
