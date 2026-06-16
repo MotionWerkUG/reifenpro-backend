@@ -1701,7 +1701,7 @@ function profilTxt(e) {
 function iz(l, v, mono) {
   return '<div style="padding:5px 0;border-bottom:1px solid var(--border)">' +
     '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px">' + l + '</div>' +
-    '<div style="font-size:13px;font-weight:500;' + (mono ? 'color:var(--accent)' : '') + '">' + (v || '-') + '</div></div>';
+    '<div style="font-size:13px;font-weight:500;' + (mono ? 'color:var(--accent)' : '') + '">' + kEsc(v || '-') + '</div></div>';
 }
 function gv(id) {
   var el = document.getElementById(id);
@@ -2169,9 +2169,9 @@ function renderK() {
     }
     return '<div class="kunden-row" onclick="zeigeK(\'' + k.id + '\')">' +
       '<span style="font-size:12px;color:var(--accent);font-weight:600">' + k.kunden_nr + '</span>' +
-      '<span style="font-weight:600">' + k.vorname + ' ' + k.nachname + huWarn + '</span>' +
-      '<span>' + (k.kennzeichen ? '<span class="kz-tag">' + k.kennzeichen + '</span>' : '<span style="color:var(--muted)">-</span>') + '</span>' +
-      '<span style="color:var(--muted);font-size:12px">' + (fz || '-') + '</span>' +
+      '<span style="font-weight:600">' + kEsc(k.vorname + ' ' + k.nachname) + huWarn + '</span>' +
+      '<span>' + (k.kennzeichen ? '<span class="kz-tag">' + kEsc(k.kennzeichen) + '</span>' : '<span style="color:var(--muted)">-</span>') + '</span>' +
+      '<span style="color:var(--muted);font-size:12px">' + kEsc(fz || '-') + '</span>' +
       '<span>' + aktEinl + '</span>' +
       '<span>' + portalBadge + '</span>' +
       '</div>';
@@ -2408,11 +2408,11 @@ function renderE() {
     aktionen += '<button class="btn btn-g btn-sm" onclick="druckEtikett(\'' + e.id + '\')">Etikett</button>';
     aktionen += '</div>';
     return '<tr><td style="font-size:11px;color:var(--muted)">' + e.beleg_nr + '</td>' +
-      '<td><strong>' + (e.kundenname || e.kunden_id) + '</strong></td>' +
-      '<td><span class="kz-tag">' + (e.kennzeichen || '-') + '</span></td>' +
-      '<td style="font-size:12px">' + e.reifen_groesse + '</td>' +
+      '<td><strong>' + kEsc(e.kundenname || e.kunden_id) + '</strong></td>' +
+      '<td><span class="kz-tag">' + kEsc(e.kennzeichen || '-') + '</span></td>' +
+      '<td style="font-size:12px">' + kEsc(e.reifen_groesse) + '</td>' +
       '<td>' + tbadge(e.reifen_typ) + '</td>' +
-      '<td style="font-weight:700;color:var(--accent)">' + e.lagerplatz + '</td>' +
+      '<td style="font-weight:700;color:var(--accent)">' + kEsc(e.lagerplatz) + '</td>' +
       '<td style="color:var(--muted);font-size:12px">' + fd(e.eingelagert_am) + '</td>' +
       '<td>' + profil(e) + '</td>' +
       '<td>' + sbadge(e.status) + '</td>' +
@@ -2616,8 +2616,8 @@ function renderDash() {
         pend.map(function(k) {
           var ok = k.portal_email_bestaetigt;
           return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(234,179,8,.4)">' +
-            '<div><span style="font-weight:600">' + ((k.vorname || '') + ' ' + (k.nachname || '')).trim() + '</span> ' +
-            '<span style="color:#666;font-size:12px">' + (k.portal_email || '') + '</span>' +
+            '<div><span style="font-weight:600">' + kEsc(((k.vorname || '') + ' ' + (k.nachname || '')).trim()) + '</span> ' +
+            '<span style="color:#666;font-size:12px">' + kEsc(k.portal_email || '') + '</span>' +
             (ok ? '' : ' <span style="color:#b45309;font-size:11px">E-Mail noch nicht bestätigt</span>') + '</div>' +
             (ok ? '<button class="btn btn-grn btn-sm" onclick="portalFreigeben(\'' + k.id + '\')">Freischalten</button>'
                 : '<span style="font-size:11px;color:#999">wartet</span>') +
@@ -2629,8 +2629,8 @@ function renderDash() {
   dl.innerHTML = allE.slice(0, 6).map(function(e) {
     var kid = e.kunden_id;
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="var k=allK.find(function(x){return x.id===\'' + kid + '\';});if(k)zeigeK(k.id);">' +
-      '<div><div style="font-weight:600;font-size:13px">' + (e.kundenname || e.kunden_id) + '</div>' +
-      '<div style="font-size:11px;color:var(--muted)">' + e.reifen_groesse + ' - ' + e.lagerplatz + '</div></div>' +
+      '<div><div style="font-weight:600;font-size:13px">' + kEsc(e.kundenname || e.kunden_id) + '</div>' +
+      '<div style="font-size:11px;color:var(--muted)">' + kEsc(e.reifen_groesse + ' - ' + e.lagerplatz) + '</div></div>' +
       '<div style="display:flex;gap:5px">' + tbadge(e.reifen_typ) + ' ' + sbadge(e.status) + '</div></div>';
   }).join('') || '<div class="empty">Noch keine Einlagerungen.</div>';
   var tot = aktiv.length || 1;
@@ -2818,7 +2818,7 @@ function renderKalenderWoche() {
         var name = t.kundenname || t.kontakt_name || '';
         var kuerzel = name ? nameKuerzelFn(name.split(' ')[0], name.split(' ').slice(1).join(' ')) : '';
         html += '<div class="kal-termin-block" style="background:' + col + '33;color:' + col + ';border-left:2px solid ' + col + ';top:2px;position:relative" onclick="zeigeTermin(\'' + t.id + '\')"><strong>' +
-          (t.uhrzeit_von || '').substring(0,5) + '</strong> ' + kuerzel + (t.kennzeichen ? ' ' + t.kennzeichen : '') + '</div>';
+          (t.uhrzeit_von || '').substring(0,5) + '</strong> ' + kEsc(kuerzel) + (t.kennzeichen ? ' ' + kEsc(t.kennzeichen) : '') + '</div>';
       });
       html += '</div>';
     }
@@ -2838,9 +2838,9 @@ function renderKalenderTag() {
       var col = t.portal_buchung ? '#3ecf8e' : '#4a9eff';
       return '<div style="background:' + col + '22;border:1px solid ' + col + '44;border-radius:8px;padding:10px 14px;min-width:200px;cursor:pointer" onclick="zeigeTermin(\'' + t.id + '\')">' +
         '<div style="font-weight:700;color:' + col + '">' + (t.uhrzeit_von||'').substring(0,5) + ' - ' + (t.uhrzeit_bis||'').substring(0,5) + '</div>' +
-        '<div style="font-weight:600">' + (t.kundenname || t.kontakt_name || '-') + '</div>' +
-        '<div style="font-size:12px;color:var(--muted)">' + (t.artikel_name || t.termin_typ || '') + '</div>' +
-        (t.kennzeichen ? '<div style="font-size:12px"><span class="kz-tag">' + t.kennzeichen + '</span></div>' : '') +
+        '<div style="font-weight:600">' + kEsc(t.kundenname || t.kontakt_name || '-') + '</div>' +
+        '<div style="font-size:12px;color:var(--muted)">' + kEsc(t.artikel_name || t.termin_typ || '') + '</div>' +
+        (t.kennzeichen ? '<div style="font-size:12px"><span class="kz-tag">' + kEsc(t.kennzeichen) + '</span></div>' : '') +
         '</div>';
     }).join('') +
     '</div>';
@@ -2904,9 +2904,9 @@ function zeigeKalDetailFuerTag(dStr) {
         var tid = t.id;
         var row = '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">';
         row += '<div style="font-weight:700;color:' + col + ';min-width:50px">' + (t.uhrzeit_von||'').substring(0,5) + '</div>';
-        row += '<div style="flex:1"><span style="font-weight:600">' + (t.artikel_name || t.termin_typ || '') + '</span>';
-        row += ' <span style="color:var(--muted);font-size:12px">' + kuerzel + '</span>';
-        if (t.kennzeichen) row += ' <span class="kz-tag">' + t.kennzeichen + '</span>';
+        row += '<div style="flex:1"><span style="font-weight:600">' + kEsc(t.artikel_name || t.termin_typ || '') + '</span>';
+        row += ' <span style="color:var(--muted);font-size:12px">' + kEsc(kuerzel) + '</span>';
+        if (t.kennzeichen) row += ' <span class="kz-tag">' + kEsc(t.kennzeichen) + '</span>';
         row += '</div>';
         if (lp) row += '<span style="font-weight:800;color:var(--accent);margin-right:6px">' + lp + '</span>';
         row += '<span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + t.status + '</span>';
@@ -3133,12 +3133,12 @@ function renderWS() {
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
-          '<span style="font-size:13px;color:var(--muted)">' + kuerzel + '</span>' +
-          (t.fahrzeug_marke ? '<span style="font-size:12px;color:var(--muted)">' + t.fahrzeug_marke + (t.fahrzeug_modell ? ' ' + t.fahrzeug_modell : '') + '</span>' : '') +
+          '<span style="font-size:13px;color:var(--muted)">' + kEsc(kuerzel) + '</span>' +
+          (t.fahrzeug_marke ? '<span style="font-size:12px;color:var(--muted)">' + kEsc(t.fahrzeug_marke + (t.fahrzeug_modell ? ' ' + t.fahrzeug_modell : '')) + '</span>' : '') +
           (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent);letter-spacing:1px">' + lagerplaetze + '</span>' : '') +
         '</div>' +
         (einlInfo ? '<div style="font-size:11px;color:var(--yellow);margin-top:6px;padding:5px 8px;background:var(--ydim);border-radius:5px">' + einlInfo + '</div>' : '') +
-        (t.beschreibung ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + t.beschreibung + '</div>' : '') +
+        (t.beschreibung ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + kEsc(t.beschreibung) + '</div>' : '') +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px">' +
         (istErledigt
