@@ -224,8 +224,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
 .pb-warten { background: var(--ydim); color: var(--yellow); border: 1px solid rgba(245,200,66,.25); }
 .pb-aktiv { background: var(--gdim); color: var(--green); border: 1px solid rgba(62,207,142,.25); }
 .pb-kein { background: var(--panel); color: var(--muted); border: 1px solid var(--border2); }
-@media print { body * { display: none !important; } #print-area { display: block !important; color: #000; } }
-#print-area { display: none; }
+/* Druck erfolgt ueber separate Fenster (window.open) – keine globale body-Ausblendung mehr (sonst druckt Strg+P ein leeres Blatt). */
 @media (max-width: 768px) {
   .navtoggle { display: flex; }
   aside { position: fixed; top: 60px; left: 0; bottom: 0; z-index: 200; transform: translateX(-100%); transition: transform .2s ease; }
@@ -1050,7 +1049,6 @@ tr:hover td { background: rgba(255,255,255,.02); }
     </div>
   </div>
 </div>
-<div id="print-area"></div>
 <div class="notif" id="notif"></div>
 <script>
 'use strict';
@@ -1371,7 +1369,7 @@ function showPage(n, fromPop) {
 
 // ── KONTAKTANFRAGEN ──
 var allKontakt = [];
-function kEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function kEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function loadKontakt() {
   api('GET', '/kontakt').then(function(r) { allKontakt = r || []; renderKontakt(); kontaktBanner(); }).catch(function() {});
 }
@@ -3340,10 +3338,10 @@ function druckEtikett(einlId) {
       var v = parseInt(id[i], 16);
       var w = (v % 3) + 1;
       var gap = (v % 2 === 0) ? 1 : 2;
-      bars += '<span style="display:inline-block;width:' + w + 'px;height:48px;background:#000;margin-right:' + gap + 'px;vertical-align:top"></span>';
+      bars += '<span style="display:inline-block;width:' + w + 'px;height:28px;background:#000;margin-right:' + gap + 'px;vertical-align:top"></span>';
     }
-    return '<div style="line-height:0;margin-bottom:3px">' + bars + '</div>' +
-           '<div style="font-size:7pt;font-family:monospace;letter-spacing:1px;text-align:center">' + id.substring(0,8).toUpperCase() + '</div>';
+    return '<div style="line-height:0;margin-bottom:2px">' + bars + '</div>' +
+           '<div style="font-size:6.5pt;font-family:monospace;letter-spacing:1px;text-align:center">' + id.substring(0,8).toUpperCase() + '</div>';
   }
 
   // Ein Etikett generieren
@@ -3352,18 +3350,18 @@ function druckEtikett(einlId) {
     return '<div class="label-page">' +
       // Kopf: Kunde links, Positions-Markierung gross rechts
       '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
-        '<div>' +
-          '<div style="font-size:8.5pt;color:#777">' + kundenNr + ' &nbsp; ' + kuerzel + '</div>' +
-          '<div style="font-size:14pt;font-weight:700;color:#e8502a;font-family:monospace;line-height:1.1">' + kennz + '</div>' +
+        '<div style="min-width:0">' +
+          '<div style="font-size:7.5pt;color:#777;line-height:1.1">' + kundenNr + ' &nbsp; ' + kuerzel + '</div>' +
+          '<div style="font-size:11pt;font-weight:700;color:#e8502a;font-family:monospace;line-height:1.15">' + kennz + '</div>' +
         '</div>' +
-        '<div style="font-size:46pt;font-weight:900;color:' + posColor[pos] + ';line-height:.85">' + pos + '</div>' +
+        '<div style="font-size:30pt;font-weight:900;color:' + posColor[pos] + ';line-height:.8">' + pos + '</div>' +
       '</div>' +
       // Lagerplatz riesig, fuellt die Mitte
-      '<div style="text-align:center;font-size:42pt;font-weight:900;color:#1a3a6e;letter-spacing:2px;line-height:1;border-top:2.5px solid #1a3a6e;border-bottom:2.5px solid #1a3a6e;padding:2.5mm 0">' + e.lagerplatz + '</div>' +
+      '<div style="text-align:center;font-size:25pt;font-weight:900;color:#1a3a6e;letter-spacing:1.5px;line-height:1;border-top:2px solid #1a3a6e;border-bottom:2px solid #1a3a6e;padding:1.2mm 0">' + e.lagerplatz + '</div>' +
       // Reifen-Info
       '<div>' +
-        '<div style="font-size:12pt;font-weight:700">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +
-        '<div style="font-size:9pt;color:#444;margin-top:0.5mm">' + (fabrik || '') + (e.dot ? ' &nbsp; DOT ' + e.dot : '') + (profil ? ' &nbsp; Profil: ' + profil + 'mm' : '') + '</div>' +
+        '<div style="font-size:9.5pt;font-weight:700;line-height:1.15">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +
+        '<div style="font-size:7.5pt;color:#444">' + (fabrik || '') + (e.dot ? ' &nbsp; DOT ' + e.dot : '') + (profil ? ' &nbsp; Profil: ' + profil + 'mm' : '') + '</div>' +
       '</div>' +
       // Barcode unten
       '<div>' + makeBarcode(idClean) + '</div>' +
@@ -3402,9 +3400,9 @@ function etikettDrucken() {
 
   var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Etiketten</title>' +
     '<style>' +
-    '@page { size: A7 landscape; margin: 4mm; }' +
+    '@page { size: 100mm 50mm; margin: 0; }' +
     'html, body { margin: 0; padding: 0; background: #fff; }' +
-    '.label-page { width: 100%; height: 65mm; padding: 1.5mm 1mm; box-sizing: border-box; font-family: Arial, sans-serif; page-break-after: always; background: #fff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }' +
+    '.label-page { width: 100mm; height: 50mm; padding: 2mm 2.5mm; box-sizing: border-box; font-family: Arial, sans-serif; page-break-after: always; background: #fff; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }' +
     '.label-page:last-child { page-break-after: avoid; }' +
     '</style></head><body>' +
     seiten +

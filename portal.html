@@ -953,7 +953,7 @@ function kontoLoeschen() {
 function profilPwAendern() {
   var pw = document.getElementById('profil-pw').value;
   if (pw.length < 8) { notify(t('pw_min'), 'err'); return; }
-  papi('PUT', '/auth/profil', { passwort: pw }).then(function() {
+  papi('PUT', '/auth/passwort-aendern', { passwort: pw }).then(function() {
     notify(t('pw_changed'), 'ok');
     document.getElementById('profil-pw').value = '';
   }).catch(function(e) { notify(e.message, 'err'); });
