@@ -138,4 +138,48 @@ router.put('/buchung', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── Buchungs-Leistungen (Haupt-/Zusatzleistungen fuer den Buchungsassistenten) ──
+router.get('/leistungen', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT bl.*, a.name AS artikel_name, a.dauer_minuten
+       FROM buchung_leistungen bl JOIN artikel a ON a.id = bl.artikel_id
+       ORDER BY bl.rolle, bl.sortierung, a.name`);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+router.post('/leistungen', async (req, res, next) => {
+  try {
+    const { artikel_id, rolle, titel, beschreibung, bild_url, sortierung } = req.body;
+    if (!artikel_id) return res.status(400).json({ error: 'Leistung (Artikel) ist Pflicht.' });
+    const r = ['haupt', 'zusatz'].includes(rolle) ? rolle : 'haupt';
+    const max = (await query('SELECT COALESCE(MAX(sortierung),0)+1 AS s FROM buchung_leistungen WHERE rolle=$1', [r])).rows[0].s;
+    const { rows } = await query(
+      'INSERT INTO buchung_leistungen (artikel_id, rolle, titel, beschreibung, bild_url, sortierung) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [artikel_id, r, titel || null, beschreibung || null, bild_url || null, sortierung != null ? sortierung : max]);
+    res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
+});
+router.put('/leistungen/:id', async (req, res, next) => {
+  try {
+    const cur = (await query('SELECT * FROM buchung_leistungen WHERE id=$1', [req.params.id])).rows[0];
+    if (!cur) return res.status(404).json({ error: 'Nicht gefunden.' });
+    const { titel, beschreibung, bild_url, sortierung, aktiv, artikel_id, rolle } = req.body;
+    const { rows } = await query(
+      `UPDATE buchung_leistungen SET artikel_id=$1, rolle=$2, titel=$3, beschreibung=$4, bild_url=$5, sortierung=$6, aktiv=$7 WHERE id=$8 RETURNING *`,
+      [artikel_id || cur.artikel_id, ['haupt', 'zusatz'].includes(rolle) ? rolle : cur.rolle,
+       titel !== undefined ? titel : cur.titel, beschreibung !== undefined ? beschreibung : cur.beschreibung,
+       bild_url !== undefined ? bild_url : cur.bild_url, sortierung != null ? sortierung : cur.sortierung,
+       aktiv !== undefined ? !!aktiv : cur.aktiv, req.params.id]);
+    res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+router.delete('/leistungen/:id', async (req, res, next) => {
+  try {
+    const { rows } = await query('DELETE FROM buchung_leistungen WHERE id=$1 RETURNING id', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden.' });
+    res.json({ message: 'Gelöscht.' });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

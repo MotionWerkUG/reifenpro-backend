@@ -45,7 +45,7 @@ function bannerHtml(f) {
   if (!f.aktion_aktiv || !f.aktion_text) return '';
   var pos = f.aktion_position || 'leiste';
   var code = f.aktion_code ? '<span class="akt-code">' + esc(f.aktion_code) + '</span>' : '';
-  var link = f.aktion_link || '/portal/?buchen';
+  var link = f.aktion_link || '/termin/';
   var cta = '<a class="akt-cta" href="' + esc(link) + '">Jetzt Termin buchen</a>';
   var inner = '<span class="akt-text">' + esc(f.aktion_text) + '</span>' + code + cta;
   if (pos === 'leiste') return '<div class="akt-leiste">' + inner + '</div>';
@@ -53,37 +53,15 @@ function bannerHtml(f) {
   return '<div class="akt-ecke' + seite + '"><button class="akt-x" onclick="this.parentNode.remove()" aria-label="schließen">&times;</button>' + inner + '</div>';
 }
 
-// Online-Terminbuchung fuer Gaeste (Formular fuellt sich per /api/gast)
+// CTA-Abschnitt, der zur mehrstufigen Buchungsseite /termin/ fuehrt
 function buchungHtml(f) {
   var titel = f.buchung_titel || 'Online Termin buchen';
-  var text = f.buchung_text || 'Wählen Sie Ihre Leistung und einen freien Termin – schnell, unkompliziert und ohne Anruf. Sie erhalten sofort eine Bestätigung per E-Mail.';
-  return '<section class="sec buchung" id="termin-buchen"><div class="inner">' +
+  var text = f.buchung_text || 'In wenigen Schritten zum Wunschtermin: Leistung wählen, Zusatzleistungen ergänzen, freie Zeit aussuchen – Sie erhalten sofort eine Bestätigung per E-Mail.';
+  return '<section class="sec buchung" id="termin-buchen"><div class="inner" style="text-align:center">' +
     '<h2 style="color:#fff">' + esc(titel) + '</h2>' +
-    '<p class="bk-intro">' + esc(text) + '</p>' +
-    '<div class="bk-card"><form onsubmit="return gastBuchen(event)" autocomplete="off">' +
-    '<div class="bk-grid">' +
-      '<div><label>Leistung *</label><select id="bk-art" onchange="bkSlots()"><option value="">— bitte wählen —</option></select></div>' +
-      '<div><label>Datum *</label><input type="date" id="bk-datum" onchange="bkSlots()"></div>' +
-    '</div>' +
-    '<div id="bk-slots-wrap" style="display:none;margin-top:12px"><label>Verfügbare Uhrzeiten</label><div id="bk-slots" class="bk-slots"></div><div id="bk-slots-info" class="bk-info"></div></div>' +
-    '<div class="bk-grid" style="margin-top:14px">' +
-      '<div><label>Name *</label><input type="text" id="bk-name"></div>' +
-      '<div><label>Telefon *</label><input type="tel" id="bk-tel"></div>' +
-    '</div>' +
-    '<div class="bk-grid" style="margin-top:12px">' +
-      '<div><label>E-Mail *</label><input type="email" id="bk-email"></div>' +
-      '<div><label>Kennzeichen *</label><div class="bk-kz">' +
-        '<input id="bk-kz1" maxlength="3" placeholder="WOR" oninput="this.value=this.value.toUpperCase()">' +
-        '<span>-</span><input id="bk-kz2" maxlength="2" placeholder="AB" oninput="this.value=this.value.toUpperCase()">' +
-        '<span>-</span><input id="bk-kz3" maxlength="4" placeholder="1234">' +
-        '<input id="bk-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">' +
-      '</div></div>' +
-    '</div>' +
-    '<label class="bk-check"><input type="checkbox" id="bk-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und bin mit der Verarbeitung meiner Angaben zur Terminbearbeitung einverstanden. *</span></label>' +
-    '<input type="text" id="bk-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">' +
-    '<div class="bk-ok" id="bk-ok"></div><div class="bk-err" id="bk-err"></div>' +
-    '<button type="submit" class="btn" id="bk-submit">Termin verbindlich buchen</button>' +
-    '</form></div></div></section>';
+    '<p class="bk-intro" style="margin:0 auto 24px">' + esc(text) + '</p>' +
+    '<a class="btn" href="/termin/">Jetzt Termin buchen</a>' +
+    '</div></section>';
 }
 
 function renderLeistungen(group) {
@@ -192,7 +170,7 @@ function renderHomepage(sektionen, f) {
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
-    '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="#termin-buchen">Termin buchen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
+    '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="/termin/">Termin buchen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
     '<a class="btn-sm" href="/portal/">Kundenportal</a></nav>' +
     '</div></header>' +
     '<main>' + body + '</main>' +

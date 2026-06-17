@@ -1,12 +1,13 @@
 'use strict';
-// Oeffentliche Gaeste-Terminbuchung (ohne Kundenkonto), z.B. von der Homepage.
+// Oeffentliche Gaeste-Terminbuchung (ohne Kundenkonto) – mehrstufiger Assistent auf /termin/.
 // Liegt auf dem Server unter src/routes/gast.js. Gemountet (oeffentlich) als /api/gast.
 const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
 
-const limiter = rateLimit({ windowMs: 900000, max: 8, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
+const limiter = rateLimit({ windowMs: 900000, max: 30, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
+const bookLimiter = rateLimit({ windowMs: 900000, max: 8, message: { error: 'Zu viele Buchungen. Bitte später erneut versuchen.' } });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function zeitZuMin(z) { if (!z) return 0; const s = String(z).substring(0, 5); const p = s.split(':').map(Number); return p[0] * 60 + (p[1] || 0); }
@@ -31,28 +32,26 @@ function isFeiertag(datumStr) {
 }
 function wochentagVon(datumStr) { const m = String(datumStr).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return 1; return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])).getDay(); }
 
-async function oeffnungUndDauer(datum, artikel_id) {
+// Oeffnungszeiten fuer ein Datum (ohne Leistung)
+async function oeffnungFuerTag(datum) {
   const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
   if (!einst) return { fehler: 'Einstellungen fehlen' };
-  const art = (await query('SELECT * FROM artikel WHERE id=$1 AND aktiv IS NOT false', [artikel_id])).rows[0];
-  if (!art) return { fehler: 'Leistung nicht gefunden' };
-  const dauer = art.dauer_minuten || 30;
   const urlaub = await query('SELECT id FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
-  if (urlaub.rows.length) return { grund: 'Betriebsurlaub', dauer, art };
-  if (isFeiertag(datum)) return { grund: 'Feiertag', dauer, art };
+  if (urlaub.rows.length) return { grund: 'Betriebsurlaub', einst };
+  if (isFeiertag(datum)) return { grund: 'Feiertag', einst };
   const wt = wochentagVon(datum);
   let vonStr, bisStr;
-  if (wt === 0) { if (!einst.so_offen) return { grund: 'Geschlossen', dauer, art }; vonStr = einst.so_von; bisStr = einst.so_bis; }
-  else if (wt === 6) { if (!einst.sa_offen) return { grund: 'Geschlossen', dauer, art }; vonStr = einst.sa_von; bisStr = einst.sa_bis; }
+  if (wt === 0) { if (!einst.so_offen) return { grund: 'Geschlossen', einst }; vonStr = einst.so_von; bisStr = einst.so_bis; }
+  else if (wt === 6) { if (!einst.sa_offen) return { grund: 'Geschlossen', einst }; vonStr = einst.sa_von; bisStr = einst.sa_bis; }
   else { vonStr = einst.mo_fr_von || '08:00'; bisStr = einst.mo_fr_bis || '18:00'; }
-  return { einst, art, dauer, vonStr, bisStr };
+  return { einst, vonStr, bisStr };
 }
 
-async function freieSlots(datum, artikel_id) {
-  const o = await oeffnungUndDauer(datum, artikel_id);
+async function freieSlots(datum, dauer) {
+  const o = await oeffnungFuerTag(datum);
   if (o.fehler) return { error: o.fehler };
   if (o.grund) return { slots: [], grund: o.grund };
-  const einst = o.einst, dauer = o.dauer;
+  const einst = o.einst;
   const mpVon = einst.mittagspause_von, mpBis = einst.mittagspause_bis;
   const maxParallel = einst.max_parallele_termine || 1;
   const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')", [datum])).rows;
@@ -64,48 +63,75 @@ async function freieSlots(datum, artikel_id) {
     const ueber = gebuchte.filter(t => start < zeitZuMin(t.uhrzeit_bis) && ende > zeitZuMin(t.uhrzeit_von)).length;
     if (ueber < maxParallel) slots.push({ von: minZuZeit(start), bis: minZuZeit(ende) });
   }
-  return { slots, dauer, artikel: o.art.name };
+  return { slots, dauer };
 }
 
-// Buchbare Leistungen
-router.get('/artikel', limiter, async (req, res, next) => {
+// Konfigurierte Buchungs-Leistungen (Haupt + Zusatz) inkl. Bild/Text/Dauer
+router.get('/leistungen', limiter, async (req, res, next) => {
   try {
-    const { rows } = await query("SELECT id, name, dauer_minuten FROM artikel WHERE aktiv IS NOT false AND dauer_minuten IS NOT NULL AND dauer_minuten > 0 ORDER BY sortierung, name");
-    res.json(rows);
+    const { rows } = await query(
+      `SELECT bl.artikel_id, bl.rolle, COALESCE(NULLIF(bl.titel,''), a.name) AS titel,
+              bl.beschreibung, bl.bild_url, bl.sortierung, a.dauer_minuten, a.preis
+       FROM buchung_leistungen bl JOIN artikel a ON a.id = bl.artikel_id
+       WHERE bl.aktiv = true AND a.aktiv IS NOT false
+       ORDER BY bl.sortierung, titel`);
+    res.json({
+      haupt: rows.filter(r => r.rolle === 'haupt'),
+      zusatz: rows.filter(r => r.rolle === 'zusatz')
+    });
   } catch (e) { next(e); }
 });
 
-// Freie Slots
+// Freie Slots fuer ein Datum und eine Gesamtdauer (Minuten)
 router.get('/slots', limiter, async (req, res, next) => {
   try {
-    const { datum, artikel_id } = req.query;
-    if (!datum || !artikel_id) return res.status(400).json({ error: 'datum und artikel_id erforderlich' });
-    const r = await freieSlots(datum, artikel_id);
+    const { datum } = req.query;
+    if (!datum) return res.status(400).json({ error: 'datum erforderlich' });
+    let dauer = parseInt(req.query.dauer);
+    if (!(dauer > 0)) {
+      if (req.query.artikel_id) {
+        const a = (await query('SELECT dauer_minuten FROM artikel WHERE id=$1', [req.query.artikel_id])).rows[0];
+        dauer = (a && a.dauer_minuten) || 30;
+      } else dauer = 30;
+    }
+    dauer = Math.min(dauer, 480);
+    const r = await freieSlots(datum, dauer);
     if (r.error) return res.status(400).json({ error: r.error });
     res.json(r);
   } catch (e) { next(e); }
 });
 
-// Termin buchen (Gast) – sofort bestaetigt
-router.post('/termin', limiter, async (req, res, next) => {
+// Termin buchen (Gast) – Hauptleistung + optionale Zusatzleistungen, sofort bestaetigt
+router.post('/termin', bookLimiter, async (req, res, next) => {
   try {
-    const { name, telefon, email, kennzeichen, datum, uhrzeit_von, artikel_id, datenschutz, website } = req.body || {};
-    if (website) return res.json({ message: 'ok' }); // Honeypot
-    if (!name || !telefon || !email || !kennzeichen || !datum || !uhrzeit_von || !artikel_id)
+    const b = req.body || {};
+    if (b.website) return res.json({ message: 'ok' }); // Honeypot
+    const main = b.main_artikel_id || b.artikel_id;
+    const zusatz = Array.isArray(b.zusatz_ids) ? b.zusatz_ids.filter(Boolean) : [];
+    const { name, telefon, email, kennzeichen, datum, uhrzeit_von, datenschutz } = b;
+    if (!name || !telefon || !email || !kennzeichen || !datum || !uhrzeit_von || !main)
       return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte stimmen Sie der Datenschutzerklärung zu.' });
 
-    const o = await oeffnungUndDauer(datum, artikel_id);
+    const ids = [main].concat(zusatz);
+    const arts = (await query('SELECT id, name, dauer_minuten FROM artikel WHERE id = ANY($1::uuid[]) AND aktiv IS NOT false', [ids])).rows;
+    const mainArt = arts.find(a => a.id === main);
+    if (!mainArt) return res.status(404).json({ error: 'Leistung nicht gefunden.' });
+    const gewaehlt = [mainArt].concat(arts.filter(a => a.id !== main && zusatz.includes(a.id)));
+    const dauer = Math.min(gewaehlt.reduce((s, a) => s + (a.dauer_minuten || 30), 0) || 30, 480);
+
+    const o = await oeffnungFuerTag(datum);
     if (o.fehler) return res.status(400).json({ error: o.fehler });
     if (o.grund) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (' + o.grund + ').' });
-    const dauer = o.dauer;
     const uhrzeit_bis = minZuZeit(zeitZuMin(uhrzeit_von) + dauer);
     const maxParallel = o.einst.max_parallele_termine || 1;
-    const nm = String(name).slice(0, 120), tel = String(telefon).slice(0, 60), em = String(email).slice(0, 160);
-    const kz = String(kennzeichen).slice(0, 20);
 
-    // Verfuegbarkeit + Insert in Transaktion mit Tages-Lock (gegen Doppelbuchung)
+    const nm = String(name).slice(0, 120), tel = String(telefon).slice(0, 60), em = String(email).slice(0, 160), kz = String(kennzeichen).slice(0, 20);
+    const zusatzNamen = gewaehlt.slice(1).map(a => a.name);
+    const terminTyp = (mainArt.name + (zusatzNamen.length ? ' + ' + zusatzNamen.length + ' Zusatz' : '')).slice(0, 120);
+    const beschreibung = 'Online gebucht – Leistungen: ' + gewaehlt.map(a => a.name).join(', ');
+
     const termin = await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
       const konflikt = await client.query(
@@ -113,36 +139,33 @@ router.post('/termin', limiter, async (req, res, next) => {
         [datum, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
       const ins = await client.query(
-        `INSERT INTO termine (kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, artikel_id, status, portal_buchung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'bestaetigt',true) RETURNING *`,
-        [nm, tel, em, datum, uhrzeit_von, uhrzeit_bis, o.art.name, kz, artikel_id]);
+        `INSERT INTO termine (kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung, kennzeichen, artikel_id, status, portal_buchung)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'bestaetigt',true) RETURNING *`,
+        [nm, tel, em, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, main]);
       return ins.rows[0];
     });
 
-    // Mails (Fehler hier darf die Buchung nicht abbrechen)
     try {
       const einst = o.einst;
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
       const dF = datum.split('-').reverse().join('.');
-      const vorname = nm.split(' ')[0];
+      const liste = gewaehlt.map(a => a.name).join(', ');
       const htmlGast = portalMailHtml(einst, {
-        titel: 'Ihr Termin ist bestätigt', name: vorname,
-        absaetze: [
-          'vielen Dank für Ihre Terminbuchung bei Schröder &amp; Scholz.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Leistung:</strong> ' + o.art.name + '<br><strong>Kennzeichen:</strong> ' + kz
-        ],
-        hinweis: 'Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Falls Sie den Termin nicht wahrnehmen können, sagen Sie uns bitte rechtzeitig Bescheid.'
+        titel: 'Ihr Termin ist bestätigt', name: nm.split(' ')[0],
+        absaetze: ['vielen Dank für Ihre Terminbuchung bei Schröder &amp; Scholz.',
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Leistungen:</strong> ' + liste + '<br><strong>Kennzeichen:</strong> ' + kz],
+        hinweis: 'Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
       });
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Terminbestätigung ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
       if (einst.email) {
         await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: em,
-          subject: 'Neue Online-Terminbuchung (Gast): ' + o.art.name + ' am ' + dF + ' ' + uhrzeit_von,
-          html: '<p><strong>Neue Gäste-Buchung über die Homepage:</strong></p><p>Name: ' + nm + '<br>Telefon: ' + tel + '<br>E-Mail: ' + em + '<br>Kennzeichen: ' + kz + '<br>Leistung: ' + o.art.name + '<br>Datum: ' + dF + ' ' + uhrzeit_von + ' Uhr</p>' });
+          subject: 'Neue Online-Buchung (Gast): ' + terminTyp + ' am ' + dF + ' ' + uhrzeit_von,
+          html: '<p><strong>Neue Gäste-Buchung über die Homepage:</strong></p><p>Name: ' + nm + '<br>Telefon: ' + tel + '<br>E-Mail: ' + em + '<br>Kennzeichen: ' + kz + '<br>Leistungen: ' + liste + '<br>Datum: ' + dF + ' ' + uhrzeit_von + ' Uhr (' + dauer + ' Min)</p>' });
       }
     } catch (mailErr) { console.error('[Gast-Buchung-Mail]', mailErr.message); }
 
-    res.status(201).json({ message: 'ok', datum: datum, uhrzeit_von: uhrzeit_von, leistung: o.art.name });
+    res.status(201).json({ message: 'ok', datum, uhrzeit_von, leistungen: gewaehlt.map(a => a.name) });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);

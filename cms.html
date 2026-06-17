@@ -148,6 +148,17 @@
       <div class="row"><button class="btn btn-p" onclick="buchungSpeichern()">Buchungsbereich speichern</button></div>
     </div></div>
 
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 style="font-size:16px;margin-bottom:4px">Buchungs-Leistungen (Assistent /termin/)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Diese Leistungen zeigt der Buchungsassistent. Die Leistung selbst (Preis/Dauer) wird im Admin unter „Artikel" erfasst – hier wählen Sie, welche als <b>Hauptleistung</b> (große Bildkachel) bzw. <b>Zusatzleistung</b> erscheinen, und hinterlegen Bild + Text.</div>
+      <h3 style="font-size:14px;margin:6px 0 8px;color:var(--text)">Hauptleistungen (Bildkacheln)</h3>
+      <div id="bl-haupt"></div>
+      <div class="uprow" style="margin-top:8px;align-items:center"><select id="bl-add-haupt" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:13px"></select><button class="btn btn-g" onclick="leistungAdd('haupt')">+ hinzufügen</button></div>
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Zusatzleistungen</h3>
+      <div id="bl-zusatz"></div>
+      <div class="uprow" style="margin-top:8px;align-items:center"><select id="bl-add-zusatz" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:13px"></select><button class="btn btn-g" onclick="leistungAdd('zusatz')">+ hinzufügen</button></div>
+    </div></div>
+
     <h2 style="font-size:16px;margin:6px 2px 10px">Abschnitte</h2>
     <div id="liste"></div>
     <div class="add">
@@ -183,7 +194,7 @@ function api(method, path, body) {
 function zeige() {
   document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
   document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
-  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); }
+  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); }
 }
 function doLogin() {
   var email = document.getElementById('l-email').value.trim();
@@ -220,6 +231,63 @@ function bannerLaden() {
     document.getElementById('ak-link').value = b.aktion_link || '';
   }).catch(function(){});
 }
+// ── Buchungs-Leistungen ──
+var ARTIKEL = [], BL = [];
+function leistungenLaden() {
+  Promise.all([api('GET', '/artikel').catch(function(){return [];}), api('GET', '/homepage/leistungen').catch(function(){return [];})]).then(function(res) {
+    ARTIKEL = res[0] || []; BL = res[1] || [];
+    var opt = '<option value="">— Artikel wählen —</option>' + ARTIKEL.map(function(a){ return '<option value="' + a.id + '">' + esc(a.name) + ' (' + (a.dauer_minuten || 30) + ' Min)</option>'; }).join('');
+    var h = document.getElementById('bl-add-haupt'), z = document.getElementById('bl-add-zusatz');
+    if (h) h.innerHTML = opt; if (z) z.innerHTML = opt;
+    leistungenRender();
+  });
+}
+function leistungenRender() {
+  ['haupt', 'zusatz'].forEach(function(rolle) {
+    var el = document.getElementById('bl-' + rolle); if (!el) return;
+    var list = BL.filter(function(x){ return x.rolle === rolle; }).sort(function(a,b){ return a.sortierung - b.sortierung; });
+    if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine.</div>'; return; }
+    el.innerHTML = list.map(function(l) {
+      return '<div class="card" style="margin-bottom:10px"><div class="card-body" style="border-top:none;padding-top:12px">' +
+        '<div style="font-weight:700;color:var(--accent);margin-bottom:4px">' + esc(l.artikel_name) + '</div>' +
+        '<label>Titel (optional)</label><input type="text" id="bl-t-' + l.id + '" value="' + esc(l.titel || '') + '" placeholder="' + esc(l.artikel_name) + '">' +
+        '<label>Kurzbeschreibung</label><textarea id="bl-b-' + l.id + '">' + esc(l.beschreibung || '') + '</textarea>' +
+        '<label>Bild</label><div class="imgbox" id="bl-box-' + l.id + '">' + (l.bild_url ? '<img src="' + esc(l.bild_url) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>' +
+        '<input type="hidden" id="bl-img-' + l.id + '" value="' + esc(l.bild_url || '') + '">' +
+        '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="leistungBild(\'' + l.id + '\',this)"></label></div>' +
+        '<div class="row"><button class="btn btn-p" onclick="leistungSpeichern(\'' + l.id + '\')">Speichern</button>' +
+        '<span class="sw" style="margin-left:auto"><span style="font-size:12px;color:var(--muted)">aktiv</span><input type="checkbox" id="bl-a-' + l.id + '"' + (l.aktiv ? ' checked' : '') + '></span>' +
+        '<button class="btn btn-d" onclick="leistungLoeschen(\'' + l.id + '\')">Entfernen</button></div>' +
+        '</div></div>';
+    }).join('');
+  });
+}
+function leistungAdd(rolle) {
+  var sel = document.getElementById('bl-add-' + rolle); var aid = sel.value;
+  if (!aid) { notify('Bitte einen Artikel wählen.', true); return; }
+  api('POST', '/homepage/leistungen', { artikel_id: aid, rolle: rolle }).then(function(){ notify('Hinzugefügt.'); sel.value = ''; leistungenLaden(); }).catch(function(e){ notify(e.message, true); });
+}
+function leistungSpeichern(id, meldung) {
+  api('PUT', '/homepage/leistungen/' + id, {
+    titel: document.getElementById('bl-t-' + id).value,
+    beschreibung: document.getElementById('bl-b-' + id).value,
+    bild_url: document.getElementById('bl-img-' + id).value,
+    aktiv: document.getElementById('bl-a-' + id).checked
+  }).then(function(){ notify(meldung || 'Gespeichert.'); leistungenLaden(); }).catch(function(e){ notify(e.message, true); });
+}
+function leistungBild(id, inp) {
+  var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('bl-box-' + id); if (box) box.className = 'imgbox busy';
+  var r = new FileReader();
+  r.onload = function(e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: 'inhalt' }).then(function(res){
+      document.getElementById('bl-img-' + id).value = res.url;
+      leistungSpeichern(id, 'Bild hochgeladen und gespeichert.');
+    }).catch(function(err){ if (box) box.className = 'imgbox'; notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
+}
+function leistungLoeschen(id) { if (!confirm('Leistung aus dem Buchungsassistenten entfernen?')) return; api('DELETE', '/homepage/leistungen/' + id).then(function(){ notify('Entfernt.'); leistungenLaden(); }).catch(function(e){ notify(e.message, true); }); }
 function buchungLaden() {
   api('GET', '/homepage/buchung').then(function(b){
     b = b || {};
