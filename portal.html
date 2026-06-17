@@ -287,7 +287,14 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         </div>
         <div class="fg">
           <label data-i18n="license_plate">Kennzeichen (optional)</label>
-          <input id="buchen-kz" placeholder="WOR-AB-1234">
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="buchen-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="buchen-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center">
+            <input id="buchen-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+          </div>
         </div>
         <div id="buchen-slots-wrap" class="hidden">
           <label style="font-size:12px;color:var(--muted);font-weight:600" data-i18n="available_times">Verfügbare Zeiten</label>
@@ -661,7 +668,7 @@ function ladeTermine() {
       html += '<div class="card-titel">';
       html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
       var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
-      html += '<span class="badge ' + badge + '">' + (tm.status || '') + '</span>';
+      html += '<span class="badge ' + badge + '">' + terminStatusLabel(tm.status) + '</span>';
       html += '</div>';
       html += '<div class="iz"><div class="iz-v">' + (tm.artikel_name || tm.termin_typ || '') + '</div></div>';
       if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + tm.kennzeichen + '</div>';
@@ -738,8 +745,7 @@ function initBuchen() {
   var heute = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
   d.min = heute;
   if (!d.value) d.value = heute;
-  var kzEl = document.getElementById('buchen-kz');
-  if (KUNDE && KUNDE.kennzeichen && !kzEl.value) kzEl.value = KUNDE.kennzeichen;
+  if (KUNDE && KUNDE.kennzeichen && !document.getElementById('buchen-kz1').value) buchenKzInTeile(KUNDE.kennzeichen);
   // Fahrzeuge des Kunden in die Auswahl laden
   papi('GET', '/daten/fahrzeuge').then(function(rows) {
     var sel = document.getElementById('buchen-fahrzeug');
@@ -758,8 +764,24 @@ function buchenFahrzeugChange() {
   var sel = document.getElementById('buchen-fahrzeug');
   var opt = sel.options[sel.selectedIndex];
   var kz = opt ? opt.getAttribute('data-kz') : '';
-  if (kz) document.getElementById('buchen-kz').value = kz;
+  if (kz) buchenKzInTeile(kz);
   buchenSlotsLaden();
+}
+function buchenKzInTeile(kz) {
+  var k1='',k2='',k3='',k4=''; kz=(kz||'').trim();
+  if (kz) { var t=kz.split('-'); k1=t[0]||''; k2=t[1]||''; var rest=(t[2]||'').trim().split(' '); k3=rest[0]||''; k4=rest[1]||''; }
+  document.getElementById('buchen-kz1').value=k1; document.getElementById('buchen-kz2').value=k2;
+  document.getElementById('buchen-kz3').value=k3; document.getElementById('buchen-kz4').value=k4;
+}
+function buchenKzAusTeilen() {
+  var k1=document.getElementById('buchen-kz1').value.trim(), k2=document.getElementById('buchen-kz2').value.trim(),
+      k3=document.getElementById('buchen-kz3').value.trim(), k4=document.getElementById('buchen-kz4').value.trim();
+  var kz=[k1,k2,k3].filter(Boolean).join('-'); if (k4) kz+=' '+k4; return kz.trim();
+}
+function terminStatusLabel(s) {
+  var de = { angefragt:'Angefragt', bestaetigt:'Bestätigt', abgeschlossen:'Abgeschlossen', storniert:'Storniert', abgesagt:'Storniert' };
+  var en = { angefragt:'Requested', bestaetigt:'Confirmed', abgeschlossen:'Completed', storniert:'Cancelled', abgesagt:'Cancelled' };
+  return (LANG === 'en' ? en : de)[s] || s || '';
 }
 
 var selectedSlot = null;
@@ -805,7 +827,7 @@ function slotWaehlen(el) {
 function terminBuchen() {
   var artikelId = document.getElementById('buchen-artikel').value;
   var datum = document.getElementById('buchen-datum').value;
-  var kz = document.getElementById('buchen-kz').value.trim();
+  var kz = buchenKzAusTeilen();
   var notiz = document.getElementById('buchen-notiz').value.trim();
   if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
   var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;

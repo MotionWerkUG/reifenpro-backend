@@ -1673,6 +1673,12 @@ function tbadge(t) {
   var c = { Winter: '#4a9eff', Sommer: '#f5c842' };
   return '<span style="padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;color:' + (c[t] || '#aaa') + '">' + (t || '') + '</span>';
 }
+function tStatusLabel(s) {
+  return ({ angefragt: 'Angefragt', bestaetigt: 'Bestätigt', abgeschlossen: 'Abgeschlossen', storniert: 'Storniert', abgesagt: 'Storniert' })[s] || s || '';
+}
+function dsgvoStatusLabel(s) {
+  return ({ offen: 'Offen', in_bearbeitung: 'In Bearbeitung', abgeschlossen: 'Abgeschlossen' })[s] || s || '';
+}
 function normP(v) {
   if (v === null || v === undefined || v === '') return null;
   return parseFloat(String(v).replace(',', '.')) || null;
@@ -2219,7 +2225,7 @@ function zeigeK(id) {
       kTermine.map(function(t) {
         return '<tr><td>' + fd(t.datum) + '</td><td>' + (t.uhrzeit_von || '').substring(0,5) + '</td>' +
           '<td>' + (t.artikel_name || t.termin_typ || '-') + '</td>' +
-          '<td><span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + t.status + '</span></td>' +
+          '<td><span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + tStatusLabel(t.status) + '</span></td>' +
           '<td><button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button></td></tr>';
       }).join('') + '</tbody></table></div>'
     : '<div style="color:var(--muted);font-size:13px;padding:10px 0">Keine Termine.</div>';
@@ -2909,7 +2915,7 @@ function zeigeKalDetailFuerTag(dStr) {
         if (t.kennzeichen) row += ' <span class="kz-tag">' + kEsc(t.kennzeichen) + '</span>';
         row += '</div>';
         if (lp) row += '<span style="font-weight:800;color:var(--accent);margin-right:6px">' + lp + '</span>';
-        row += '<span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + t.status + '</span>';
+        row += '<span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + tStatusLabel(t.status) + '</span>';
         row += '</div>';
         return row;
       }).join('');
@@ -3510,15 +3516,15 @@ function genDsgvo() {
     (f.datenschutz_beauftragter ? '<div class="iz"><div class="iz-l">Datenschutzbeauftragter</div><div class="iz-v">' + f.datenschutz_beauftragter + '</div></div>' : '') +
     '</div>' +
     '<div class="sek" style="margin-top:3mm">1. Verarbeitete Daten und Zweck</div>' +
-    '<div class="para">Wir verarbeiten folgende personenbezogenen Daten: Name, Adresse, Telefonnummer, E-Mail-Adresse, Fahrzeugkennzeichen, Fahrzeugdaten sowie technische Daten der eingelagerten Reifen inkl. Profiltiefenmessungen, Klebeetiketten mit Kundennummer und Namenskuerzel. Zweck der Verarbeitung ist die Durchfuehrung des Reifeneinlagerungs- und Reifenservicevertrages sowie die Erfuellung gesetzlicher Aufbewahrungspflichten.</div>' +
+    '<div class="para">Wir verarbeiten folgende personenbezogenen Daten: Name, Adresse, Telefonnummer, E-Mail-Adresse, Fahrzeugkennzeichen, Fahrzeugdaten sowie technische Daten der eingelagerten Reifen inkl. Profiltiefenmessungen, Klebeetiketten mit Kundennummer und Namenskürzel. Zweck der Verarbeitung ist die Durchführung des Reifeneinlagerungs- und Reifenservicevertrages sowie die Erfüllung gesetzlicher Aufbewahrungspflichten.</div>' +
     '<div class="sek">2. Rechtsgrundlage</div>' +
-    '<div class="para">Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfullung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung). Fuer Marketing-E-Mails und Saison-Erinnerungen auf Grundlage von Art. 6 Abs. 1 lit. a DSGVO (Einwilligung).</div>' +
+    '<div class="para">Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfullung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung). Für Marketing-E-Mails und Saison-Erinnerungen auf Grundlage von Art. 6 Abs. 1 lit. a DSGVO (Einwilligung).</div>' +
     '<div class="sek">3. Speicherdauer</div>' +
     '<div class="para">Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Buchungsbelege und Rechnungen 8 Jahre, Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 147 AO, § 257 HGB). Nach Ablauf dieser Fristen werden die Daten gelöscht oder anonymisiert, sofern keine weitere Rechtsgrundlage besteht.</div>' +
     '<div class="sek">4. Auftragsverarbeiter</div>' + '<div class="para">Zur Erbringung unserer Leistungen setzen wir sorgfältig ausgewählte Dienstleister ein, mit denen Vereinbarungen zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Hosting des Servers (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe Ihrer Daten an Dritte zu anderen Zwecken erfolgt nicht.</div>' + '<div class="sek">5. Ihre Rechte</div>' +
     '<div class="para">Sie haben jederzeit das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen. Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach, Telefon 0981 53 1300, poststelle@lda.bayern.de.</div>' +
     '<div class="sek">6. Einwilligung</div>' +
-    '<div class="para">Mit Ihrer Unterschrift bestaetigen Sie, dass Sie diese Datenschutzerklärung erhalten und verstanden haben und einer Verarbeitung Ihrer personenbezogenen Daten zum Zweck der Vertragsdurchfuehrung zustimmen. Ihre Einwilligung ist freiwillig und kann jederzeit widerrufen werden.</div>' +
+    '<div class="para">Mit Ihrer Unterschrift bestätigen Sie, dass Sie diese Datenschutzerklärung erhalten und verstanden haben und einer Verarbeitung Ihrer personenbezogenen Daten zum Zweck der Vertragsdurchführung zustimmen. Ihre Einwilligung ist freiwillig und kann jederzeit widerrufen werden.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift des Kunden</div><div class="sig-line">' + k.vorname + ' ' + k.nachname + ', ' + datum + '</div></div>' +
     '<div><div class="sig-area"></div><div class="sig-line">' + (f.firmenname || '') + ' - ' + (f.inhaber || '') + '</div></div>' +
@@ -3711,7 +3717,7 @@ function renderDsgvo(liste) {
       '<div>' +
       '<div style="font-weight:700;font-size:14px">' + d.vorname + ' ' + d.nachname + '</div>' +
       '<div style="font-size:12px;color:var(--muted);margin-top:2px">' + d.email + (d.telefon ? ' - ' + d.telefon : '') + '</div>' +
-      '<div style="margin-top:6px"><span class="badge ' + (d.status === 'offen' ? 'b-r' : d.status === 'in_bearbeitung' ? 'b-y' : 'b-g') + '">' + d.status + '</span>' +
+      '<div style="margin-top:6px"><span class="badge ' + (d.status === 'offen' ? 'b-r' : d.status === 'in_bearbeitung' ? 'b-y' : 'b-g') + '">' + dsgvoStatusLabel(d.status) + '</span>' +
       '<span style="font-size:11px;color:var(--muted);margin-left:8px">' + d.typ + ' - ' + fd(d.erstellt_am) + '</span></div>' +
       (d.beschreibung ? '<div style="font-size:12px;margin-top:6px;padding:8px;background:var(--bg);border-radius:6px;border-left:3px solid var(--accent)">' + d.beschreibung + '</div>' : '') +
       '</div>' +
