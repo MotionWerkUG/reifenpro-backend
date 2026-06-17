@@ -55,7 +55,7 @@ router.post('/', async (req, res, next) => {
   try {
     const { vorname, nachname, telefon, telefon2, email, firma,
             strasse, plz, ort, kennzeichen, fahrzeug_marke,
-            fahrzeug_modell, baujahr, notizen } = req.body;
+            fahrzeug_modell, baujahr, notizen, ist_gewerbe, grosskunden_rabatt } = req.body;
     if (!vorname || !nachname || !telefon)
       return res.status(400).json({ error: 'Vorname, Nachname und Telefon sind Pflicht.' });
     // Duplikatpruefung per E-Mail (case-insensitiv); mit force=true ueberschreibbar
@@ -76,15 +76,16 @@ router.post('/', async (req, res, next) => {
       `INSERT INTO kunden
          (kunden_nr,vorname,nachname,telefon,telefon2,email,firma,
           strasse,plz,ort,kennzeichen,fahrzeug_marke,fahrzeug_modell,
-          baujahr,notizen,erstellt_von)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          baujahr,notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
        RETURNING *`,
       [kunden_nr, vorname.trim(), nachname.trim(), telefon.trim(),
        telefon2||null, email||null, firma||null,
        strasse||null, plz||null, ort||null,
        kennzeichen ? kennzeichen.toUpperCase().trim() : null,
        fahrzeug_marke||null, fahrzeug_modell||null,
-       baujahr||null, notizen||null, req.user.id]
+       baujahr||null, notizen||null,
+       ist_gewerbe === true, parseInt(grosskunden_rabatt) || 0, req.user.id]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.erstellt',
       tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: rows[0], req });
@@ -102,8 +103,8 @@ router.put('/:id', async (req, res, next) => {
          vorname=$1, nachname=$2, telefon=$3, telefon2=$4,
          email=$5, firma=$6, strasse=$7, plz=$8, ort=$9,
          kennzeichen=$10, fahrzeug_marke=$11, fahrzeug_modell=$12,
-         baujahr=$13, notizen=$14, aktiv=$15, geaendert_von=$16
-       WHERE id=$17 RETURNING *`,
+         baujahr=$13, notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17
+       WHERE id=$18 RETURNING *`,
       [req.body.vorname       || o.vorname,
        req.body.nachname      || o.nachname,
        req.body.telefon       || o.telefon,
@@ -119,7 +120,9 @@ router.put('/:id', async (req, res, next) => {
        req.body.baujahr       !== undefined ? req.body.baujahr       : o.baujahr,
        req.body.notizen       !== undefined ? req.body.notizen       : o.notizen,
        req.body.aktiv         !== undefined ? req.body.aktiv         : o.aktiv,
-       req.user.id, req.params.id]
+       req.body.ist_gewerbe   !== undefined ? (req.body.ist_gewerbe === true) : o.ist_gewerbe,
+       req.body.grosskunden_rabatt !== undefined ? (parseInt(req.body.grosskunden_rabatt) || 0) : o.grosskunden_rabatt,
+       req.params.id]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.geaendert',
       tabelle: 'kunden', datensatzId: req.params.id,
@@ -193,6 +196,37 @@ router.delete('/:id/fahrzeuge/:fid', async (req, res, next) => {
     const { rows } = await query('DELETE FROM fahrzeuge WHERE id=$1 AND kunden_id=$2 RETURNING id', [req.params.fid, req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
     res.json({ message: 'Gelöscht.' });
+  } catch (err) { next(err); }
+});
+
+// ── Gewerbe-Konditionen: Pauschalrabatt + feste Preise je Leistung ──
+router.get('/:id/konditionen', async (req, res, next) => {
+  try {
+    const k = (await query('SELECT ist_gewerbe, grosskunden_rabatt FROM kunden WHERE id=$1', [req.params.id])).rows[0];
+    if (!k) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
+    const preise = (await query(
+      'SELECT kp.artikel_id, kp.preis, a.name AS artikel_name FROM kunden_preise kp JOIN artikel a ON a.id=kp.artikel_id WHERE kp.kunden_id=$1 ORDER BY a.name',
+      [req.params.id])).rows;
+    res.json({ ist_gewerbe: k.ist_gewerbe, grosskunden_rabatt: k.grosskunden_rabatt || 0, preise });
+  } catch (err) { next(err); }
+});
+router.put('/:id/konditionen', async (req, res, next) => {
+  try {
+    const k = (await query('SELECT id FROM kunden WHERE id=$1', [req.params.id])).rows[0];
+    if (!k) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
+    if (req.body.grosskunden_rabatt !== undefined) {
+      var rab = parseInt(req.body.grosskunden_rabatt) || 0; if (rab < 0) rab = 0; if (rab > 100) rab = 100;
+      await query('UPDATE kunden SET grosskunden_rabatt=$1 WHERE id=$2', [rab, req.params.id]);
+    }
+    if (Array.isArray(req.body.preise)) {
+      await query('DELETE FROM kunden_preise WHERE kunden_id=$1', [req.params.id]);
+      for (const p of req.body.preise) {
+        if (p.artikel_id && p.preis != null && p.preis !== '' && !isNaN(parseFloat(p.preis)))
+          await query('INSERT INTO kunden_preise (kunden_id, artikel_id, preis) VALUES ($1,$2,$3) ON CONFLICT (kunden_id, artikel_id) DO UPDATE SET preis=EXCLUDED.preis',
+            [req.params.id, p.artikel_id, parseFloat(p.preis)]);
+      }
+    }
+    res.json({ message: 'Konditionen gespeichert.' });
   } catch (err) { next(err); }
 });
 

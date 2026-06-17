@@ -190,6 +190,15 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       preis = Number(eff.preis) || 0;
       mwst = eff.mwst_satz != null ? Number(eff.mwst_satz) : 19;
     }
+    // Gewerbe-Konditionen: fester Kundenpreis -> sonst Pauschalrabatt -> sonst Standard
+    if (t.kunden_id && t.aid) {
+      const kp = (await query('SELECT preis FROM kunden_preise WHERE kunden_id=$1 AND artikel_id=$2', [t.kunden_id, t.aid])).rows[0];
+      if (kp) { preis = Number(kp.preis); }
+      else {
+        const kr = (await query('SELECT grosskunden_rabatt FROM kunden WHERE id=$1', [t.kunden_id])).rows[0];
+        if (kr && kr.grosskunden_rabatt > 0) preis = round2(preis * (1 - kr.grosskunden_rabatt / 100));
+      }
+    }
     const bez = (t.artikel_name || t.termin_typ || 'Leistung') + (t.kennzeichen ? ' — ' + t.kennzeichen : '');
     const s = berechneSummen([{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: preis, mwst_satz: mwst, artikel_id: t.aid || null }]);
     const emp = await ladeEmpfaenger(t.kunden_id);

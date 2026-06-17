@@ -403,6 +403,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         </div>
         <div class="pnl"><div class="ptitle">Einlagerungen</div><div id="kd-einl"></div></div>
         <div class="pnl"><div class="ptitle">Termine</div><div id="kd-termine"></div></div>
+        <div class="pnl"><div class="ptitle">Gewerbe-Konditionen</div><div id="kd-gewerbe"></div></div>
         <div class="pnl">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div class="ptitle" style="margin-bottom:0">Dokumente</div>
@@ -1498,9 +1499,21 @@ function renderRechnungen() {
   html += '</tbody></table></div>';
   el.innerHTML = html;
 }
+var NR_KOND = { rabatt: 0, preise: {} };
+function nrKundeKond(id) {
+  NR_KOND = { rabatt: 0, preise: {} };
+  if (!id) return;
+  api('GET', '/kunden/' + id + '/konditionen').then(function (k) {
+    if (!k) return;
+    NR_KOND.rabatt = (k.ist_gewerbe && k.grosskunden_rabatt) ? k.grosskunden_rabatt : 0;
+    (k.preise || []).forEach(function (p) { NR_KOND.preise[p.artikel_id] = Number(p.preis); });
+    if ((k.preise && k.preise.length) || NR_KOND.rabatt) notify('Gewerbe-Konditionen geladen – Preise werden vorbefüllt.');
+  }).catch(function () {});
+}
 function nrFuelleKunden(sel) {
-  kpickInit('nr-kunde', {});
+  kpickInit('nr-kunde', { onSelect: nrKundeKond });
   kpickSet('nr-kunde', sel || '');
+  if (sel) nrKundeKond(sel); else NR_KOND = { rabatt: 0, preise: {} };
 }
 function nrFuelleArtikelDropdown() {
   var s = document.getElementById('nr-artikel-add'); if (!s) return;
@@ -1559,7 +1572,17 @@ function gutscheinAnwenden() {
 function nrArtikelAdd(sel) {
   var id = sel.value; if (!id) return;
   var a = (allArtikel || []).find(function(x) { return x.id === id; });
-  if (a) addPositionRow(a);
+  if (a) {
+    addPositionRow(a);
+    // Gewerbe-Konditionen: festen Kundenpreis bzw. Rabatt vorbefuellen
+    var p = NR_KOND.preise[a.id];
+    if (p == null && NR_KOND.rabatt > 0 && a.preis != null) p = Math.round(Number(a.preis) * (1 - NR_KOND.rabatt / 100) * 100) / 100;
+    if (p != null) {
+      var rows = document.querySelectorAll('#nr-positionen .nr-pos-row');
+      var row = rows[rows.length - 1];
+      if (row) row.querySelector('.nr-p-preis').value = Number(p).toFixed(2);
+    }
+  }
   sel.value = '';
   recalcRechnung();
 }
@@ -2175,13 +2198,41 @@ function renderK() {
     }
     return '<div class="kunden-row" onclick="zeigeK(\'' + k.id + '\')">' +
       '<span style="font-size:12px;color:var(--accent);font-weight:600">' + k.kunden_nr + '</span>' +
-      '<span style="font-weight:600">' + kEsc(k.vorname + ' ' + k.nachname) + huWarn + '</span>' +
+      '<span style="font-weight:600">' + kEsc(k.vorname + ' ' + k.nachname) + huWarn + (k.ist_gewerbe ? ' <span style="background:#1a3a6e;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">GEWERBE</span>' : '') + '</span>' +
       '<span>' + (k.kennzeichen ? '<span class="kz-tag">' + kEsc(k.kennzeichen) + '</span>' : '<span style="color:var(--muted)">-</span>') + '</span>' +
       '<span style="color:var(--muted);font-size:12px">' + kEsc(fz || '-') + '</span>' +
       '<span>' + aktEinl + '</span>' +
       '<span>' + portalBadge + '</span>' +
       '</div>';
   }).join('');
+}
+function ladeKonditionen(id) {
+  var el = document.getElementById('kd-gewerbe'); if (!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px">Lädt …</div>';
+  Promise.all([api('GET', '/kunden/' + id + '/konditionen'), api('GET', '/artikel')]).then(function (res) {
+    var k = res[0] || {}, arts = res[1] || [];
+    var preisMap = {}; (k.preise || []).forEach(function (p) { preisMap[p.artikel_id] = p.preis; });
+    var h = '<label style="display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:14px;cursor:pointer"><input type="checkbox" id="kd-g-flag"' + (k.ist_gewerbe ? ' checked' : '') + '> <b>Gewerbe-/Großkunde</b> (Sonderkonditionen)</label>';
+    h += '<div class="fg" style="max-width:240px"><label>Pauschalrabatt auf alle Leistungen (%)</label><input id="kd-g-rabatt" type="number" min="0" max="100" value="' + (k.grosskunden_rabatt || 0) + '"></div>';
+    h += '<div style="font-size:12px;color:var(--muted);margin:14px 0 6px">Feste Netto-Preise je Leistung (leer = Standardpreis bzw. Rabatt):</div>';
+    h += '<div style="display:grid;grid-template-columns:1fr 120px;gap:6px 12px;align-items:center;max-width:500px">';
+    arts.forEach(function (a) {
+      h += '<div style="font-size:13px">' + kEsc(a.name) + ' <span style="color:var(--muted)">(' + (a.dauer_minuten || 30) + ' Min)</span></div>';
+      h += '<input data-aid="' + a.id + '" class="kg-preis" type="number" step="0.01" placeholder="Standard" value="' + (preisMap[a.id] != null ? preisMap[a.id] : '') + '" style="width:112px">';
+    });
+    h += '</div><div style="margin-top:14px"><button class="btn btn-p btn-sm" onclick="konditionenSpeichern(\'' + id + '\')">Konditionen speichern</button></div>';
+    h += '<div style="font-size:12px;color:var(--muted);margin-top:8px">Bei Rechnungen aus Terminen dieses Kunden werden diese Konditionen automatisch gezogen: fester Preis → sonst Standard minus Rabatt → sonst Standard.</div>';
+    el.innerHTML = h;
+  }).catch(function () { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Konnte nicht geladen werden.</div>'; });
+}
+function konditionenSpeichern(id) {
+  var rabatt = parseInt(document.getElementById('kd-g-rabatt').value) || 0;
+  var flag = document.getElementById('kd-g-flag').checked;
+  var preise = [];
+  document.querySelectorAll('#kd-gewerbe .kg-preis').forEach(function (inp) { var v = inp.value.trim(); if (v !== '') preise.push({ artikel_id: inp.getAttribute('data-aid'), preis: parseFloat(v) }); });
+  api('PUT', '/kunden/' + id, { ist_gewerbe: flag }).then(function () {
+    return api('PUT', '/kunden/' + id + '/konditionen', { grosskunden_rabatt: rabatt, preise: preise });
+  }).then(function () { notify('Konditionen gespeichert.'); var k = allK.find(function (x) { return x.id === id; }); if (k) k.ist_gewerbe = flag; }).catch(function (e) { notify(e.message, 'err'); });
 }
 function zeigeK(id) {
   aktK = allK.find(function(k) { return k.id === id; }); if (!aktK) return;
@@ -2196,6 +2247,7 @@ function zeigeK(id) {
     '</div><div style="margin-top:12px"><button class="btn btn-g btn-sm" onclick="openModal(\'ne\')">+ Einlagern</button></div>';
   // Fahrzeuge (mehrere pro Kunde)
   ladeFahrzeugeAdmin(id);
+  ladeKonditionen(id);
   // Datenschutz Status
   document.getElementById('kd-dsgvo-status').innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;margin-top:8px">' +
