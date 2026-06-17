@@ -203,6 +203,10 @@ var TYP_LABEL = { hero: 'Start', leistung: 'Leistung', text: 'Text', oeffnungsze
 
 function notify(m, err) { var n = document.getElementById('notice'); n.textContent = m; n.className = 'notice show' + (err ? ' err' : ''); setTimeout(function(){ n.className = 'notice'; }, 2600); }
 function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+// Hochgeladene Bilder liegen im Homepage-Webroot (/uploads/...). Die CMS-Vorschau laeuft aber auf der
+// Admin-Domain, wo /uploads/ nicht existiert -> absolute Homepage-URL verwenden, sonst keine Vorschau.
+var HOMEPAGE_ORIGIN = 'https://www.schroeder-scholz.de';
+function bildUrl(u) { u = u || ''; return u.charAt(0) === '/' ? HOMEPAGE_ORIGIN + u : u; }
 
 function api(method, path, body) {
   var o = { method: method, headers: { 'Content-Type': 'application/json' } };
@@ -249,7 +253,7 @@ function oeffneVisualEdit(id) {
   if (s.typ === 'hero' || s.typ === 'text' || s.typ === 'leistung') {
     var fmt = (s.typ === 'hero') ? 'hero' : 'inhalt';
     h += '<label>Bild</label>';
-    h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="ve-box">' + (s.bild_url ? '<img src="' + esc(s.bild_url) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
+    h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="ve-box">' + (s.bild_url ? '<img src="' + esc(bildUrl(s.bild_url)) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
     h += '<input type="hidden" id="ve-b" value="' + esc(s.bild_url || '') + '">';
     h += '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="veBild(\'' + fmt + '\',this)"></label></div>';
     h += '<div class="imghint">Wird automatisch passend zugeschnitten (' + (fmt === 'hero' ? 'breites Querformat' : '4:3') + ').</div>';
@@ -289,7 +293,7 @@ function veBild(fmt, inp) {
   r.onload = function (e) {
     api('POST', '/homepage/bild', { data: e.target.result, format: fmt }).then(function (res) {
       document.getElementById('ve-b').value = res.url;
-      if (box) { box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); box.innerHTML = '<img src="' + esc(res.url) + '" alt="">'; }
+      if (box) { box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); box.innerHTML = '<img src="' + esc(bildUrl(res.url)) + '" alt="">'; }
       notify('Bild hochgeladen – jetzt „Speichern".');
     }).catch(function (err) { if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); notify(err.message, true); });
   };
@@ -351,7 +355,7 @@ function leistungenRender() {
         '<div style="font-weight:700;color:var(--accent);margin-bottom:4px">' + esc(l.artikel_name) + '</div>' +
         '<label>Titel (optional)</label><input type="text" id="bl-t-' + l.id + '" value="' + esc(l.titel || '') + '" placeholder="' + esc(l.artikel_name) + '">' +
         '<label>Kurzbeschreibung</label><textarea id="bl-b-' + l.id + '">' + esc(l.beschreibung || '') + '</textarea>' +
-        '<label>Bild</label><div class="imgbox" id="bl-box-' + l.id + '">' + (l.bild_url ? '<img src="' + esc(l.bild_url) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>' +
+        '<label>Bild</label><div class="imgbox" id="bl-box-' + l.id + '">' + (l.bild_url ? '<img src="' + esc(bildUrl(l.bild_url)) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>' +
         '<input type="hidden" id="bl-img-' + l.id + '" value="' + esc(l.bild_url || '') + '">' +
         '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="leistungBild(\'' + l.id + '\',this)"></label></div>' +
         '<div class="row"><button class="btn btn-p" onclick="leistungSpeichern(\'' + l.id + '\')">Speichern</button>' +
@@ -472,7 +476,7 @@ function render() {
       var fmt = (s.typ === 'hero') ? 'hero' : 'inhalt';
       h += '<label>Bild</label>';
       h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="box-' + s.id + '">' +
-        (s.bild_url ? '<img src="' + esc(s.bild_url) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
+        (s.bild_url ? '<img src="' + esc(bildUrl(s.bild_url)) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
       h += '<input type="hidden" id="b-' + s.id + '" value="' + esc(s.bild_url) + '">';
       h += '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="bildUpload(\'' + s.id + '\',\'' + fmt + '\',this)"></label>' +
         (s.bild_url ? '<button class="btn btn-g" onclick="bildEntfernen(\'' + s.id + '\')">Bild entfernen</button>' : '') + '</div>';
