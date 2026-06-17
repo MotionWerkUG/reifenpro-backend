@@ -72,6 +72,17 @@
   .notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--green); color:#06281a; padding:11px 20px; border-radius:10px; font-weight:700; opacity:0; transition:.2s; pointer-events:none; z-index:60; box-shadow:0 8px 24px rgba(0,0,0,.3); }
   .notice.show { opacity:1; } .notice.err { background:var(--red); color:#fff; }
 
+  /* Visuelle Vorschau */
+  .vhint { max-width:1100px; margin:16px auto 0; padding:0 18px; color:var(--muted); font-size:13px; line-height:1.6; }
+  .vframe-wrap { max-width:1100px; margin:12px auto 40px; padding:0 18px; }
+  #cms-frame { width:100%; height:80vh; border:1px solid var(--border); border-radius:12px; background:#fff; display:block; }
+  /* Bearbeiten-Modal */
+  .ve-ov { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:flex-start; justify-content:center; z-index:80; overflow:auto; padding:30px 14px; }
+  .ve-ov.open { display:flex; }
+  .ve-modal { background:var(--panel); border:1px solid var(--border); border-radius:14px; max-width:540px; width:100%; padding:22px; }
+  .ve-modal h2 { font-size:17px; margin-bottom:10px; }
+  .ve-modal .vx { float:right; background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer; line-height:1; }
+
   /* Login */
   #login { max-width:360px; margin:70px auto; padding:0 18px; }
   #login .login-logo { display:flex; justify-content:center; margin-bottom:22px; }
@@ -101,11 +112,17 @@
       <span class="top-tag">Homepage-Verwaltung</span>
     </div>
     <div class="top-r">
-      <a class="view" href="https://www.schroeder-scholz.de/" target="_blank" rel="noopener">Homepage ansehen</a>
+      <button id="tab-visuell" class="view" onclick="setView('visuell')">Visuelle Vorschau</button>
+      <button id="tab-liste" onclick="setView('liste')">Einstellungen &amp; Listen</button>
+      <a href="https://www.schroeder-scholz.de/" target="_blank" rel="noopener">Ansehen</a>
       <button onclick="logout()">Abmelden</button>
     </div>
   </div>
-  <div class="wrap">
+  <div id="view-visuell">
+    <div class="vhint">Klicken Sie in der Vorschau oben rechts in einem Bereich auf <b>„✎ Bearbeiten"</b>, um Text oder Bild zu ändern. Für Banner, Gutscheine und Buchungs-Leistungen oben auf <b>„Einstellungen &amp; Listen"</b> wechseln.</div>
+    <div class="vframe-wrap"><iframe id="cms-frame" title="Homepage-Vorschau"></iframe></div>
+  </div>
+  <div class="wrap" id="view-liste" style="display:none">
     <div class="intro">Tippen Sie auf einen Abschnitt, um ihn zu <b>bearbeiten</b>. Mit dem Schalter rechts blenden Sie ihn <b>ein/aus</b>, mit den Pfeilen ändern Sie die <b>Reihenfolge</b>. Jede Speicherung aktualisiert die Homepage sofort. <b>Öffnungszeiten</b> und <b>Kontakt</b> werden automatisch aus Ihren Firmendaten (Einstellungen) gefüllt.</div>
     <div class="card" style="margin-bottom:12px"><div class="card-body" style="border-top:none;padding-top:16px">
       <h2 style="font-size:16px;margin-bottom:4px">Aktionsbanner / Werbung</h2>
@@ -167,6 +184,11 @@
     </div>
   </div>
 </div>
+<div class="ve-ov" id="ve-ov"><div class="ve-modal">
+  <button class="vx" onclick="veClose()">&times;</button>
+  <h2 id="ve-titel">Bereich bearbeiten</h2>
+  <div id="ve-body"></div>
+</div></div>
 <div class="notice" id="notice"></div>
 
 <script>
@@ -194,7 +216,76 @@ function api(method, path, body) {
 function zeige() {
   document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
   document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
-  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); }
+  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); setView('visuell'); }
+}
+
+// ── Visueller Editor (Baukasten) ──
+var PREVIEW_URL = 'https://www.schroeder-scholz.de/?editor=1';
+var VIEW = 'visuell', frameGeladen = false;
+function reloadFrame() { var f = document.getElementById('cms-frame'); if (f) f.src = PREVIEW_URL + '&t=' + Date.now(); }
+function setView(v) {
+  VIEW = v;
+  document.getElementById('view-visuell').style.display = v === 'visuell' ? 'block' : 'none';
+  document.getElementById('view-liste').style.display = v === 'visuell' ? 'none' : 'block';
+  document.getElementById('tab-visuell').className = v === 'visuell' ? 'view' : '';
+  document.getElementById('tab-liste').className = v === 'liste' ? 'view' : '';
+  if (v === 'visuell' && !frameGeladen) { reloadFrame(); frameGeladen = true; }
+}
+window.addEventListener('message', function (ev) {
+  if (ev.origin !== 'https://www.schroeder-scholz.de') return;
+  if (ev.data && ev.data.type === 'cms-edit' && ev.data.id) oeffneVisualEdit(ev.data.id);
+});
+function feldVe(id, label, val, ta) {
+  return '<label>' + label + '</label>' + (ta ? '<textarea id="' + id + '">' + esc(val || '') + '</textarea>' : '<input type="text" id="' + id + '" value="' + esc(val || '') + '">');
+}
+function oeffneVisualEdit(id) {
+  var s = SEK.find(function (x) { return x.id === id; });
+  if (!s) { notify('Bereich nicht gefunden – Vorschau neu laden.', true); return; }
+  var h = '';
+  h += feldVe('ve-h', 'Überschrift', s.headline);
+  if (s.typ === 'hero') h += feldVe('ve-sub', 'Unterzeile', s.subline);
+  if (s.typ !== 'oeffnungszeiten' && s.typ !== 'kontakt') h += feldVe('ve-i', 'Text', s.inhalt, true);
+  if (s.typ === 'hero' || s.typ === 'text' || s.typ === 'leistung') {
+    var fmt = (s.typ === 'hero') ? 'hero' : 'inhalt';
+    h += '<label>Bild</label>';
+    h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="ve-box">' + (s.bild_url ? '<img src="' + esc(s.bild_url) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
+    h += '<input type="hidden" id="ve-b" value="' + esc(s.bild_url || '') + '">';
+    h += '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="veBild(\'' + fmt + '\',this)"></label></div>';
+    h += '<div class="imghint">Wird automatisch passend zugeschnitten (' + (fmt === 'hero' ? 'breites Querformat' : '4:3') + ').</div>';
+  }
+  if (s.typ === 'hero') { h += feldVe('ve-ct', 'Button-Text', s.cta_text); h += feldVe('ve-cu', 'Button-Ziel', s.cta_url); }
+  h += '<div class="row"><button class="btn btn-p" onclick="veSpeichern(\'' + id + '\')">Speichern</button></div>';
+  document.getElementById('ve-titel').textContent = (TYP_LABEL[s.typ] || 'Bereich') + ' bearbeiten';
+  document.getElementById('ve-body').innerHTML = h;
+  document.getElementById('ve-ov').classList.add('open');
+}
+function veClose() { document.getElementById('ve-ov').classList.remove('open'); }
+function veVal(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
+function veSpeichern(id) {
+  var s = SEK.find(function (x) { return x.id === id; }); if (!s) return;
+  var data = {
+    headline: veVal('ve-h') !== undefined ? veVal('ve-h') : s.headline,
+    subline: veVal('ve-sub') !== undefined ? veVal('ve-sub') : s.subline,
+    inhalt: veVal('ve-i') !== undefined ? veVal('ve-i') : s.inhalt,
+    bild_url: veVal('ve-b') !== undefined ? veVal('ve-b') : s.bild_url,
+    cta_text: veVal('ve-ct') !== undefined ? veVal('ve-ct') : s.cta_text,
+    cta_url: veVal('ve-cu') !== undefined ? veVal('ve-cu') : s.cta_url,
+    sichtbar: s.sichtbar
+  };
+  api('PUT', '/homepage/sektionen/' + id, data).then(function () { notify('Gespeichert – Vorschau wird aktualisiert.'); veClose(); laden(); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+function veBild(fmt, inp) {
+  var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('ve-box'); if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : '') + ' busy';
+  var r = new FileReader();
+  r.onload = function (e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: fmt }).then(function (res) {
+      document.getElementById('ve-b').value = res.url;
+      if (box) { box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); box.innerHTML = '<img src="' + esc(res.url) + '" alt="">'; }
+      notify('Bild hochgeladen – jetzt „Speichern".');
+    }).catch(function (err) { if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
 }
 function doLogin() {
   var email = document.getElementById('l-email').value.trim();

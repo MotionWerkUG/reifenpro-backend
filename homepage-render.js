@@ -68,7 +68,7 @@ function renderLeistungen(group) {
   var cards = group.map(function(s, i) {
     var nr = String(i + 1).padStart(2, '0');
     var img = s.bild_url ? '<div class="card-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" loading="lazy"></div>' : '';
-    return '<div class="card">' + img +
+    return '<div class="card" data-sektion-id="' + esc(s.id) + '">' + img +
       '<div class="card-body">' +
       '<div class="card-nr">' + nr + '</div>' +
       '<h3>' + esc(s.headline || '') + '</h3>' +
@@ -82,7 +82,7 @@ function renderLeistungen(group) {
 function renderSektion(s, f) {
   if (s.typ === 'hero') {
     var bg = s.bild_url ? "linear-gradient(rgba(13,17,23,.55),rgba(13,17,23,.8)), url('" + esc(s.bild_url) + "')" : 'linear-gradient(135deg,#171717,#0d1117)';
-    return '<section class="hero" style="background-image:' + bg + '">' +
+    return '<section class="hero" data-sektion-id="' + esc(s.id) + '" style="background-image:' + bg + '">' +
       '<div class="hero-in">' +
       '<h1>' + esc(s.headline || '') + '</h1>' +
       (s.subline ? '<p>' + esc(s.subline) + '</p>' : '') +
@@ -129,7 +129,7 @@ function renderSektion(s, f) {
   }
   // text
   var img = s.bild_url ? '<div class="t-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" loading="lazy"></div>' : '';
-  return '<section class="sec"><div class="inner t-grid">' +
+  return '<section class="sec" data-sektion-id="' + esc(s.id) + '"><div class="inner t-grid">' +
     '<div class="t-text"><h2>' + esc(s.headline || '') + '</h2><p>' + nl2br(s.inhalt || '') + '</p></div>' + img +
     '</div></section>';
 }
@@ -248,6 +248,13 @@ function css() {
 
 function script() {
   return "<scr" + "ipt>" +
+    // ── Visueller Editor (nur bei ?editor=1, im CMS-iframe) ──
+    "(function(){if(location.search.indexOf('editor=1')===-1)return;" +
+    "var st=document.createElement('style');st.textContent='[data-sektion-id]{position:relative}[data-sektion-id]:hover{outline:3px dashed #eab308;outline-offset:-3px}.cms-eb{position:absolute;top:10px;right:10px;z-index:9999;background:#eab308;color:#171717;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.35);font-family:-apple-system,Arial,sans-serif}.cms-eb:hover{background:#fff}';document.head.appendChild(st);" +
+    "function add(el){var b=document.createElement('button');b.className='cms-eb';b.type='button';b.textContent='\\u270E Bearbeiten';b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();parent.postMessage({type:'cms-edit',id:el.getAttribute('data-sektion-id')},'*');});el.appendChild(b);}" +
+    "var els=document.querySelectorAll('[data-sektion-id]');for(var i=0;i<els.length;i++)add(els[i]);" +
+    "document.addEventListener('click',function(ev){var a=ev.target.closest&&ev.target.closest('a');if(a)ev.preventDefault();},true);" +
+    "})();" +
     "function ladeKarte(){var m=document.getElementById('kmap');if(!m)return;var u=m.getAttribute('data-embed');" +
     "m.innerHTML='<iframe src=\"'+u+'\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" title=\"Standortkarte\"></iframe>';}" +
     "function kfv(id){var e=document.getElementById(id);return e?e.value.trim():'';}" +
