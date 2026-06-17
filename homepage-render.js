@@ -250,10 +250,9 @@ function script() {
   return "<scr" + "ipt>" +
     // ── Visueller Editor (nur bei ?editor=1, im CMS-iframe) ──
     "(function(){if(location.search.indexOf('editor=1')===-1)return;" +
-    "var st=document.createElement('style');st.textContent='[data-sektion-id]{position:relative}[data-sektion-id]:hover{outline:3px dashed #eab308;outline-offset:-3px}.cms-eb{position:absolute;top:10px;right:10px;z-index:9999;background:#eab308;color:#171717;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.35);font-family:-apple-system,Arial,sans-serif}.cms-eb:hover{background:#fff}';document.head.appendChild(st);" +
-    "function add(el){var b=document.createElement('button');b.className='cms-eb';b.type='button';b.textContent='\\u270E Bearbeiten';b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();parent.postMessage({type:'cms-edit',id:el.getAttribute('data-sektion-id')},'*');});el.appendChild(b);}" +
-    "var els=document.querySelectorAll('[data-sektion-id]');for(var i=0;i<els.length;i++)add(els[i]);" +
-    "document.addEventListener('click',function(ev){var a=ev.target.closest&&ev.target.closest('a');if(a)ev.preventDefault();},true);" +
+    "var st=document.createElement('style');st.textContent='[data-sektion-id]{cursor:pointer}[data-sektion-id]:hover{outline:3px solid #eab308;outline-offset:-3px}.cms-hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;background:#171717;color:#fff;border:1px solid #eab308;border-radius:30px;padding:11px 22px;font:600 13px -apple-system,Arial,sans-serif;box-shadow:0 6px 22px rgba(0,0,0,.45)}.cms-hint b{color:#eab308}';document.head.appendChild(st);" +
+    "var hint=document.createElement('div');hint.className='cms-hint';hint.innerHTML='\\u270E Bearbeitungsmodus \\u2013 <b>Bereich anklicken</b> zum Bearbeiten';document.body.appendChild(hint);" +
+    "document.addEventListener('click',function(ev){var el=ev.target.closest&&ev.target.closest('[data-sektion-id]');if(el){ev.preventDefault();ev.stopPropagation();parent.postMessage({type:'cms-edit',id:el.getAttribute('data-sektion-id')},'*');return;}var a=ev.target.closest&&ev.target.closest('a');if(a)ev.preventDefault();},true);" +
     "})();" +
     "function ladeKarte(){var m=document.getElementById('kmap');if(!m)return;var u=m.getAttribute('data-embed');" +
     "m.innerHTML='<iframe src=\"'+u+'\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" title=\"Standortkarte\"></iframe>';}" +
