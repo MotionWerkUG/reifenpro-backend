@@ -83,7 +83,8 @@ async function erzeugeRechnungPdf(rech, positionen) {
       doc.fillColor('#000').font('Helvetica').fontSize(11);
       let ey = 130;
       if (rech.empfaenger_firma) { doc.text(rech.empfaenger_firma, left, ey); ey = doc.y; }
-      doc.text(rech.empfaenger_name || '', left, ey);
+      const empfZeile = [rech.empfaenger_anrede, rech.empfaenger_name].filter(Boolean).join(' ');
+      if (empfZeile) { doc.text(empfZeile, left, ey); ey = doc.y; }
       if (rech.empfaenger_strasse) doc.text(rech.empfaenger_strasse, left);
       doc.text([rech.empfaenger_plz, rech.empfaenger_ort].filter(Boolean).join(' '), left);
 

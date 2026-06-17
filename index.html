@@ -1017,7 +1017,19 @@ tr:hover td { background: rgba(255,255,255,.02); }
     <button class="mx" onclick="closeModal('nr')">x</button>
     <div class="mtitle" id="nr-titel">Neue Rechnung</div>
     <div class="fgrid">
-      <div class="fg full"><label>Kunde *</label><div class="kpick"><input id="nr-kunde-search" class="kpick-inp" placeholder="Kunde suchen (Name, Nr., Kennzeichen)…" autocomplete="off" oninput="kpickFilter('nr-kunde')" onfocus="kpickFilter('nr-kunde')"><input type="hidden" id="nr-kunde"><div class="kpick-list" id="nr-kunde-list"></div></div></div>
+      <div class="fg full"><label>Kunde (optional – auswählen füllt die Felder, oder Empfänger unten frei eintragen)</label><div class="kpick"><input id="nr-kunde-search" class="kpick-inp" placeholder="Kunde suchen (Name, Nr., Kennzeichen)…" autocomplete="off" oninput="kpickFilter('nr-kunde')" onfocus="kpickFilter('nr-kunde')"><input type="hidden" id="nr-kunde"><div class="kpick-list" id="nr-kunde-list"></div></div></div>
+      <div class="fsec full">Empfänger</div>
+      <div class="fg"><label>Anrede</label>
+        <select id="nr-anrede"><option value="">—</option><option value="Herr">Herr</option><option value="Frau">Frau</option><option value="Firma">Firma</option><option value="Divers">Divers</option></select>
+      </div>
+      <div class="fg"><label>Firma (bei Gewerbe)</label><input id="nr-firma"></div>
+      <div class="fg"><label>Vorname</label><input id="nr-vorname"></div>
+      <div class="fg"><label>Nachname</label><input id="nr-nachname"></div>
+      <div class="fg full"><label>Straße &amp; Hausnummer</label><input id="nr-strasse"></div>
+      <div class="fg"><label>PLZ</label><input id="nr-plz"></div>
+      <div class="fg"><label>Ort</label><input id="nr-ort"></div>
+      <div class="fg"><label>Telefon</label><input id="nr-tel" type="tel"></div>
+      <div class="fg"><label>E-Mail</label><input id="nr-mail" type="email" oninput="valEmail(this)"></div>
       <div class="fg"><label>Rechnungsdatum</label><input id="nr-rdatum" type="date"></div>
       <div class="fg"><label>Leistungsdatum</label><input id="nr-ldatum" type="date"></div>
     </div>
@@ -1549,7 +1561,7 @@ function renderRechnungen() {
   var fq = ((document.getElementById('r-filter-suche') || {}).value || '').toLowerCase();
   var list = allRechnungen.filter(function(r) {
     if (fStatus && r.status !== fStatus) return false;
-    if (fq) { var hay = ((r.rechnungsnr || '') + ' ' + (r.kundenname || '')).toLowerCase(); if (hay.indexOf(fq) < 0) return false; }
+    if (fq) { var hay = ((r.rechnungsnr || '') + ' ' + (r.kundenname || '') + ' ' + (r.empfaenger_name || '') + ' ' + (r.empfaenger_firma || '')).toLowerCase(); if (hay.indexOf(fq) < 0) return false; }
     return true;
   });
   if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Keine Rechnungen.</div>'; return; }
@@ -1570,7 +1582,7 @@ function renderRechnungen() {
     }
     var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
-      '<td>' + (r.kundenname || '') + '</td>' +
+      '<td>' + (r.kundenname || r.empfaenger_firma || r.empfaenger_name || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
       '<td>' + rEur(r.brutto_summe) + '</td>' +
       '<td>' + rStatusBadge(r.status) + '</td>' +
@@ -1581,6 +1593,28 @@ function renderRechnungen() {
   el.innerHTML = html;
 }
 var NR_KOND = { rabatt: 0, preise: {} };
+var NR_KUNDE_SNAP = null; // Empfaenger-Stand beim Kundenwahl/Laden – fuer Aenderungserkennung
+function nrEmpfaenger() {
+  return {
+    anrede: gv('nr-anrede') || null, firma: gv('nr-firma') || null,
+    vorname: gv('nr-vorname') || null, nachname: gv('nr-nachname') || null,
+    strasse: gv('nr-strasse') || null, plz: gv('nr-plz') || null, ort: gv('nr-ort') || null,
+    telefon: gv('nr-tel') || null, email: gv('nr-mail') || null
+  };
+}
+function nrEmpfaengerSig() { return JSON.stringify(nrEmpfaenger()); }
+function nrFuelleEmpfaenger(o) {
+  o = o || {};
+  document.getElementById('nr-anrede').value = o.anrede || '';
+  document.getElementById('nr-firma').value = o.firma || '';
+  document.getElementById('nr-vorname').value = o.vorname || '';
+  document.getElementById('nr-nachname').value = o.nachname || '';
+  document.getElementById('nr-strasse').value = o.strasse || '';
+  document.getElementById('nr-plz').value = o.plz || '';
+  document.getElementById('nr-ort').value = o.ort || '';
+  document.getElementById('nr-tel').value = o.telefon || '';
+  document.getElementById('nr-mail').value = o.email || '';
+}
 function nrKundeKond(id) {
   NR_KOND = { rabatt: 0, preise: {} };
   if (!id) return;
@@ -1591,10 +1625,22 @@ function nrKundeKond(id) {
     if ((k.preise && k.preise.length) || NR_KOND.rabatt) notify('Gewerbe-Konditionen geladen – Preise werden vorbefüllt.');
   }).catch(function () {});
 }
+// onSelect aus dem Kunden-Picker: Empfaengerfelder fuellen + Snapshot setzen + Konditionen laden
+function nrKundeGewaehlt(id) {
+  nrKundeKond(id);
+  if (!id) { NR_KUNDE_SNAP = null; return; }
+  var k = (allK || []).find(function (x) { return x.id === id; });
+  if (k) {
+    nrFuelleEmpfaenger({ anrede: k.anrede, firma: k.firma, vorname: k.vorname, nachname: k.nachname,
+      strasse: k.strasse, plz: k.plz, ort: k.ort, telefon: k.telefon, email: k.email });
+    NR_KUNDE_SNAP = nrEmpfaengerSig();
+  }
+}
 function nrFuelleKunden(sel) {
-  kpickInit('nr-kunde', { onSelect: nrKundeKond });
+  kpickInit('nr-kunde', { allowEmpty: true, onSelect: nrKundeGewaehlt });
   kpickSet('nr-kunde', sel || '');
-  if (sel) nrKundeKond(sel); else NR_KOND = { rabatt: 0, preise: {} };
+  NR_KOND = { rabatt: 0, preise: {} };
+  if (sel) nrKundeKond(sel);
 }
 function nrFuelleArtikelDropdown() {
   var s = document.getElementById('nr-artikel-add'); if (!s) return;
@@ -1607,6 +1653,7 @@ function openNeueRechnung() {
   document.getElementById('nr-edit-id').value = '';
   document.getElementById('nr-titel').textContent = 'Neue Rechnung';
   nrFuelleKunden(); nrFuelleArtikelDropdown();
+  nrFuelleEmpfaenger({}); NR_KUNDE_SNAP = null;
   document.getElementById('nr-rdatum').value = nrHeuteISO();
   document.getElementById('nr-ldatum').value = nrHeuteISO();
   document.getElementById('nr-notizen').value = '';
@@ -1692,14 +1739,73 @@ function recalcRechnung() {
   document.getElementById('nr-sum-brutto').textContent = rEur(brutto);
 }
 function saveRechnung() {
-  var kunde = gv('nr-kunde');
-  if (!kunde) { notify('Bitte Kunde wählen.', 'err'); return; }
+  var kunde = gv('nr-kunde') || null;
+  var emp = nrEmpfaenger();
   var pos = nrSammlePositionen();
   if (!pos.length) { notify('Mindestens eine Position mit Bezeichnung.', 'err'); return; }
-  var data = { kunden_id: kunde, rechnungsdatum: gv('nr-rdatum') || null, leistungsdatum: gv('nr-ldatum') || null, notizen: gv('nr-notizen') || null, positionen: pos };
+  if (!kunde && !((emp.vorname && emp.nachname) || emp.firma)) {
+    notify('Bitte einen Kunden wählen oder einen Empfänger eintragen (Name oder Firma).', 'err'); return;
+  }
+  if (emp.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emp.email)) { notify('E-Mail-Format ungültig.', 'err'); return; }
+  var data = { kunden_id: kunde, empfaenger: emp, rechnungsdatum: gv('nr-rdatum') || null, leistungsdatum: gv('nr-ldatum') || null, notizen: gv('nr-notizen') || null, positionen: pos };
   var id = gv('nr-edit-id');
   var prom = id ? api('PUT', '/rechnungen/' + id, data) : api('POST', '/rechnungen', data);
-  prom.then(function() { notify('Entwurf gespeichert!'); closeModal('nr'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });
+  prom.then(function(r) {
+    notify('Entwurf gespeichert!');
+    closeModal('nr');
+    loadRechnungen();
+    // Nach dem Speichern: Stammdaten abgleichen
+    if (kunde) { nrFrageKundeAktualisieren(kunde, emp); }
+    else { nrFrageKundeAnlegen(r, emp, data); }
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Empfaengerdaten weichen vom gewaehlten Kunden ab -> anbieten, den Kundenstamm zu aktualisieren
+function nrFrageKundeAktualisieren(kundenId, emp) {
+  if (!NR_KUNDE_SNAP) return;
+  var snap; try { snap = JSON.parse(NR_KUNDE_SNAP); } catch (e) { return; }
+  var diff = {};
+  Object.keys(emp).forEach(function(k) { if ((emp[k] || null) !== (snap[k] || null)) diff[k] = emp[k]; });
+  if (!Object.keys(diff).length) return;
+  if (!confirm('Die Empfängerdaten weichen vom gespeicherten Kunden ab. Sollen die Änderungen im Kundenstamm gespeichert werden?')) return;
+  api('PUT', '/kunden/' + kundenId, diff).then(function() {
+    notify('Kundenstamm aktualisiert.');
+    NR_KUNDE_SNAP = JSON.stringify(emp);
+    if (typeof loadK === 'function') loadK();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Kein Kunde gewaehlt -> anbieten, den Empfaenger als neuen Kunden anzulegen (+ Dokumente)
+function nrFrageKundeAnlegen(rechnung, emp, data) {
+  if (!((emp.vorname && emp.nachname) || emp.firma)) return; // nur mit echtem Empfaenger
+  if (!confirm('Möchten Sie diesen Empfänger als neuen Kunden anlegen?')) return;
+  var telefon = emp.telefon;
+  if (!telefon) {
+    telefon = (window.prompt('Für die Kundenanlage ist eine Telefonnummer Pflicht. Bitte Telefonnummer eingeben:') || '').trim();
+    if (!telefon) { notify('Kunde nicht angelegt (Telefon fehlt). Die Rechnung wurde als Laufkundschaft gespeichert.', 'err'); return; }
+  }
+  var kd = {
+    anrede: emp.anrede || null, firma: emp.firma || null,
+    vorname: emp.vorname || (emp.firma ? '-' : ''), nachname: emp.nachname || (emp.firma ? emp.firma : ''),
+    telefon: telefon, email: emp.email || null,
+    strasse: emp.strasse || null, plz: emp.plz || null, ort: emp.ort || null,
+    ist_gewerbe: !!emp.firma
+  };
+  var anlegen = function(force) {
+    api('POST', '/kunden', force ? Object.assign({}, kd, { force: true }) : kd).then(function(neu) {
+      notify('Kunde angelegt: ' + (neu.kunden_nr || ''));
+      if (typeof loadK === 'function') loadK();
+      // Rechnung mit dem neuen Kunden verknüpfen
+      var rid = rechnung && rechnung.id;
+      if (rid) api('PUT', '/rechnungen/' + rid, Object.assign({}, data, { kunden_id: neu.id })).then(function() { loadRechnungen(); }).catch(function() {});
+      // Pflichtdokumente erzeugen/unterschreiben lassen
+      aktK = neu;
+      notify('Bitte Datenschutzerklärung und Auftrag/Vertrag unterschreiben lassen.');
+      setTimeout(function() { if (typeof oeffneDsgvo === 'function') oeffneDsgvo(); }, 500);
+    }).catch(function(e) {
+      if (e.code === 'EMAIL_EXISTS') { if (confirm(e.message)) anlegen(true); return; }
+      notify(e.message, 'err');
+    });
+  };
+  anlegen(false);
 }
 function editRechnung(id) {
   api('GET', '/rechnungen/' + id).then(function(r) {
@@ -1707,6 +1813,15 @@ function editRechnung(id) {
     document.getElementById('nr-edit-id').value = r.id;
     document.getElementById('nr-titel').textContent = 'Rechnung bearbeiten (Entwurf)';
     nrFuelleKunden(r.kunden_id); nrFuelleArtikelDropdown();
+    // Telefon/E-Mail stehen nicht auf der Rechnung – beim verknüpften Kunden nachladen
+    var kref = r.kunden_id ? (allK || []).find(function (x) { return x.id === r.kunden_id; }) : null;
+    nrFuelleEmpfaenger({
+      anrede: r.empfaenger_anrede, firma: r.empfaenger_firma,
+      vorname: r.empfaenger_vorname, nachname: r.empfaenger_nachname,
+      strasse: r.empfaenger_strasse, plz: r.empfaenger_plz, ort: r.empfaenger_ort,
+      telefon: kref ? kref.telefon : null, email: kref ? kref.email : null
+    });
+    NR_KUNDE_SNAP = r.kunden_id ? nrEmpfaengerSig() : null;
     document.getElementById('nr-rdatum').value = (r.rechnungsdatum || '').toString().substring(0, 10);
     document.getElementById('nr-ldatum').value = (r.leistungsdatum || '').toString().substring(0, 10);
     document.getElementById('nr-notizen').value = r.notizen || '';

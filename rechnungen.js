@@ -49,17 +49,45 @@ function berechneSummen(positionen) {
   };
 }
 
+const LEER_EMPF = {
+  empfaenger_anrede: null, empfaenger_vorname: null, empfaenger_nachname: null,
+  empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null
+};
+
 async function ladeEmpfaenger(kunden_id) {
-  if (!kunden_id) return { empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null };
-  const { rows } = await query('SELECT vorname,nachname,firma,strasse,plz,ort FROM kunden WHERE id=$1', [kunden_id]);
-  if (!rows.length) return { empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null };
+  if (!kunden_id) return Object.assign({}, LEER_EMPF);
+  const { rows } = await query('SELECT anrede,vorname,nachname,firma,strasse,plz,ort FROM kunden WHERE id=$1', [kunden_id]);
+  if (!rows.length) return Object.assign({}, LEER_EMPF);
   const k = rows[0];
   return {
-    empfaenger_name: ((k.vorname || '') + ' ' + (k.nachname || '')).trim(),
+    empfaenger_anrede: k.anrede || null,
+    empfaenger_vorname: k.vorname || null,
+    empfaenger_nachname: k.nachname || null,
+    empfaenger_name: ((k.vorname || '') + ' ' + (k.nachname || '')).trim() || null,
     empfaenger_firma: k.firma || null,
     empfaenger_strasse: k.strasse || null,
     empfaenger_plz: k.plz || null,
     empfaenger_ort: k.ort || null
+  };
+}
+
+// Empfaenger-Snapshot aus dem Client-Body (manuell eintragbar, NICHT aus dem Kundenstamm gezogen).
+// Liefert null, wenn keine Empfaengerangaben mitgegeben wurden (dann greift der kunden_id-Fallback).
+function empfaengerAusBody(body) {
+  const e = (body && body.empfaenger) || null;
+  if (!e) return null;
+  const s = (v) => (v == null ? null : String(v).trim() || null);
+  const vorname = s(e.vorname), nachname = s(e.nachname), firma = s(e.firma);
+  const name = ((vorname || '') + ' ' + (nachname || '')).trim() || null;
+  return {
+    empfaenger_anrede: s(e.anrede),
+    empfaenger_vorname: vorname,
+    empfaenger_nachname: nachname,
+    empfaenger_name: name,
+    empfaenger_firma: firma,
+    empfaenger_strasse: s(e.strasse),
+    empfaenger_plz: s(e.plz),
+    empfaenger_ort: s(e.ort)
   };
 }
 
@@ -142,19 +170,22 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
-    if (!kunden_id) return res.status(400).json({ error: 'Kunde ist Pflicht.' });
     if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
+    const emp = empfaengerAusBody(req.body) || await ladeEmpfaenger(kunden_id || null);
+    if (!emp.empfaenger_name && !emp.empfaenger_firma && !kunden_id) {
+      return res.status(400).json({ error: 'Bitte einen Kunden wählen oder einen Empfänger (Name oder Firma) eintragen.' });
+    }
     const s = berechneSummen(positionen);
-    const emp = await ladeEmpfaenger(kunden_id);
     const rdatum = rechnungsdatum || heute();
     const ldatum = leistungsdatum || rdatum;
     const result = await withTransaction(async (client) => {
       const ins = await client.query(
         `INSERT INTO rechnungen
-           (status, kunden_id, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
+           (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
             rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
-         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-        [kunden_id, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+        [kunden_id || null, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
          rdatum, ldatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.user.id]
       );
       await insertPositionen(client, ins.rows[0].id, s.positionen);
@@ -206,10 +237,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     const result = await withTransaction(async (client) => {
       const ins = await client.query(
         `INSERT INTO rechnungen
-           (status, kunden_id, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
+           (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
             rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
-         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
-        [t.kunden_id, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+        [t.kunden_id, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
          rdatum, t.datum || rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), 'Aus Termin vom ' + (t.datum || ''), req.user.id]
       );
       await insertPositionen(client, ins.rows[0].id, s.positionen);
@@ -228,16 +259,22 @@ router.put('/:id', async (req, res, next) => {
     if (cur.rows[0].status !== 'entwurf') return res.status(400).json({ error: 'Nur Entwuerfe koennen bearbeitet werden.' });
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
     if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
-    const kid = kunden_id || cur.rows[0].kunden_id;
+    // kunden_id ist explizit setzbar (auch auf null); fehlt das Feld ganz, bleibt die bisherige Verknuepfung
+    const kid = (kunden_id !== undefined) ? (kunden_id || null) : cur.rows[0].kunden_id;
     const s = berechneSummen(positionen);
-    const emp = await ladeEmpfaenger(kid);
+    // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
+    const emp = empfaengerAusBody(req.body) || await ladeEmpfaenger(kid);
+    if (!emp.empfaenger_name && !emp.empfaenger_firma && !kid) {
+      return res.status(400).json({ error: 'Bitte einen Kunden wählen oder einen Empfänger (Name oder Firma) eintragen.' });
+    }
     await withTransaction(async (client) => {
       await client.query(
-        `UPDATE rechnungen SET kunden_id=$1, empfaenger_name=$2, empfaenger_firma=$3, empfaenger_strasse=$4,
-           empfaenger_plz=$5, empfaenger_ort=$6, rechnungsdatum=$7, leistungsdatum=$8,
-           netto_summe=$9, mwst_summe=$10, brutto_summe=$11, mwst_aufschluesselung=$12, notizen=$13
-         WHERE id=$14`,
-        [kid, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
+        `UPDATE rechnungen SET kunden_id=$1, empfaenger_anrede=$2, empfaenger_vorname=$3, empfaenger_nachname=$4,
+           empfaenger_name=$5, empfaenger_firma=$6, empfaenger_strasse=$7, empfaenger_plz=$8, empfaenger_ort=$9,
+           rechnungsdatum=$10, leistungsdatum=$11,
+           netto_summe=$12, mwst_summe=$13, brutto_summe=$14, mwst_aufschluesselung=$15, notizen=$16
+         WHERE id=$17`,
+        [kid, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
          rechnungsdatum || cur.rows[0].rechnungsdatum, leistungsdatum || cur.rows[0].leistungsdatum,
          s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.params.id]
       );
@@ -274,7 +311,24 @@ router.post('/:id/festschreiben', async (req, res, next) => {
 
       const einst = (await client.query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
       const aussteller = ausstellerSnapshot(einst);
-      const emp = await ladeEmpfaenger(rech.kunden_id);
+      // Empfaenger ist der beim Entwurf gespeicherte Snapshot (NICHT erneut aus dem Kundenstamm ziehen,
+      // damit manuell erfasste/abweichende Empfaengerdaten erhalten bleiben).
+      const emp = {
+        empfaenger_anrede: rech.empfaenger_anrede, empfaenger_vorname: rech.empfaenger_vorname, empfaenger_nachname: rech.empfaenger_nachname,
+        empfaenger_name: rech.empfaenger_name, empfaenger_firma: rech.empfaenger_firma,
+        empfaenger_strasse: rech.empfaenger_strasse, empfaenger_plz: rech.empfaenger_plz, empfaenger_ort: rech.empfaenger_ort
+      };
+
+      // ── § 14 UStG: Pflichtangaben vor dem Festschreiben prüfen ──
+      if (!emp.empfaenger_name && !emp.empfaenger_firma) {
+        const e = new Error('Empfänger fehlt: bitte Name oder Firma angeben.'); e.status = 400; throw e;
+      }
+      if (!aussteller.steuernummer && !aussteller.ust_id) {
+        const e = new Error('Bitte zuerst Steuernummer oder USt-IdNr. in den Einstellungen hinterlegen (§ 14 UStG).'); e.status = 400; throw e;
+      }
+      if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
+        const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
+      }
 
       const jahr = new Date(rech.rechnungsdatum).getFullYear();
       const cnt = await client.query(
@@ -347,11 +401,11 @@ router.post('/:id/storno', async (req, res, next) => {
 
       const ins = await client.query(
         `INSERT INTO rechnungen
-           (rechnungsnr, status, kunden_id, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
+           (rechnungsnr, status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
             aussteller, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung,
             zahlungsstatus, storno_von_id, festgeschrieben_am, erstellt_von, notizen)
-         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$9,$10,$11,$12,$13,'bezahlt',$14,NOW(),$15,$16) RETURNING *`,
-        [nr, orig.kunden_id, orig.empfaenger_name, orig.empfaenger_firma, orig.empfaenger_strasse, orig.empfaenger_plz, orig.empfaenger_ort,
+         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
+        [nr, orig.kunden_id, orig.empfaenger_anrede, orig.empfaenger_vorname, orig.empfaenger_nachname, orig.empfaenger_name, orig.empfaenger_firma, orig.empfaenger_strasse, orig.empfaenger_plz, orig.empfaenger_ort,
          JSON.stringify(aussteller), rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung),
          orig.id, req.user.id, 'Storno zu ' + orig.rechnungsnr]
       );
