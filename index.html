@@ -641,8 +641,9 @@ tr:hover td { background: rgba(255,255,255,.02); }
         <select id="nk-kundentyp" onchange="nkKundentypChange()"><option value="privat">Privatkunde</option><option value="firma">Firmenkunde</option></select>
       </div>
       <div class="fg full" id="nk-firma-wrap" style="display:none"><label>Firmenname *</label><input id="nk-firmenname" placeholder="z.B. Mustermann GmbH"></div>
-      <div class="fg"><label>Vorname *</label><input id="nk-vn"></div>
-      <div class="fg"><label>Nachname *</label><input id="nk-nn"></div>
+      <div class="fg full" id="nk-ustid-wrap" style="display:none"><label>USt-IdNr. (optional)</label><input id="nk-ustid" placeholder="DE123456789"></div>
+      <div class="fg"><label id="nk-vn-lab">Vorname *</label><input id="nk-vn"></div>
+      <div class="fg"><label id="nk-nn-lab">Nachname *</label><input id="nk-nn"></div>
       <div class="fg"><label>Telefon *</label><input id="nk-tel" type="tel"></div>
       <div class="fg"><label>E-Mail</label><input id="nk-mail" type="email" oninput="valEmail(this)"></div>
       <div class="fg"><label>Straße</label><input id="nk-str"></div>
@@ -1849,8 +1850,13 @@ function neModellChange() {
 }
 function nkKundentypChange() {
   var typ = document.getElementById('nk-kundentyp').value;
-  var fw = document.getElementById('nk-firma-wrap');
-  if (fw) fw.style.display = typ === 'firma' ? '' : 'none';
+  var firma = typ === 'firma';
+  var fw = document.getElementById('nk-firma-wrap'); if (fw) fw.style.display = firma ? '' : 'none';
+  var uw = document.getElementById('nk-ustid-wrap'); if (uw) uw.style.display = firma ? '' : 'none';
+  var vl = document.getElementById('nk-vn-lab'), nl = document.getElementById('nk-nn-lab');
+  if (vl) vl.textContent = firma ? 'Ansprechpartner Vorname *' : 'Vorname *';
+  if (nl) nl.textContent = firma ? 'Ansprechpartner Nachname *' : 'Nachname *';
+  if (firma) { var a = document.getElementById('nk-anrede'); if (a && a.value === 'Firma') a.value = 'Herr'; }
 }
 
 // ── EINSTELLUNGEN ──
@@ -2241,8 +2247,11 @@ function zeigeK(id) {
   document.getElementById('kd-stamm').innerHTML =
     '<div class="g2">' +
     iz('Kunden-Nr.', aktK.kunden_nr, true) +
+    (aktK.firma ? iz('Firma', aktK.firma) : '') +
+    iz('Anrede / Name', [aktK.anrede, aktK.vorname, aktK.nachname].filter(Boolean).join(' ')) +
     iz('Telefon', aktK.telefon) +
     iz('E-Mail', aktK.email) +
+    (aktK.ust_id ? iz('USt-IdNr.', aktK.ust_id) : '') +
     iz('Adresse', [aktK.strasse, (aktK.plz || '') + ' ' + (aktK.ort || '')].filter(Boolean).join(', ')) +
     '</div><div style="margin-top:12px"><button class="btn btn-g btn-sm" onclick="openModal(\'ne\')">+ Einlagern</button></div>';
   // Fahrzeuge (mehrere pro Kunde)
@@ -2409,6 +2418,8 @@ function uploadScan(inp) {
 function saveNK() {
   var vn = gv('nk-vn'), nn = gv('nk-nn'), tel = gv('nk-tel');
   if (!vn || !nn || !tel) { notify('Vorname, Nachname und Telefon sind Pflicht.', 'err'); return; }
+  var kundentyp = document.getElementById('nk-kundentyp').value;
+  if (kundentyp === 'firma' && !gv('nk-firmenname')) { notify('Bitte den Firmennamen angeben.', 'err'); return; }
   var mail = gv('nk-mail');
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { notify('E-Mail-Format ungültig.', 'err'); return; }
   var kz = kzAusTeilen('nk-');
@@ -2416,10 +2427,12 @@ function saveNK() {
   var moVal = document.getElementById('nk-mo-sel').value === '__man__' ? gv('nk-mo-man') : gv('nk-mo-sel');
   var data = {
     vorname: vn, nachname: nn, telefon: tel, email: mail,
+    anrede: gv('nk-anrede'),
+    firma: kundentyp === 'firma' ? gv('nk-firmenname') : null,
+    ust_id: kundentyp === 'firma' ? (gv('nk-ustid') || null) : null,
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
-    fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null,
-    anrede: gv('nk-anrede'), notizen: document.getElementById('nk-kundentyp').value
+    fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null
   };
   sendeNeuerKunde(data, false);
 }

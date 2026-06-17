@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { query } = require('../db/index');
 const { authenticate } = require('../middleware/auth');
-const { portalMailHtml } = require('../lib/mail-template');
+const { portalMailHtml, anredeGruss } = require('../lib/mail-template');
 
 // ── GET /api/termine ── Admin: alle Termine
 router.get('/', authenticate, async (req, res, next) => {
@@ -117,9 +117,9 @@ router.put('/:id', authenticate, async (req, res, next) => {
     const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status } = req.body;
     const { rows } = await query(
       `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, termin_typ=$4, artikel_id=$5,
-       kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=$9, geaendert_am=NOW()
+       kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=COALESCE($9, status), geaendert_am=NOW()
        WHERE id=$10 RETURNING *`,
-      [datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id || null, kennzeichen, beschreibung, notizen_intern, status || 'bestaetigt', req.params.id]
+      [datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id || null, kennzeichen, beschreibung, notizen_intern, status || null, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
     res.json(rows[0]);
@@ -145,7 +145,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
     const termin = await query('SELECT t.*, k.portal_email, k.vorname FROM termine t LEFT JOIN kunden k ON k.id=t.kunden_id WHERE t.id=$1', [req.params.id]);
     if (!termin.rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
     const t = termin.rows[0];
-    await query('UPDATE termine SET status=$1, storniert_am=NOW(), storniert_von=$2 WHERE id=$3', ['abgesagt', 'admin', req.params.id]);
+    await query('UPDATE termine SET status=$1, storniert_am=NOW(), storniert_von=$2 WHERE id=$3', ['storniert', 'admin', req.params.id]);
     // Kunden informieren falls Portal-Buchung
     if (t.portal_buchung && t.portal_email) {
       const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
@@ -167,7 +167,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 router.post('/portal-freigabe/:kundenId', authenticate, async (req, res, next) => {
   try {
     const { rows } = await query(
-      'UPDATE kunden SET portal_freigegeben=true, geaendert_am=NOW() WHERE id=$1 RETURNING vorname, nachname, portal_email',
+      'UPDATE kunden SET portal_freigegeben=true, geaendert_am=NOW() WHERE id=$1 RETURNING vorname, nachname, anrede, portal_email',
       [req.params.kundenId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Kunde nicht gefunden' });
@@ -183,7 +183,7 @@ router.post('/portal-freigabe/:kundenId', authenticate, async (req, res, next) =
       subject: 'Ihr Kundenportal ist freigeschaltet — Schröder & Scholz',
       html: portalMailHtml(einst, {
         titel: 'Ihr Kundenportal ist freigeschaltet',
-        name: k.vorname,
+        gruss: anredeGruss(k.anrede, k.vorname, k.nachname),
         absaetze: [
           'Ihr Zugang zum Kundenportal von Schröder &amp; Scholz ist ab sofort freigeschaltet.',
           'Sie können sich jetzt anmelden, Ihre eingelagerten Räder einsehen und bequem online Ihre Termine buchen.'

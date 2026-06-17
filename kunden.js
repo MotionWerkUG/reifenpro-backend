@@ -53,7 +53,7 @@ router.get('/:id', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { vorname, nachname, telefon, telefon2, email, firma,
+    const { vorname, nachname, telefon, telefon2, email, firma, anrede, ust_id,
             strasse, plz, ort, kennzeichen, fahrzeug_marke,
             fahrzeug_modell, baujahr, notizen, ist_gewerbe, grosskunden_rabatt } = req.body;
     if (!vorname || !nachname || !telefon)
@@ -74,13 +74,13 @@ router.post('/', async (req, res, next) => {
     const kunden_nr = await nextKundenNr();
     const { rows } = await query(
       `INSERT INTO kunden
-         (kunden_nr,vorname,nachname,telefon,telefon2,email,firma,
+         (kunden_nr,vorname,nachname,telefon,telefon2,email,firma,anrede,ust_id,
           strasse,plz,ort,kennzeichen,fahrzeug_marke,fahrzeug_modell,
           baujahr,notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING *`,
       [kunden_nr, vorname.trim(), nachname.trim(), telefon.trim(),
-       telefon2||null, email||null, firma||null,
+       telefon2||null, email||null, firma||null, anrede||null, ust_id||null,
        strasse||null, plz||null, ort||null,
        kennzeichen ? kennzeichen.toUpperCase().trim() : null,
        fahrzeug_marke||null, fahrzeug_modell||null,
@@ -103,8 +103,9 @@ router.put('/:id', async (req, res, next) => {
          vorname=$1, nachname=$2, telefon=$3, telefon2=$4,
          email=$5, firma=$6, strasse=$7, plz=$8, ort=$9,
          kennzeichen=$10, fahrzeug_marke=$11, fahrzeug_modell=$12,
-         baujahr=$13, notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17
-       WHERE id=$18 RETURNING *`,
+         baujahr=$13, notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17,
+         anrede=$18, ust_id=$19
+       WHERE id=$20 RETURNING *`,
       [req.body.vorname       || o.vorname,
        req.body.nachname      || o.nachname,
        req.body.telefon       || o.telefon,
@@ -122,6 +123,8 @@ router.put('/:id', async (req, res, next) => {
        req.body.aktiv         !== undefined ? req.body.aktiv         : o.aktiv,
        req.body.ist_gewerbe   !== undefined ? (req.body.ist_gewerbe === true) : o.ist_gewerbe,
        req.body.grosskunden_rabatt !== undefined ? (parseInt(req.body.grosskunden_rabatt) || 0) : o.grosskunden_rabatt,
+       req.body.anrede !== undefined ? req.body.anrede : o.anrede,
+       req.body.ust_id !== undefined ? req.body.ust_id : o.ust_id,
        req.params.id]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.geaendert',
