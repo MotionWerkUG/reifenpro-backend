@@ -16,6 +16,9 @@ async function authKunde(req, res, next) {
     if (payload.typ !== 'kunde') return res.status(401).json({ error: 'Kein Kunden-Token' });
     const { rows } = await query('SELECT * FROM kunden WHERE id=$1 AND portal_aktiv=true AND portal_freigegeben=true', [payload.id]);
     if (!rows.length) return res.status(401).json({ error: 'Konto gesperrt oder nicht freigegeben' });
+    // Nach einer Passwortaenderung aeltere Tokens ungueltig machen (5s Toleranz)
+    if (rows[0].passwort_geaendert_am && payload.iat && payload.iat * 1000 < new Date(rows[0].passwort_geaendert_am).getTime() - 5000)
+      return res.status(401).json({ error: 'Sitzung abgelaufen. Bitte neu anmelden.' });
     req.kunde = rows[0];
     next();
   } catch (e) {
@@ -113,7 +116,7 @@ router.post('/registrieren', async (req, res, next) => {
         button: { text: 'E-Mail bestätigen', url: link },
         hinweis: 'Der Bestätigungslink ist 24 Stunden gültig. Falls Sie sich nicht registriert haben, können Sie diese E-Mail ignorieren.'
       })
-    );
+    ).catch(function (e) { console.error('[Registrierung-Mail]', e.message); });
 
     // Admin informieren
     if (einst.email) {
@@ -164,7 +167,7 @@ router.post('/login', async (req, res, next) => {
     const token = jwt.sign({ id: k.id, typ: 'kunde' }, process.env.JWT_SECRET, { expiresIn: '8h' });
     res.json({
       token,
-      kunde: { id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, hu_datum: k.hu_datum }
+      kunde: { id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, hu_datum: k.hu_datum, ist_gewerbe: k.ist_gewerbe }
     });
   } catch (e) { next(e); }
 });
@@ -179,7 +182,7 @@ router.post('/passwort-vergessen', async (req, res, next) => {
     const k = rows[0];
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 3600000);
-    await query('UPDATE kunden SET portal_bestaetigung_token=$1, portal_token_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
+    await query('UPDATE kunden SET portal_reset_token=$1, portal_reset_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
     const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
     await sendMail(
@@ -197,10 +200,10 @@ router.post('/passwort-reset', async (req, res, next) => {
   try {
     const { token, passwort } = req.body;
     if (!token || !passwort || passwort.length < 8) return res.status(400).json({ error: 'Ungültige Daten' });
-    const { rows } = await query('SELECT id FROM kunden WHERE portal_bestaetigung_token=$1 AND portal_token_ablauf > NOW()', [token]);
+    const { rows } = await query('SELECT id FROM kunden WHERE portal_reset_token=$1 AND portal_reset_ablauf > NOW()', [token]);
     if (!rows.length) return res.status(400).json({ error: 'Token ungültig oder abgelaufen' });
     const hash = await bcrypt.hash(passwort, 12);
-    await query('UPDATE kunden SET portal_password=$1, portal_bestaetigung_token=null WHERE id=$2', [hash, rows[0].id]);
+    await query('UPDATE kunden SET portal_password=$1, portal_reset_token=null, portal_reset_ablauf=null, passwort_geaendert_am=NOW() WHERE id=$2', [hash, rows[0].id]);
     res.json({ message: 'Passwort erfolgreich geändert' });
   } catch (e) { next(e); }
 });
@@ -208,16 +211,31 @@ router.post('/passwort-reset', async (req, res, next) => {
 // ── GET /api/portal/auth/me ──
 router.get('/me', authKunde, async (req, res) => {
   const k = req.kunde;
-  res.json({ id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, telefon: k.telefon, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, fahrzeug_typ: k.fahrzeug_typ, hu_datum: k.hu_datum, anrede: k.anrede });
+  res.json({ id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, telefon: k.telefon, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, fahrzeug_typ: k.fahrzeug_typ, hu_datum: k.hu_datum, anrede: k.anrede, ist_gewerbe: k.ist_gewerbe, kunden_nr: k.kunden_nr });
 });
 
 // ── PUT /api/portal/auth/profil ──
 router.put('/profil', authKunde, async (req, res, next) => {
   try {
     const { telefon, kennzeichen, fahrzeug_marke, fahrzeug_modell } = req.body;
-    await query('UPDATE kunden SET telefon=$1, kennzeichen=$2, fahrzeug_marke=$3, fahrzeug_modell=$4, geaendert_am=NOW() WHERE id=$5',
-      [telefon, kennzeichen, fahrzeug_marke, fahrzeug_modell, req.kunde.id]);
+    // COALESCE: nur uebergebene Felder aendern, fehlende NICHT auf NULL setzen (sonst Datenverlust)
+    await query(
+      `UPDATE kunden SET telefon=COALESCE($1,telefon), kennzeichen=COALESCE($2,kennzeichen),
+       fahrzeug_marke=COALESCE($3,fahrzeug_marke), fahrzeug_modell=COALESCE($4,fahrzeug_modell), geaendert_am=NOW() WHERE id=$5`,
+      [telefon != null ? telefon : null, kennzeichen != null ? kennzeichen : null,
+       fahrzeug_marke != null ? fahrzeug_marke : null, fahrzeug_modell != null ? fahrzeug_modell : null, req.kunde.id]);
     res.json({ message: 'Profil aktualisiert' });
+  } catch (e) { next(e); }
+});
+
+// ── PUT /api/portal/auth/passwort-aendern ── Passwort im eingeloggten Zustand aendern
+router.put('/passwort-aendern', authKunde, async (req, res, next) => {
+  try {
+    const { passwort } = req.body;
+    if (!passwort || passwort.length < 8) return res.status(400).json({ error: 'Passwort muss mind. 8 Zeichen haben.' });
+    const hash = await bcrypt.hash(passwort, 12);
+    await query('UPDATE kunden SET portal_password=$1, passwort_geaendert_am=NOW(), geaendert_am=NOW() WHERE id=$2', [hash, req.kunde.id]);
+    res.json({ message: 'Passwort geändert' });
   } catch (e) { next(e); }
 });
 

@@ -247,6 +247,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
   <div class="app-main">
     <!-- UEBERBLICK -->
     <div id="page-ueberblick" class="page on">
+      <div id="saison-banner-ueberblick"></div>
       <div class="card">
         <div class="card-titel" data-i18n="welcome">Willkommen</div>
         <div id="ueberblick-inhalt"></div>
@@ -304,13 +305,19 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     </div>
     <!-- BUCHEN -->
     <div id="page-buchen" class="page">
+      <div id="saison-banner-buchen"></div>
       <div class="card">
         <div class="card-titel" data-i18n="book_appointment">Termin buchen</div>
+        <div id="buchen-gewerbe-wrap" style="display:none;background:var(--panel,#181818);border:1px solid var(--border2,#2e2e2e);border-radius:10px;padding:12px;margin-bottom:14px">
+          <label class="check-row" style="margin:0"><input type="checkbox" id="buchen-sammel" onchange="buchenSammelToggle()"> <span data-i18n="collective_appt">Sammeltermin (mehrere Fahrzeuge)</span></label>
+          <div id="buchen-sammel-info" style="display:none;font-size:12px;color:var(--muted);margin-top:8px" data-i18n="collective_hint">Sammeltermine werden nach Prüfung durch uns bestätigt.</div>
+          <div id="buchen-sammel-fzs" style="display:none;margin-top:10px"></div>
+        </div>
         <div class="fg">
           <label data-i18n="service">Leistung</label>
           <select id="buchen-artikel" onchange="buchenSlotsLaden()"></select>
         </div>
-        <div class="fg">
+        <div class="fg" id="buchen-fahrzeug-fg">
           <label data-i18n="vehicle">Fahrzeug</label>
           <select id="buchen-fahrzeug" onchange="buchenFahrzeugChange()"><option value="">—</option></select>
         </div>
@@ -323,7 +330,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
           <label data-i18n="date">Datum</label>
           <input id="buchen-datum" type="date" onchange="buchenSlotsLaden()">
         </div>
-        <div class="fg">
+        <div class="fg" id="buchen-kz-fg">
           <label data-i18n="license_plate">Kennzeichen (optional)</label>
           <div style="display:flex;gap:6px;align-items:center">
             <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
@@ -421,7 +428,13 @@ var I18N = {
     vat_id: 'USt-IdNr. (optional)', vehicle_count: 'Anzahl Fahrzeuge (optional)', message_opt: 'Nachricht (optional)',
     business_reg_upload: 'Gewerbeanmeldung hochladen (PDF/Bild, optional)', gewerbe_send: 'Anfrage senden',
     gewerbe_ok: 'Vielen Dank. Wir haben Ihre Anfrage erhalten und melden uns in Kürze bei Ihnen.',
-    gewerbe_fields: 'Bitte Firma, Ansprechpartner, Telefon und E-Mail ausfüllen.', file_too_big: 'Datei zu groß (max. 15 MB).'
+    gewerbe_fields: 'Bitte Firma, Ansprechpartner, Telefon und E-Mail ausfüllen.', file_too_big: 'Datei zu groß (max. 15 MB).',
+    stored_tires: 'Eingelagerte Räder', no_stored_tires: 'Aktuell keine Räder bei uns eingelagert.',
+    saison_hint_winter: 'Die Wintersaison steht bevor – sichern Sie sich frühzeitig Ihren Termin zum Räderwechsel.',
+    saison_hint_sommer: 'Die Sommersaison steht bevor – sichern Sie sich frühzeitig Ihren Termin zum Räderwechsel.',
+    saison_hint_fleet: 'Tipp für Fuhrparks: Planen Sie den Räderwechsel Ihrer Flotte frühzeitig als Sammeltermin.',
+    collective_appt: 'Sammeltermin (mehrere Fahrzeuge)', collective_hint: 'Sammeltermine werden nach Prüfung durch uns bestätigt. Wir melden uns mit dem finalen Termin.',
+    select_vehicles: 'Fahrzeuge auswählen', collective_requested: 'Sammeltermin angefragt. Wir bestätigen ihn in Kürze.', select_min_one: 'Bitte mindestens ein Fahrzeug auswählen.'
   },
   en: {
     login_sub: 'Customer Portal — Sign In', email: 'Email', password: 'Password',
@@ -460,7 +473,13 @@ var I18N = {
     vat_id: 'VAT ID (optional)', vehicle_count: 'Number of vehicles (optional)', message_opt: 'Message (optional)',
     business_reg_upload: 'Upload business registration (PDF/image, optional)', gewerbe_send: 'Send request',
     gewerbe_ok: 'Thank you. We have received your request and will get back to you shortly.',
-    gewerbe_fields: 'Please fill in company, contact person, phone and email.', file_too_big: 'File too large (max. 15 MB).'
+    gewerbe_fields: 'Please fill in company, contact person, phone and email.', file_too_big: 'File too large (max. 15 MB).',
+    stored_tires: 'Stored wheels', no_stored_tires: 'No wheels currently stored with us.',
+    saison_hint_winter: 'The winter season is approaching – book your wheel change appointment early.',
+    saison_hint_sommer: 'The summer season is approaching – book your wheel change appointment early.',
+    saison_hint_fleet: 'Fleet tip: schedule your fleet wheel change early as a collective appointment.',
+    collective_appt: 'Collective appointment (multiple vehicles)', collective_hint: 'Collective appointments are confirmed by us after review. We will get back to you with the final date.',
+    select_vehicles: 'Select vehicles', collective_requested: 'Collective appointment requested. We will confirm shortly.', select_min_one: 'Please select at least one vehicle.'
   }
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) || (I18N.de[key]) || key; }
@@ -669,7 +688,7 @@ function portalNav(page, fromPop) {
   });
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('on'); });
   document.getElementById('page-' + page).classList.add('on');
-  if (page === 'ueberblick') ladeUeberblick();
+  if (page === 'ueberblick') { ladeUeberblick(); setSaisonBanner('ueberblick'); }
   else if (page === 'einlagerungen') ladeEinlagerungen();
   else if (page === 'termine') ladeTermine();
   else if (page === 'buchen') initBuchen();
@@ -685,6 +704,11 @@ function saisonText(s) {
   if (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1) return t('sommer');
   if (sl.indexOf('ganz') !== -1 || sl.indexOf('all') !== -1) return t('ganzjahres');
   return s;
+}
+function saisonBadge(typ) {
+  var sl = (typ || '').toLowerCase();
+  var col = sl.indexOf('winter') !== -1 ? '#4a9eff' : (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1 ? '#eab308' : '#888');
+  return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + col + ';margin-right:5px"></span><strong>' + saisonText(typ) + '</strong>';
 }
 
 function fmtDatum(d) {
@@ -844,14 +868,38 @@ function initBuchen() {
   d.min = heute;
   if (!d.value) d.value = heute;
   if (KUNDE && KUNDE.kennzeichen && !document.getElementById('buchen-kz1').value) buchenKzInTeile(KUNDE.kennzeichen);
-  // Fahrzeuge des Kunden in die Auswahl laden
+  setSaisonBanner('buchen');
+  // Sammeltermin-Option nur fuer Gewerbekunden
+  var gw = document.getElementById('buchen-gewerbe-wrap');
+  if (gw) gw.style.display = (KUNDE && KUNDE.ist_gewerbe) ? '' : 'none';
+  // Fahrzeuge des Kunden in die Auswahl laden (Einzeltermin) + Mehrfachauswahl (Sammeltermin)
   papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    buchenFahrzeuge = rows || [];
     var sel = document.getElementById('buchen-fahrzeug');
-    sel.innerHTML = '<option value="">—</option>' + (rows || []).map(function(f) {
+    sel.innerHTML = '<option value="">—</option>' + buchenFahrzeuge.map(function(f) {
       var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
       return '<option value="' + f.id + '" data-typ="' + (f.typ || '') + '" data-kz="' + (f.kennzeichen || '') + '">' + label + '</option>';
     }).join('');
+    renderSammelFzs();
   }).catch(function() {});
+}
+var buchenFahrzeuge = [];
+function renderSammelFzs() {
+  var el = document.getElementById('buchen-sammel-fzs'); if (!el) return;
+  if (!buchenFahrzeuge.length) { el.innerHTML = '<div style="font-size:13px;color:var(--muted)">' + t('no_vehicles') + '</div>'; return; }
+  el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">' + t('select_vehicles') + '</div>' +
+    buchenFahrzeuge.map(function(f) {
+      var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
+      return '<label class="check-row" style="margin:0 0 4px"><input type="checkbox" class="sammel-fz" value="' + f.id + '"> ' + label + '</label>';
+    }).join('');
+}
+function buchenSammelToggle() {
+  var on = document.getElementById('buchen-sammel').checked;
+  document.getElementById('buchen-sammel-info').style.display = on ? '' : 'none';
+  document.getElementById('buchen-sammel-fzs').style.display = on ? '' : 'none';
+  // Einzel-Fahrzeug + Kennzeichen ausblenden, wenn Sammeltermin
+  var ff = document.getElementById('buchen-fahrzeug-fg'); if (ff) ff.style.display = on ? 'none' : '';
+  var kf = document.getElementById('buchen-kz-fg'); if (kf) kf.style.display = on ? 'none' : '';
 }
 function buchenTyp() {
   var sel = document.getElementById('buchen-fahrzeug');
@@ -925,9 +973,26 @@ function slotWaehlen(el) {
 function terminBuchen() {
   var artikelId = document.getElementById('buchen-artikel').value;
   var datum = document.getElementById('buchen-datum').value;
-  var kz = buchenKzAusTeilen();
   var notiz = document.getElementById('buchen-notiz').value.trim();
+  if (!artikelId) { notify(t('select_slot'), 'err'); return; }
   if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
+  var sammelCb = document.getElementById('buchen-sammel');
+  var istSammel = KUNDE && KUNDE.ist_gewerbe && sammelCb && sammelCb.checked;
+  if (istSammel) {
+    var ids = Array.prototype.slice.call(document.querySelectorAll('.sammel-fz:checked')).map(function(c) { return c.value; });
+    if (!ids.length) { notify(t('select_min_one'), 'err'); return; }
+    papi('POST', '/daten/termine', {
+      datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
+      beschreibung: notiz || null, sammeltermin: true, fahrzeug_ids: ids
+    }).then(function() {
+      notify(t('collective_requested'), 'ok');
+      document.getElementById('buchen-notiz').value = '';
+      sammelCb.checked = false; buchenSammelToggle(); selectedSlot = null;
+      portalNav('termine');
+    }).catch(function(e) { notify(e.message, 'err'); });
+    return;
+  }
+  var kz = buchenKzAusTeilen();
   var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
   var zoll = document.getElementById('buchen-zoll').value || null;
   papi('POST', '/daten/termine', {
@@ -940,6 +1005,24 @@ function terminBuchen() {
     selectedSlot = null;
     portalNav('termine');
   }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// Saison-Hinweis: in den Wochen vor dem Wechsel auf fruehe Terminbuchung hinweisen
+function saisonHinweisHtml() {
+  var now = new Date();
+  var m = now.getMonth() + 1, d = now.getDate();
+  var key = null;
+  // Winter-Saison: 1. Sept bis 15. Nov | Sommer-Saison: 15. Feb bis 30. Apr
+  if ((m === 9) || (m === 10) || (m === 11 && d <= 15)) key = 'saison_hint_winter';
+  else if ((m === 2 && d >= 15) || (m === 3) || (m === 4)) key = 'saison_hint_sommer';
+  if (!key) return '';
+  var fleet = (KUNDE && KUNDE.ist_gewerbe) ? '<div style="margin-top:6px;font-size:13px">' + t('saison_hint_fleet') + '</div>' : '';
+  return '<div style="background:rgba(234,179,8,.12);border:1px solid #eab308;border-radius:10px;padding:13px 15px;margin-bottom:14px;color:var(--text,#ececec)">' +
+    '<strong style="color:#eab308">' + t(key) + '</strong>' + fleet + '</div>';
+}
+function setSaisonBanner(page) {
+  var el = document.getElementById('saison-banner-' + page);
+  if (el) el.innerHTML = saisonHinweisHtml();
 }
 
 // ── PROFIL ──
@@ -993,12 +1076,21 @@ function ladeFahrzeuge() {
         if (diff < 0) huHinweis = '<span style="color:#c0392b;font-weight:700"> · HU überfällig</span>';
         else if (diff < 60) huHinweis = '<span style="color:#eab308;font-weight:700"> · HU bald fällig</span>';
       }
-      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px">' +
+      var raeder = f.raeder || [];
+      var raederHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">' + t('stored_tires') + '</div>' +
+        (raeder.length ? raeder.map(function(r) {
+          return '<div style="font-size:13px;display:flex;justify-content:space-between;gap:8px;padding:3px 0;flex-wrap:wrap">' +
+            '<span>' + saisonBadge(r.reifen_typ) + ' ' + (r.reifen_groesse || '') + (r.reifen_marke ? ' · ' + r.reifen_marke : '') + '</span>' +
+            '<span style="color:var(--muted)">' + (r.status || '') + (r.lagerplatz ? ' · ' + t('storage_place') + ' ' + r.lagerplatz : '') + '</span></div>';
+        }).join('') : '<div style="font-size:13px;color:var(--muted)">' + t('no_stored_tires') + '</div>') + '</div>';
+      return '<div style="padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">' +
         '<div><div style="font-weight:700">' + titel + '</div><div style="font-size:12px;color:var(--muted)">' + meta + huHinweis + '</div></div>' +
         '<div style="display:flex;gap:6px">' +
           '<button class="btn btn-g btn-sm" onclick="fzEdit(\'' + f.id + '\')">' + t('edit') + '</button>' +
           '<button class="btn btn-sm" style="background:#c0392b;color:#fff;border:none" onclick="fzLoeschen(\'' + f.id + '\')">x</button>' +
-        '</div></div>';
+        '</div></div>' + raederHtml + '</div>';
     }).join('');
   }).catch(function(e) { notify(e.message, 'err'); });
 }

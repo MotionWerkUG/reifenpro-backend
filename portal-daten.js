@@ -1,7 +1,7 @@
 'use strict';
 const express = require('express');
 const router = express.Router();
-const { query } = require('../db/index');
+const { query, withTransaction } = require('../db/index');
 const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
 const fs = require('fs');
@@ -158,29 +158,64 @@ router.post('/termine', authKunde, async (req, res, next) => {
     const vonMin = zeitZuMin(uhrzeit_von);
     const uhrzeit_bis = minZuZeit(vonMin + dauer);
 
-    // Nochmal Verfuegbarkeit pruefen (Race Condition verhindern)
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
     const maxParallel = einst ? (einst.max_parallele_termine || 1) : 1;
-    const konflikt = await query(
-      `SELECT COUNT(*) FROM termine
-       WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')
-       AND uhrzeit_von < $3 AND uhrzeit_bis > $2`,
-      [datum, uhrzeit_von, uhrzeit_bis]
-    );
-    if (parseInt(konflikt.rows[0].count) >= maxParallel) {
-      return res.status(409).json({ error: 'Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.' });
+    const k = req.kunde;
+
+    // ── Sammeltermin (nur Gewerbekunden, mehrere Fahrzeuge) ──
+    // Wird NICHT sofort bestaetigt: Status 'angefragt', der Admin terminiert/bestaetigt.
+    const istSammel = k.ist_gewerbe && req.body.sammeltermin === true && Array.isArray(req.body.fahrzeug_ids) && req.body.fahrzeug_ids.length > 0;
+    if (istSammel) {
+      const fzs = (await query('SELECT id, typ, marke, modell, kennzeichen FROM fahrzeuge WHERE kunden_id=$1 AND id = ANY($2::uuid[])', [k.id, req.body.fahrzeug_ids])).rows;
+      if (!fzs.length) return res.status(400).json({ error: 'Keine gültigen Fahrzeuge ausgewählt.' });
+      const liste = fzs.map((f) => [f.marke, f.modell, f.kennzeichen].filter(Boolean).join(' ')).join('; ');
+      const besch = 'Sammeltermin-Anfrage (' + fzs.length + ' Fahrzeuge): ' + liste + (beschreibung ? ' | ' + beschreibung : '');
+      const kzListe = fzs.map((f) => f.kennzeichen).filter(Boolean).join(', ') || null;
+      const ins = await query(
+        `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
+         datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung, artikel_id, status, portal_buchung)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'angefragt',true) RETURNING *`,
+        [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
+         datum, uhrzeit_von, uhrzeit_bis, art.name, kzListe, besch, artikel_id]);
+      const datumF = new Date(datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+      await sendMail(k.portal_email, 'Sammelterminanfrage eingegangen — ' + datumF,
+        '<p>Hallo ' + k.vorname + ',</p>' +
+        '<p>vielen Dank für Ihre Sammelterminanfrage für ' + fzs.length + ' Fahrzeuge (' + art.name + ').</p>' +
+        '<p><strong>Wunschtermin:</strong> ' + datumF + ' ab ' + uhrzeit_von + ' Uhr</p>' +
+        '<p>Wir prüfen die Verfügbarkeit und bestätigen Ihnen den Termin in Kürze. Bei Rückfragen erreichen Sie uns unter ' + (einst ? einst.telefon || '' : '') + '.</p>' +
+        '<p>Mit freundlichen Grüßen,<br>' + (einst ? einst.firmenname || 'ReifenPro' : 'ReifenPro') + '</p>').catch(() => {});
+      if (einst && einst.email) {
+        await sendMail(einst.email, 'Sammelterminanfrage: ' + fzs.length + ' Fahrzeuge am ' + datumF,
+          '<p><strong>Neue Sammelterminanfrage (Gewerbekunde):</strong></p>' +
+          '<p>Kunde: ' + k.vorname + ' ' + k.nachname + '<br>Leistung: ' + art.name + '<br>Wunschtermin: ' + datumF + ' ' + uhrzeit_von + ' Uhr</p>' +
+          '<p>Fahrzeuge:<br>' + fzs.map((f) => [f.marke, f.modell, f.kennzeichen].filter(Boolean).join(' ')).join('<br>') + '</p>' +
+          '<p>Status: angefragt — bitte im Kalender terminieren und bestätigen.</p>').catch(() => {});
+      }
+      return res.status(201).json(ins.rows[0]);
     }
 
-    const k = req.kunde;
-    const { rows } = await query(
-      `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
-       datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung,
-       artikel_id, fahrzeug_id, status, portal_buchung)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true) RETURNING *`,
-      [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
-       datum, uhrzeit_von, uhrzeit_bis, art.name,
-       kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fahrzeug_id || null]
-    );
+    // Verfuegbarkeitspruefung + Insert in einer Transaktion mit Advisory-Lock je Tag
+    // -> verhindert Doppelbuchung desselben Slots bei gleichzeitigen Anfragen (TOCTOU).
+    const rows = await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
+      const konflikt = await client.query(
+        `SELECT COUNT(*) FROM termine
+         WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')
+         AND uhrzeit_von < $3 AND uhrzeit_bis > $2`,
+        [datum, uhrzeit_von, uhrzeit_bis]);
+      if (parseInt(konflikt.rows[0].count) >= maxParallel) {
+        const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e;
+      }
+      const ins = await client.query(
+        `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
+         datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung,
+         artikel_id, fahrzeug_id, status, portal_buchung)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true) RETURNING *`,
+        [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
+         datum, uhrzeit_von, uhrzeit_bis, art.name,
+         kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fahrzeug_id || null]);
+      return ins.rows;
+    });
 
     // Bestaetigungs-E-Mail an Kunden
     const portalUrl = einst ? (einst.portal_url || '') : '';
@@ -213,7 +248,7 @@ router.post('/termine', authKunde, async (req, res, next) => {
     }
 
     res.status(201).json(rows[0]);
-  } catch (e) { next(e); }
+  } catch (e) { if (e.status) return res.status(e.status).json({ error: e.message }); next(e); }
 });
 
 // ── PUT /api/portal/daten/termine/:id ── Termin verschieben (Kunde)
@@ -389,6 +424,11 @@ async function syncKundeFz(kundenId, fz) {
 router.get('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
     const { rows } = await query('SELECT * FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [req.kunde.id]);
+    // Aktuelle Bereifung je Fahrzeug aus den Einlagerungen (Fuhrpark-Uebersicht)
+    const einl = (await query(
+      `SELECT id, fahrzeug_id, reifen_typ, reifen_groesse, reifen_marke, reifen_modell, status, lagerplatz, eingelagert_am
+       FROM einlagerungen WHERE kunden_id=$1 ORDER BY eingelagert_am DESC`, [req.kunde.id])).rows;
+    rows.forEach((f) => { f.raeder = einl.filter((e) => e.fahrzeug_id === f.id); });
     res.json(rows);
   } catch (e) { next(e); }
 });
