@@ -144,6 +144,47 @@ router.put('/banner', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Navigationsbuttons laden
+const DEFAULT_NAV = [
+  { label: 'Leistungen', url: '#leistungen', sichtbar: true, btn: false },
+  { label: 'Termin buchen', url: '/termin/', sichtbar: true, btn: false },
+  { label: 'Öffnungszeiten', url: '#oeffnungszeiten', sichtbar: true, btn: false },
+  { label: 'Kontakt', url: '#kontakt', sichtbar: true, btn: false },
+  { label: 'Kundenportal', url: '/portal/', sichtbar: true, btn: true }
+];
+router.get('/nav', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT nav_links FROM einstellungen ORDER BY id LIMIT 1');
+    const nav = rows[0] && Array.isArray(rows[0].nav_links) && rows[0].nav_links.length ? rows[0].nav_links : DEFAULT_NAV;
+    res.json(nav);
+  } catch (e) { next(e); }
+});
+
+// Navigationsbuttons speichern + Homepage neu erzeugen
+router.put('/nav', async (req, res, next) => {
+  try {
+    const eingabe = Array.isArray(req.body) ? req.body : (req.body && req.body.nav_links);
+    if (!Array.isArray(eingabe)) return res.status(400).json({ error: 'Liste der Navigationspunkte erforderlich.' });
+    const nav = eingabe
+      .filter((i) => i && typeof i.label === 'string' && i.label.trim())
+      .slice(0, 12)
+      .map((i) => ({
+        label: String(i.label).trim().slice(0, 40),
+        url: String(i.url || '#').trim().slice(0, 300),
+        sichtbar: i.sichtbar !== false,
+        btn: i.btn === true
+      }));
+    if (!nav.length) return res.status(400).json({ error: 'Mindestens ein Navigationspunkt erforderlich.' });
+    const upd = await query(
+      `UPDATE einstellungen SET nav_links=$1 WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1) RETURNING id`,
+      [JSON.stringify(nav)]
+    );
+    if (!upd.rows.length) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
+    await regenerate();
+    res.json({ message: 'Navigation gespeichert.' });
+  } catch (e) { next(e); }
+});
+
 // Online-Buchungsbereich (Gäste) laden
 router.get('/buchung', async (req, res, next) => {
   try {

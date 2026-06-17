@@ -177,6 +177,13 @@
       <div class="uprow" style="margin-top:8px;align-items:center"><select id="bl-add-zusatz" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:13px"></select><button class="btn btn-g" onclick="leistungAdd('zusatz')">+ hinzufügen</button></div>
     </div></div>
 
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 style="font-size:16px;margin-bottom:4px">Navigationsbuttons (Kopfzeile)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Die Menüpunkte oben auf der Startseite. Ziel kann ein Abschnitt der Startseite (<b>#leistungen</b>, <b>#oeffnungszeiten</b>, <b>#kontakt</b>) oder ein Link (z.B. <b>/portal/</b>, <b>/termin/</b>) sein. „Als Button" hebt den Punkt farbig hervor (z.B. Kundenportal).</div>
+      <div id="nav-liste"></div>
+      <div class="row"><button class="btn btn-g" onclick="navAdd()">+ Menüpunkt</button><button class="btn btn-p" onclick="navSpeichern()">Navigation speichern</button></div>
+    </div></div>
+
     <h2 style="font-size:16px;margin:6px 2px 10px">Abschnitte</h2>
     <div id="liste"></div>
     <div class="add">
@@ -221,7 +228,7 @@ function api(method, path, body) {
 function zeige() {
   document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
   document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
-  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); setView('visuell'); }
+  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); navLaden(); setView('visuell'); }
 }
 
 // ── Visueller Editor (Baukasten) ──
@@ -405,6 +412,38 @@ function buchungSpeichern() {
     buchung_titel: document.getElementById('bu-titel').value,
     buchung_text: document.getElementById('bu-text').value
   }).then(function(){ notify('Buchungsbereich gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
+}
+
+// ── Navigationsbuttons ──
+var NAV = [];
+function navLaden() {
+  api('GET', '/homepage/nav').then(function(rows){ NAV = Array.isArray(rows) ? rows : []; navRender(); }).catch(function(){});
+}
+function navRender() {
+  var el = document.getElementById('nav-liste'); if (!el) return;
+  if (!NAV.length) { el.innerHTML = '<div class="imgph" style="padding:8px 0">Keine Menüpunkte.</div>'; return; }
+  el.innerHTML = NAV.map(function(i, idx){
+    return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px">' +
+      '<input type="text" value="' + esc(i.label || '') + '" placeholder="Beschriftung" style="flex:1;min-width:130px" oninput="NAV[' + idx + '].label=this.value">' +
+      '<input type="text" value="' + esc(i.url || '') + '" placeholder="#abschnitt oder /link/" style="flex:1;min-width:130px" oninput="NAV[' + idx + '].url=this.value">' +
+      '<label class="sw" title="Als hervorgehobenen Button anzeigen"><input type="checkbox"' + (i.btn ? ' checked' : '') + ' onchange="NAV[' + idx + '].btn=this.checked"> Button</label>' +
+      '<label class="sw" title="Sichtbar"><input type="checkbox"' + (i.sichtbar !== false ? ' checked' : '') + ' onchange="NAV[' + idx + '].sichtbar=this.checked"> sichtbar</label>' +
+      '<button class="btn-icon" title="nach oben" onclick="navMove(' + idx + ',-1)"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="btn-icon" title="nach unten" onclick="navMove(' + idx + ',1)"' + (idx === NAV.length - 1 ? ' disabled' : '') + '>↓</button>' +
+      '<button class="btn-icon" title="entfernen" onclick="navDel(' + idx + ')" style="color:var(--red)">✕</button>' +
+      '</div>';
+  }).join('');
+}
+function navAdd() { NAV.push({ label: '', url: '#', sichtbar: true, btn: false }); navRender(); }
+function navDel(idx) { NAV.splice(idx, 1); navRender(); }
+function navMove(idx, dir) {
+  var j = idx + dir; if (j < 0 || j >= NAV.length) return;
+  var tmp = NAV[idx]; NAV[idx] = NAV[j]; NAV[j] = tmp; navRender();
+}
+function navSpeichern() {
+  var clean = NAV.filter(function(i){ return i.label && i.label.trim(); });
+  if (!clean.length) { notify('Mindestens ein Menüpunkt mit Beschriftung erforderlich.', true); return; }
+  api('PUT', '/homepage/nav', clean).then(function(){ notify('Navigation gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
 }
 function bannerSpeichern() {
   api('PUT', '/homepage/banner', {

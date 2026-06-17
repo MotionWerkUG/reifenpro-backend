@@ -134,6 +134,22 @@ function renderSektion(s, f) {
     '</div></section>';
 }
 
+// Standard-Navigation (Fallback, wenn im CMS nichts hinterlegt ist)
+var DEFAULT_NAV = [
+  { label: 'Leistungen', url: '#leistungen', sichtbar: true, btn: false },
+  { label: 'Termin buchen', url: '/termin/', sichtbar: true, btn: false },
+  { label: 'Öffnungszeiten', url: '#oeffnungszeiten', sichtbar: true, btn: false },
+  { label: 'Kontakt', url: '#kontakt', sichtbar: true, btn: false },
+  { label: 'Kundenportal', url: '/portal/', sichtbar: true, btn: true }
+];
+function navHtml(f) {
+  var items = (f && Array.isArray(f.nav_links) && f.nav_links.length) ? f.nav_links : DEFAULT_NAV;
+  return '<nav class="nav-links">' + items
+    .filter(function (i) { return i && i.sichtbar !== false && i.label; })
+    .map(function (i) { return '<a' + (i.btn ? ' class="btn-sm"' : '') + ' href="' + esc(i.url || '#') + '">' + esc(i.label) + '</a>'; })
+    .join('') + '</nav>';
+}
+
 function renderHomepage(sektionen, f) {
   f = f || {};
   var aktiv = (sektionen || []).filter(function(s) { return s.sichtbar; }).sort(function(a, b) { return a.sortierung - b.sortierung; });
@@ -170,8 +186,7 @@ function renderHomepage(sektionen, f) {
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
-    '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="/termin/">Termin buchen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
-    '<a class="btn-sm" href="/portal/">Kundenportal</a></nav>' +
+    navHtml(f) +
     '</div></header>' +
     '<main>' + body + '</main>' +
     '<footer class="foot"><div class="inner">' +
