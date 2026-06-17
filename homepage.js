@@ -34,15 +34,44 @@ router.post('/sektionen', async (req, res, next) => {
 
 router.put('/sektionen/:id', async (req, res, next) => {
   try {
+    const cur = (await query('SELECT * FROM homepage_sektionen WHERE id=$1', [req.params.id])).rows[0];
+    if (!cur) return res.status(404).json({ error: 'Abschnitt nicht gefunden.' });
+    // Vorherigen Stand fuer Undo sichern (letzte 12 behalten)
+    const snap = { headline: cur.headline, subline: cur.subline, inhalt: cur.inhalt, bild_url: cur.bild_url, cta_text: cur.cta_text, cta_url: cur.cta_url, sichtbar: cur.sichtbar };
+    await query('INSERT INTO sektion_historie (sektion_id, daten, beschreibung) VALUES ($1,$2,$3)', [cur.id, JSON.stringify(snap), (cur.headline || cur.typ || 'Abschnitt')]);
+    await query('DELETE FROM sektion_historie WHERE id NOT IN (SELECT id FROM sektion_historie ORDER BY id DESC LIMIT 12)');
     const { headline, subline, inhalt, bild_url, cta_text, cta_url, sichtbar } = req.body;
     const { rows } = await query(
       `UPDATE homepage_sektionen SET headline=$1, subline=$2, inhalt=$3, bild_url=$4, cta_text=$5, cta_url=$6, sichtbar=$7, geaendert_am=NOW()
        WHERE id=$8 RETURNING *`,
       [headline || null, subline || null, inhalt || null, bild_url || null, cta_text || null, cta_url || null, sichtbar !== false, req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Abschnitt nicht gefunden.' });
     await regenerate();
     res.json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+// Letzte Aenderungen (fuer Undo-Anzeige)
+router.get('/sektionen-historie', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id, sektion_id, beschreibung, geaendert_am FROM sektion_historie ORDER BY id DESC LIMIT 5');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// Letzte Aenderung rueckgaengig machen
+router.post('/sektionen-undo', async (req, res, next) => {
+  try {
+    const h = (await query('SELECT * FROM sektion_historie ORDER BY id DESC LIMIT 1')).rows[0];
+    if (!h) return res.status(400).json({ error: 'Keine Änderung zum Rückgängigmachen vorhanden.' });
+    const d = h.daten || {};
+    await query(
+      `UPDATE homepage_sektionen SET headline=$1, subline=$2, inhalt=$3, bild_url=$4, cta_text=$5, cta_url=$6, sichtbar=$7, geaendert_am=NOW() WHERE id=$8`,
+      [d.headline || null, d.subline || null, d.inhalt || null, d.bild_url || null, d.cta_text || null, d.cta_url || null, d.sichtbar !== false, h.sektion_id]
+    );
+    await query('DELETE FROM sektion_historie WHERE id=$1', [h.id]);
+    await regenerate();
+    res.json({ message: 'Rückgängig gemacht.', beschreibung: h.beschreibung });
   } catch (e) { next(e); }
 });
 

@@ -114,6 +114,7 @@
     <div class="top-r">
       <button id="tab-visuell" class="view" onclick="setView('visuell')">Visuelle Vorschau</button>
       <button id="tab-liste" onclick="setView('liste')">Einstellungen &amp; Listen</button>
+      <button id="btn-undo" onclick="cmsUndo()" title="Letzte Änderung rückgängig machen">&#8634; Rückgängig</button>
       <a href="https://www.schroeder-scholz.de/" target="_blank" rel="noopener">Ansehen</a>
       <button onclick="logout()">Abmelden</button>
     </div>
@@ -260,6 +261,13 @@ function oeffneVisualEdit(id) {
   document.getElementById('ve-ov').classList.add('open');
 }
 function veClose() { document.getElementById('ve-ov').classList.remove('open'); }
+function cmsUndo() {
+  if (!confirm('Letzte Änderung an einem Abschnitt rückgängig machen?')) return;
+  api('POST', '/homepage/sektionen-undo').then(function (r) {
+    notify('Rückgängig gemacht' + (r && r.beschreibung ? ': ' + r.beschreibung : '') + '.');
+    laden(); if (typeof reloadFrame === 'function') reloadFrame();
+  }).catch(function (e) { notify(e.message, true); });
+}
 function veVal(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
 function veSpeichern(id) {
   var s = SEK.find(function (x) { return x.id === id; }); if (!s) return;
