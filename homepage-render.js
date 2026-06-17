@@ -53,6 +53,39 @@ function bannerHtml(f) {
   return '<div class="akt-ecke' + seite + '"><button class="akt-x" onclick="this.parentNode.remove()" aria-label="schließen">&times;</button>' + inner + '</div>';
 }
 
+// Online-Terminbuchung fuer Gaeste (Formular fuellt sich per /api/gast)
+function buchungHtml(f) {
+  var titel = f.buchung_titel || 'Online Termin buchen';
+  var text = f.buchung_text || 'Wählen Sie Ihre Leistung und einen freien Termin – schnell, unkompliziert und ohne Anruf. Sie erhalten sofort eine Bestätigung per E-Mail.';
+  return '<section class="sec buchung" id="termin-buchen"><div class="inner">' +
+    '<h2 style="color:#fff">' + esc(titel) + '</h2>' +
+    '<p class="bk-intro">' + esc(text) + '</p>' +
+    '<div class="bk-card"><form onsubmit="return gastBuchen(event)" autocomplete="off">' +
+    '<div class="bk-grid">' +
+      '<div><label>Leistung *</label><select id="bk-art" onchange="bkSlots()"><option value="">— bitte wählen —</option></select></div>' +
+      '<div><label>Datum *</label><input type="date" id="bk-datum" onchange="bkSlots()"></div>' +
+    '</div>' +
+    '<div id="bk-slots-wrap" style="display:none;margin-top:12px"><label>Verfügbare Uhrzeiten</label><div id="bk-slots" class="bk-slots"></div><div id="bk-slots-info" class="bk-info"></div></div>' +
+    '<div class="bk-grid" style="margin-top:14px">' +
+      '<div><label>Name *</label><input type="text" id="bk-name"></div>' +
+      '<div><label>Telefon *</label><input type="tel" id="bk-tel"></div>' +
+    '</div>' +
+    '<div class="bk-grid" style="margin-top:12px">' +
+      '<div><label>E-Mail *</label><input type="email" id="bk-email"></div>' +
+      '<div><label>Kennzeichen *</label><div class="bk-kz">' +
+        '<input id="bk-kz1" maxlength="3" placeholder="WOR" oninput="this.value=this.value.toUpperCase()">' +
+        '<span>-</span><input id="bk-kz2" maxlength="2" placeholder="AB" oninput="this.value=this.value.toUpperCase()">' +
+        '<span>-</span><input id="bk-kz3" maxlength="4" placeholder="1234">' +
+        '<input id="bk-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">' +
+      '</div></div>' +
+    '</div>' +
+    '<label class="bk-check"><input type="checkbox" id="bk-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und bin mit der Verarbeitung meiner Angaben zur Terminbearbeitung einverstanden. *</span></label>' +
+    '<input type="text" id="bk-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">' +
+    '<div class="bk-ok" id="bk-ok"></div><div class="bk-err" id="bk-err"></div>' +
+    '<button type="submit" class="btn" id="bk-submit">Termin verbindlich buchen</button>' +
+    '</form></div></div></section>';
+}
+
 function renderLeistungen(group) {
   var cards = group.map(function(s, i) {
     var nr = String(i + 1).padStart(2, '0');
@@ -135,6 +168,12 @@ function renderHomepage(sektionen, f) {
       body += renderLeistungen(group);
     } else { body += renderSektion(aktiv[i], f); i++; }
   }
+  // Online-Terminbuchung fuer Gaeste (standardmaessig an, im CMS steuerbar)
+  if (f.buchung_aktiv !== false) {
+    var bh = buchungHtml(f);
+    if (body.indexOf('<section class="sec" id="kontakt">') !== -1) body = body.replace('<section class="sec" id="kontakt">', bh + '<section class="sec" id="kontakt">');
+    else body += bh;
+  }
   var ort = f.ort ? ' in ' + f.ort : '';
   var title = 'Schröder & Scholz – Reifenservice, Räderwechsel & Reifeneinlagerung' + ort;
   var desc = 'Schröder & Scholz – Ihr Reifenservice' + ort + ': schneller Räderwechsel, sichere Reifeneinlagerung, Reifen & Felgen sowie Fahrwerkstechnik und Bremsenservice. Jetzt bequem online Termin buchen.';
@@ -153,7 +192,7 @@ function renderHomepage(sektionen, f) {
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
-    '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
+    '<nav class="nav-links"><a href="#leistungen">Leistungen</a><a href="#termin-buchen">Termin buchen</a><a href="#oeffnungszeiten">Öffnungszeiten</a><a href="#kontakt">Kontakt</a>' +
     '<a class="btn-sm" href="/portal/">Kundenportal</a></nav>' +
     '</div></header>' +
     '<main>' + body + '</main>' +
@@ -209,9 +248,24 @@ function css() {
     ".kf-check{font-size:13px;color:#555;display:flex;gap:8px;align-items:flex-start;line-height:1.5}.kf-check input{width:auto;margin-top:3px}.kf-check a{color:#171717;text-decoration:underline}" +
     ".kf-ok{display:none;background:#e7f7ee;color:#0f6b3e;border:1px solid #b7e4cd;border-radius:8px;padding:12px 14px;font-size:14px}" +
     ".kf-err{display:none;background:#fdecea;color:#b3261e;border:1px solid #f5c6c2;border-radius:8px;padding:12px 14px;font-size:14px}" +
+    ".buchung{background:#171717}.buchung h2{color:#fff}.bk-intro{color:#cfcfcf;max-width:46em;margin:-10px 0 22px;font-size:16px}" +
+    ".bk-card{background:#fff;border-radius:16px;padding:26px;max-width:760px;box-shadow:0 18px 40px rgba(0,0,0,.35)}" +
+    ".bk-card label{display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px}" +
+    ".bk-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}" +
+    ".bk-card input,.bk-card select{width:100%;border:1px solid #d5d9e0;border-radius:9px;padding:12px 13px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}" +
+    ".bk-card input:focus,.bk-card select:focus{outline:none;border-color:#eab308}" +
+    ".bk-kz{display:flex;gap:5px;align-items:center}.bk-kz span{color:#999}.bk-kz input{text-align:center;font-family:monospace;text-transform:uppercase;padding:12px 4px}" +
+    ".bk-kz input:nth-child(1){flex:0 0 58px}.bk-kz input:nth-child(3){flex:0 0 46px}.bk-kz input:nth-child(5){flex:0 0 52px}.bk-kz input:nth-child(6){flex:0 0 40px}" +
+    ".bk-slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}.bk-slot{border:1px solid #d5d9e0;background:#fff;border-radius:8px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer;color:#1a1a1a}" +
+    ".bk-slot:hover{border-color:#eab308}.bk-slot.on{background:#eab308;border-color:#eab308;color:#171717}" +
+    ".bk-info{font-size:13px;color:#888;margin-top:8px}" +
+    ".bk-check{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:#555;text-transform:none;letter-spacing:0;font-weight:400;margin:16px 0 4px;line-height:1.5}.bk-check input{width:auto;margin-top:3px}.bk-check a{color:#171717;text-decoration:underline}" +
+    ".bk-card .btn{border:none;cursor:pointer;font-family:inherit;margin-top:14px;width:100%;justify-content:center}" +
+    ".bk-ok{display:none;background:#e7f7ee;color:#0f6b3e;border:1px solid #b7e4cd;border-radius:9px;padding:13px 15px;font-size:14px;margin-top:12px}" +
+    ".bk-err{display:none;background:#fdecea;color:#b3261e;border:1px solid #f5c6c2;border-radius:9px;padding:13px 15px;font-size:14px;margin-top:12px}" +
     ".foot{background:#171717;color:#cfcfcf;padding:40px 0;text-align:center}.foot-logo{display:flex;justify-content:center;margin-bottom:18px}.foot-logo svg{max-width:90%;height:auto}" +
     ".foot-links{font-size:13px}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:#eab308}" +
-    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}.wm svg{height:30px}}";
+    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}.wm svg{height:30px}}";
 }
 
 function script() {
@@ -226,6 +280,30 @@ function script() {
     "fetch('/api/kontakt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})" +
     ".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Fehler beim Senden.');return j;});})" +
     ".then(function(){ev.target.reset();ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
+    ".catch(function(x){er.textContent=x.message;er.style.display='block';})" +
+    ".then(function(){b.disabled=false;b.textContent=bt;});return false;}" +
+    // ── Online-Terminbuchung (Gast) ──
+    "var bkSel=null;" +
+    "function bkv(id){var e=document.getElementById(id);return e?e.value.trim():'';}" +
+    "(function(){var a=document.getElementById('bk-art');if(!a)return;" +
+    "var dt=document.getElementById('bk-datum');var n=new Date();dt.min=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2);" +
+    "fetch('/api/gast/artikel').then(function(r){return r.json();}).then(function(rows){(rows||[]).forEach(function(x){var o=document.createElement('option');o.value=x.id;o.textContent=x.name;a.appendChild(o);});}).catch(function(){});" +
+    "var sc=document.getElementById('bk-slots');if(sc){sc.addEventListener('click',function(ev){var t=ev.target;if(t&&t.className&&t.className.indexOf('bk-slot')!==-1){bkPick(t,t.getAttribute('data-von'));}});}" +
+    "})();" +
+    "function bkSlots(){bkSel=null;var art=bkv('bk-art'),datum=bkv('bk-datum');var w=document.getElementById('bk-slots-wrap'),sl=document.getElementById('bk-slots'),info=document.getElementById('bk-slots-info');if(!art||!datum){w.style.display='none';return;}w.style.display='block';sl.innerHTML='';info.textContent='Lädt …';" +
+    "fetch('/api/gast/slots?datum='+encodeURIComponent(datum)+'&artikel_id='+encodeURIComponent(art)).then(function(r){return r.json();}).then(function(d){info.textContent='';if(d.grund){info.textContent='An diesem Tag ist keine Buchung möglich ('+d.grund+'). Bitte einen anderen Tag wählen.';return;}if(!d.slots||!d.slots.length){info.textContent='Keine freien Zeiten an diesem Tag.';return;}sl.innerHTML=d.slots.map(function(s){return '<button type=button class=bk-slot data-von='+s.von+'>'+s.von+'</button>';}).join('');}).catch(function(){info.textContent='Zeiten konnten nicht geladen werden.';});}" +
+    "function bkPick(btn,von){bkSel=von;var all=document.querySelectorAll('.bk-slot');for(var i=0;i<all.length;i++)all[i].classList.remove('on');btn.classList.add('on');}" +
+    "function bkKz(){var k=[bkv('bk-kz1'),bkv('bk-kz2'),bkv('bk-kz3')].filter(Boolean).join('-');var k4=bkv('bk-kz4');if(k4)k+=' '+k4;return k.trim();}" +
+    "function gastBuchen(ev){ev.preventDefault();var ok=document.getElementById('bk-ok'),er=document.getElementById('bk-err');ok.style.display='none';er.style.display='none';var kz=bkKz();" +
+    "var d={name:bkv('bk-name'),telefon:bkv('bk-tel'),email:bkv('bk-email'),kennzeichen:kz,datum:bkv('bk-datum'),uhrzeit_von:bkSel,artikel_id:bkv('bk-art'),datenschutz:document.getElementById('bk-dsgvo').checked,website:bkv('bk-hp')};" +
+    "if(!d.artikel_id||!d.datum){er.textContent='Bitte Leistung und Datum wählen.';er.style.display='block';return false;}" +
+    "if(!d.uhrzeit_von){er.textContent='Bitte eine Uhrzeit wählen.';er.style.display='block';return false;}" +
+    "if(!d.name||!d.telefon||!d.email||!kz){er.textContent='Bitte Name, Telefon, E-Mail und Kennzeichen ausfüllen.';er.style.display='block';return false;}" +
+    "if(!d.datenschutz){er.textContent='Bitte stimmen Sie der Datenschutzerklärung zu.';er.style.display='block';return false;}" +
+    "var b=document.getElementById('bk-submit');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';" +
+    "fetch('/api/gast/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})" +
+    ".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})" +
+    ".then(function(j){ev.target.reset();bkSel=null;document.getElementById('bk-slots-wrap').style.display='none';ok.innerHTML='Vielen Dank! Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.';ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
     ".catch(function(x){er.textContent=x.message;er.style.display='block';})" +
     ".then(function(){b.disabled=false;b.textContent=bt;});return false;}" +
     "</scr" + "ipt>";

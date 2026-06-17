@@ -115,4 +115,27 @@ router.put('/banner', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Online-Buchungsbereich (Gäste) laden
+router.get('/buchung', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT buchung_aktiv, buchung_titel, buchung_text FROM einstellungen ORDER BY id LIMIT 1');
+    res.json(rows[0] || {});
+  } catch (e) { next(e); }
+});
+
+// Online-Buchungsbereich speichern + Homepage neu erzeugen
+router.put('/buchung', async (req, res, next) => {
+  try {
+    const { buchung_aktiv, buchung_titel, buchung_text } = req.body;
+    const upd = await query(
+      `UPDATE einstellungen SET buchung_aktiv=$1, buchung_titel=$2, buchung_text=$3
+       WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1) RETURNING buchung_aktiv`,
+      [buchung_aktiv === true, buchung_titel || null, buchung_text || null]
+    );
+    if (!upd.rows.length) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
+    await regenerate();
+    res.json({ message: 'Buchungsbereich gespeichert.' });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
