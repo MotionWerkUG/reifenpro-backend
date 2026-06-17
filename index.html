@@ -314,6 +314,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="ni" data-page="statistik">Statistik</div>
       <div class="ni" data-page="rechnungen">Rechnungen</div>
       <div class="ni" data-page="kontakt">Kontaktanfragen</div>
+      <div class="ni" data-page="gewerbeanf">Gewerbe-Anfragen</div>
       <div class="nsec">Team</div>
       <div class="ni" data-page="users">Mitarbeiter</div>
       <div class="ni" data-page="dsgvo">DSGVO-Anfragen</div>
@@ -330,6 +331,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
         </div>
         <div id="dash-freischalten"></div>
         <div id="dash-kontakt"></div>
+        <div id="dash-gewerbe"></div>
         <div class="stats">
           <div class="sc sc-a clickable" onclick="showPage('einlagerung')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
           <div class="sc sc-y"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
@@ -353,6 +355,15 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px"><input type="checkbox" id="ka-erledigte" onchange="renderKontakt()"> erledigte anzeigen</label>
         </div>
         <div id="ka-liste"></div>
+      </div>
+
+      <!-- GEWERBE-ANFRAGEN -->
+      <div class="page" id="page-gewerbeanf">
+        <div class="ph">
+          <div><div class="pt">Gewerbe-Anfragen</div><div id="gwa-count" style="font-size:12px;color:var(--muted);margin-top:2px"></div></div>
+          <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px"><input type="checkbox" id="gwa-erledigte" onchange="renderGewerbeAnf()"> erledigte anzeigen</label>
+        </div>
+        <div id="gwa-liste"></div>
       </div>
 
       <!-- KUNDEN -->
@@ -642,6 +653,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
       </div>
       <div class="fg full" id="nk-firma-wrap" style="display:none"><label>Firmenname *</label><input id="nk-firmenname" placeholder="z.B. Mustermann GmbH"></div>
       <div class="fg full" id="nk-ustid-wrap" style="display:none"><label>USt-IdNr. (optional)</label><input id="nk-ustid" placeholder="DE123456789"></div>
+      <div class="fg full" id="nk-gewerbe-wrap" style="display:none">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="nk-gewerbe"> Als Gewerbekunde (Sonderkonditionen)</label>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Konditionen (Rabatt/Festpreise) nach dem Speichern in der Kundenakte hinterlegen.</div>
+      </div>
       <div class="fg"><label id="nk-vn-lab">Vorname *</label><input id="nk-vn"></div>
       <div class="fg"><label id="nk-nn-lab">Nachname *</label><input id="nk-nn"></div>
       <div class="fg"><label>Telefon *</label><input id="nk-tel" type="tel"></div>
@@ -1370,8 +1385,9 @@ function showPage(n, fromPop) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
-  if (n === 'dashboard') { loadAktivitaet(); loadKontakt(); }
+  if (n === 'dashboard') { loadAktivitaet(); loadKontakt(); loadGewerbeAnf(); }
   if (n === 'kontakt') loadKontakt();
+  if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
   if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); }
   if (n === 'users') loadUsers();
@@ -1428,6 +1444,70 @@ function kontaktSenden(id) {
   api('POST', '/kontakt/' + id + '/antwort', { text: t }).then(function() { notify('Antwort gesendet.'); loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); });
 }
 function kontaktErledigt(id, val) { api('PATCH', '/kontakt/' + id, { erledigt: val }).then(function() { loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); }); }
+
+// ── GEWERBE-ANFRAGEN ──
+var allGewerbeAnf = [];
+function loadGewerbeAnf() {
+  api('GET', '/gewerbe').then(function(r) { allGewerbeAnf = r || []; renderGewerbeAnf(); gewerbeBanner(); }).catch(function() {});
+}
+function gewerbeBanner() {
+  var el = document.getElementById('dash-gewerbe'); if (!el) return;
+  var offen = allGewerbeAnf.filter(function(a) { return !a.erledigt; }).length;
+  el.innerHTML = offen
+    ? '<div class="pnl clickable" style="border-left:3px solid var(--accent);cursor:pointer;margin-bottom:14px" onclick="showPage(\'gewerbeanf\')"><strong>' + offen + ' offene Gewerbe-Anfrage' + (offen > 1 ? 'n' : '') + '</strong> — zum Bearbeiten klicken</div>'
+    : '';
+}
+function renderGewerbeAnf() {
+  var cb = document.getElementById('gwa-erledigte');
+  var zeigeErl = cb && cb.checked;
+  var offen = allGewerbeAnf.filter(function(a) { return !a.erledigt; }).length;
+  var cnt = document.getElementById('gwa-count'); if (cnt) cnt.textContent = offen + ' offen · ' + allGewerbeAnf.length + ' gesamt';
+  var el = document.getElementById('gwa-liste'); if (!el) return;
+  var list = allGewerbeAnf.filter(function(a) { return zeigeErl || !a.erledigt; });
+  if (!list.length) { el.innerHTML = '<div class="pnl" style="color:var(--muted)">Keine offenen Anfragen.</div>'; return; }
+  el.innerHTML = list.map(function(a) {
+    return '<div class="pnl" style="margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
+      '<div><strong>' + kEsc(a.firma) + '</strong>' + (a.erledigt ? ' <span style="color:#1a7f37;font-size:12px">erledigt</span>' : '') + '<br>' +
+      kEsc((a.anrede ? a.anrede + ' ' : '') + a.ansprechpartner) + '<br>' +
+      '<a href="mailto:' + kEsc(a.email) + '">' + kEsc(a.email) + '</a> · ' + kEsc(a.telefon) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);text-align:right">' + rDatum(a.erstellt_am) +
+      (a.ust_id ? '<br>USt-IdNr.: ' + kEsc(a.ust_id) : '') +
+      (a.anzahl_fahrzeuge ? '<br>' + a.anzahl_fahrzeuge + ' Fahrzeuge' : '') + '</div></div>' +
+      (a.nachricht ? '<div style="margin:10px 0;white-space:pre-wrap;background:var(--bg,#f6f7f9);padding:10px 12px;border-radius:8px">' + kEsc(a.nachricht) + '</div>' : '') +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+      (a.hat_dokument ? '<button class="btn btn-g btn-sm" onclick="gwAnfDoku(\'' + a.id + '\')">Gewerbeanmeldung ansehen</button>' : '<span style="font-size:12px;color:var(--muted);align-self:center">Kein Dokument</span>') +
+      (a.erledigt ? '' : '<button class="btn btn-p btn-sm" onclick="gwAnfNeuerKunde(\'' + a.id + '\')">Kunde anlegen</button>') +
+      (a.erledigt
+        ? '<button class="btn btn-g btn-sm" onclick="gwAnfErledigt(\'' + a.id + '\',false)">Als offen markieren</button>'
+        : '<button class="btn btn-g btn-sm" onclick="gwAnfErledigt(\'' + a.id + '\',true)">Als erledigt markieren</button>') +
+      '</div></div>';
+  }).join('');
+}
+function gwAnfDoku(id) {
+  fetch(API + '/gewerbe/' + id + '/dokument', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error('Dokument nicht verfügbar'); return r.blob(); })
+    .then(function(b) { var u = URL.createObjectURL(b); window.open(u, '_blank'); setTimeout(function() { URL.revokeObjectURL(u); }, 60000); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+function gwAnfErledigt(id, val) { api('PATCH', '/gewerbe/' + id, { erledigt: val }).then(function() { loadGewerbeAnf(); }).catch(function(e) { notify(e.message, 'err'); }); }
+function gwAnfNeuerKunde(id) {
+  var a = allGewerbeAnf.filter(function(x) { return x.id === id; })[0];
+  if (!a) return;
+  var parts = (a.ansprechpartner || '').trim().split(/\s+/);
+  var vn = parts.shift() || '';
+  var nn = parts.join(' ') || '';
+  var set = function(fid, v) { var e = document.getElementById(fid); if (e) e.value = v || ''; };
+  // Adress-/Fahrzeugfelder leeren, damit keine Reste eines vorherigen Kunden stehenbleiben
+  ['nk-str', 'nk-plz', 'nk-ort', 'nk-kz1', 'nk-kz2', 'nk-kz3', 'nk-kz4', 'nk-mo-man'].forEach(function(fid) { set(fid, ''); });
+  set('nk-kundentyp', 'firma'); nkKundentypChange();
+  set('nk-anrede', a.anrede === 'Frau' ? 'Frau' : 'Herr');
+  set('nk-firmenname', a.firma); set('nk-ustid', a.ust_id);
+  set('nk-vn', vn); set('nk-nn', nn); set('nk-tel', a.telefon); set('nk-mail', a.email);
+  var gc = document.getElementById('nk-gewerbe'); if (gc) gc.checked = true;
+  NK_FROM_ANFRAGE = id;
+  openModal('nk', false);
+}
 
 // ── RECHNUNGEN ──
 var allRechnungen = [];
@@ -1678,6 +1758,7 @@ function notify(msg, t) {
 function openModal(n, resetForm) {
   if (n === 'ne') fillNeForm();
   if (n === 'nt') fillNtForm();
+  if (n === 'nk' && resetForm !== false) NK_FROM_ANFRAGE = null;
   var el = document.getElementById('m-' + n);
   if (el) el.classList.add('open');
 }
@@ -1853,6 +1934,8 @@ function nkKundentypChange() {
   var firma = typ === 'firma';
   var fw = document.getElementById('nk-firma-wrap'); if (fw) fw.style.display = firma ? '' : 'none';
   var uw = document.getElementById('nk-ustid-wrap'); if (uw) uw.style.display = firma ? '' : 'none';
+  var gw = document.getElementById('nk-gewerbe-wrap'); if (gw) gw.style.display = firma ? '' : 'none';
+  if (!firma) { var gc = document.getElementById('nk-gewerbe'); if (gc) gc.checked = false; }
   var vl = document.getElementById('nk-vn-lab'), nl = document.getElementById('nk-nn-lab');
   if (vl) vl.textContent = firma ? 'Ansprechpartner Vorname *' : 'Vorname *';
   if (nl) nl.textContent = firma ? 'Ansprechpartner Nachname *' : 'Nachname *';
@@ -2425,22 +2508,29 @@ function saveNK() {
   var kz = kzAusTeilen('nk-');
   var ezJahr = gv('nk-ez-jahr');
   var moVal = document.getElementById('nk-mo-sel').value === '__man__' ? gv('nk-mo-man') : gv('nk-mo-sel');
+  var istGewerbe = kundentyp === 'firma' && document.getElementById('nk-gewerbe') && document.getElementById('nk-gewerbe').checked;
   var data = {
     vorname: vn, nachname: nn, telefon: tel, email: mail,
     anrede: gv('nk-anrede'),
     firma: kundentyp === 'firma' ? gv('nk-firmenname') : null,
     ust_id: kundentyp === 'firma' ? (gv('nk-ustid') || null) : null,
+    ist_gewerbe: istGewerbe,
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
     fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null
   };
   sendeNeuerKunde(data, false);
 }
+var NK_FROM_ANFRAGE = null;
 function sendeNeuerKunde(data, force) {
   var payload = force ? Object.assign({}, data, { force: true }) : data;
   api('POST', '/kunden', payload).then(function(k) {
     allK.unshift(Object.assign({}, k, { aktive_einlagerungen: 0 }));
     buildAlphaBar(); renderK(); closeModal('nk'); notify('Kunde gespeichert!');
+    if (NK_FROM_ANFRAGE) {
+      api('PATCH', '/gewerbe/' + NK_FROM_ANFRAGE, { erledigt: true }).then(function() { loadGewerbeAnf(); }).catch(function() {});
+      NK_FROM_ANFRAGE = null;
+    }
     if (document.getElementById('nk-dsgvo').checked) {
       aktK = k;
       setTimeout(function() { oeffneDsgvo(); }, 400);

@@ -164,6 +164,44 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="auth-switch">
       <span data-i18n="have_account">Bereits registriert?</span> <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
     </div>
+    <div class="auth-switch" style="margin-top:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)">
+      <span data-i18n="gewerbe_link_q">Sie sind Gewerbekunde?</span> <a onclick="zeigeScreen('gewerbe')" data-i18n="gewerbe_link">Zugang anfragen</a>
+    </div>
+  </div>
+</div>
+
+<!-- GEWERBE-ZUGANG ANFRAGEN -->
+<div id="screen-gewerbe" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="gewerbe_sub">Gewerbe-Zugang anfragen</div>
+    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 16px" data-i18n="gewerbe_intro">Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.</p>
+    <div id="gw-err" class="auth-err hidden"></div>
+    <div id="gw-ok" class="auth-ok hidden"></div>
+    <div class="fg"><label data-i18n="company">Firma</label><input id="gw-firma"></div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="salutation">Anrede</label>
+        <select id="gw-anrede"><option value="">—</option><option value="Herr">Herr</option><option value="Frau">Frau</option></select></div>
+      <div class="fg"><label data-i18n="contact_person">Ansprechpartner</label><input id="gw-ap"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="email">E-Mail</label><input id="gw-email" type="email" autocapitalize="none" autocorrect="off"></div>
+      <div class="fg"><label data-i18n="phone_req">Telefon</label><input id="gw-tel" type="tel"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="vat_id">USt-IdNr. (optional)</label><input id="gw-ustid"></div>
+      <div class="fg"><label data-i18n="vehicle_count">Anzahl Fahrzeuge (optional)</label><input id="gw-anzahl" type="number" min="1"></div>
+    </div>
+    <div class="fg"><label data-i18n="message_opt">Nachricht (optional)</label><textarea id="gw-nachricht" rows="3" style="width:100%;background:var(--panel,#181818);color:var(--text,#ececec);border:1px solid var(--border2,#2e2e2e);border-radius:8px;padding:10px 12px;font:inherit;resize:vertical"></textarea></div>
+    <div class="fg"><label data-i18n="business_reg_upload">Gewerbeanmeldung hochladen (PDF/Bild, optional)</label><input id="gw-datei" type="file" accept="application/pdf,image/*"></div>
+    <label class="check-row">
+      <input type="checkbox" id="gw-dsgvo">
+      <span><span data-i18n="accept_dsgvo">Ich habe die</span> <a onclick="zeigeDsgvo()" data-i18n="dsgvo_link">Datenschutzerklärung</a> <span data-i18n="accept_read">gelesen und akzeptiere sie.</span></span>
+    </label>
+    <button class="btn btn-p" onclick="gewerbeAnfrage()" data-i18n="gewerbe_send">Anfrage senden</button>
+    <div class="auth-switch">
+      <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
   </div>
 </div>
 
@@ -376,7 +414,14 @@ var I18N = {
     booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
-    no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...'
+    no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
+    gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
+    gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
+    company: 'Firma', salutation: 'Anrede', contact_person: 'Ansprechpartner', phone_req: 'Telefon',
+    vat_id: 'USt-IdNr. (optional)', vehicle_count: 'Anzahl Fahrzeuge (optional)', message_opt: 'Nachricht (optional)',
+    business_reg_upload: 'Gewerbeanmeldung hochladen (PDF/Bild, optional)', gewerbe_send: 'Anfrage senden',
+    gewerbe_ok: 'Vielen Dank. Wir haben Ihre Anfrage erhalten und melden uns in Kürze bei Ihnen.',
+    gewerbe_fields: 'Bitte Firma, Ansprechpartner, Telefon und E-Mail ausfüllen.', file_too_big: 'Datei zu groß (max. 15 MB).'
   },
   en: {
     login_sub: 'Customer Portal — Sign In', email: 'Email', password: 'Password',
@@ -408,7 +453,14 @@ var I18N = {
     booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
-    no_slots: 'No available times on this day.', loading: 'Loading...'
+    no_slots: 'No available times on this day.', loading: 'Loading...',
+    gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
+    gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
+    company: 'Company', salutation: 'Salutation', contact_person: 'Contact person', phone_req: 'Phone',
+    vat_id: 'VAT ID (optional)', vehicle_count: 'Number of vehicles (optional)', message_opt: 'Message (optional)',
+    business_reg_upload: 'Upload business registration (PDF/image, optional)', gewerbe_send: 'Send request',
+    gewerbe_ok: 'Thank you. We have received your request and will get back to you shortly.',
+    gewerbe_fields: 'Please fill in company, contact person, phone and email.', file_too_big: 'File too large (max. 15 MB).'
   }
 };
 function t(key) { return (I18N[LANG] && I18N[LANG][key]) || (I18N.de[key]) || key; }
@@ -454,7 +506,7 @@ function notify(msg, typ) {
 }
 
 function zeigeScreen(s) {
-  ['login', 'register', 'reset', 'app'].forEach(function(x) {
+  ['login', 'register', 'gewerbe', 'reset', 'app'].forEach(function(x) {
     document.getElementById('screen-' + x).classList.add('hidden');
   });
   document.getElementById('screen-' + s).classList.remove('hidden');
@@ -523,6 +575,52 @@ function portalRegister() {
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
   });
+}
+
+// Gewerbe-Zugang-Anfrage (oeffentlich, nicht unter /portal)
+var APIROOT = API.replace(/\/portal$/, '');
+function gewerbeAnfrage() {
+  var errEl = document.getElementById('gw-err');
+  var okEl = document.getElementById('gw-ok');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  var firma = document.getElementById('gw-firma').value.trim();
+  var ap = document.getElementById('gw-ap').value.trim();
+  var tel = document.getElementById('gw-tel').value.trim();
+  var email = document.getElementById('gw-email').value.trim();
+  var dsgvo = document.getElementById('gw-dsgvo').checked;
+  if (!firma || !ap || !tel || !email) { errEl.textContent = t('gewerbe_fields'); errEl.classList.remove('hidden'); return; }
+  if (!dsgvo) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+
+  function senden(dokument) {
+    var btn = document.querySelector('#screen-gewerbe .btn-p');
+    if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
+    fetch(APIROOT + '/gewerbe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firma: firma, anrede: document.getElementById('gw-anrede').value || null, ansprechpartner: ap,
+        ust_id: document.getElementById('gw-ustid').value.trim() || null, telefon: tel, email: email,
+        anzahl_fahrzeuge: document.getElementById('gw-anzahl').value || null,
+        nachricht: document.getElementById('gw-nachricht').value.trim() || null,
+        datenschutz: true, dokument: dokument || null
+      })
+    }).then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error(j.error || 'Fehler'); return j; }); })
+      .then(function() {
+        okEl.textContent = t('gewerbe_ok'); okEl.classList.remove('hidden');
+        ['gw-firma', 'gw-ap', 'gw-tel', 'gw-email', 'gw-ustid', 'gw-anzahl', 'gw-nachricht'].forEach(function(id) { document.getElementById(id).value = ''; });
+        document.getElementById('gw-datei').value = ''; document.getElementById('gw-dsgvo').checked = false;
+        setTimeout(function() { zeigeScreen('login'); }, 4000);
+      }).catch(function(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); })
+      .then(function() { if (btn) { btn.disabled = false; btn.textContent = t('gewerbe_send'); } });
+  }
+
+  var f = document.getElementById('gw-datei').files[0];
+  if (f) {
+    if (f.size > 15 * 1024 * 1024) { errEl.textContent = t('file_too_big'); errEl.classList.remove('hidden'); return; }
+    var rd = new FileReader();
+    rd.onload = function() { senden(rd.result); };
+    rd.onerror = function() { senden(null); };
+    rd.readAsDataURL(f);
+  } else { senden(null); }
 }
 
 function portalPwReset() {
