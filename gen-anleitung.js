@@ -9,6 +9,29 @@ const DARK = '#171717';
 const GREY = '#666666';
 const LIGHT = '#999999';
 const ZIEL = process.argv[2] || '/tmp/anleitung.pdf';
+const IMG_DIR = process.argv[4] || null; // Ordner mit Screenshots (optional)
+
+// Zuordnung Kapitel-Titel -> Screenshot-Dateiname (im IMG_DIR). Fehlt die Datei, wird sie uebersprungen.
+const IMG_MAP = {
+  'Anmeldung im Admin-Bereich': '02-anmeldung.png',
+  'Dashboard (Startseite)': '03-dashboard.png',
+  'Kunden verwalten': '04-kunden.png',
+  'Einlagerung (Räder einlagern)': '05-einlagerung.png',
+  'Lagerplan': '06-lagerplan.png',
+  'Kalender und Termine': '07-kalender.png',
+  'Werkstatt': '08-werkstatt.png',
+  'Rechnungen': '09-rechnungen.png',
+  'Kontaktanfragen': '10-kontaktanfragen.png',
+  'Gewerbe-Anfragen': '11-gewerbe-anfragen.png',
+  'Statistik': '12-statistik.png',
+  'Mitarbeiter': '13-mitarbeiter.png',
+  'DSGVO-Anfragen': '14-dsgvo-anfragen.png',
+  'Einstellungen': '15-einstellungen.png',
+  'Homepage-Baukasten (CMS)': '16-cms.png',
+  'Online-Terminbuchung (Kundensicht)': '17-terminbuchung.png',
+  'Kundenportal (Kundensicht)': '18-kundenportal.png',
+  'Gewerbe-Zugang anfragen (Kundensicht)': '19-gewerbe-zugang.png'
+};
 
 // ── INHALT ──────────────────────────────────────────────────────────────────
 // Bloecke: {p}=Absatz, {h}=Unterueberschrift (kommt ins Inhaltsverzeichnis),
@@ -365,11 +388,31 @@ function note(text) {
   doc.y = top + h;
   doc.moveDown(0.6);
 }
+function image(filename, caption) {
+  if (!IMG_DIR) return;
+  var base = filename.replace(/\.[a-z]+$/i, '');
+  var p = null;
+  ['.png', '.jpg', '.jpeg', '.PNG', '.JPG'].forEach(function (ext) { if (!p && fs.existsSync(path.join(IMG_DIR, base + ext))) p = path.join(IMG_DIR, base + ext); });
+  if (!p) return; // kein Screenshot vorhanden -> ueberspringen
+  var maxH = 380, w, h;
+  try { var im = doc.openImage(p); var sc = Math.min(CW / im.width, maxH / im.height); w = im.width * sc; h = im.height * sc; }
+  catch (e) { w = CW; h = maxH; } // Fallback: feste Box
+  var capH = caption ? 16 : 0;
+  if (doc.y + h + capH + 12 > BOTTOM) doc.addPage();
+  var x = ML + (CW - w) / 2, top = doc.y;
+  try { doc.image(p, x, top, { width: w }); } catch (e) { return; }
+  doc.rect(x, top, w, h).lineWidth(0.5).stroke('#dddddd');
+  doc.y = top + h + 4;
+  if (caption) { doc.font('Helvetica-Oblique').fontSize(9).fill(LIGHT).text(caption, ML, doc.y, { width: CW, align: 'center' }); }
+  doc.moveDown(0.8);
+  doc.fill('#000');
+}
 
 KAPITEL.forEach(function (k, i) {
   heading1((i + 1) + '. ' + k.t, i === 0);
   // Seitenzahl fuer das Kapitel im IV merken
   toc.filter(function (e) { return e.ref === k; }).forEach(function (e) { e.page = curPage; });
+  if (IMG_MAP[k.t]) image(IMG_MAP[k.t], 'Abbildung: ' + k.t);
   (k.body || []).forEach(function (b) {
     if (b.h) { heading2(b.h); toc.filter(function (e) { return e.ref === b; }).forEach(function (e) { e.page = curPage; }); }
     else if (b.p) para(b.p);
