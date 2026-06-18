@@ -345,10 +345,11 @@ function bullets(arr) {
   doc.moveDown(0.2);
 }
 function note(text) {
-  need(50);
-  var top = doc.y, pad = 10;
-  doc.font('Helvetica-Oblique').fontSize(10).fill('#5a4500');
-  var h = doc.heightOfString(text, { width: CW - 2 * pad - 6 }) + 2 * pad;
+  var pad = 10;
+  doc.font('Helvetica-Oblique').fontSize(10);
+  var h = doc.heightOfString('Hinweis: ' + text, { width: CW - 2 * pad - 6, lineGap: 2 }) + 2 * pad;
+  if (doc.y + h > BOTTOM) doc.addPage();
+  var top = doc.y;
   doc.rect(ML, top, CW, h).fill('#fff7e6');
   doc.rect(ML, top, 4, h).fill(ACCENT);
   doc.fill('#5a4500').font('Helvetica-Oblique').fontSize(10).text('Hinweis: ' + text, ML + pad + 6, top + pad, { width: CW - 2 * pad - 6, lineGap: 2 });
@@ -388,11 +389,14 @@ var total = curPage;
 for (var pi = 0; pi < total; pi++) {
   doc.switchToPage(pi);
   if (pi === 0) continue; // Deckblatt ohne Fusszeile
+  // Unteren Rand temporaer aufheben, damit das Schreiben in der Fusszeile KEINE neue Seite erzeugt
+  doc.page.margins.bottom = 0;
   doc.font('Helvetica').fontSize(8.5).fill(LIGHT);
   doc.text('ReifenPro – Bedienungsanleitung', ML, PH - 42, { width: CW, align: 'left', lineBreak: false });
   doc.text('Seite ' + (pi + 1) + ' von ' + total, ML, PH - 42, { width: CW, align: 'right', lineBreak: false });
 }
 
+const endCount = doc.bufferedPageRange().count;
 doc.flushPages();
 doc.end();
-console.log('PDF erzeugt:', ZIEL, '(' + total + ' Seiten)');
+console.log('PDF erzeugt:', ZIEL, '(' + total + ' Seiten geplant, ' + endCount + ' tatsächlich im Dokument)');
