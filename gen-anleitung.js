@@ -305,9 +305,18 @@ const tocStartIndex = curPage; // 0-basiert: Index der ersten IV-Seite
 for (var tp = 0; tp < tocPages; tp++) doc.addPage();
 
 // Inhalt rendern
-function heading1(text) {
-  doc.addPage();
-  doc.font('Helvetica-Bold').fontSize(17).fill(DARK).text(text, ML, doc.y);
+function heading1(text, isFirst) {
+  if (isFirst) {
+    doc.addPage();
+  } else if (doc.y + 130 > BOTTOM) {
+    doc.addPage(); // nicht genug Platz fuer Ueberschrift + Einstieg -> neue Seite
+  } else {
+    // genug Platz: Kapitel auf derselben Seite fortsetzen, mit dezenter Trennung
+    doc.moveDown(1.1);
+    doc.moveTo(ML, doc.y).lineTo(ML + CW, doc.y).lineWidth(0.5).stroke('#e2e2e2');
+    doc.moveDown(1.0);
+  }
+  doc.font('Helvetica-Bold').fontSize(16).fill(DARK).text(text, ML, doc.y);
   doc.moveTo(ML, doc.y + 3).lineTo(ML + CW, doc.y + 3).lineWidth(2).stroke(ACCENT);
   doc.moveDown(0.8);
   doc.fill('#000');
@@ -358,7 +367,7 @@ function note(text) {
 }
 
 KAPITEL.forEach(function (k, i) {
-  heading1((i + 1) + '. ' + k.t);
+  heading1((i + 1) + '. ' + k.t, i === 0);
   // Seitenzahl fuer das Kapitel im IV merken
   toc.filter(function (e) { return e.ref === k; }).forEach(function (e) { e.page = curPage; });
   (k.body || []).forEach(function (b) {
