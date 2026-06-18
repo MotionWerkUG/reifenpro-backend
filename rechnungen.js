@@ -152,6 +152,68 @@ router.get('/statistik', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
+router.get('/export', async (req, res, next) => {
+  try {
+    const jahr = parseInt(req.query.jahr) || new Date().getFullYear();
+    const { rows } = await query(
+      `SELECT rechnungsnr, status, to_char(rechnungsdatum,'YYYY-MM-DD') AS rechnungsdatum,
+              to_char(leistungsdatum,'YYYY-MM-DD') AS leistungsdatum, to_char(faelligkeit,'YYYY-MM-DD') AS faelligkeit,
+              empfaenger_name, empfaenger_firma, empfaenger_plz, empfaenger_ort,
+              netto_summe, mwst_summe, brutto_summe, zahlungsstatus, to_char(bezahlt_am,'YYYY-MM-DD') AS bezahlt_am,
+              (storno_von_id IS NOT NULL) AS ist_storno, to_char(festgeschrieben_am,'YYYY-MM-DD"T"HH24:MI:SS') AS festgeschrieben_am
+       FROM rechnungen
+       WHERE status='festgeschrieben' AND EXTRACT(YEAR FROM rechnungsdatum)=$1
+       ORDER BY rechnungsnr`,
+      [jahr]
+    );
+    const sep = ';';
+    const num = (n) => (Number(n) || 0).toFixed(2).replace('.', ',');
+    const cell = (v) => { const s = (v == null ? '' : String(v)); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const kopf = ['Rechnungsnr', 'Status', 'Rechnungsdatum', 'Leistungsdatum', 'Faelligkeit', 'Empfaenger', 'Firma', 'PLZ', 'Ort', 'Netto', 'MwSt', 'Brutto', 'Zahlungsstatus', 'Bezahlt am', 'Storno', 'Festgeschrieben am'];
+    const zeilen = rows.map((r) => [r.rechnungsnr, r.status, r.rechnungsdatum, r.leistungsdatum, r.faelligkeit,
+      r.empfaenger_name, r.empfaenger_firma, r.empfaenger_plz, r.empfaenger_ort,
+      num(r.netto_summe), num(r.mwst_summe), num(r.brutto_summe), r.zahlungsstatus, r.bezahlt_am,
+      r.ist_storno ? 'ja' : 'nein', r.festgeschrieben_am].map(cell).join(sep));
+    const csv = '﻿' + [kopf.join(sep)].concat(zeilen).join('\r\n') + '\r\n';
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.export', tabelle: 'rechnungen', datensatzId: null, neueWerte: { jahr: jahr, anzahl: rows.length }, req });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="Rechnungsjournal-' + jahr + '.csv"');
+    res.send(csv);
+  } catch (e) { next(e); }
+});
+
+// ── GET /verfahrensdokumentation ── GoBD: Verfahrensdokumentation als druckbares HTML ──
+router.get('/verfahrensdokumentation', async (req, res, next) => {
+  try {
+    const e = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const firma = esc(e.firmenname || 'Schröder & Scholz');
+    const adr = [e.strasse, [e.plz, e.ort].filter(Boolean).join(' ')].filter(Boolean).map(esc).join(', ');
+    const stand = new Date().toISOString().substring(0, 10);
+    const steuer = [e.steuernummer ? 'Steuernr. ' + esc(e.steuernummer) : '', e.ust_id ? 'USt-IdNr. ' + esc(e.ust_id) : ''].filter(Boolean).join(' · ') || '— (in den Einstellungen hinterlegen) —';
+    const html = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>Verfahrensdokumentation – ' + firma + '</title>' +
+      '<style>body{font-family:-apple-system,Arial,sans-serif;max-width:820px;margin:30px auto;padding:0 20px;line-height:1.6;color:#1a1a1a}' +
+      'h1{font-size:22px}h2{font-size:16px;margin-top:26px;border-bottom:2px solid #eab308;padding-bottom:4px}' +
+      'table{border-collapse:collapse;width:100%;margin:8px 0}td{border:1px solid #ddd;padding:6px 9px;font-size:14px;vertical-align:top}' +
+      '.muted{color:#777;font-size:13px}@media print{body{margin:0}}</style></head><body>' +
+      '<h1>Verfahrensdokumentation zur Rechnungserstellung</h1>' +
+      '<p class="muted">' + firma + (adr ? ', ' + adr : '') + ' · ' + steuer + '<br>Stand: ' + stand + ' · System: ReifenPro (Eigenentwicklung)</p>' +
+      '<h2>1. Zweck und Geltungsbereich</h2><p>Diese Dokumentation beschreibt das eingesetzte Verfahren zur Erstellung, Festschreibung, Aufbewahrung und Stornierung von Ausgangsrechnungen gemäß GoBD und § 14 UStG.</p>' +
+      '<h2>2. Rechnungsnummern</h2><p>Die Vergabe erfolgt automatisch, fortlaufend und lückenlos im Format <strong>RE-JJJJ-NNNN</strong> (Jahr + laufende Nummer). Die Vergabe geschieht atomar in einer Datenbank-Transaktion über einen Zähler je Jahr; doppelte Nummern sind durch eine Eindeutigkeits-Beschränkung technisch ausgeschlossen.</p>' +
+      '<h2>3. Festschreibung und Unveränderbarkeit</h2><p>Eine Rechnung ist zunächst ein <em>Entwurf</em> und änderbar. Mit dem <em>Festschreiben</em> erhält sie die Rechnungsnummer, ein eingefrorenes Aussteller- und Empfänger-Abbild sowie ein erzeugtes PDF; danach ist sie technisch gegen Änderung und Löschung gesperrt. Pflichtangaben nach § 14 UStG (Empfänger, ab 250 € vollständige Anschrift, Steuernr./USt-IdNr.) werden vor dem Festschreiben geprüft.</p>' +
+      '<h2>4. Korrekturen / Storno</h2><p>Festgeschriebene Rechnungen werden nicht gelöscht oder geändert. Korrekturen erfolgen ausschließlich über eine <strong>Stornorechnung</strong> mit eigener fortlaufender Nummer und negativen Beträgen, die auf die Originalrechnung verweist. Das Original bleibt erhalten und wird als „storniert" gekennzeichnet.</p>' +
+      '<h2>5. Protokollierung (Nachvollziehbarkeit)</h2><p>Alle relevanten Vorgänge (Entwurf anlegen/ändern, Festschreiben, Storno, Zahlungsstatus, Mahnung, Export) werden mit Benutzer, Zeitpunkt und Vorgang in einem Änderungs-/Audit-Protokoll erfasst.</p>' +
+      '<h2>6. Aufbewahrung</h2><p>Rechnungen (Datensatz und PDF) werden gemäß § 147 AO / § 14b UStG <strong>10 Jahre</strong> aufbewahrt und maschinell auswertbar vorgehalten. Ein Export des Rechnungsjournals als CSV steht für die Betriebsprüfung zur Verfügung.</p>' +
+      '<h2>7. Technik und Datensicherung</h2><p>Betrieb auf einem Server (PostgreSQL-Datenbank, Node.js-Anwendung). <span class="muted">Hinweis: Das Datensicherungskonzept (regelmäßige Backups, Aufbewahrung der Sicherungen) ist organisatorisch festzulegen und hier zu ergänzen.</span></p>' +
+      '<h2>8. Verantwortlich</h2><p>' + esc(e.inhaber || firma) + '</p>' +
+      '<p class="muted" style="margin-top:30px">Diese Dokumentation ist eine Vorlage. Bitte durch Steuerberater prüfen und um das individuelle Datensicherungs- und Zugriffskonzept ergänzen.</p>' +
+      '</body></html>';
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (e) { next(e); }
+});
+
 // ── GET /:id ── Detail inkl. Positionen
 router.get('/:id', async (req, res, next) => {
   try {
@@ -281,6 +343,7 @@ router.put('/:id', async (req, res, next) => {
       await client.query('DELETE FROM rechnung_positionen WHERE rechnung_id=$1', [req.params.id]);
       await insertPositionen(client, req.params.id, s.positionen);
     });
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.entwurf_geaendert', tabelle: 'rechnungen', datensatzId: req.params.id, req });
     const out = await query('SELECT * FROM rechnungen WHERE id=$1', [req.params.id]);
     res.json(out.rows[0]);
   } catch (e) { next(e); }

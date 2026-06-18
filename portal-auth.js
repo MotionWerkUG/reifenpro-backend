@@ -132,6 +132,12 @@ router.post('/registrieren', async (req, res, next) => {
       ).catch(() => {});
     }
 
+    // Werbe-/Saison-Einwilligung nur per Double-Opt-in wirksam: Bestaetigungsmail senden
+    if (saison) {
+      try { await require('../lib/einwilligung').sendeDoi({ id: kundeId, vorname: vorname, nachname: nachname, anrede: null, email: email }, einst); }
+      catch (e) { console.error('[DOI-Mail]', e.message); }
+    }
+
     res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
   } catch (e) { next(e); }
 });

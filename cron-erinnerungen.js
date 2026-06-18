@@ -87,11 +87,12 @@ async function saisonErinnerung() {
   if (!saison) { console.log('[' + new Date().toISOString() + '] Keine Saison-Erinnerung heute.'); return; }
 
   const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-  // Kunden mit Einwilligung und aktiver Einlagerung
+  // Nur Kunden mit per Double-Opt-in BESTAETIGTER Einwilligung
   const { rows } = await query(
     `SELECT DISTINCT k.id, k.vorname, k.nachname, k.portal_email, k.email
      FROM kunden k
      WHERE k.einwilligung_saison_erinnerung = true
+       AND k.einwilligung_saison_bestaetigt = true
        AND (k.portal_email IS NOT NULL OR k.email IS NOT NULL)
        AND k.aktiv = true`
   );
@@ -162,12 +163,33 @@ async function huWarnung() {
   console.log('[' + new Date().toISOString() + '] HU-Warnungen gesendet:', gesendet);
 }
 
+// ── LOESCHKONZEPT / DATENSPARSAMKEIT ──
+// (1) Personenbezug alter GAST-Termine (ohne Kundenkonto) nach 24 Monaten entfernen (Statistik-Zeile bleibt).
+// (2) Werbung stoppen, wo die Einwilligung trotz Aufforderung nicht per Double-Opt-in bestaetigt wurde
+//     (Token abgelaufen). Es werden KEINE Kundendaten geloescht (Aufbewahrungspflicht bleibt gewahrt).
+async function loeschkonzept() {
+  const anon = await query(
+    `UPDATE termine SET kontakt_name=NULL, kontakt_anrede=NULL, kontakt_vorname=NULL, kontakt_nachname=NULL,
+       kontakt_telefon=NULL, kontakt_email=NULL, kontakt_strasse=NULL, kontakt_plz=NULL, kontakt_ort=NULL,
+       kennzeichen=NULL, beschreibung='(anonymisiert nach Aufbewahrungsfrist)'
+     WHERE kunden_id IS NULL AND datum < (CURRENT_DATE - INTERVAL '24 months')
+       AND (kontakt_name IS NOT NULL OR kontakt_email IS NOT NULL OR kennzeichen IS NOT NULL)`
+  );
+  const stop = await query(
+    `UPDATE kunden SET einwilligung_saison_erinnerung=false, einwilligung_token=NULL, einwilligung_token_ablauf=NULL
+     WHERE einwilligung_saison_erinnerung=true AND einwilligung_saison_bestaetigt IS NOT TRUE
+       AND einwilligung_token_ablauf IS NOT NULL AND einwilligung_token_ablauf < NOW()`
+  );
+  console.log('[' + new Date().toISOString() + '] Loeschkonzept: ' + (anon.rowCount || 0) + ' Gast-Termine anonymisiert, ' + (stop.rowCount || 0) + ' unbestaetigte Werbe-Einwilligungen gestoppt.');
+}
+
 // ── HAUPTLAUF ──
 (async () => {
   try {
     await terminErinnerungen();
     await saisonErinnerung();
     await huWarnung();
+    await loeschkonzept();
   } catch (e) {
     console.error('Cron-Fehler:', e.message);
   } finally {

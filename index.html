@@ -370,7 +370,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="page" id="page-kunden">
         <div class="ph">
           <div><div class="pt">Kunden</div><div id="k-count" style="font-size:12px;color:var(--muted);margin-top:2px"></div></div>
-          <button class="btn btn-p" onclick="openModal('nk')">+ Neuer Kunde</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-g btn-sm" onclick="einwilligungReconfirm()" title="Double-Opt-in: Bestätigung der Werbe-Einwilligung erneut anfordern">Werbe-Einwilligung bestätigen lassen</button>
+            <button class="btn btn-p" onclick="openModal('nk')">+ Neuer Kunde</button>
+          </div>
         </div>
         <div class="sr">
           <input type="text" id="k-search" placeholder="Name, Kennzeichen, Telefon, E-Mail..." oninput="renderK()">
@@ -528,7 +531,13 @@ tr:hover td { background: rgba(255,255,255,.02); }
 
       <!-- RECHNUNGEN -->
       <div class="page" id="page-rechnungen">
-        <div class="ph"><div class="pt">Rechnungen</div><button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button></div>
+        <div class="ph"><div class="pt">Rechnungen</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-g btn-sm" onclick="rechnungExport()">CSV-Export (GoBD)</button>
+            <button class="btn btn-g btn-sm" onclick="verfahrensdoku()">Verfahrensdoku</button>
+            <button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button>
+          </div>
+        </div>
         <div id="r-statistik"></div>
         <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <select id="r-filter-status" onchange="renderRechnungen()" style="max-width:200px">
@@ -1860,6 +1869,28 @@ function rechnungPdf(id) {
   fetch(API + '/rechnungen/' + id + '/pdf', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
     .then(function(r) { if (!r.ok) throw new Error('PDF nicht verfügbar'); return r.blob(); })
     .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+function rechnungExport() {
+  var jahr = prompt('Rechnungsjournal als CSV exportieren – für welches Jahr?', String(new Date().getFullYear()));
+  if (!jahr) return;
+  fetch(API + '/rechnungen/export?jahr=' + encodeURIComponent(jahr), { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error('Export nicht verfügbar'); return r.blob(); })
+    .then(function(b) {
+      var u = URL.createObjectURL(b); var a = document.createElement('a');
+      a.href = u; a.download = 'Rechnungsjournal-' + jahr + '.csv'; document.body.appendChild(a); a.click();
+      a.remove(); setTimeout(function() { URL.revokeObjectURL(u); }, 30000);
+      notify('CSV-Export erstellt.');
+    }).catch(function(e) { notify(e.message, 'err'); });
+}
+function einwilligungReconfirm() {
+  if (!confirm('Allen Kunden, die saisonale Erinnerungen wünschen, aber noch nicht per Double-Opt-in bestätigt haben, eine Bestätigungs-E-Mail senden?\n\nKundendaten werden dabei NICHT gelöscht.')) return;
+  api('POST', '/kunden/einwilligung-reconfirm', {}).then(function(r) { notify(r.message || 'Versendet.'); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function verfahrensdoku() {
+  fetch(API + '/rechnungen/verfahrensdokumentation', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error('Nicht verfügbar'); return r.blob(); })
+    .then(function(b) { var u = URL.createObjectURL(b); window.open(u, '_blank'); setTimeout(function() { URL.revokeObjectURL(u); }, 60000); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
 

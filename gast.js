@@ -167,6 +167,21 @@ router.get('/slots', limiter, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Double-Opt-in: Bestaetigung der Werbe-/Saison-Einwilligung per Link aus der Mail
+router.get('/einwilligung/bestaetigen', async (req, res, next) => {
+  try {
+    const seite = (titel, text) => '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + titel + ' — Schröder &amp; Scholz</title>' +
+      '<style>body{font-family:-apple-system,Arial,sans-serif;background:#f4f5f7;color:#1a1a1a;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}.box{background:#fff;border-radius:16px;padding:34px 30px;max-width:460px;text-align:center;box-shadow:0 14px 34px rgba(0,0,0,.1);border-top:4px solid #eab308}h1{font-size:20px;color:#171717;margin:0 0 10px}p{color:#555;font-size:15px}a{color:#171717}</style></head><body><div class="box"><h1>' + titel + '</h1><p>' + text + '</p><p style="margin-top:18px"><a href="https://www.schroeder-scholz.de/">Zur Startseite</a></p></div></body></html>';
+    const token = req.query.token;
+    if (!token) return res.status(400).send(seite('Link unvollständig', 'Der Bestätigungslink ist nicht vollständig.'));
+    const k = (await query('SELECT id FROM kunden WHERE einwilligung_token=$1 AND einwilligung_token_ablauf > NOW()', [token])).rows[0];
+    if (!k) return res.status(400).send(seite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig. Bitte fordern Sie bei Bedarf einen neuen an.'));
+    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+    await query("UPDATE kunden SET einwilligung_saison_erinnerung=true, einwilligung_saison_bestaetigt=true, einwilligung_saison_bestaetigt_am=NOW(), einwilligung_ip=$2, einwilligung_token=NULL, einwilligung_token_ablauf=NULL WHERE id=$1", [k.id, ip]);
+    res.send(seite('Vielen Dank!', 'Ihre Einwilligung für saisonale Erinnerungen ist bestätigt. Sie können sie jederzeit widerrufen.'));
+  } catch (e) { next(e); }
+});
+
 // Termin buchen (Gast) – mehrere Hauptleistungen + Zusatzleistungen, Fahrzeugtyp/Zoll, sofort bestaetigt
 router.post('/termin', bookLimiter, async (req, res, next) => {
   try {

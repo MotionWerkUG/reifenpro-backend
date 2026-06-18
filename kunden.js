@@ -233,4 +233,24 @@ router.put('/:id/konditionen', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Werbe-/Saison-Einwilligung: Re-Bestaetigung (Double-Opt-in) anfordern fuer alle, die zugestimmt,
+// aber noch nicht bestaetigt haben. Reine Mail-Aktion; loescht/aendert KEINE Kundendaten.
+router.post('/einwilligung-reconfirm', async (req, res, next) => {
+  try {
+    const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    const { rows } = await query(
+      `SELECT id, vorname, nachname, anrede, COALESCE(email, portal_email) AS email
+       FROM kunden
+       WHERE einwilligung_saison_erinnerung = true AND einwilligung_saison_bestaetigt IS NOT TRUE
+         AND COALESCE(email, portal_email) IS NOT NULL AND aktiv = true`);
+    const { sendeDoi } = require('../lib/einwilligung');
+    let gesendet = 0;
+    for (const k of rows) {
+      try { if (await sendeDoi(k, einst)) gesendet++; } catch (e) { console.error('[Reconfirm]', e.message); }
+    }
+    await auditLog({ userId: req.user.id, aktion: 'einwilligung.reconfirm', tabelle: 'kunden', datensatzId: null, neueWerte: { angeschrieben: gesendet }, req });
+    res.json({ message: gesendet + ' Bestätigungs-E-Mail(s) versendet (' + rows.length + ' Kandidaten).', gesendet: gesendet });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
