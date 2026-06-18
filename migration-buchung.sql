@@ -1,3 +1,11 @@
-ALTER TABLE einstellungen ADD COLUMN IF NOT EXISTS buchung_aktiv boolean DEFAULT true;
-ALTER TABLE einstellungen ADD COLUMN IF NOT EXISTS buchung_titel text;
-ALTER TABLE einstellungen ADD COLUMN IF NOT EXISTS buchung_text text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS kontakt_anrede text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS kontakt_vorname text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS kontakt_nachname text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS kontakt_strasse text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS kontakt_plz text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS kontakt_ort text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS fahrzeugtyp text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS leistungen jsonb;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS datenschutz_am timestamptz;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS werbung_einwilligung boolean DEFAULT false;
+ALTER TABLE homepage_sektionen ADD COLUMN IF NOT EXISTS buchung_artikel_id uuid;

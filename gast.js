@@ -5,6 +5,47 @@ const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
+const { resolvePreis } = require('../lib/preis');
+
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
+
+// Baut die Kalkulationspositionen: je Leistung Grundpreis + (getrennt) Fahrzeug-Zuschlag.
+// typ = gewaehlter Fahrzeugtyp (z.B. SUV), zoll = Zollgroesse (optional).
+async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
+  const ids = mainIds.concat(zusatzIds);
+  const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
+  if (!ids.length) return leer;
+  const arts = (await query('SELECT * FROM artikel WHERE id = ANY($1::uuid[]) AND aktiv IS NOT false', [ids])).rows;
+  const vars = (await query('SELECT * FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows;
+  const byArt = {}; arts.forEach(function (a) { byArt[a.id] = a; });
+  const varsByArt = {}; vars.forEach(function (v) { (varsByArt[v.artikel_id] = varsByArt[v.artikel_id] || []).push(v); });
+  const order = mainIds.map(function (id) { return { id: id, rolle: 'haupt' }; })
+    .concat(zusatzIds.map(function (id) { return { id: id, rolle: 'zusatz' }; }));
+  const positionen = []; let netto = 0, mwst = 0, dauer = 0; const gewaehlt = [];
+  order.forEach(function (it) {
+    const a = byArt[it.id]; if (!a) return;
+    const variants = varsByArt[a.id] || [];
+    const basis = resolvePreis(a, variants, null, zoll);          // ohne Fahrzeugtyp-Zuschlag
+    const eff = resolvePreis(a, variants, typ || null, zoll);     // mit gewaehltem Typ
+    const effPreis = Number(eff.preis) || 0;
+    const grund = round2(Math.min(Number(basis.preis) || 0, effPreis));
+    const zuschlag = round2(effPreis - grund);
+    const satz = Number(eff.mwst_satz != null ? eff.mwst_satz : 19);
+    const zeilenNetto = round2(effPreis);
+    netto = round2(netto + zeilenNetto);
+    mwst = round2(mwst + zeilenNetto * satz / 100);
+    dauer += (eff.dauer_minuten != null ? eff.dauer_minuten : (a.dauer_minuten || 30));
+    gewaehlt.push(a.name);
+    positionen.push({
+      artikel_id: a.id, bezeichnung: a.name, rolle: it.rolle,
+      grundpreis_netto: grund, zuschlag_netto: zuschlag,
+      fahrzeugtyp: zuschlag > 0 ? (typ || null) : null,
+      mwst_satz: satz, zeilen_netto: zeilenNetto
+    });
+  });
+  return { positionen: positionen, netto: round2(netto), mwst: round2(mwst), brutto: round2(netto + mwst), dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt };
+}
 
 const limiter = rateLimit({ windowMs: 900000, max: 30, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
 const bookLimiter = rateLimit({ windowMs: 900000, max: 8, message: { error: 'Zu viele Buchungen. Bitte später erneut versuchen.' } });
@@ -71,14 +112,39 @@ router.get('/leistungen', limiter, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT bl.artikel_id, bl.rolle, COALESCE(NULLIF(bl.titel,''), a.name) AS titel,
-              bl.beschreibung, bl.bild_url, bl.sortierung, a.dauer_minuten, a.preis
+              bl.beschreibung, bl.bild_url, bl.sortierung, a.dauer_minuten, a.preis, a.mwst_satz
        FROM buchung_leistungen bl JOIN artikel a ON a.id = bl.artikel_id
        WHERE bl.aktiv = true AND a.aktiv IS NOT false
        ORDER BY bl.sortierung, titel`);
+    // "ab"-Preis je Leistung = niedrigster moeglicher Nettopreis (Basis bzw. guenstigste Variante)
+    const ids = rows.map(r => r.artikel_id);
+    const vars = ids.length ? (await query('SELECT artikel_id, preis FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows : [];
+    const minByArt = {};
+    vars.forEach(v => { const p = Number(v.preis); if (minByArt[v.artikel_id] == null || p < minByArt[v.artikel_id]) minByArt[v.artikel_id] = p; });
+    rows.forEach(r => {
+      const basis = r.preis != null ? Number(r.preis) : null;
+      let ab = basis;
+      if (minByArt[r.artikel_id] != null) ab = (ab == null) ? minByArt[r.artikel_id] : Math.min(ab, minByArt[r.artikel_id]);
+      const satz = Number(r.mwst_satz != null ? r.mwst_satz : 19);
+      r.ab_netto = ab != null ? round2(ab) : null;
+      r.ab_brutto = ab != null ? round2(ab * (1 + satz / 100)) : null;
+    });
     res.json({
       haupt: rows.filter(r => r.rolle === 'haupt'),
       zusatz: rows.filter(r => r.rolle === 'zusatz')
     });
+  } catch (e) { next(e); }
+});
+
+// Live-Kalkulation: gewaehlte Leistungen + Fahrzeugtyp/Zoll -> itemisierte Positionen (Grundpreis + Zuschlag)
+router.get('/kalkulation', limiter, async (req, res, next) => {
+  try {
+    const split = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
+    const mainIds = split(req.query.main_ids || req.query.artikel_id);
+    const zusatzIds = split(req.query.zusatz_ids);
+    if (!mainIds.length) return res.json({ positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 0, gewaehlt: [] });
+    const k = await baueKalkulation(mainIds, zusatzIds, req.query.typ || null, req.query.zoll || null);
+    res.json(k);
   } catch (e) { next(e); }
 });
 
@@ -101,25 +167,25 @@ router.get('/slots', limiter, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// Termin buchen (Gast) – Hauptleistung + optionale Zusatzleistungen, sofort bestaetigt
+// Termin buchen (Gast) – mehrere Hauptleistungen + Zusatzleistungen, Fahrzeugtyp/Zoll, sofort bestaetigt
 router.post('/termin', bookLimiter, async (req, res, next) => {
   try {
     const b = req.body || {};
     if (b.website) return res.json({ message: 'ok' }); // Honeypot
-    const main = b.main_artikel_id || b.artikel_id;
-    const zusatz = Array.isArray(b.zusatz_ids) ? b.zusatz_ids.filter(Boolean) : [];
-    const { name, telefon, email, kennzeichen, datum, uhrzeit_von, datenschutz } = b;
-    if (!name || !telefon || !email || !kennzeichen || !datum || !uhrzeit_von || !main)
-      return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen.' });
+    const splitList = (s) => Array.isArray(s) ? s.filter(Boolean) : String(s || '').split(',').map(x => x.trim()).filter(Boolean);
+    let mainIds = splitList(b.main_ids);
+    if (!mainIds.length && (b.main_artikel_id || b.artikel_id)) mainIds = [b.main_artikel_id || b.artikel_id];
+    const zusatzIds = splitList(b.zusatz_ids);
+    const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
+    if (!vorname || !nachname || !telefon || !email || !kennzeichen || !strasse || !plz || !ort || !datum || !uhrzeit_von || !mainIds.length)
+      return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen (inkl. Anschrift und mindestens eine Leistung).' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
-    if (datenschutz !== true) return res.status(400).json({ error: 'Bitte stimmen Sie der Datenschutzerklärung zu.' });
+    if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
+    const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
 
-    const ids = [main].concat(zusatz);
-    const arts = (await query('SELECT id, name, dauer_minuten FROM artikel WHERE id = ANY($1::uuid[]) AND aktiv IS NOT false', [ids])).rows;
-    const mainArt = arts.find(a => a.id === main);
-    if (!mainArt) return res.status(404).json({ error: 'Leistung nicht gefunden.' });
-    const gewaehlt = [mainArt].concat(arts.filter(a => a.id !== main && zusatz.includes(a.id)));
-    const dauer = Math.min(gewaehlt.reduce((s, a) => s + (a.dauer_minuten || 30), 0) || 30, 480);
+    const kalk = await baueKalkulation(mainIds, zusatzIds, fzt, zoll || null);
+    if (!kalk.positionen.length) return res.status(404).json({ error: 'Leistung nicht gefunden.' });
+    const dauer = kalk.dauer;
 
     const o = await oeffnungFuerTag(datum);
     if (o.fehler) return res.status(400).json({ error: o.fehler });
@@ -127,22 +193,29 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const uhrzeit_bis = minZuZeit(zeitZuMin(uhrzeit_von) + dauer);
     const maxParallel = o.einst.max_parallele_termine || 1;
 
-    const nm = String(name).slice(0, 120), tel = String(telefon).slice(0, 60), em = String(email).slice(0, 160), kz = String(kennzeichen).slice(0, 20);
-    const zusatzNamen = gewaehlt.slice(1).map(a => a.name);
-    const terminTyp = (mainArt.name + (zusatzNamen.length ? ' + ' + zusatzNamen.length + ' Zusatz' : '')).slice(0, 120);
-    const beschreibung = 'Online gebucht – Leistungen: ' + gewaehlt.map(a => a.name).join(', ');
+    const vn = String(vorname).slice(0, 80), nn = String(nachname).slice(0, 80);
+    const nm = (vn + ' ' + nn).trim().slice(0, 160);
+    const tel = String(telefon).slice(0, 60), em = String(email).slice(0, 160), kz = String(kennzeichen).slice(0, 20);
+    const an = ['Herr', 'Frau', 'Divers', 'Firma'].includes(anrede) ? anrede : null;
+    const str = String(strasse).slice(0, 160), pz = String(plz).slice(0, 12), or = String(ort).slice(0, 120);
+    const mainArtId = mainIds[0];
+    const hauptNamen = kalk.positionen.filter(p => p.rolle === 'haupt').map(p => p.bezeichnung);
+    const zusatzN = kalk.positionen.filter(p => p.rolle === 'zusatz').length;
+    const terminTyp = (hauptNamen.join(' + ') + (zusatzN ? ' +' + zusatzN + ' Zusatz' : '')).slice(0, 160);
+    const beschreibung = 'Online gebucht – ' + kalk.gewaehlt.join(', ') + (fzt ? ' · ' + fzt : '') + (zoll ? ' · ' + zoll + ' Zoll' : '');
 
-    const termin = await withTransaction(async (client) => {
+    await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
       const konflikt = await client.query(
         "SELECT COUNT(*) FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND uhrzeit_von < $3 AND uhrzeit_bis > $2",
         [datum, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
-      const ins = await client.query(
-        `INSERT INTO termine (kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung, kennzeichen, artikel_id, status, portal_buchung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'bestaetigt',true) RETURNING *`,
-        [nm, tel, em, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, main]);
-      return ins.rows[0];
+      await client.query(
+        `INSERT INTO termine (kontakt_name, kontakt_anrede, kontakt_vorname, kontakt_nachname, kontakt_telefon, kontakt_email,
+           kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
+           kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'bestaetigt',true)`,
+        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true]);
     });
 
     try {
@@ -150,22 +223,24 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
       const dF = datum.split('-').reverse().join('.');
-      const liste = gewaehlt.map(a => a.name).join(', ');
+      const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
+      const posHtml = kalk.positionen.map(p => p.bezeichnung + ': ' + eur(p.grundpreis_netto) + (p.zuschlag_netto > 0 ? ' + Zuschlag ' + (p.fahrzeugtyp || '') + ': ' + eur(p.zuschlag_netto) : '')).join('<br>');
       const htmlGast = portalMailHtml(einst, {
-        titel: 'Ihr Termin ist bestätigt', name: nm.split(' ')[0],
+        titel: 'Ihr Termin ist bestätigt', name: vn,
         absaetze: ['vielen Dank für Ihre Terminbuchung bei Schröder &amp; Scholz.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Leistungen:</strong> ' + liste + '<br><strong>Kennzeichen:</strong> ' + kz],
-        hinweis: 'Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : ''),
+          '<strong>Leistungen (Schätzung, netto):</strong><br>' + posHtml + '<br><strong>Gesamt (brutto):</strong> ' + eur(kalk.brutto)],
+        hinweis: 'Die Preise sind eine unverbindliche Schätzung; der Endpreis kann je nach Aufwand abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
       });
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Terminbestätigung ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
       if (einst.email) {
         await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: em,
           subject: 'Neue Online-Buchung (Gast): ' + terminTyp + ' am ' + dF + ' ' + uhrzeit_von,
-          html: '<p><strong>Neue Gäste-Buchung über die Homepage:</strong></p><p>Name: ' + nm + '<br>Telefon: ' + tel + '<br>E-Mail: ' + em + '<br>Kennzeichen: ' + kz + '<br>Leistungen: ' + liste + '<br>Datum: ' + dF + ' ' + uhrzeit_von + ' Uhr (' + dauer + ' Min)</p>' });
+          html: '<p><strong>Neue Gäste-Buchung über die Homepage:</strong></p><p>' + (an ? an + ' ' : '') + nm + '<br>' + str + ', ' + pz + ' ' + or + '<br>Telefon: ' + tel + '<br>E-Mail: ' + em + '<br>Kennzeichen: ' + kz + (fzt ? ' · ' + fzt : '') + (zoll ? ' · ' + zoll + ' Zoll' : '') + '<br>Datum: ' + dF + ' ' + uhrzeit_von + ' Uhr (' + dauer + ' Min)</p><p>Leistungen:<br>' + posHtml + '<br><strong>Gesamt brutto: ' + eur(kalk.brutto) + '</strong></p><p>Werbe-Einwilligung: ' + (werbung === true ? 'ja' : 'nein') + '</p>' });
       }
     } catch (mailErr) { console.error('[Gast-Buchung-Mail]', mailErr.message); }
 
-    res.status(201).json({ message: 'ok', datum, uhrzeit_von, leistungen: gewaehlt.map(a => a.name) });
+    res.status(201).json({ message: 'ok', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt, summe_brutto: kalk.brutto });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);

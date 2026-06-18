@@ -41,10 +41,11 @@ router.put('/sektionen/:id', async (req, res, next) => {
     await query('INSERT INTO sektion_historie (sektion_id, daten, beschreibung) VALUES ($1,$2,$3)', [cur.id, JSON.stringify(snap), (cur.headline || cur.typ || 'Abschnitt')]);
     await query('DELETE FROM sektion_historie WHERE id NOT IN (SELECT id FROM sektion_historie ORDER BY id DESC LIMIT 12)');
     const { headline, subline, inhalt, bild_url, cta_text, cta_url, sichtbar } = req.body;
+    const bAid = req.body.buchung_artikel_id !== undefined ? (req.body.buchung_artikel_id || null) : cur.buchung_artikel_id;
     const { rows } = await query(
-      `UPDATE homepage_sektionen SET headline=$1, subline=$2, inhalt=$3, bild_url=$4, cta_text=$5, cta_url=$6, sichtbar=$7, geaendert_am=NOW()
-       WHERE id=$8 RETURNING *`,
-      [headline || null, subline || null, inhalt || null, bild_url || null, cta_text || null, cta_url || null, sichtbar !== false, req.params.id]
+      `UPDATE homepage_sektionen SET headline=$1, subline=$2, inhalt=$3, bild_url=$4, cta_text=$5, cta_url=$6, sichtbar=$7, buchung_artikel_id=$8, geaendert_am=NOW()
+       WHERE id=$9 RETURNING *`,
+      [headline || null, subline || null, inhalt || null, bild_url || null, cta_text || null, cta_url || null, sichtbar !== false, bAid, req.params.id]
     );
     await regenerate();
     res.json(rows[0]);

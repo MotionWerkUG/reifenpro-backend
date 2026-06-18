@@ -266,6 +266,15 @@ function oeffneVisualEdit(id) {
     h += '<div class="imghint">Wird automatisch passend zugeschnitten (' + (fmt === 'hero' ? 'breites Querformat' : '4:3') + ').</div>';
   }
   if (s.typ === 'hero') { h += feldVe('ve-ct', 'Button-Text', s.cta_text); h += feldVe('ve-cu', 'Button-Ziel', s.cta_url); }
+  if (s.typ === 'leistung') {
+    var hl = (typeof BL !== 'undefined' && BL ? BL : []).filter(function (b) { return b.rolle === 'haupt'; });
+    var opts = '<option value="">— keine (nur Link zur Terminseite) —</option>' + hl.map(function (b) {
+      var nm = b.titel || ((typeof ARTIKEL !== 'undefined' && ARTIKEL ? ARTIKEL : []).find(function (a) { return a.id === b.artikel_id; }) || {}).name || b.artikel_id;
+      return '<option value="' + esc(b.artikel_id) + '"' + (s.buchung_artikel_id === b.artikel_id ? ' selected' : '') + '>' + esc(nm) + '</option>';
+    }).join('');
+    h += '<label>Verknüpfte Buchungsleistung</label><select id="ve-bl">' + opts + '</select>';
+    h += '<div class="imghint">Beim Klick auf diese Kachel wird im Buchungsassistenten diese Leistung vorausgewählt.</div>';
+  }
   h += '<div class="row"><button class="btn btn-p" onclick="veSpeichern(\'' + id + '\')">Speichern</button></div>';
   document.getElementById('ve-titel').textContent = (TYP_LABEL[s.typ] || 'Bereich') + ' bearbeiten';
   document.getElementById('ve-body').innerHTML = h;
@@ -289,6 +298,7 @@ function veSpeichern(id) {
     bild_url: veVal('ve-b') !== undefined ? veVal('ve-b') : s.bild_url,
     cta_text: veVal('ve-ct') !== undefined ? veVal('ve-ct') : s.cta_text,
     cta_url: veVal('ve-cu') !== undefined ? veVal('ve-cu') : s.cta_url,
+    buchung_artikel_id: veVal('ve-bl') !== undefined ? (veVal('ve-bl') || null) : s.buchung_artikel_id,
     sichtbar: s.sichtbar
   };
   api('PUT', '/homepage/sektionen/' + id, data).then(function () { notify('Gespeichert – Vorschau wird aktualisiert.'); veClose(); laden(); reloadFrame(); }).catch(function (e) { notify(e.message, true); });

@@ -68,12 +68,16 @@ function renderLeistungen(group) {
   var cards = group.map(function(s, i) {
     var nr = String(i + 1).padStart(2, '0');
     var img = s.bild_url ? '<div class="card-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" loading="lazy"></div>' : '';
-    return '<div class="card" data-sektion-id="' + esc(s.id) + '">' + img +
+    // Klick auf eine Leistung -> Buchung; verknuepfte Hauptleistung wird vorausgewaehlt
+    var href = '/termin/' + (s.buchung_artikel_id ? '?leistung=' + encodeURIComponent(s.buchung_artikel_id) : '');
+    return '<a class="card-link" href="' + href + '" style="display:block;text-decoration:none;color:inherit">' +
+      '<div class="card" data-sektion-id="' + esc(s.id) + '">' + img +
       '<div class="card-body">' +
       '<div class="card-nr">' + nr + '</div>' +
       '<h3>' + esc(s.headline || '') + '</h3>' +
       '<p>' + nl2br(s.inhalt || '') + '</p>' +
-      '</div></div>';
+      '<div class="card-cta">Termin buchen →</div>' +
+      '</div></div></a>';
   }).join('');
   return '<section class="sec" id="leistungen"><div class="inner">' +
     '<h2>Unsere Leistungen</h2><div class="cards">' + cards + '</div></div></section>';
@@ -222,7 +226,9 @@ function css() {
     ".btn-ghost{display:inline-block;border:1px solid #171717;color:#171717;font-weight:700;padding:11px 24px;border-radius:10px}" +
     ".sec{padding:64px 0}.sec.alt{background:#f6f7f9}.sec h2{font-size:clamp(24px,3.5vw,34px);font-weight:800;margin-bottom:28px}" +
     ".cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px}" +
-    ".card{background:#fff;border:1px solid #e6e8ec;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column}" +
+    ".card-link{height:100%}.card-link:hover .card{border-color:#eab308;box-shadow:0 10px 26px rgba(0,0,0,.08);transform:translateY(-2px);transition:.15s}" +
+    ".card-cta{margin-top:12px;font-size:14px;font-weight:700;color:#eab308}" +
+    ".card{background:#fff;border:1px solid #e6e8ec;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04);display:flex;flex-direction:column;height:100%}" +
     ".card-img{aspect-ratio:4/3;background:#eef0f3}.card-img img{width:100%;height:100%;object-fit:cover;display:block}" +
     ".card-body{padding:22px 24px}" +
     ".card-nr{font-size:13px;font-weight:800;color:#eab308;margin-bottom:8px}.card h3{font-size:19px;margin-bottom:8px}.card p{color:#555;font-size:15px}" +

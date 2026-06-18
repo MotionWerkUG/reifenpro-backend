@@ -13,14 +13,12 @@
   .top svg{height:34px;width:auto;display:block}
   .top a.back{color:#cfcfcf;font-size:13px;font-weight:600;text-decoration:none}.top a.back:hover{color:#eab308}
   .wrap{max-width:960px;margin:0 auto;padding:26px 18px 80px}
-  /* Stepper */
   .steps{display:flex;gap:6px;margin-bottom:26px;flex-wrap:wrap}
-  .step{flex:1;min-width:120px;font-size:12px;font-weight:700;color:#9aa0a6;border-top:3px solid #dfe2e6;padding-top:8px;text-transform:uppercase;letter-spacing:.4px}
+  .step{flex:1;min-width:110px;font-size:12px;font-weight:700;color:#9aa0a6;border-top:3px solid #dfe2e6;padding-top:8px;text-transform:uppercase;letter-spacing:.4px}
   .step.on{color:#171717;border-top-color:#eab308}
   .step.done{color:#1a7f37;border-top-color:#1a7f37}
   h1{font-size:clamp(22px,4vw,30px);font-weight:800;margin-bottom:6px}
   .sub{color:#666;margin-bottom:22px;font-size:15px}
-  /* Karten */
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
   .lcard{background:#fff;border:2px solid #e6e8ec;border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;display:flex;flex-direction:column;text-align:left;padding:0}
   .lcard:hover{border-color:#eab308;transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.08)}
@@ -33,11 +31,11 @@
   .lcard h3{font-size:16px;margin-bottom:4px}
   .lcard p{font-size:13px;color:#666}
   .lcard .dauer{font-size:12px;color:#999;margin-top:8px}
-  /* Slots */
+  .lcard .preis{font-size:13px;color:#171717;font-weight:700;margin-top:4px}
   .field{margin-bottom:16px}
   label.lab{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;margin-bottom:6px}
-  input[type=date],input[type=text],input[type=tel],input[type=email]{width:100%;border:1px solid #d5d9e0;border-radius:10px;padding:13px 14px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}
-  input:focus{outline:none;border-color:#eab308}
+  input[type=date],input[type=text],input[type=tel],input[type=email],select{width:100%;border:1px solid #d5d9e0;border-radius:10px;padding:13px 14px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}
+  input:focus,select:focus{outline:none;border-color:#eab308}
   .slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
   .slot{border:1px solid #d5d9e0;background:#fff;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:600;cursor:pointer}
   .slot:hover{border-color:#eab308}.slot.on{background:#eab308;border-color:#eab308;color:#171717}
@@ -46,12 +44,13 @@
   .kz{display:flex;gap:6px;align-items:center}.kz span{color:#999}.kz input{text-align:center;font-family:monospace;text-transform:uppercase}
   .kz input:nth-of-type(1){flex:0 0 62px}.kz input:nth-of-type(2){flex:0 0 50px}.kz input:nth-of-type(3){flex:0 0 60px}.kz input:nth-of-type(4){flex:0 0 44px}
   .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#555;margin-top:14px;line-height:1.5}.check input{width:auto;margin-top:3px}.check a{color:#171717;text-decoration:underline}
-  /* Übersicht */
   .sum{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:18px 20px;margin-bottom:18px}
   .sum h3{font-size:15px;margin-bottom:10px}
   .sum .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #f0f1f3;font-size:14px}
   .sum .row:last-child{border-bottom:none}
-  /* Footer-Navigation */
+  .sum .subrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0 2px 14px;font-size:13px;color:#7a7f87}
+  .sum .total{font-size:16px;font-weight:800;margin-top:6px}
+  .sum .hint{font-size:12px;color:#999;margin-top:8px}
   .nav{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
   .btn{border:none;border-radius:10px;padding:14px 26px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
   .btn-p{background:#eab308;color:#171717}.btn-p:disabled{opacity:.5;cursor:default}
@@ -71,16 +70,16 @@
 </div>
 <div class="wrap">
   <div class="steps">
-    <div class="step on" id="st1">1 · Leistung</div>
-    <div class="step" id="st2">2 · Zusatzleistungen</div>
-    <div class="step" id="st3">3 · Wunschtermin</div>
+    <div class="step on" id="st1">1 · Leistungen</div>
+    <div class="step" id="st2">2 · Zusatz</div>
+    <div class="step" id="st3">3 · Fahrzeug &amp; Termin</div>
     <div class="step" id="st4">4 · Ihre Daten</div>
   </div>
 
-  <!-- Schritt 1: Hauptleistung -->
+  <!-- Schritt 1: Hauptleistungen (Mehrfachauswahl) -->
   <div id="p1">
-    <h1>Welche Leistung benötigen Sie?</h1>
-    <div class="sub">Wählen Sie Ihre Hauptleistung.</div>
+    <h1>Welche Leistungen benötigen Sie?</h1>
+    <div class="sub">Mehrfachauswahl möglich. Die Preise sind „ab"-Preise (PKW); je nach Fahrzeug kann ein Zuschlag hinzukommen.</div>
     <div class="cards" id="haupt-cards"></div>
   </div>
 
@@ -91,35 +90,53 @@
     <div class="cards" id="zusatz-cards"></div>
   </div>
 
-  <!-- Schritt 3: Termin -->
+  <!-- Schritt 3: Fahrzeug & Termin -->
   <div id="p3" class="hidden">
-    <h1>Wunschtermin wählen</h1>
-    <div class="sub">Wählen Sie Datum und eine freie Uhrzeit.</div>
-    <div class="field"><label class="lab">Datum</label><input type="date" id="datum" onchange="ladeSlots()"></div>
+    <h1>Fahrzeug &amp; Wunschtermin</h1>
+    <div class="sub">Die Fahrzeugart bestimmt mögliche Zuschläge (z.B. SUV).</div>
+    <div class="grid2">
+      <div class="field"><label class="lab">Fahrzeugart *</label>
+        <select id="fz-typ" onchange="state.fahrzeugtyp=this.value;"><option value="">— bitte wählen —</option><option>PKW</option><option>SUV</option><option>Transporter</option><option>Motorrad</option><option>Sonstiges</option></select>
+      </div>
+      <div class="field"><label class="lab">Zollgröße (optional)</label>
+        <select id="fz-zoll" onchange="state.zoll=this.value;"><option value="">— k.A. —</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option></select>
+      </div>
+    </div>
+    <div class="field"><label class="lab">Kennzeichen *</label>
+      <div class="kz">
+        <input id="f-kz1" maxlength="3" placeholder="WOR" oninput="this.value=this.value.toUpperCase()">
+        <span>-</span><input id="f-kz2" maxlength="2" placeholder="AB" oninput="this.value=this.value.toUpperCase()">
+        <span>-</span><input id="f-kz3" maxlength="4" placeholder="1234">
+        <input id="f-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+    <div class="field"><label class="lab">Datum *</label><input type="date" id="datum" onchange="ladeSlots()"></div>
     <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div class="slots" id="slots"></div><div class="info" id="slots-info"></div></div>
   </div>
 
-  <!-- Schritt 4: Daten -->
+  <!-- Schritt 4: Daten & Bestätigung -->
   <div id="p4" class="hidden">
     <h1>Ihre Kontaktdaten</h1>
-    <div class="sub">Damit wir Ihren Termin bestätigen können.</div>
+    <div class="sub">Damit wir Ihren Termin bestätigen und ggf. eine Rechnung erstellen können.</div>
     <div class="sum" id="sum-box"></div>
     <div class="grid2">
-      <div class="field"><label class="lab">Name *</label><input type="text" id="f-name"></div>
+      <div class="field"><label class="lab">Anrede</label>
+        <select id="f-anrede"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
+      </div>
       <div class="field"><label class="lab">Telefon *</label><input type="tel" id="f-tel"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email"></div>
-      <div class="field"><label class="lab">Kennzeichen *</label>
-        <div class="kz">
-          <input id="f-kz1" maxlength="3" placeholder="WOR" oninput="this.value=this.value.toUpperCase()">
-          <span>-</span><input id="f-kz2" maxlength="2" placeholder="AB" oninput="this.value=this.value.toUpperCase()">
-          <span>-</span><input id="f-kz3" maxlength="4" placeholder="1234">
-          <input id="f-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">
-        </div>
-      </div>
+      <div class="field"><label class="lab">Vorname *</label><input type="text" id="f-vorname"></div>
+      <div class="field"><label class="lab">Nachname *</label><input type="text" id="f-nachname"></div>
     </div>
-    <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und bin mit der Verarbeitung meiner Angaben zur Terminbearbeitung einverstanden. *</span></label>
+    <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email"></div>
+    <div class="field"><label class="lab">Straße &amp; Hausnummer *</label><input type="text" id="f-strasse"></div>
+    <div class="grid2">
+      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz"></div>
+      <div class="field"><label class="lab">Ort *</label><input type="text" id="f-ort"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
+    <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
     <input type="text" id="f-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
   </div>
 
@@ -142,44 +159,54 @@
 'use strict';
 var API = '/api/gast';
 var LEIST = { haupt: [], zusatz: [] };
-var state = { schritt: 1, haupt: null, zusatz: [], datum: '', slot: '' };
+var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datum: '', slot: '' };
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function eur(n){return (Number(n)||0).toFixed(2).replace('.',',')+' €';}
 function dauerVon(a){return a&&a.dauer_minuten?a.dauer_minuten:30;}
-function gesamtDauer(){var d=state.haupt?dauerVon(state.haupt):0;state.zusatz.forEach(function(z){d+=dauerVon(z);});return d||30;}
+function alleGewaehlt(){return state.haupt.concat(state.zusatz);}
+function gesamtDauer(){var d=0;alleGewaehlt().forEach(function(a){d+=dauerVon(a);});return d||30;}
 
 function ladeLeistungen(){
   fetch(API+'/leistungen').then(function(r){return r.json();}).then(function(d){
     LEIST=d||{haupt:[],zusatz:[]};
-    renderCards('haupt-cards', LEIST.haupt, false);
-    renderCards('zusatz-cards', LEIST.zusatz, true);
+    renderCards('haupt-cards', LEIST.haupt, 'haupt');
+    renderCards('zusatz-cards', LEIST.zusatz, 'zusatz');
     if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Bitte rufen Sie uns an.</p>';
+    vorauswahlAusUrl();
   }).catch(function(){ document.getElementById('haupt-cards').innerHTML='<p class="muted">Leistungen konnten nicht geladen werden.</p>'; });
 }
+// Vorauswahl aus ?leistung=<artikel_id> (von der Startseite verlinkt)
+function vorauswahlAusUrl(){
+  try{ var p=new URLSearchParams(location.search); var id=p.get('leistung'); if(!id)return;
+    var l=LEIST.haupt.find(function(x){return x.artikel_id===id;}); if(l && !state.haupt.some(function(h){return h.artikel_id===id;})){ state.haupt.push(l); markSel(); }
+  }catch(e){}
+}
 function bild(l){ return l.bild_url ? ('background-image:url(\''+esc(l.bild_url)+'\')') : ''; }
-function renderCards(elId, list, multi){
+function preisText(l){ var ab=(l.ab_brutto!=null?l.ab_brutto:(l.ab_netto!=null?l.ab_netto:l.preis)); return (Number(ab)>0)?('ab '+eur(ab)):''; }
+function renderCards(elId, list, rolle){
   var el=document.getElementById(elId); if(!el)return;
-  el.innerHTML=(list||[]).map(function(l,i){
+  el.innerHTML=(list||[]).map(function(l){
     var ph = l.bild_url ? '' : '<div class="ph">'+esc((l.titel||'?').charAt(0))+'</div>';
-    return '<div class="lcard" data-id="'+esc(l.artikel_id)+'" onclick="pick(\''+(multi?'zusatz':'haupt')+'\',\''+esc(l.artikel_id)+'\')">'+
+    var pt = preisText(l);
+    return '<div class="lcard" data-id="'+esc(l.artikel_id)+'" onclick="pick(\''+rolle+'\',\''+esc(l.artikel_id)+'\')">'+
       '<div class="lcard-img" style="'+bild(l)+'">'+ph+'<div class="lcard-check">✓</div></div>'+
       '<div class="lcard-body"><h3>'+esc(l.titel)+'</h3>'+
       (l.beschreibung?'<p>'+esc(l.beschreibung)+'</p>':'')+
-      '<div class="dauer">ca. '+dauerVon(l)+' Min'+(Number(l.preis)>0?' · ab '+eur(l.preis):'')+'</div>'+
+      (pt?'<div class="preis">'+pt+'</div>':'')+
+      '<div class="dauer">ca. '+dauerVon(l)+' Min</div>'+
       '</div></div>';
   }).join('');
   markSel();
 }
 function markSel(){
-  document.querySelectorAll('#haupt-cards .lcard').forEach(function(c){ c.classList.toggle('sel', state.haupt && c.getAttribute('data-id')===state.haupt.artikel_id); });
+  document.querySelectorAll('#haupt-cards .lcard').forEach(function(c){ c.classList.toggle('sel', state.haupt.some(function(h){return h.artikel_id===c.getAttribute('data-id');})); });
   document.querySelectorAll('#zusatz-cards .lcard').forEach(function(c){ c.classList.toggle('sel', state.zusatz.some(function(z){return z.artikel_id===c.getAttribute('data-id');})); });
 }
+function toggleIn(arr, item){ var i=arr.findIndex(function(x){return x.artikel_id===item.artikel_id;}); if(i===-1)arr.push(item); else arr.splice(i,1); }
 function pick(rolle, id){
-  if(rolle==='haupt'){ state.haupt = LEIST.haupt.find(function(x){return x.artikel_id===id;}) || null; }
-  else { var z=LEIST.zusatz.find(function(x){return x.artikel_id===id;}); if(!z)return;
-    var idx=state.zusatz.findIndex(function(x){return x.artikel_id===id;});
-    if(idx===-1) state.zusatz.push(z); else state.zusatz.splice(idx,1); }
+  if(rolle==='haupt'){ var h=LEIST.haupt.find(function(x){return x.artikel_id===id;}); if(h)toggleIn(state.haupt,h); }
+  else { var z=LEIST.zusatz.find(function(x){return x.artikel_id===id;}); if(z)toggleIn(state.zusatz,z); }
   markSel();
 }
 function ladeSlots(){
@@ -203,12 +230,23 @@ document.addEventListener('click', function(ev){
 });
 function kz(){ var v=function(id){return (document.getElementById(id).value||'').trim();};
   var k=[v('f-kz1'),v('f-kz2'),v('f-kz3')].filter(Boolean).join('-'); var k4=v('f-kz4'); if(k4)k+=' '+k4; return k.trim(); }
+function idsCsv(arr){ return arr.map(function(a){return a.artikel_id;}).join(','); }
 function renderSum(){
-  var rows='<div class="row"><span>Hauptleistung</span><strong>'+esc(state.haupt?state.haupt.titel:'—')+'</strong></div>';
-  state.zusatz.forEach(function(z){rows+='<div class="row"><span>Zusatz</span><span>'+esc(z.titel)+'</span></div>';});
-  rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
-  rows+='<div class="row"><span>Dauer ca.</span><span>'+gesamtDauer()+' Min</span></div>';
-  document.getElementById('sum-box').innerHTML='<h3>Ihre Auswahl</h3>'+rows;
+  var box=document.getElementById('sum-box');
+  box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
+  var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'');
+  fetch(url).then(function(r){return r.json();}).then(function(k){
+    var rows='';
+    (k.positionen||[]).forEach(function(p){
+      rows+='<div class="row"><span>'+esc(p.bezeichnung)+(p.rolle==='zusatz'?' <span class="muted">(Zusatz)</span>':'')+'</span><strong>'+eur(p.grundpreis_netto)+'</strong></div>';
+      if(Number(p.zuschlag_netto)>0) rows+='<div class="subrow"><span>+ Zuschlag '+esc(p.fahrzeugtyp||state.fahrzeugtyp||'')+'</span><span>'+eur(p.zuschlag_netto)+'</span></div>';
+    });
+    rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
+    rows+='<div class="row"><span>Nettobetrag</span><span>'+eur(k.netto)+'</span></div>';
+    rows+='<div class="row"><span>zzgl. MwSt</span><span>'+eur(k.mwst)+'</span></div>';
+    rows+='<div class="row total"><span>Gesamt (brutto)</span><span>'+eur(k.brutto)+'</span></div>';
+    box.innerHTML='<h3>Ihre Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis Ihrer Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
+  }).catch(function(){ box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
 }
 function zeigeSchritt(n){
   state.schritt=n;
@@ -223,33 +261,42 @@ function zeigeSchritt(n){
 function fehler(m){var e=document.getElementById('err');e.textContent=m;e.style.display='block';}
 function weiter(){
   var n=state.schritt;
-  if(n===1){ if(!state.haupt){fehler('Bitte wählen Sie eine Leistung.');return;} zeigeSchritt(2); return; }
+  if(n===1){ if(!state.haupt.length){fehler('Bitte wählen Sie mindestens eine Leistung.');return;} zeigeSchritt(2); return; }
   if(n===2){ zeigeSchritt(3); return; }
-  if(n===3){ if(!state.datum){fehler('Bitte ein Datum wählen.');return;} if(!state.slot){fehler('Bitte eine Uhrzeit wählen.');return;} zeigeSchritt(4); return; }
+  if(n===3){
+    if(!state.fahrzeugtyp){fehler('Bitte wählen Sie die Fahrzeugart.');return;}
+    if(!kz()){fehler('Bitte geben Sie das Kennzeichen ein.');return;}
+    if(!state.datum){fehler('Bitte ein Datum wählen.');return;}
+    if(!state.slot){fehler('Bitte eine Uhrzeit wählen.');return;}
+    zeigeSchritt(4); return;
+  }
   if(n===4){ absenden(); return; }
 }
 function zurueck(){ if(state.schritt>1) zeigeSchritt(state.schritt-1); }
 function absenden(){
   var v=function(id){return (document.getElementById(id).value||'').trim();};
-  var d={ main_artikel_id: state.haupt.artikel_id, zusatz_ids: state.zusatz.map(function(z){return z.artikel_id;}),
-    name:v('f-name'), telefon:v('f-tel'), email:v('f-email'), kennzeichen:kz(),
-    datum:state.datum, uhrzeit_von:state.slot, datenschutz:document.getElementById('f-dsgvo').checked, website:v('f-hp') };
-  if(!d.name||!d.telefon||!d.email||!d.kennzeichen){fehler('Bitte Name, Telefon, E-Mail und Kennzeichen ausfüllen.');return;}
-  if(!d.datenschutz){fehler('Bitte stimmen Sie der Datenschutzerklärung zu.');return;}
+  var d={ main_ids: state.haupt.map(function(h){return h.artikel_id;}), zusatz_ids: state.zusatz.map(function(z){return z.artikel_id;}),
+    anrede:v('f-anrede'), vorname:v('f-vorname'), nachname:v('f-nachname'), telefon:v('f-tel'), email:v('f-email'),
+    strasse:v('f-strasse'), plz:v('f-plz'), ort:v('f-ort'),
+    fahrzeugtyp:state.fahrzeugtyp, zoll:state.zoll, kennzeichen:kz(),
+    datum:state.datum, uhrzeit_von:state.slot,
+    datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
+  if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
+  if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
   var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
   fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
     .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})
     .then(function(j){
       document.querySelectorAll('.steps,#navbar').forEach(function(x){x.classList.add('hidden');});
       [1,2,3,4].forEach(function(i){document.getElementById('p'+i).classList.add('hidden');});
-      document.getElementById('done-text').textContent='Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.';
+      var betrag = (j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '';
+      document.getElementById('done-text').textContent='Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
       document.getElementById('pdone').classList.remove('hidden');
       window.scrollTo({top:0,behavior:'smooth'});
     })
     .catch(function(x){fehler(x.message);})
     .then(function(){b.disabled=false;b.textContent=bt;});
 }
-// Datum-Minimum heute
 (function(){var dt=document.getElementById('datum');var n=new Date();dt.min=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2);})();
 ladeLeistungen();
 </script>
