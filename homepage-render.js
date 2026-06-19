@@ -24,12 +24,31 @@ function jsonLd(f) {
   };
   if (f.telefon) data.telephone = f.telefon;
   if (f.email) data.email = f.email;
+  data.priceRange = '€€';
+  if (f.ort) data.areaServed = f.ort;
   if (f.strasse || f.ort) data.address = { '@type': 'PostalAddress', streetAddress: f.strasse || '', postalCode: f.plz || '', addressLocality: f.ort || '', addressCountry: 'DE' };
+  if (f.geo_breite && f.geo_laenge) data.geo = { '@type': 'GeoCoordinates', latitude: f.geo_breite, longitude: f.geo_laenge };
+  var social = [f.google_bewertung_url, f.facebook_url, f.instagram_url].filter(Boolean);
+  if (social.length) data.sameAs = social;
   var oh = [];
   if (f.mo_fr_von && f.mo_fr_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: hm(f.mo_fr_von), closes: hm(f.mo_fr_bis) });
   if (f.sa_offen && f.sa_von && f.sa_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: 'Saturday', opens: hm(f.sa_von), closes: hm(f.sa_bis) });
   if (oh.length) data.openingHoursSpecification = oh;
   return JSON.stringify(data);
+}
+
+// Social-Icons + Google-Bewerten im Footer (nur was in den Einstellungen hinterlegt ist)
+function socialHtml(f) {
+  var ICON_FB = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M13.5 22v-8h2.7l.4-3.1h-3.1V8.9c0-.9.25-1.5 1.5-1.5h1.7V4.6c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.1H7.2V14h2.8v8h3.5z"/></svg>';
+  var ICON_IG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" stroke="none"/></svg>';
+  var ICON_GG = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M21.6 12.2c0-.7-.06-1.2-.18-1.8H12v3.3h5.4c-.1.9-.7 2.2-2 3.1l-.02.12 2.9 2.2.2.02c1.85-1.7 2.92-4.2 2.92-7.16z"/><path d="M12 22c2.6 0 4.8-.86 6.4-2.34l-3.05-2.36c-.82.57-1.9.97-3.35.97-2.56 0-4.73-1.7-5.5-4.05l-.11.01-3 2.32-.04.11C4.95 19.6 8.2 22 12 22z"/><path d="M6.5 12.2c0-.4.07-.8.18-1.18l-.005-.13-3.04-2.36-.1.05C2.96 9.6 2.6 10.76 2.6 12s.36 2.4.94 3.4l3.14-2.43c-.11-.38-.18-.78-.18-1.18z"/><path d="M12 5.4c1.8 0 3.02.78 3.72 1.43l2.72-2.65C16.8 2.6 14.6 1.8 12 1.8 8.2 1.8 4.95 4.2 3.54 7.6l3.14 2.43C7.27 7.1 9.44 5.4 12 5.4z"/></svg>';
+  var items = [];
+  if (f.facebook_url) items.push('<a href="' + esc(f.facebook_url) + '" target="_blank" rel="noopener" aria-label="Facebook">' + ICON_FB + '</a>');
+  if (f.instagram_url) items.push('<a href="' + esc(f.instagram_url) + '" target="_blank" rel="noopener" aria-label="Instagram">' + ICON_IG + '</a>');
+  if (f.google_bewertung_url) items.push('<a href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener" aria-label="Google">' + ICON_GG + '</a>');
+  if (!items.length) return '';
+  var bew = f.google_bewertung_url ? '<a class="foot-bewerten" href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener">Bewerten Sie uns bei Google</a>' : '';
+  return '<div class="foot-social">' + items.join('') + '</div>' + bew;
 }
 
 // Wortmarke exakt wie im Kundenportal (heller Text fuer dunklen Hintergrund).
@@ -67,7 +86,7 @@ function buchungHtml(f) {
 function renderLeistungen(group) {
   var cards = group.map(function(s, i) {
     var nr = String(i + 1).padStart(2, '0');
-    var img = s.bild_url ? '<div class="card-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" loading="lazy"></div>' : '';
+    var img = s.bild_url ? '<div class="card-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" width="900" height="675" loading="lazy"></div>' : '';
     // Klick auf eine Leistung -> Buchung; verknuepfte Hauptleistung wird vorausgewaehlt
     var href = '/termin/' + (s.buchung_artikel_id ? '?leistung=' + encodeURIComponent(s.buchung_artikel_id) : '');
     return '<a class="card-link" href="' + href + '" style="display:block;text-decoration:none;color:inherit">' +
@@ -132,7 +151,7 @@ function renderSektion(s, f) {
       '<div class="k-grid"><div class="k-left">' + info + map + '</div>' + form + '</div></div></section>';
   }
   // text
-  var img = s.bild_url ? '<div class="t-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" loading="lazy"></div>' : '';
+  var img = s.bild_url ? '<div class="t-img"><img src="' + esc(s.bild_url) + '" alt="' + esc(s.headline || '') + '" width="900" height="675" loading="lazy"></div>' : '';
   return '<section class="sec" data-sektion-id="' + esc(s.id) + '"><div class="inner t-grid">' +
     '<div class="t-text"><h2>' + esc(s.headline || '') + '</h2><p>' + nl2br(s.inhalt || '') + '</p></div>' + img +
     '</div></section>';
@@ -185,6 +204,15 @@ function renderHomepage(sektionen, f) {
     '<meta property="og:type" content="website"><meta property="og:title" content="' + esc(title) + '">' +
     '<meta property="og:description" content="' + esc(desc) + '"><meta property="og:url" content="https://www.schroeder-scholz.de/">' +
     '<meta property="og:image" content="https://www.schroeder-scholz.de/uploads/hero.jpg">' +
+    '<meta property="og:image:width" content="1600"><meta property="og:image:height" content="760">' +
+    '<meta property="og:site_name" content="Schröder &amp; Scholz"><meta property="og:locale" content="de_DE">' +
+    '<meta name="twitter:card" content="summary_large_image">' +
+    '<meta name="twitter:title" content="' + esc(title) + '">' +
+    '<meta name="twitter:description" content="' + esc(desc) + '">' +
+    '<meta name="twitter:image" content="https://www.schroeder-scholz.de/uploads/hero.jpg">' +
+    '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' +
+    '<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">' +
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">' +
     '<script type="application/ld+json">' + jsonLd(f) + '</scr' + 'ipt>' +
     '<style>' + css() + '</style></head><body>' +
     bannerHtml(f) +
@@ -195,6 +223,7 @@ function renderHomepage(sektionen, f) {
     '<main>' + body + '</main>' +
     '<footer class="foot"><div class="inner">' +
     '<div class="foot-logo">' + logoSvg(252, 45) + '</div>' +
+    socialHtml(f) +
     '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a></div>' +
     '</div></footer>' + script() + '</body></html>';
 }
@@ -264,6 +293,8 @@ function css() {
     ".bk-err{display:none;background:#fdecea;color:#b3261e;border:1px solid #f5c6c2;border-radius:9px;padding:13px 15px;font-size:14px;margin-top:12px}" +
     ".foot{background:#171717;color:#cfcfcf;padding:40px 0;text-align:center}.foot-logo{display:flex;justify-content:center;margin-bottom:18px}.foot-logo svg{max-width:90%;height:auto}" +
     ".foot-links{font-size:13px}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:#eab308}" +
+    ".foot-social{display:flex;gap:14px;justify-content:center;margin:6px 0 14px}.foot-social a{color:#cfcfcf;display:inline-flex}.foot-social a:hover{color:#eab308}" +
+    ".foot-bewerten{display:inline-block;margin:0 0 16px;font-size:13px;font-weight:700;color:#171717;background:#eab308;padding:9px 18px;border-radius:8px;text-decoration:none}.foot-bewerten:hover{filter:brightness(1.05)}" +
     "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}.wm svg{height:30px}}";
 }
 

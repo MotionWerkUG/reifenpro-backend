@@ -563,6 +563,9 @@ tr:hover td { background: rgba(255,255,255,.02); }
           <div class="fg"><label>Telefon</label><input id="s-tel"></div>
           <div class="fg"><label>E-Mail *</label><input id="s-mail" type="email"></div>
           <div class="fg"><label>Website</label><input id="s-web"></div>
+          <div class="fg"><label>Google-Bewertungslink</label><input id="s-google" placeholder="https://g.page/r/... oder Google-Profil"></div>
+          <div class="fg"><label>Facebook-Seite</label><input id="s-fb" placeholder="https://facebook.com/..."></div>
+          <div class="fg"><label>Instagram-Profil</label><input id="s-ig" placeholder="https://instagram.com/..."></div>
           <div class="fg"><label>Steuernummer</label><input id="s-steu"></div>
           <div class="fg"><label>USt-ID</label><input id="s-ustid" placeholder="DE123456789"></div>
           <div class="fg"><label>Rechtsform</label>
@@ -2101,6 +2104,7 @@ function fillEinst() {
   fv('s-fn', EINST.firmenname); fv('s-ih', EINST.inhaber);
   fv('s-str', EINST.strasse); fv('s-plz', EINST.plz); fv('s-ort', EINST.ort);
   fv('s-tel', EINST.telefon); fv('s-mail', EINST.email); fv('s-web', EINST.website);
+  fv('s-google', EINST.google_bewertung_url); fv('s-fb', EINST.facebook_url); fv('s-ig', EINST.instagram_url);
   fv('s-steu', EINST.steuernummer); fv('s-ustid', EINST.ust_id);
   fv('s-rf', EINST.rechtsform); fv('s-hrnr', EINST.handelsreg_nr);
   fv('s-hrgericht', EINST.registergericht); fv('s-dsb', EINST.datenschutz_beauftragter);
@@ -2141,6 +2145,7 @@ function saveEinst() {
     firmenname: gv('s-fn'), inhaber: gv('s-ih'), strasse: gv('s-str'),
     plz: gv('s-plz'), ort: gv('s-ort'), telefon: gv('s-tel'),
     email: gv('s-mail'), website: gv('s-web'), steuernummer: gv('s-steu'),
+    google_bewertung_url: gv('s-google'), facebook_url: gv('s-fb'), instagram_url: gv('s-ig'),
     ust_id: gv('s-ustid'), rechtsform: gv('s-rf'), handelsreg_nr: gv('s-hrnr'),
     registergericht: gv('s-hrgericht'), datenschutz_beauftragter: gv('s-dsb'),
     versicherung_name: gv('s-vers'), portal_url: gv('s-purl'),
