@@ -831,6 +831,7 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="fg full"><label>Bemerkungen / sichtbare Schäden</label><textarea id="ne-bem" rows="2"></textarea></div>
       <div class="fsec">Lagerplatz</div>
       <div class="full" id="ne-lager-info" style="padding:12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;font-size:13px;color:var(--muted)">Wird automatisch vergeben</div>
+      <div class="fg full"><label>Lagerplatz (Vorschlag – frei änderbar)</label><input id="ne-lagerplatz" placeholder="z.B. Halle/A/007"></div>
     </div>
     <div class="mfoot"><button class="btn btn-g" onclick="closeModal('ne')">Abbrechen</button><button class="btn btn-p" onclick="saveNE()">Einlagern</button></div>
   </div>
@@ -2715,6 +2716,8 @@ function renderE() {
   tb.innerHTML = list.map(function(e) {
     var aktionen = '<div style="display:flex;gap:3px;flex-wrap:wrap">';
     if (e.status === 'Eingelagert') aktionen += '<button class="btn btn-grn btn-sm" onclick="setS(\'' + e.id + '\',\'Abgeholt\')">Abgeholt</button>';
+    if (e.status !== 'Abgeholt') aktionen += '<button class="btn btn-g btn-sm" onclick="platzAendern(\'' + e.id + '\')">Platz</button>';
+    if (e.status === 'Abgeholt') aktionen += '<button class="btn btn-grn btn-sm" onclick="wiedereinlagern(\'' + e.id + '\')">Wiedereinlagern</button>';
     aktionen += '<button class="btn btn-g btn-sm" onclick="zeigeSchein(\'' + e.id + '\',\'ein\')">Ein</button>';
     aktionen += '<button class="btn btn-g btn-sm" onclick="zeigeSchein(\'' + e.id + '\',\'aus\')">Aus</button>';
     aktionen += '<button class="btn btn-g btn-sm" onclick="druckEtikett(\'' + e.id + '\')">Etikett</button>';
@@ -2739,6 +2742,32 @@ function setS(id, status) {
     notify(status === 'Abgeholt' ? 'Abgeholt markiert' : 'Status aktualisiert');
     if (aktK) ladeDocs(aktK.id);
   }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Lagerplatz einer bestehenden Einlagerung aendern
+function platzAendern(id) {
+  var e = allE.find(function(x) { return x.id === id; }); if (!e) return;
+  var neu = prompt('Neuer Lagerplatz für ' + (e.kundenname || '') + ' (' + e.reifen_groesse + '):', e.lagerplatz || '');
+  if (neu === null) return;
+  neu = neu.trim(); if (!neu) { notify('Kein Lagerplatz eingegeben.', 'err'); return; }
+  api('PATCH', '/einlagerungen/' + id + '/lagerplatz', { lagerplatz: neu }).then(function(r) {
+    var i = allE.findIndex(function(x) { return x.id === id; }); if (i !== -1) allE[i].lagerplatz = r.lagerplatz;
+    renderE(); renderLager(); notify('Lagerplatz geändert auf ' + r.lagerplatz + '.');
+  }).catch(function(err) { notify(err.message, 'err'); });
+}
+// Abgeholte Einlagerung erneut einlagern: Dialog mit Reifendaten + Stammplatz vorbefuellen
+function wiedereinlagern(id) {
+  var e = allE.find(function(x) { return x.id === id; }); if (!e) return;
+  aktK = (typeof allK !== 'undefined' && allK) ? allK.find(function(x) { return x.id === e.kunden_id; }) || null : null;
+  openModal('ne'); // fillNeForm setzt Kunde + schlägt Stammplatz vor
+  var sv = function(fid, val) { var el = document.getElementById(fid); if (el) el.value = (val == null ? '' : val); };
+  sv('ne-gr', e.reifen_groesse);
+  var t = document.getElementById('ne-typ'); if (t && e.reifen_typ) t.value = e.reifen_typ;
+  if (e.anzahl) sv('ne-anz', e.anzahl);
+  var fsel = document.getElementById('ne-fel'); if (fsel && e.felgen) fsel.value = e.felgen;
+  sv('ne-bem', e.bemerkungen);
+  if (e.reifen_marke) { var mk = document.getElementById('ne-mk'); if (mk) mk.value = '__man__'; sv('ne-mk-man', e.reifen_marke); var mkm = document.getElementById('ne-mk-man'); if (mkm) mkm.style.display = ''; }
+  if (e.reifen_modell) { var mo = document.getElementById('ne-mo-sel'); if (mo) mo.value = '__man__'; sv('ne-mo-man', e.reifen_modell); var mom = document.getElementById('ne-mo-man'); if (mom) mom.style.display = ''; }
+  notify('Daten übernommen – bitte prüfen und „Einlagern".');
 }
 var neLetzterSatz = null;
 function neKundeChange() {
@@ -2781,22 +2810,24 @@ function fillNeForm() {
   neKundeChange();
   document.getElementById('ne-nk-wrap').style.display = 'none';
   var lInfo = document.getElementById('ne-lager-info');
+  var lpIn = document.getElementById('ne-lagerplatz');
+  var setLP = function(v) { if (lInfo) lInfo.dataset.lagerplatz = v || ''; if (lpIn) lpIn.value = v || ''; };
   if (lInfo) {
     lInfo.textContent = 'Wird automatisch vergeben...';
-    lInfo.dataset.lagerplatz = '';
+    setLP('');
     api('GET', '/lager/naechster-freier').then(function(r) {
       if (r && r.verfuegbar) {
-        lInfo.innerHTML = '<span style="color:var(--green)">Nächster freier Platz: <strong>' + r.lagerplatz + '</strong></span>';
-        lInfo.dataset.lagerplatz = r.lagerplatz;
+        lInfo.innerHTML = '<span style="color:var(--green)">Nächster freier Platz: <strong>' + r.lagerplatz + '</strong> (frei änderbar)</span>';
+        setLP(r.lagerplatz);
       } else {
-        lInfo.innerHTML = '<span style="color:var(--accent)">Keine freien Plätze. Bitte Lagerorte anlegen.</span>';
+        lInfo.innerHTML = '<span style="color:var(--accent)">Keine freien Plätze gefunden. Bitte Platz manuell eintragen oder Lagerorte anlegen.</span>';
       }
-    }).catch(function() { lInfo.textContent = 'Lagerorte noch nicht konfiguriert.'; });
+    }).catch(function() { lInfo.textContent = 'Lagerorte noch nicht konfiguriert – Platz bitte manuell eintragen.'; });
     if (aktK) {
       api('GET', '/lager/stammplatz/' + aktK.id).then(function(r) {
         if (r && r.stammplatz && r.verfuegbar) {
-          lInfo.innerHTML = '<span style="color:var(--blue)">Stammplatz: <strong>' + r.stammplatz + '</strong></span>';
-          lInfo.dataset.lagerplatz = r.stammplatz;
+          lInfo.innerHTML = '<span style="color:var(--blue)">Stammplatz (Vorsaison): <strong>' + r.stammplatz + '</strong> (frei änderbar)</span>';
+          setLP(r.stammplatz);
         }
       }).catch(function() {});
     }
@@ -2805,8 +2836,8 @@ function fillNeForm() {
     var kid = this.value; if (!kid) return;
     api('GET', '/lager/stammplatz/' + kid).then(function(r) {
       if (r && r.stammplatz && r.verfuegbar && lInfo) {
-        lInfo.innerHTML = '<span style="color:var(--blue)">Stammplatz: <strong>' + r.stammplatz + '</strong></span>';
-        lInfo.dataset.lagerplatz = r.stammplatz;
+        lInfo.innerHTML = '<span style="color:var(--blue)">Stammplatz (Vorsaison): <strong>' + r.stammplatz + '</strong> (frei änderbar)</span>';
+        setLP(r.stammplatz);
       }
     }).catch(function() {});
   };
@@ -2862,8 +2893,9 @@ function saveNE() {
   if (!kid) { notify('Bitte Kunden auswählen.', 'err'); return; }
   if (!gr) { notify('Bitte Reifengröße eingeben.', 'err'); return; }
   var lInfo = document.getElementById('ne-lager-info');
-  var lp = lInfo ? lInfo.dataset.lagerplatz : '';
-  if (!lp) { notify('Kein freier Lagerplatz. Bitte Lagerorte anlegen.', 'err'); return; }
+  var lpIn = document.getElementById('ne-lagerplatz');
+  var lp = ((lpIn && lpIn.value) || (lInfo ? lInfo.dataset.lagerplatz : '') || '').trim();
+  if (!lp) { notify('Bitte einen Lagerplatz angeben.', 'err'); return; }
   var mk = document.getElementById('ne-mk').value === '__man__' ? gv('ne-mk-man') : document.getElementById('ne-mk').value;
   var moSel = document.getElementById('ne-mo-sel').value;
   var mo = moSel === '__man__' ? gv('ne-mo-man') : moSel;

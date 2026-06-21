@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { query } = require('../db/index');
+const { query, withTransaction } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 
@@ -83,30 +83,37 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({
         error: 'kunden_id, reifen_groesse, reifen_typ und lagerplatz sind Pflicht.'
       });
-    const { rows: belegt } = await query(
-      "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt'",
-      [lagerplatz]
-    );
-    if (belegt.length)
-      return res.status(409).json({ error: `Lagerplatz ${lagerplatz} ist bereits belegt.` });
-    const beleg_nr = await nextBelegNr();
-    const { rows } = await query(
-      `INSERT INTO einlagerungen
-         (beleg_nr, kunden_id, reifen_groesse, reifen_typ, reifen_marke, reifen_modell,
-          profil_vl, profil_vr, profil_hl, profil_hr,
-          anzahl, felgen, dot, lagerplatz, bemerkungen, erstellt_von, fahrzeug_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-       RETURNING *`,
-      [beleg_nr, kunden_id, reifen_groesse, reifen_typ,
-       reifen_marke||null, reifen_modell||null,
-       profil_vl||null, profil_vr||null, profil_hl||null, profil_hr||null,
-       anzahl||4, felgen||'Nein', dot||null,
-       lagerplatz, bemerkungen||null, req.user.id, fahrzeug_id||null]
-    );
+    // Pruefung + Insert in einer Transaktion mit Advisory-Lock je Lagerplatz
+    // -> verhindert, dass zwei gleichzeitige Einlagerungen denselben Platz belegen.
+    const neu = await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['lagerplatz:' + lagerplatz]);
+      const belegt = await client.query(
+        "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt'", [lagerplatz]);
+      if (belegt.rows.length) { const e = new Error(`Lagerplatz ${lagerplatz} ist bereits belegt.`); e.status = 409; throw e; }
+      const belegRes = await client.query("SELECT nextval('seq_beleg_nr') AS n");
+      const beleg_nr = 'E-' + String(belegRes.rows[0].n).padStart(4, '0');
+      const ins = await client.query(
+        `INSERT INTO einlagerungen
+           (beleg_nr, kunden_id, reifen_groesse, reifen_typ, reifen_marke, reifen_modell,
+            profil_vl, profil_vr, profil_hl, profil_hr,
+            anzahl, felgen, dot, lagerplatz, bemerkungen, erstellt_von, fahrzeug_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+         RETURNING *`,
+        [beleg_nr, kunden_id, reifen_groesse, reifen_typ,
+         reifen_marke||null, reifen_modell||null,
+         profil_vl||null, profil_vr||null, profil_hl||null, profil_hr||null,
+         anzahl||4, felgen||'Nein', dot||null,
+         lagerplatz, bemerkungen||null, req.user.id, fahrzeug_id||null]
+      );
+      return ins.rows[0];
+    });
     await auditLog({ userId: req.user.id, aktion: 'einlagerung.erstellt',
-      tabelle: 'einlagerungen', datensatzId: rows[0].id, neueWerte: rows[0], req });
-    res.status(201).json(rows[0]);
-  } catch (err) { next(err); }
+      tabelle: 'einlagerungen', datensatzId: neu.id, neueWerte: neu, req });
+    res.status(201).json(neu);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.patch('/:id/status', async (req, res, next) => {
@@ -132,6 +139,32 @@ router.patch('/:id/status', async (req, res, next) => {
       neueWerte: { status }, req });
     res.json(rows[0]);
   } catch (err) { next(err); }
+});
+
+// Lagerplatz einer bestehenden Einlagerung aendern (mit Belegt-Pruefung + Sperre)
+router.patch('/:id/lagerplatz', async (req, res, next) => {
+  try {
+    const { lagerplatz } = req.body;
+    if (!lagerplatz || !lagerplatz.trim()) return res.status(400).json({ error: 'Lagerplatz erforderlich.' });
+    const lp = lagerplatz.trim();
+    const updated = await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['lagerplatz:' + lp]);
+      const belegt = await client.query(
+        "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt' AND id<>$2", [lp, req.params.id]);
+      if (belegt.rows.length) { const e = new Error(`Lagerplatz ${lp} ist bereits belegt.`); e.status = 409; throw e; }
+      const r = await client.query(
+        'UPDATE einlagerungen SET lagerplatz=$1, geaendert_von=$2 WHERE id=$3 RETURNING *',
+        [lp, req.user.id, req.params.id]);
+      return r.rows[0];
+    });
+    if (!updated) return res.status(404).json({ error: 'Nicht gefunden.' });
+    await auditLog({ userId: req.user.id, aktion: 'einlagerung.lagerplatz_geaendert',
+      tabelle: 'einlagerungen', datensatzId: req.params.id, neueWerte: { lagerplatz: lp }, req });
+    res.json(updated);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.delete('/:id', async (req, res, next) => {
