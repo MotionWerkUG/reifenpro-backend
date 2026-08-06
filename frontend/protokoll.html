@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Annahmeprotokoll — Schröder &amp; Scholz</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#0d1117;color:#e6edf3}
+  .top{background:#171717;border-bottom:3px solid #eab308;padding:14px 18px;font-weight:800;letter-spacing:.5px;position:sticky;top:0;z-index:20}
+  .top span{color:#eab308}
+  .wrap{max-width:640px;margin:0 auto;padding:16px 16px 90px}
+  .card{background:#161b22;border:1px solid #2a3441;border-radius:14px;padding:16px;margin-bottom:14px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:#8b949e;margin-bottom:12px}
+  label{display:block;font-size:12px;color:#8b949e;margin:10px 0 5px;font-weight:600}
+  input[type=text],input[type=number],input[type=email],input[type=password],textarea,select{width:100%;background:#0d1117;border:1px solid #2a3441;border-radius:10px;color:#e6edf3;padding:12px;font-size:16px;font-family:inherit}
+  textarea{min-height:80px;resize:vertical}
+  .seg{display:flex;gap:8px}
+  .seg button{flex:1;padding:12px;border-radius:10px;border:1px solid #2a3441;background:#0d1117;color:#8b949e;font-weight:700;font-size:15px;cursor:pointer}
+  .seg button.on{background:#eab308;color:#171717;border-color:#eab308}
+  .ck{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #232b36}
+  .ck:last-child{border-bottom:none}
+  .ck .t{flex:1;font-size:14px}
+  .ck .tg{border:none;border-radius:8px;padding:8px 12px;font-weight:700;font-size:12px;cursor:pointer;min-width:104px}
+  .tg.ok{background:#0f2e1d;color:#7ee2a8;border:1px solid #285}
+  .tg.bad{background:#3a1113;color:#ffb4b4;border:1px solid #632}
+  .ckn{width:100%;margin-top:6px;font-size:14px!important;padding:8px!important}
+  .fotos{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .fotos img{width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid #2a3441}
+  .fbtn{display:inline-block;background:#eab308;color:#171717;font-weight:700;padding:12px 16px;border-radius:10px;cursor:pointer;font-size:15px}
+  #sig{background:#fff;border-radius:10px;width:100%;height:170px;touch-action:none;display:block}
+  button.b{border:none;border-radius:10px;padding:14px 16px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer}
+  .b-p{background:#eab308;color:#171717;width:100%}
+  .b-g{background:#21262d;color:#e6edf3;border:1px solid #2a3441}
+  .msg{padding:12px 14px;border-radius:10px;font-size:14px;margin-bottom:12px;display:none}
+  .msg.err{background:#3a1113;color:#ffb4b4;border:1px solid #632}
+  .msg.ok{background:#0f2e1d;color:#7ee2a8;border:1px solid #285}
+  .muted{color:#8b949e;font-size:12px}
+  .hit{padding:10px;border:1px solid #2a3441;border-radius:8px;margin-top:6px;cursor:pointer;font-size:14px}
+  .hit:hover{border-color:#eab308}
+</style>
+</head>
+<body>
+<div class="top">SCHRÖDER <span>&amp;</span> SCHOLZ · Protokoll</div>
+<div class="wrap">
+  <div class="msg" id="msg"></div>
+
+  <div id="login" style="display:none" class="card">
+    <h2>Anmelden</h2>
+    <input id="l-email" type="email" placeholder="E-Mail" autocapitalize="none">
+    <input id="l-pass" type="password" placeholder="Passwort" style="margin-top:8px">
+    <button class="b b-p" style="margin-top:12px" onclick="doLogin()">Anmelden</button>
+  </div>
+
+  <div id="app" style="display:none">
+    <div class="card">
+      <h2>Art des Protokolls</h2>
+      <div class="seg">
+        <button id="t-an" class="on" onclick="setTyp('annahme')">Annahme</button>
+        <button id="t-ue" onclick="setTyp('uebergabe')">Übergabe</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Kunde &amp; Fahrzeug</h2>
+      <div id="kunde-box">
+        <label>Kunde suchen (Name, Kennzeichen, Beleg-Nr.)</label>
+        <input id="k-such" type="text" placeholder="z.B. Müller oder WOR-AB-1234" oninput="sucheKunde()">
+        <div id="k-treffer"></div>
+      </div>
+      <div id="k-gewaehlt" style="display:none">
+        <div style="font-weight:700;font-size:16px" id="k-name"></div>
+        <div class="muted" id="k-info"></div>
+        <button class="b b-g" style="margin-top:10px;padding:8px 12px;font-size:13px" onclick="kundeReset()">Anderen Kunden wählen</button>
+      </div>
+      <label>Kennzeichen</label><input id="p-kz" type="text" placeholder="WOR-AB-1234">
+      <label>km-Stand (optional)</label><input id="p-km" type="number" inputmode="numeric" placeholder="z.B. 84500">
+    </div>
+
+    <div class="card">
+      <h2>Zustandsprüfung</h2>
+      <div id="ckliste"></div>
+    </div>
+
+    <div class="card">
+      <h2>Bemerkungen / Mängel</h2>
+      <textarea id="p-maengel" placeholder="z.B. Kratzer Felge vorne rechts, Radkappe fehlt ..."></textarea>
+    </div>
+
+    <div class="card">
+      <h2>Fotodokumentation</h2>
+      <div class="muted">Fotos werden automatisch verkleinert und nur intern gespeichert.</div>
+      <div style="margin-top:10px">
+        <label class="fbtn">Foto aufnehmen / wählen
+          <input type="file" accept="image/*" capture="environment" multiple hidden onchange="fotoUpload(this)">
+        </label>
+      </div>
+      <div class="fotos" id="foto-box"></div>
+    </div>
+
+    <div class="card">
+      <h2>Unterschrift Kunde</h2>
+      <canvas id="sig"></canvas>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="b b-g" style="flex:1" onclick="sigClear()">Löschen</button>
+      </div>
+      <label>Name des Unterzeichners</label>
+      <input id="p-signame" type="text" placeholder="Vor- und Nachname">
+    </div>
+
+    <button class="b b-p" id="save" onclick="speichern()">Protokoll speichern &amp; PDF erzeugen</button>
+  </div>
+
+  <div id="fertig" class="card" style="display:none">
+    <h2>Protokoll gespeichert</h2>
+    <div class="muted" style="margin-bottom:12px">Das PDF ist erzeugt und beim Kunden hinterlegt.</div>
+    <button class="b b-p" onclick="pdfOeffnen()">PDF öffnen / drucken</button>
+    <button class="b b-g" style="width:100%;margin-top:8px" onclick="location.href=location.pathname">Neues Protokoll</button>
+  </div>
+</div>
+<script>
+'use strict';
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
+var TOKEN = localStorage.getItem('rp_token');
+var TYP = 'annahme', KUNDE = null, EINL = null, FOTOS = [], LETZTES = null;
+var PUNKTE = ['Räder/Reifen äußerlich unbeschädigt','Felgen ohne Bordsteinschäden','Radschrauben/Zubehör vollständig',
+              'Radkappen/Zierblenden vorhanden','RDKS/TPMS-Sensoren vorhanden','Fahrzeug ohne sichtbare Vorschäden'];
+var CK = PUNKTE.map(function(p){ return { punkt:p, ok:true, bemerkung:'' }; });
+
+function msg(t,c){ var m=document.getElementById('msg'); m.textContent=t; m.className='msg '+(c||''); m.style.display=t?'block':'none'; if(t)window.scrollTo({top:0,behavior:'smooth'}); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+function api(method,path,body){
+  var o={method:method,headers:{'Content-Type':'application/json'}};
+  if(TOKEN)o.headers['Authorization']='Bearer '+TOKEN;
+  if(body!==undefined)o.body=JSON.stringify(body);
+  return fetch(API+path,o).then(function(r){
+    if(r.status===401){TOKEN=null;localStorage.removeItem('rp_token');zeige();throw {auth:true};}
+    if(!r.ok)return r.json().catch(function(){return{};}).then(function(e){throw new Error(e.error||('Fehler '+r.status));});
+    return r.json();
+  });
+}
+function zeige(){
+  document.getElementById('login').style.display=TOKEN?'none':'block';
+  document.getElementById('app').style.display=TOKEN?'block':'none';
+  if(TOKEN){ renderCk(); initSig(); vorbefuellen(); }
+}
+function doLogin(){
+  var e=document.getElementById('l-email').value.trim(), p=document.getElementById('l-pass').value;
+  fetch(API+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,passwort:p})})
+    .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Login fehlgeschlagen');return j;});})
+    .then(function(j){TOKEN=j.token;localStorage.setItem('rp_token',TOKEN);msg('');zeige();})
+    .catch(function(e){msg(e.message,'err');});
+}
+function setTyp(t){ TYP=t;
+  document.getElementById('t-an').className = t==='annahme'?'on':'';
+  document.getElementById('t-ue').className = t==='uebergabe'?'on':'';
+}
+// Checkliste
+function renderCk(){
+  document.getElementById('ckliste').innerHTML = CK.map(function(c,i){
+    return '<div class="ck"><div class="t">'+esc(c.punkt)+'</div>'+
+      '<button class="tg '+(c.ok?'ok':'bad')+'" onclick="ckToggle('+i+')">'+(c.ok?'in Ordnung':'Beanstandung')+'</button></div>'+
+      (c.ok?'':'<input class="ckn" type="text" placeholder="Was genau?" value="'+esc(c.bemerkung)+'" oninput="CK['+i+'].bemerkung=this.value">');
+  }).join('');
+}
+function ckToggle(i){ CK[i].ok=!CK[i].ok; if(CK[i].ok)CK[i].bemerkung=''; renderCk(); }
+// Kunde
+function vorbefuellen(){
+  var beleg=new URLSearchParams(location.search).get('beleg');
+  if(!beleg) return;
+  api('GET','/einlagerungen/'+encodeURIComponent(beleg)).then(function(e){
+    EINL=e.id; setKunde({id:e.kunden_id, name:e.kundenname, kunden_nr:e.kunden_nr, kennzeichen:e.kennzeichen});
+    msg('Vorbefüllt aus Beleg '+e.beleg_nr+' (Lagerplatz '+(e.lagerplatz||'—')+')','ok');
+  }).catch(function(){});
+}
+function sucheKunde(){
+  var q=document.getElementById('k-such').value.trim();
+  if(q.length<2){document.getElementById('k-treffer').innerHTML='';return;}
+  api('GET','/kunden?suche='+encodeURIComponent(q)+'&limit=6').then(function(rows){
+    document.getElementById('k-treffer').innerHTML=(rows||[]).slice(0,6).map(function(k){
+      return '<div class="hit" onclick=\'setKunde({id:"'+k.id+'",name:"'+esc((k.vorname||'')+" "+(k.nachname||''))+'",kunden_nr:"'+esc(k.kunden_nr||'')+'",kennzeichen:"'+esc(k.kennzeichen||'')+'"})\'>'+
+        '<strong>'+esc((k.vorname||'')+' '+(k.nachname||''))+'</strong> <span class="muted">'+esc(k.kunden_nr||'')+' · '+esc(k.kennzeichen||'')+'</span></div>';
+    }).join('') || '<div class="muted" style="margin-top:6px">Kein Treffer.</div>';
+  }).catch(function(e){ if(!e.auth) msg(e.message,'err'); });
+}
+function setKunde(k){
+  KUNDE=k;
+  document.getElementById('kunde-box').style.display='none';
+  document.getElementById('k-gewaehlt').style.display='block';
+  document.getElementById('k-name').textContent=k.name;
+  document.getElementById('k-info').textContent=[k.kunden_nr,k.kennzeichen].filter(Boolean).join(' · ');
+  if(k.kennzeichen) document.getElementById('p-kz').value=k.kennzeichen;
+}
+function kundeReset(){
+  KUNDE=null;EINL=null;
+  document.getElementById('kunde-box').style.display='block';
+  document.getElementById('k-gewaehlt').style.display='none';
+  document.getElementById('k-treffer').innerHTML='';
+}
+// Fotos
+function fotoUpload(inp){
+  var files=Array.prototype.slice.call(inp.files||[]);
+  if(!files.length)return;
+  msg('Foto wird hochgeladen …','ok');
+  var ketten=files.slice(0,8).map(function(f){
+    return new Promise(function(res){
+      var r=new FileReader();
+      r.onload=function(ev){
+        api('POST','/protokolle/foto',{data:ev.target.result})
+          .then(function(x){FOTOS.push(x.datei);res();})
+          .catch(function(e){ msg(e.message||'Foto fehlgeschlagen','err'); res(); });
+      };
+      r.readAsDataURL(f);
+    });
+  });
+  Promise.all(ketten).then(function(){ inp.value=''; renderFotos(); msg(FOTOS.length+' Foto(s) gespeichert.','ok'); });
+}
+// Geschuetzte Datei laden: fetch MIT Token -> Blob-URL (img/window.open koennen keinen Header senden)
+function authBlobUrl(pfad){
+  return fetch(API+pfad,{headers:{'Authorization':'Bearer '+TOKEN}})
+    .then(function(r){ if(!r.ok) throw new Error('Fehler '+r.status); return r.blob(); })
+    .then(function(b){ return URL.createObjectURL(b); });
+}
+function renderFotos(){
+  var box=document.getElementById('foto-box'); box.innerHTML='';
+  FOTOS.forEach(function(f){
+    var img=document.createElement('img'); img.alt='Foto'; box.appendChild(img);
+    authBlobUrl('/protokolle/datei/'+encodeURIComponent(f)).then(function(u){ img.src=u; }).catch(function(){});
+  });
+}
+// Unterschrift
+var ctx,zeichnet=false,leer=true;
+function initSig(){
+  var c=document.getElementById('sig'); if(!c||ctx)return;
+  var r=c.getBoundingClientRect(); c.width=r.width*2; c.height=170*2;
+  ctx=c.getContext('2d'); ctx.scale(2,2); ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.strokeStyle='#111';
+  function pos(e){ var b=c.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:t.clientX-b.left,y:t.clientY-b.top}; }
+  function start(e){ e.preventDefault(); zeichnet=true; leer=false; var p=pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+  function move(e){ if(!zeichnet)return; e.preventDefault(); var p=pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }
+  function end(){ zeichnet=false; }
+  c.addEventListener('pointerdown',start); c.addEventListener('pointermove',move);
+  c.addEventListener('pointerup',end); c.addEventListener('pointerleave',end);
+}
+function sigClear(){ var c=document.getElementById('sig'); if(ctx){ctx.clearRect(0,0,c.width,c.height);leer=true;} }
+function pdfOeffnen(){
+  if(!LETZTES) return;
+  authBlobUrl('/protokolle/'+LETZTES+'/pdf')
+    .then(function(u){ window.open(u,'_blank'); })
+    .catch(function(e){ msg('PDF konnte nicht geladen werden: '+(e.message||''),'err'); });
+}
+// Speichern
+function speichern(){
+  if(!KUNDE){ msg('Bitte zuerst einen Kunden wählen.','err'); return; }
+  var btn=document.getElementById('save'); btn.disabled=true; var alt=btn.textContent; btn.textContent='Wird gespeichert …';
+  var sig = leer ? null : document.getElementById('sig').toDataURL('image/png');
+  api('POST','/protokolle',{
+    typ:TYP, kunden_id:KUNDE.id, einlagerung_id:EINL,
+    kennzeichen:document.getElementById('p-kz').value.trim(),
+    km_stand:document.getElementById('p-km').value,
+    checkliste:CK, maengel:document.getElementById('p-maengel').value.trim(),
+    fotos:FOTOS, unterschrift:sig, unterschrift_name:document.getElementById('p-signame').value.trim()
+  }).then(function(p){
+    LETZTES = p.id;
+    document.getElementById('app').style.display='none';
+    document.getElementById('fertig').style.display='block';
+    msg('Protokoll gespeichert.','ok');
+  }).catch(function(e){ if(!e.auth) msg(e.message||'Speichern fehlgeschlagen','err'); })
+    .then(function(){ btn.disabled=false; btn.textContent=alt; });
+}
+zeige();
+</script>
+</body>
+</html>

@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Kundenportal — Schröder & Scholz</title>
+<style>
+/* HELL (Standard, folgt System) */
+:root, :root[data-theme="light"] {
+  --bg: #f3f2ef; --panel: #ffffff; --panel2: #f6f4f0; --border: #e2ddd3;
+  --border2: #d5cfc3; --text: #201e1b; --muted: #6f6a61; --accent: #eab308;
+  --accent2: #d99a08; --accent-text: #87680c; --accent-ink: #1c1608;
+  --blue: #2f6bd8; --green: #1a8f52; --yellow: #b3781a;
+  --red: #c8402a; --ydim: #f3e8c4; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2a3441;
+    --border2: #374151; --text: #e6edf3; --muted: #8b949e; --accent: #eab308;
+    --accent2: #f59e0b; --accent-text: #eec33a; --accent-ink: #1c1608;
+    --blue: #4a9eff; --green: #3ecf8e; --yellow: #f0c000;
+    --red: #f85149; --ydim: #2a2410; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117; --panel: #161b22; --panel2: #1c2230; --border: #2a3441;
+  --border2: #374151; --text: #e6edf3; --muted: #8b949e; --accent: #eab308;
+  --accent2: #f59e0b; --accent-text: #eec33a; --accent-ink: #1c1608;
+  --blue: #4a9eff; --green: #3ecf8e; --yellow: #f0c000;
+  --red: #f85149; --ydim: #2a2410; color-scheme: dark;
+}
+.wm-tx { fill: var(--text); } .wm-sub { fill: var(--muted); }
+.theme-btn { display: inline-flex; align-items: center; justify-content: center; background: var(--panel); border: 1px solid var(--border2); border-radius: 7px; color: var(--text); cursor: pointer; padding: 7px 9px; }
+.theme-btn svg { width: 16px; height: 16px; display: block; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5; font-size: 15px; }
+input, select, textarea, button { font-family: inherit; font-size: 16px; }
+.hidden { display: none !important; }
+
+/* Login/Register */
+.auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+.auth-box { width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px 28px; }
+.auth-logo { text-align: center; font-size: 28px; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 4px; }
+.auth-logo span { color: var(--accent-text); }
+.auth-sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.fg { margin-bottom: 14px; }
+.fg label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; font-weight: 600; }
+.fg input, .fg select, .fg textarea { width: 100%; background: var(--panel2); border: 1px solid var(--border2);
+  border-radius: 9px; color: var(--text); padding: 11px 13px; outline: none; transition: border 0.15s; }
+.fg input:focus, .fg select:focus, .fg textarea:focus { border-color: var(--accent-text); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  background: var(--panel2); border: 1px solid var(--border2); border-radius: 9px;
+  color: var(--text); padding: 11px 18px; cursor: pointer; font-weight: 600; transition: all 0.15s; }
+.btn:active { transform: scale(0.98); }
+.btn-p { background: var(--accent); border-color: var(--accent-text); color: #171717; font-weight: 800; width: 100%; padding: 13px; }
+.btn-p:hover { background: var(--accent2); }
+.btn-g { background: var(--panel2); }
+.btn-sm { padding: 7px 12px; font-size: 13px; }
+.auth-switch { text-align: center; margin-top: 18px; font-size: 13px; color: var(--muted); }
+.auth-switch a { color: var(--accent-text); cursor: pointer; text-decoration: none; font-weight: 600; }
+.auth-err { background: rgba(248,81,73,0.12); border: 1px solid rgba(248,81,73,0.3); color: var(--red);
+  padding: 10px 13px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+.auth-ok { background: rgba(62,207,142,0.12); border: 1px solid rgba(62,207,142,0.3); color: var(--green);
+  padding: 10px 13px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; }
+.check-row { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.check-row input { width: 18px; height: 18px; margin-top: 1px; flex-shrink: 0; accent-color: var(--accent-text); }
+.check-row a { color: var(--accent-text); cursor: pointer; }
+
+/* Lang switch */
+.lang-switch { position: fixed; top: 16px; right: 16px; display: flex; gap: 4px; z-index: 100; }
+.lang-btn { background: var(--panel); border: 1px solid var(--border2); border-radius: 7px;
+  color: var(--muted); padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 700; }
+.lang-btn.on { background: var(--accent); border-color: var(--accent-text); color: #171717; }
+
+/* App */
+.app-header { background: var(--panel); border-bottom: 1px solid var(--border);
+  padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.app-logo { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+.app-logo span { color: var(--accent-text); }
+.app-nav { display: flex; gap: 6px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border);
+  overflow-x: auto; position: sticky; top: 57px; z-index: 49; }
+.nav-tab { background: transparent; border: 1px solid transparent; border-radius: 9px; color: var(--muted);
+  padding: 9px 15px; cursor: pointer; font-weight: 600; white-space: nowrap; font-size: 14px; }
+.nav-tab.on { background: var(--accent); color: #171717; font-weight: 800; }
+.app-main { max-width: 1200px; margin: 0 auto; padding: 20px 28px; }
+.portal-footer { text-align: center; padding: 18px 14px 26px; font-size: 12px; color: var(--muted); }
+.portal-footer a { color: var(--muted); text-decoration: none; margin: 0 3px; cursor: pointer; }
+.portal-footer a:hover { color: var(--accent-text); }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+.card-titel { font-size: 16px; font-weight: 800; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+.page { display: none; }
+.page.on { display: block; }
+.empty { text-align: center; color: var(--muted); padding: 30px; font-size: 14px; }
+.badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.b-g { background: rgba(62,207,142,0.15); color: var(--green); }
+.b-y { background: rgba(240,192,0,0.15); color: var(--yellow); }
+.b-r { background: rgba(248,81,73,0.15); color: var(--red); }
+.b-b { background: rgba(74,158,255,0.15); color: var(--blue); }
+.iz { background: var(--panel2); border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; }
+.iz-l { font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+.iz-v { font-weight: 600; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lager-tag { font-size: 18px; font-weight: 900; color: var(--accent-text); letter-spacing: 1px; }
+.notify { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--panel2); border: 1px solid var(--border2); border-radius: 10px;
+  padding: 13px 20px; font-size: 14px; z-index: 200; max-width: 90%; box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+.notify.err { border-color: var(--red); color: var(--red); }
+.notify.ok { border-color: var(--green); color: var(--green); }
+.slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; margin-top: 12px; }
+.slot { background: var(--panel2); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 10px; text-align: center; cursor: pointer; font-weight: 700; font-size: 14px; }
+.slot:hover { border-color: var(--accent-text); }
+.slot.sel { background: var(--accent); border-color: var(--accent-text); color: #171717; font-weight: 800; }
+@media (max-width: 600px) {
+  .g2 { grid-template-columns: 1fr; }
+  .app-header { padding: 12px 14px; }
+  .app-logo svg { width: 150px; height: auto; }
+  #app-username { display: none; }
+  .app-nav { padding: 10px 12px; }
+  .app-main { padding: 16px 14px; }
+}
+</style>
+</head>
+<body>
+<script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<div class="lang-switch">
+  <button class="lang-btn on" id="lang-de" onclick="setLang('de')">DE</button>
+  <button class="lang-btn" id="lang-en" onclick="setLang('en')">EN</button>
+  <button class="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel" aria-label="Hell/Dunkel umschalten"></button>
+</div>
+
+<!-- LOGIN -->
+<div id="screen-login" class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="login_sub">Kundenportal — Anmeldung</div>
+    <div id="login-err" class="auth-err hidden"></div>
+    <div id="login-ok" class="auth-ok hidden"></div>
+    <div class="fg">
+      <label data-i18n="email">E-Mail</label>
+      <input id="li-email" type="email" autocapitalize="none" autocorrect="off" autocomplete="username" onkeydown="if(event.key==='Enter')portalLogin()">
+    </div>
+    <div class="fg">
+      <label data-i18n="password">Passwort</label>
+      <input id="li-pass" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')portalLogin()">
+    </div>
+    <button class="btn btn-p" onclick="portalLogin()" data-i18n="login_btn">Anmelden</button>
+    <div style="text-align:center;margin-top:12px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap">
+      <a onclick="zeigePwReset()" style="color:var(--muted);font-size:12px;cursor:pointer;text-decoration:none" data-i18n="forgot_pw">Passwort vergessen?</a>
+      <a onclick="resendBestaetigung()" style="color:var(--muted);font-size:12px;cursor:pointer;text-decoration:none" data-i18n="resend_confirm">Bestätigungsmail erneut senden</a>
+    </div>
+    <div class="auth-switch">
+      <span data-i18n="no_account">Noch kein Konto?</span> <a onclick="zeigeScreen('register')" data-i18n="register_now">Jetzt registrieren</a>
+    </div>
+  </div>
+</div>
+
+<!-- REGISTER -->
+<div id="screen-register" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="register_sub">Neues Kundenkonto erstellen</div>
+    <div id="reg-err" class="auth-err hidden"></div>
+    <div id="reg-ok" class="auth-ok hidden"></div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="firstname">Vorname</label><input id="reg-vorname"></div>
+      <div class="fg"><label data-i18n="lastname">Nachname</label><input id="reg-nachname"></div>
+    </div>
+    <div class="fg"><label data-i18n="email">E-Mail</label><input id="reg-email" type="email" autocapitalize="none" autocorrect="off"></div>
+    <div class="fg"><label data-i18n="phone">Telefon (optional)</label><input id="reg-telefon" type="tel"></div>
+    <div class="fg"><label data-i18n="password">Passwort (mind. 8 Zeichen)</label><input id="reg-pass" type="password"></div>
+    <div class="fg"><label data-i18n="password_repeat">Passwort wiederholen</label><input id="reg-pass2" type="password"></div>
+    <label class="check-row">
+      <input type="checkbox" id="reg-dsgvo">
+      <span><span data-i18n="accept_dsgvo">Ich habe die</span> <a onclick="zeigeDsgvo()" data-i18n="dsgvo_link">Datenschutzerklärung</a> <span data-i18n="accept_read">gelesen und akzeptiere sie.</span></span>
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="reg-agb">
+      <span><span data-i18n="accept_agb">Ich akzeptiere die</span> <a onclick="zeigeAgb()" data-i18n="agb_link">AGB</a>.</span>
+    </label>
+    <label class="check-row">
+      <input type="checkbox" id="reg-saison">
+      <span data-i18n="accept_saison">Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).</span>
+    </label>
+    <button class="btn btn-p" onclick="portalRegister()" data-i18n="register_btn">Registrieren</button>
+    <div class="auth-switch">
+      <span data-i18n="have_account">Bereits registriert?</span> <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
+    <div class="auth-switch" style="margin-top:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)">
+      <span data-i18n="gewerbe_link_q">Sie sind Gewerbekunde?</span> <a onclick="zeigeScreen('gewerbe')" data-i18n="gewerbe_link">Zugang anfragen</a>
+    </div>
+  </div>
+</div>
+
+<!-- GEWERBE-ZUGANG ANFRAGEN -->
+<div id="screen-gewerbe" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="gewerbe_sub">Gewerbe-Zugang anfragen</div>
+    <p style="color:var(--muted);font-size:13px;line-height:1.5;margin:0 0 16px" data-i18n="gewerbe_intro">Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.</p>
+    <div id="gw-err" class="auth-err hidden"></div>
+    <div id="gw-ok" class="auth-ok hidden"></div>
+    <div class="fg"><label data-i18n="company">Firma</label><input id="gw-firma"></div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="salutation">Anrede</label>
+        <select id="gw-anrede"><option value="">—</option><option value="Herr">Herr</option><option value="Frau">Frau</option></select></div>
+      <div class="fg"><label data-i18n="contact_person">Ansprechpartner</label><input id="gw-ap"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="email">E-Mail</label><input id="gw-email" type="email" autocapitalize="none" autocorrect="off"></div>
+      <div class="fg"><label data-i18n="phone_req">Telefon</label><input id="gw-tel" type="tel"></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label data-i18n="vat_id">USt-IdNr. (optional)</label><input id="gw-ustid"></div>
+      <div class="fg"><label data-i18n="vehicle_count">Anzahl Fahrzeuge (optional)</label><input id="gw-anzahl" type="number" min="1"></div>
+    </div>
+    <div class="fg"><label data-i18n="message_opt">Nachricht (optional)</label><textarea id="gw-nachricht" rows="3" style="width:100%;background:var(--panel,#181818);color:var(--text,#ececec);border:1px solid var(--border2,#2e2e2e);border-radius:8px;padding:10px 12px;font:inherit;resize:vertical"></textarea></div>
+    <div class="fg"><label data-i18n="business_reg_upload">Gewerbeanmeldung hochladen (PDF/Bild, optional)</label><input id="gw-datei" type="file" accept="application/pdf,image/*"></div>
+    <label class="check-row">
+      <input type="checkbox" id="gw-dsgvo">
+      <span><span data-i18n="accept_dsgvo">Ich habe die</span> <a onclick="zeigeDsgvo()" data-i18n="dsgvo_link">Datenschutzerklärung</a> <span data-i18n="accept_read">gelesen und akzeptiere sie.</span></span>
+    </label>
+    <button class="btn btn-p" onclick="gewerbeAnfrage()" data-i18n="gewerbe_send">Anfrage senden</button>
+    <div class="auth-switch">
+      <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORT RESET -->
+<div id="screen-reset" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="reset_sub">Passwort zurücksetzen</div>
+    <div id="reset-err" class="auth-err hidden"></div>
+    <div id="reset-ok" class="auth-ok hidden"></div>
+    <div class="fg">
+      <label data-i18n="email">E-Mail</label>
+      <input id="reset-email" type="email" autocapitalize="none" autocorrect="off">
+    </div>
+    <button class="btn btn-p" onclick="portalPwReset()" data-i18n="reset_btn">Reset-Link senden</button>
+    <div class="auth-switch">
+      <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
+  </div>
+</div>
+<!-- APP -->
+<div id="screen-app" class="hidden">
+  <div class="app-header">
+    <div class="app-logo" style="display:flex;align-items:center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="200" height="35" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="display:flex;gap:4px">
+        <button class="lang-btn on" id="lang-de2" onclick="setLang('de')">DE</button>
+        <button class="lang-btn" id="lang-en2" onclick="setLang('en')">EN</button>
+      </div>
+      <span id="app-username" style="font-size:13px;color:var(--muted)"></span>
+      <button class="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel" aria-label="Hell/Dunkel umschalten"></button>
+      <button class="btn btn-g btn-sm" onclick="portalLogout()" data-i18n="logout">Abmelden</button>
+    </div>
+  </div>
+  <div class="app-nav">
+    <button class="nav-tab on" data-page="ueberblick" onclick="portalNav('ueberblick')" data-i18n="nav_overview">Überblick</button>
+    <button class="nav-tab" data-page="einlagerungen" onclick="portalNav('einlagerungen')" data-i18n="nav_storage">Einlagerungen</button>
+    <button class="nav-tab" data-page="fahrzeuge" onclick="portalNav('fahrzeuge')" data-i18n="nav_vehicles">Fahrzeuge</button>
+    <button class="nav-tab" data-page="rechnungen" onclick="portalNav('rechnungen')" data-i18n="nav_invoices">Rechnungen</button>
+    <button class="nav-tab" data-page="termine" onclick="portalNav('termine')" data-i18n="nav_appointments">Termine</button>
+    <button class="nav-tab" data-page="buchen" onclick="portalNav('buchen')" data-i18n="nav_book">Termin buchen</button>
+    <button class="nav-tab" data-page="profil" onclick="portalNav('profil')" data-i18n="nav_profile">Profil</button>
+  </div>
+  <div class="app-main">
+    <!-- UEBERBLICK -->
+    <div id="page-ueberblick" class="page on">
+      <div id="saison-banner-ueberblick"></div>
+      <div class="card">
+        <div class="card-titel" data-i18n="welcome">Willkommen</div>
+        <div id="ueberblick-inhalt"></div>
+      </div>
+    </div>
+    <!-- EINLAGERUNGEN -->
+    <div id="page-einlagerungen" class="page">
+      <div id="einlagerungen-liste"></div>
+    </div>
+    <!-- FAHRZEUGE -->
+    <div id="page-fahrzeuge" class="page">
+      <div class="card">
+        <div class="card-titel"><span data-i18n="nav_vehicles">Fahrzeuge</span>
+          <button class="btn btn-g btn-sm" onclick="fzFormZeigen()" data-i18n="add_vehicle">Fahrzeug hinzufügen</button></div>
+        <div id="fahrzeuge-liste"></div>
+      </div>
+      <div class="card" id="fz-form-card" style="display:none">
+        <div class="card-titel" id="fz-form-titel" data-i18n="add_vehicle">Fahrzeug hinzufügen</div>
+        <div class="fg"><label data-i18n="vehicle_type">Fahrzeugtyp</label>
+          <select id="fz-typ"><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
+        <div class="fg"><label data-i18n="brand">Marke</label><input id="fz-marke"></div>
+        <div class="fg"><label data-i18n="model">Modell</label><input id="fz-modell"></div>
+        <div class="fg"><label data-i18n="license_plate_req">Kennzeichen *</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="fz-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="fz-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="fz-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center">
+            <input id="fz-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+          </div>
+        </div>
+        <div class="fg"><label data-i18n="year">Baujahr</label><input id="fz-baujahr" type="number" min="1950" max="2099"></div>
+        <div class="fg"><label data-i18n="hu_date">HU fällig (Monat)</label><input id="fz-hu" type="month"></div>
+        <input type="hidden" id="fz-id">
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="btn btn-g btn-sm" onclick="fzFormAbbrechen()" data-i18n="cancel">Abbrechen</button>
+          <button class="btn btn-g btn-sm" onclick="fzSpeichern()" data-i18n="save">Speichern</button>
+        </div>
+      </div>
+    </div>
+    <!-- TERMINE -->
+    <div id="page-termine" class="page">
+      <div class="card" id="resched-card" style="display:none">
+        <div class="card-titel" data-i18n="reschedule">Termin verschieben</div>
+        <div class="fg"><label data-i18n="date">Datum</label><input id="resched-datum" type="date" onchange="reschedSlots()"></div>
+        <div id="resched-slots" class="slot-grid"></div>
+        <div style="margin-top:10px"><button class="btn btn-g btn-sm" onclick="reschedAbbrechen()" data-i18n="cancel">Abbrechen</button></div>
+      </div>
+      <div id="termine-liste"></div>
+    </div>
+    <!-- RECHNUNGEN -->
+    <div id="page-rechnungen" class="page">
+      <div class="card"><div class="card-titel" data-i18n="nav_invoices">Rechnungen</div><div id="rechnungen-liste"></div></div>
+    </div>
+    <!-- BUCHEN -->
+    <div id="page-buchen" class="page">
+      <div id="saison-banner-buchen"></div>
+      <div class="card">
+        <div class="card-titel" data-i18n="book_appointment">Termin buchen</div>
+        <div id="buchen-gewerbe-wrap" style="display:none;background:var(--panel,#181818);border:1px solid var(--border2,#2e2e2e);border-radius:10px;padding:12px;margin-bottom:14px">
+          <label class="check-row" style="margin:0"><input type="checkbox" id="buchen-sammel" onchange="buchenSammelToggle()"> <span data-i18n="collective_appt">Sammeltermin (mehrere Fahrzeuge)</span></label>
+          <div id="buchen-sammel-info" style="display:none;font-size:12px;color:var(--muted);margin-top:8px" data-i18n="collective_hint">Sammeltermine werden nach Prüfung durch uns bestätigt.</div>
+          <div id="buchen-sammel-fzs" style="display:none;margin-top:10px"></div>
+        </div>
+        <div class="fg">
+          <label data-i18n="service">Leistung</label>
+          <select id="buchen-artikel" onchange="buchenSlotsLaden()"></select>
+        </div>
+        <div class="fg" id="buchen-fahrzeug-fg">
+          <label data-i18n="vehicle">Fahrzeug</label>
+          <select id="buchen-fahrzeug" onchange="buchenFahrzeugChange()"><option value="">—</option></select>
+        </div>
+        <div class="fg">
+          <label data-i18n="inch">Zollgröße</label>
+          <select id="buchen-zoll" onchange="buchenSlotsLaden()"><option value="">—</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option></select>
+        </div>
+        <div id="buchen-preis" style="font-size:14px;font-weight:700;color:var(--accent-text);margin-bottom:10px"></div>
+        <div class="fg">
+          <label data-i18n="date">Datum</label>
+          <input id="buchen-datum" type="date" onchange="buchenSlotsLaden()">
+        </div>
+        <div class="fg" id="buchen-kz-fg">
+          <label data-i18n="license_plate">Kennzeichen (optional)</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="buchen-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <span style="color:var(--muted)">-</span>
+            <input id="buchen-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center">
+            <input id="buchen-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+          </div>
+        </div>
+        <div id="buchen-slots-wrap" class="hidden">
+          <label style="font-size:12px;color:var(--muted);font-weight:600" data-i18n="available_times">Verfügbare Zeiten</label>
+          <div id="buchen-slots" class="slot-grid"></div>
+        </div>
+        <div class="fg" style="margin-top:14px">
+          <label data-i18n="notes">Anmerkung (optional)</label>
+          <textarea id="buchen-notiz" rows="2"></textarea>
+        </div>
+        <button class="btn btn-p" onclick="terminBuchen()" data-i18n="book_btn">Termin buchen</button>
+      </div>
+    </div>
+    <!-- PROFIL -->
+    <div id="page-profil" class="page">
+      <div class="card">
+        <div class="card-titel" data-i18n="my_data">Meine Daten</div>
+        <div id="profil-inhalt"></div>
+      </div>
+      <div class="card">
+        <div class="card-titel" data-i18n="edit_contact">Kontaktdaten</div>
+        <div class="g2">
+          <div class="fg"><label data-i18n="phone">Telefon</label><input id="pf-tel" autocomplete="tel"></div>
+          <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="pf-kz"></div>
+          <div class="fg"><label data-i18n="brand">Marke</label><input id="pf-marke"></div>
+          <div class="fg"><label data-i18n="model">Modell</label><input id="pf-modell"></div>
+        </div>
+        <button class="btn btn-p btn-sm" style="margin-top:14px" onclick="profilSpeichern()" data-i18n="save">Speichern</button>
+      </div>
+      <div class="card">
+        <div class="card-titel" data-i18n="consent_title">Einwilligungen</div>
+        <div id="consent-state" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
+        <button class="btn btn-g btn-sm" onclick="einwilligungWiderrufen()" data-i18n="consent_revoke">Werbe-/Saison-Erinnerungen abbestellen</button>
+      </div>
+      <div class="card">
+        <div class="card-titel" data-i18n="change_password">Passwort ändern</div>
+        <div class="fg"><label data-i18n="new_password">Neues Passwort</label><input id="profil-pw" type="password"></div>
+        <button class="btn btn-g btn-sm" onclick="profilPwAendern()" data-i18n="save">Speichern</button>
+      </div>
+      <div class="card">
+        <div class="card-titel" data-i18n="delete_account">Konto löschen</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px" data-i18n="delete_account_info">Sie haben das Recht, Ihr Konto löschen zu lassen (Art. 17 DSGVO).</div>
+        <button class="btn btn-sm" style="background:#c0392b;color:#fff;border:none" onclick="kontoLoeschen()" data-i18n="delete_account">Konto löschen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="portal-footer">
+  <a href="impressum.html" data-i18n="footer_impressum">Impressum</a> ·
+  <a href="datenschutz.html" data-i18n="footer_datenschutz">Datenschutz</a> ·
+  <a href="agb.html" data-i18n="footer_agb">AGB</a> ·
+  <a href="faq.html" data-i18n="footer_faq">FAQ</a>
+</div>
+<div id="notify-el"></div>
+<script>
+'use strict';
+// Theme (Hell/Dunkel, folgt System, speicherbar)
+var _SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+var _MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14.5A8 8 0 0 1 9.5 4 7 7 0 1 0 20 14.5Z"/></svg>';
+function themeIsDark(){var t=document.documentElement.getAttribute('data-theme');if(t==='dark')return true;if(t==='light')return false;return !!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);}
+function updateThemeIcon(){var ic=themeIsDark()?_SUN:_MOON;var bs=document.querySelectorAll('.theme-btn');for(var i=0;i<bs.length;i++)bs[i].innerHTML=ic;}
+function toggleTheme(){var t=themeIsDark()?'light':'dark';document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('rp_theme',t);}catch(e){}updateThemeIcon();}
+updateThemeIcon();
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api/portal' : '/api/portal';
+var TOKEN = localStorage.getItem('rp_portal_token');
+var KUNDE = null;
+var LANG = localStorage.getItem('rp_portal_lang') || 'de';
+var STORNO_FRIST = 24;
+var FIRMA_TEL = '';
+var artikelListe = [];
+
+// ── ÜBERSETZUNGEN ──
+var I18N = {
+  de: {
+    login_sub: 'Kundenportal — Anmeldung', email: 'E-Mail', password: 'Passwort',
+    login_btn: 'Anmelden', forgot_pw: 'Passwort vergessen?', no_account: 'Noch kein Konto?',
+    register_now: 'Jetzt registrieren', register_sub: 'Neues Kundenkonto erstellen',
+    firstname: 'Vorname', lastname: 'Nachname', phone: 'Telefon (optional)',
+    password_repeat: 'Passwort wiederholen', accept_dsgvo: 'Ich habe die',
+    dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
+    accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
+    accept_saison: 'Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).',
+    register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
+    reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
+    footer_impressum: 'Impressum', footer_datenschutz: 'Datenschutz', footer_agb: 'AGB', footer_faq: 'FAQ',
+    delete_account: 'Konto löschen', delete_account_info: 'Sie haben das Recht, Ihr Konto löschen zu lassen (Art. 17 DSGVO). Bei aktiven Einlagerungen ist dies erst nach Abholung möglich.', delete_account_confirm: 'Möchten Sie Ihr Kundenkonto endgültig löschen lassen? Wir bearbeiten Ihren Antrag gemäß DSGVO.', delete_account_active: 'Solange Räder bei uns eingelagert sind, ist eine Löschung nicht möglich. Bitte wenden Sie sich an uns{tel}. Nach Abholung können Sie Ihr Konto löschen.', delete_account_done: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen.',
+    nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?', vehicle: 'Fahrzeug', inch: 'Zollgröße', price: 'Preis', nav_invoices: 'Rechnungen', no_invoices: 'Noch keine Rechnungen.', invoice_paid: 'bezahlt', reschedule: 'Verschieben', reschedule_done: 'Termin verschoben.',
+    nav_overview: 'Überblick', nav_storage: 'Einlagerungen', nav_appointments: 'Termine',
+    nav_book: 'Termin buchen', nav_profile: 'Profil', welcome: 'Willkommen',
+    book_appointment: 'Termin buchen', service: 'Leistung', date: 'Datum',
+    license_plate: 'Kennzeichen', license_plate_req: 'Kennzeichen *', available_times: 'Verfügbare Zeiten',
+    notes: 'Anmerkung (optional)', book_btn: 'Termin buchen', my_data: 'Meine Daten',
+    change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
+    password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
+    accept_required: 'Bitte Datenschutz und AGB akzeptieren', reg_success: 'Registrierung erfolgreich. Bitte bestätigen Sie Ihre E-Mail.',
+    login_failed: 'Anmeldung fehlgeschlagen', reset_sent: 'Falls die E-Mail existiert, wurde ein Link gesendet.',
+    no_storage: 'Aktuell sind Ihnen keine eingelagerten Räder zugeordnet.', no_appointments: 'Keine Termine vorhanden.',
+    no_storage_hint: 'Sobald Ihr Zugang freigeschaltet ist, ordnen wir Ihre eingelagerten Räder automatisch anhand Ihrer E-Mail-Adresse zu. Wenn Sie sicher sind, dass Räder bei uns liegen, melden Sie sich kurz bei uns — wir gleichen das gern ab.',
+    edit_contact: 'Kontaktdaten', contact_saved: 'Kontaktdaten gespeichert.',
+    consent_title: 'Einwilligungen', consent_on: 'Sie erhalten aktuell Saison-/Werbe-Erinnerungen per E-Mail.', consent_off: 'Sie erhalten aktuell keine Werbe-Erinnerungen.',
+    consent_revoke: 'Werbe-/Saison-Erinnerungen abbestellen', consent_revoke_confirm: 'Möchten Sie alle Werbe- und Saison-Erinnerungen abbestellen?', consent_revoked: 'Ihre Einwilligung wurde widerrufen.',
+    resend_confirm: 'Bestätigungsmail erneut senden', resend_need_email: 'Bitte zuerst Ihre E-Mail-Adresse oben eingeben.', resend_sent: 'Falls die Adresse noch unbestätigt ist, haben wir die Bestätigungsmail erneut gesendet.',
+    storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', status: 'Status',
+    profile_depth: 'Profiltiefe', stored_since: 'Eingelagert seit', notes_damage: 'Bemerkungen/Schäden',
+    cancel: 'Stornieren', cancel_confirm: 'Eine kostenfreie Stornierung ist nur bis {h} Stunden vor dem Termin möglich. Termin jetzt stornieren?', cancel_hint: 'Hinweis: Eine kostenfreie Stornierung ist bis {h} Stunden vor dem Termin möglich. Danach kann eine Gebühr anfallen.', cancelled: 'Termin storniert',
+    booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
+    pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
+    upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
+    no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
+    gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
+    gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
+    company: 'Firma', salutation: 'Anrede', contact_person: 'Ansprechpartner', phone_req: 'Telefon',
+    vat_id: 'USt-IdNr. (optional)', vehicle_count: 'Anzahl Fahrzeuge (optional)', message_opt: 'Nachricht (optional)',
+    business_reg_upload: 'Gewerbeanmeldung hochladen (PDF/Bild, optional)', gewerbe_send: 'Anfrage senden',
+    gewerbe_ok: 'Vielen Dank. Wir haben Ihre Anfrage erhalten und melden uns in Kürze bei Ihnen.',
+    gewerbe_fields: 'Bitte Firma, Ansprechpartner, Telefon und E-Mail ausfüllen.', file_too_big: 'Datei zu groß (max. 15 MB).',
+    stored_tires: 'Eingelagerte Räder', no_stored_tires: 'Aktuell keine Räder bei uns eingelagert.',
+    saison_hint_winter: 'Die Wintersaison steht bevor – sichern Sie sich frühzeitig Ihren Termin zum Räderwechsel.',
+    saison_hint_sommer: 'Die Sommersaison steht bevor – sichern Sie sich frühzeitig Ihren Termin zum Räderwechsel.',
+    saison_hint_fleet: 'Tipp für Fuhrparks: Planen Sie den Räderwechsel Ihrer Flotte frühzeitig als Sammeltermin.',
+    collective_appt: 'Sammeltermin (mehrere Fahrzeuge)', collective_hint: 'Sammeltermine werden nach Prüfung durch uns bestätigt. Wir melden uns mit dem finalen Termin.',
+    select_vehicles: 'Fahrzeuge auswählen', collective_requested: 'Sammeltermin angefragt. Wir bestätigen ihn in Kürze.', select_min_one: 'Bitte mindestens ein Fahrzeug auswählen.'
+  },
+  en: {
+    login_sub: 'Customer Portal — Sign In', email: 'Email', password: 'Password',
+    login_btn: 'Sign In', forgot_pw: 'Forgot password?', no_account: 'No account yet?',
+    register_now: 'Register now', register_sub: 'Create new customer account',
+    firstname: 'First name', lastname: 'Last name', phone: 'Phone (optional)',
+    password_repeat: 'Repeat password', accept_dsgvo: 'I have read the',
+    dsgvo_link: 'Privacy Policy', accept_read: 'and accept it.',
+    accept_agb: 'I accept the', agb_link: 'Terms',
+    accept_saison: 'I would like to receive seasonal tire change reminders by email (optional, revocable anytime).',
+    register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
+    reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
+    footer_impressum: 'Legal notice', footer_datenschutz: 'Privacy', footer_agb: 'Terms', footer_faq: 'FAQ',
+    delete_account: 'Delete account', delete_account_info: 'You have the right to have your account deleted (Art. 17 GDPR). With active storage this is only possible after collection.', delete_account_confirm: 'Do you really want your customer account permanently deleted? We will process your request in accordance with GDPR.', delete_account_active: 'As long as wheels are stored with us, deletion is not possible. Please contact us{tel}. After collection you can delete your account.', delete_account_done: 'Your deletion request has been received. We will get back to you.',
+    nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?', vehicle: 'Vehicle', inch: 'Wheel size (inch)', price: 'Price', nav_invoices: 'Invoices', no_invoices: 'No invoices yet.', invoice_paid: 'paid', reschedule: 'Reschedule', reschedule_done: 'Appointment rescheduled.',
+    nav_overview: 'Overview', nav_storage: 'Storage', nav_appointments: 'Appointments',
+    nav_book: 'Book appointment', nav_profile: 'Profile', welcome: 'Welcome',
+    book_appointment: 'Book appointment', service: 'Service', date: 'Date',
+    license_plate: 'License plate', license_plate_req: 'License plate *', available_times: 'Available times',
+    notes: 'Note (optional)', book_btn: 'Book appointment', my_data: 'My data',
+    change_password: 'Change password', new_password: 'New password', save: 'Save',
+    password_mismatch: 'Passwords do not match',
+    accept_required: 'Please accept privacy policy and terms', reg_success: 'Registration successful. Please confirm your email.',
+    login_failed: 'Login failed', reset_sent: 'If the email exists, a link has been sent.',
+    no_storage: 'No stored wheels are currently linked to your account.', no_appointments: 'No appointments.',
+    no_storage_hint: 'Once your access is activated, we automatically link your stored wheels using your email address. If you are sure wheels are stored with us, please get in touch — we are happy to check.',
+    edit_contact: 'Contact details', contact_saved: 'Contact details saved.',
+    consent_title: 'Consent', consent_on: 'You currently receive seasonal/marketing reminders by email.', consent_off: 'You currently receive no marketing reminders.',
+    consent_revoke: 'Unsubscribe from marketing/seasonal reminders', consent_revoke_confirm: 'Do you want to unsubscribe from all marketing and seasonal reminders?', consent_revoked: 'Your consent has been withdrawn.',
+    resend_confirm: 'Resend confirmation email', resend_need_email: 'Please enter your email address above first.', resend_sent: 'If the address is still unconfirmed, we have resent the confirmation email.',
+    storage_place: 'Storage location', tire: 'Tire', season: 'Season', status: 'Status',
+    profile_depth: 'Tread depth', stored_since: 'Stored since', notes_damage: 'Notes/Damage',
+    cancel: 'Cancel', cancel_confirm: 'A free cancellation is only possible up to {h} hours before the appointment. Cancel now?', cancel_hint: 'Note: A free cancellation is possible up to {h} hours before the appointment. After that a fee may apply.', cancelled: 'Appointment cancelled',
+    booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
+    pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
+    upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
+    no_slots: 'No available times on this day.', loading: 'Loading...',
+    gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
+    gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
+    company: 'Company', salutation: 'Salutation', contact_person: 'Contact person', phone_req: 'Phone',
+    vat_id: 'VAT ID (optional)', vehicle_count: 'Number of vehicles (optional)', message_opt: 'Message (optional)',
+    business_reg_upload: 'Upload business registration (PDF/image, optional)', gewerbe_send: 'Send request',
+    gewerbe_ok: 'Thank you. We have received your request and will get back to you shortly.',
+    gewerbe_fields: 'Please fill in company, contact person, phone and email.', file_too_big: 'File too large (max. 15 MB).',
+    stored_tires: 'Stored wheels', no_stored_tires: 'No wheels currently stored with us.',
+    saison_hint_winter: 'The winter season is approaching – book your wheel change appointment early.',
+    saison_hint_sommer: 'The summer season is approaching – book your wheel change appointment early.',
+    saison_hint_fleet: 'Fleet tip: schedule your fleet wheel change early as a collective appointment.',
+    collective_appt: 'Collective appointment (multiple vehicles)', collective_hint: 'Collective appointments are confirmed by us after review. We will get back to you with the final date.',
+    select_vehicles: 'Select vehicles', collective_requested: 'Collective appointment requested. We will confirm shortly.', select_min_one: 'Please select at least one vehicle.'
+  }
+};
+function t(key) { return (I18N[LANG] && I18N[LANG][key]) || (I18N.de[key]) || key; }
+
+function setLang(l) {
+  LANG = l;
+  localStorage.setItem('rp_portal_lang', l);
+  document.getElementById('lang-de').classList.toggle('on', l === 'de');
+  document.getElementById('lang-en').classList.toggle('on', l === 'en');
+  var de2 = document.getElementById('lang-de2'); if (de2) de2.classList.toggle('on', l === 'de');
+  var en2 = document.getElementById('lang-en2'); if (en2) en2.classList.toggle('on', l === 'en');
+  document.documentElement.lang = l;
+  applyI18n();
+}
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    var key = el.getAttribute('data-i18n');
+    var txt = t(key);
+    if (txt) el.textContent = txt;
+  });
+  // Aktive Seite neu rendern
+  if (KUNDE) {
+    var active = document.querySelector('.page.on');
+    if (active) portalNav(active.id.replace('page-', ''));
+  }
+}
+// ── API HELPER ──
+function papi(method, path, body) {
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(API + path, opts).then(function(r) {
+    if (r.status === 401) { portalLogout(); throw new Error(t('login_failed')); }
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Fehler'); });
+    return r.status === 204 ? null : r.json();
+  });
+}
+
+function notify(msg, typ) {
+  var el = document.getElementById('notify-el');
+  el.innerHTML = '<div class="notify ' + (typ || 'ok') + '">' + msg + '</div>';
+  setTimeout(function() { el.innerHTML = ''; }, 3500);
+}
+
+function zeigeScreen(s) {
+  ['login', 'register', 'gewerbe', 'reset', 'app'].forEach(function(x) {
+    document.getElementById('screen-' + x).classList.add('hidden');
+  });
+  document.getElementById('screen-' + s).classList.remove('hidden');
+  if (s === 'register') resetRegForm();
+  // Fixen Sprachschalter nur auf Auth-Screens zeigen (im App-Header sitzt ein eigener)
+  var ls = document.querySelector('.lang-switch');
+  if (ls) ls.style.display = (s === 'app') ? 'none' : 'flex';
+}
+function resetRegForm() {
+  ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
+    var e = document.getElementById(id); if (e) e.value = '';
+  });
+  ['reg-dsgvo', 'reg-agb', 'reg-saison'].forEach(function(id) {
+    var e = document.getElementById(id); if (e) e.checked = false;
+  });
+  var err = document.getElementById('reg-err'); if (err) err.classList.add('hidden');
+  var ok = document.getElementById('reg-ok'); if (ok) ok.classList.add('hidden');
+}
+
+// ── AUTH ──
+function portalLogin() {
+  var email = document.getElementById('li-email').value.trim();
+  var pass = document.getElementById('li-pass').value;
+  var errEl = document.getElementById('login-err');
+  errEl.classList.add('hidden');
+  if (!email || !pass) { errEl.textContent = t('login_failed'); errEl.classList.remove('hidden'); return; }
+  // Direkter fetch (NICHT papi()), damit 401 als "Anmeldung fehlgeschlagen" gezeigt und nicht als Logout verschluckt wird
+  fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, passwort: pass }) })
+    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error(j.error || t('login_failed')); return j; }); })
+    .then(function(r) {
+      TOKEN = r.token;
+      localStorage.setItem('rp_portal_token', TOKEN);
+      KUNDE = r.kunde;
+      startPortal();
+    })
+    .catch(function(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); });
+}
+
+function portalRegister() {
+  var errEl = document.getElementById('reg-err');
+  var okEl = document.getElementById('reg-ok');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  var vorname = document.getElementById('reg-vorname').value.trim();
+  var nachname = document.getElementById('reg-nachname').value.trim();
+  var email = document.getElementById('reg-email').value.trim();
+  var telefon = document.getElementById('reg-telefon').value.trim();
+  var pass = document.getElementById('reg-pass').value;
+  var pass2 = document.getElementById('reg-pass2').value;
+  var dsgvo = document.getElementById('reg-dsgvo').checked;
+  var agb = document.getElementById('reg-agb').checked;
+  var saison = document.getElementById('reg-saison').checked;
+
+  if (!vorname || !nachname || !email || !pass) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+  if (pass.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
+  if (pass !== pass2) { errEl.textContent = t('password_mismatch'); errEl.classList.remove('hidden'); return; }
+  if (!dsgvo || !agb) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+
+  papi('POST', '/auth/registrieren', {
+    vorname: vorname, nachname: nachname, email: email, telefon: telefon,
+    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison
+  }).then(function() {
+    okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
+    document.getElementById('reg-pass').value = '';
+    document.getElementById('reg-pass2').value = '';
+    setTimeout(function() { zeigeScreen('login'); }, 3000);
+  }).catch(function(e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  });
+}
+
+// Gewerbe-Zugang-Anfrage (oeffentlich, nicht unter /portal)
+var APIROOT = API.replace(/\/portal$/, '');
+function gewerbeAnfrage() {
+  var errEl = document.getElementById('gw-err');
+  var okEl = document.getElementById('gw-ok');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  var firma = document.getElementById('gw-firma').value.trim();
+  var ap = document.getElementById('gw-ap').value.trim();
+  var tel = document.getElementById('gw-tel').value.trim();
+  var email = document.getElementById('gw-email').value.trim();
+  var dsgvo = document.getElementById('gw-dsgvo').checked;
+  if (!firma || !ap || !tel || !email) { errEl.textContent = t('gewerbe_fields'); errEl.classList.remove('hidden'); return; }
+  if (!dsgvo) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+
+  function senden(dokument) {
+    var btn = document.querySelector('#screen-gewerbe .btn-p');
+    if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
+    fetch(APIROOT + '/gewerbe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firma: firma, anrede: document.getElementById('gw-anrede').value || null, ansprechpartner: ap,
+        ust_id: document.getElementById('gw-ustid').value.trim() || null, telefon: tel, email: email,
+        anzahl_fahrzeuge: document.getElementById('gw-anzahl').value || null,
+        nachricht: document.getElementById('gw-nachricht').value.trim() || null,
+        datenschutz: true, dokument: dokument || null
+      })
+    }).then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error(j.error || 'Fehler'); return j; }); })
+      .then(function() {
+        okEl.textContent = t('gewerbe_ok'); okEl.classList.remove('hidden');
+        ['gw-firma', 'gw-ap', 'gw-tel', 'gw-email', 'gw-ustid', 'gw-anzahl', 'gw-nachricht'].forEach(function(id) { document.getElementById(id).value = ''; });
+        document.getElementById('gw-datei').value = ''; document.getElementById('gw-dsgvo').checked = false;
+        setTimeout(function() { zeigeScreen('login'); }, 4000);
+      }).catch(function(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); })
+      .then(function() { if (btn) { btn.disabled = false; btn.textContent = t('gewerbe_send'); } });
+  }
+
+  var f = document.getElementById('gw-datei').files[0];
+  if (f) {
+    if (f.size > 15 * 1024 * 1024) { errEl.textContent = t('file_too_big'); errEl.classList.remove('hidden'); return; }
+    var rd = new FileReader();
+    rd.onload = function() { senden(rd.result); };
+    rd.onerror = function() { senden(null); };
+    rd.readAsDataURL(f);
+  } else { senden(null); }
+}
+
+function portalPwReset() {
+  var email = document.getElementById('reset-email').value.trim();
+  var okEl = document.getElementById('reset-ok');
+  var errEl = document.getElementById('reset-err');
+  errEl.classList.add('hidden');
+  papi('POST', '/auth/passwort-vergessen', { email: email }).then(function() {
+    okEl.textContent = t('reset_sent'); okEl.classList.remove('hidden');
+  }).catch(function(e) {
+    errEl.textContent = e.message; errEl.classList.remove('hidden');
+  });
+}
+
+function zeigePwReset() { zeigeScreen('reset'); }
+
+function portalLogout() {
+  TOKEN = null; KUNDE = null;
+  localStorage.removeItem('rp_portal_token');
+  zeigeScreen('login');
+}
+
+function startPortal() {
+  zeigeScreen('app');
+  document.getElementById('app-username').textContent = KUNDE ? (KUNDE.vorname + ' ' + KUNDE.nachname) : '';
+  ladeArtikel();
+  papi('GET', '/daten/firmendaten').then(function(f) { if (f) { if (f.stornierung_frist_h) STORNO_FRIST = f.stornierung_frist_h; FIRMA_TEL = f.telefon || ''; } }).catch(function() {});
+  var ziel = (ZIEL_NACH_LOGIN === 'buchen') ? 'buchen' : 'ueberblick';
+  ZIEL_NACH_LOGIN = null;
+  portalNav(ziel, true);
+  if (!window._popBoundP) {
+    window._popBoundP = true;
+    window.addEventListener('popstate', function(e) {
+      if (document.getElementById('screen-app').classList.contains('hidden')) return;
+      portalNav((e.state && e.state.portal) || 'ueberblick', true);
+    });
+  }
+  if (history.replaceState) { try { history.replaceState({ portal: ziel }, '', '#' + ziel); } catch (x) {} }
+}
+
+// ── NAVIGATION ──
+function portalNav(page, fromPop) {
+  if (!fromPop && window.history && history.pushState) { try { history.pushState({ portal: page }, '', '#' + page); } catch (e) {} }
+  document.querySelectorAll('.nav-tab').forEach(function(t) {
+    t.classList.toggle('on', t.getAttribute('data-page') === page);
+  });
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('on'); });
+  document.getElementById('page-' + page).classList.add('on');
+  if (page === 'ueberblick') { ladeUeberblick(); setSaisonBanner('ueberblick'); }
+  else if (page === 'einlagerungen') ladeEinlagerungen();
+  else if (page === 'termine') ladeTermine();
+  else if (page === 'buchen') initBuchen();
+  else if (page === 'fahrzeuge') ladeFahrzeuge();
+  else if (page === 'rechnungen') ladeRechnungen();
+  else if (page === 'profil') ladeProfil();
+}
+// ── DATEN LADEN ──
+function saisonText(s) {
+  if (!s) return '';
+  var sl = s.toLowerCase();
+  if (sl.indexOf('winter') !== -1) return t('winter');
+  if (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1) return t('sommer');
+  if (sl.indexOf('ganz') !== -1 || sl.indexOf('all') !== -1) return t('ganzjahres');
+  return s;
+}
+function saisonBadge(typ) {
+  var sl = (typ || '').toLowerCase();
+  var col = sl.indexOf('winter') !== -1 ? '#4a9eff' : (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1 ? '#eab308' : '#888');
+  return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + col + ';margin-right:5px"></span><strong>' + saisonText(typ) + '</strong>';
+}
+
+function fmtDatum(d) {
+  if (!d) return '-';
+  var dt = new Date(d.substring(0,10) + 'T12:00:00');
+  return dt.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function ladeUeberblick() {
+  var el = document.getElementById('ueberblick-inhalt');
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  Promise.all([
+    papi('GET', '/daten/einlagerungen').catch(function() { return []; }),
+    papi('GET', '/daten/termine').catch(function() { return []; })
+  ]).then(function(res) {
+    var einl = (res[0] || []).filter(function(e) { return e.status === 'Eingelagert'; });
+    var termine = (res[1] || []).filter(function(tm) {
+      return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= new Date().toISOString().substring(0,10);
+    });
+    var html = '';
+    html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + KUNDE.vorname + '</strong></div>';
+    html += '<div class="g2">';
+    html += '<div class="iz"><div class="iz-l">' + t('active_storage') + '</div><div class="iz-v" style="font-size:24px;color:var(--accent-text)">' + einl.length + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('upcoming') + '</div><div class="iz-v" style="font-size:24px;color:var(--blue)">' + termine.length + '</div></div>';
+    html += '</div>';
+    html += '<button class="btn btn-p" style="margin-top:16px" onclick="portalNav(\'buchen\')">' + t('book_now') + '</button>';
+    el.innerHTML = html;
+  });
+}
+
+function ladeEinlagerungen() {
+  var el = document.getElementById('einlagerungen-liste');
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  papi('GET', '/daten/einlagerungen').then(function(rows) {
+    if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_storage') + '</div><div style="font-size:13px;color:var(--muted);text-align:center;line-height:1.5;padding:0 16px 18px">' + t('no_storage_hint') + '</div></div>'; return; }
+    el.innerHTML = rows.map(function(e) {
+      var html = '<div class="card">';
+      html += '<div class="card-titel">';
+      html += '<span class="lager-tag">' + (e.lagerplatz || '-') + '</span>';
+      html += '<span class="badge ' + (e.status === 'Eingelagert' ? 'b-g' : 'b-y') + '">' + (e.status || '') + '</span>';
+      html += '</div>';
+      html += '<div class="g2">';
+      if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + e.kennzeichen + '</div></div>';
+      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).join(' ');
+      if (reifen) html += '<div class="iz"><div class="iz-l">' + t('tire') + '</div><div class="iz-v">' + reifen + '</div></div>';
+      if (e.saison) html += '<div class="iz"><div class="iz-l">' + t('season') + '</div><div class="iz-v">' + saisonText(e.saison) + '</div></div>';
+      if (e.eingelagert_am) html += '<div class="iz"><div class="iz-l">' + t('stored_since') + '</div><div class="iz-v">' + fmtDatum(e.eingelagert_am) + '</div></div>';
+      // Profiltiefen
+      var pt = [];
+      if (e.profil_vl) pt.push('VL ' + e.profil_vl);
+      if (e.profil_vr) pt.push('VR ' + e.profil_vr);
+      if (e.profil_hl) pt.push('HL ' + e.profil_hl);
+      if (e.profil_hr) pt.push('HR ' + e.profil_hr);
+      if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pt.join(', ') + ' mm</div></div>';
+      html += '</div>';
+      if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + e.bemerkungen + '</div></div>';
+      html += '</div>';
+      return html;
+    }).join('');
+  }).catch(function(e) {
+    el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
+  });
+}
+
+function ladeTermine() {
+  var el = document.getElementById('termine-liste');
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  papi('GET', '/daten/termine').then(function(rows) {
+    if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>'; return; }
+    var _hn = new Date();
+    var heute = _hn.getFullYear() + '-' + String(_hn.getMonth() + 1).padStart(2, '0') + '-' + String(_hn.getDate()).padStart(2, '0');
+    var stornoHinweis = '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
+    el.innerHTML = stornoHinweis + rows.sort(function(a,b) {
+      return (b.datum||'').localeCompare(a.datum||'');
+    }).map(function(tm) {
+      var vergangen = tm.datum && tm.datum.substring(0,10) < heute;
+      var storniert = tm.status === 'storniert';
+      var html = '<div class="card" style="' + (vergangen || storniert ? 'opacity:0.6' : '') + '">';
+      html += '<div class="card-titel">';
+      html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
+      var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
+      html += '<span class="badge ' + badge + '">' + terminStatusLabel(tm.status) + '</span>';
+      html += '</div>';
+      html += '<div class="iz"><div class="iz-v">' + (tm.artikel_name || tm.termin_typ || '') + '</div></div>';
+      if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + tm.kennzeichen + '</div>';
+      if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + tm.beschreibung + '</div>';
+      // Stornieren wenn zukünftig und nicht storniert
+      if (!vergangen && !storniert) {
+        html += '<div style="display:flex;gap:8px;margin-top:12px">' +
+          '<button class="btn btn-g btn-sm" onclick="terminVerschiebenStart(\'' + tm.id + '\',\'' + (tm.artikel_id || '') + '\')">' + t('reschedule') + '</button>' +
+          '<button class="btn btn-g btn-sm" style="color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>' +
+          '</div>';
+      }
+      html += '</div>';
+      return html;
+    }).join('');
+  }).catch(function(e) {
+    el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
+  });
+}
+
+var reschedId = null, reschedArtikel = null;
+function terminVerschiebenStart(id, artikelId) {
+  reschedId = id; reschedArtikel = artikelId || '';
+  var card = document.getElementById('resched-card');
+  var d = document.getElementById('resched-datum');
+  var n = new Date();
+  d.min = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+  d.value = d.min;
+  document.getElementById('resched-slots').innerHTML = '';
+  card.style.display = '';
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  reschedSlots();
+}
+function reschedAbbrechen() { document.getElementById('resched-card').style.display = 'none'; reschedId = null; }
+function reschedSlots() {
+  var datum = document.getElementById('resched-datum').value;
+  var el = document.getElementById('resched-slots');
+  if (!datum || !reschedArtikel) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + reschedArtikel).then(function(r) {
+    var slots = (r && r.slots) || [];
+    if (!slots.length) { el.innerHTML = '<div class="empty">' + t('no_slots') + '</div>'; return; }
+    el.innerHTML = slots.map(function(s) {
+      var zeit = s.von || s.uhrzeit || s.zeit || s;
+      return '<div class="slot" onclick="reschedConfirm(\'' + zeit + '\')">' + String(zeit).substring(0, 5) + '</div>';
+    }).join('');
+  }).catch(function(e) { el.innerHTML = '<div class="empty">' + e.message + '</div>'; });
+}
+function reschedConfirm(zeit) {
+  papi('PUT', '/daten/termine/' + reschedId, { datum: document.getElementById('resched-datum').value, uhrzeit_von: zeit }).then(function() {
+    notify(t('reschedule_done'), 'ok'); reschedAbbrechen(); ladeTermine();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function terminStornieren(id) {
+  if (!confirm(t('cancel_confirm').replace('{h}', STORNO_FRIST))) return;
+  papi('DELETE', '/daten/termine/' + id).then(function() {
+    notify(t('cancelled'), 'ok');
+    ladeTermine();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+// ── BUCHEN ──
+function ladeArtikel() {
+  papi('GET', '/daten/artikel').then(function(rows) {
+    artikelListe = rows || [];
+    var sel = document.getElementById('buchen-artikel');
+    sel.innerHTML = artikelListe.map(function(a) {
+      return '<option value="' + a.id + '">' + a.name + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
+    }).join('');
+  }).catch(function() {});
+}
+
+function initBuchen() {
+  var d = document.getElementById('buchen-datum');
+  var n = new Date();
+  var heute = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+  d.min = heute;
+  if (!d.value) d.value = heute;
+  if (KUNDE && KUNDE.kennzeichen && !document.getElementById('buchen-kz1').value) buchenKzInTeile(KUNDE.kennzeichen);
+  setSaisonBanner('buchen');
+  // Sammeltermin-Option nur fuer Gewerbekunden
+  var gw = document.getElementById('buchen-gewerbe-wrap');
+  if (gw) gw.style.display = (KUNDE && KUNDE.ist_gewerbe) ? '' : 'none';
+  // Fahrzeuge des Kunden in die Auswahl laden (Einzeltermin) + Mehrfachauswahl (Sammeltermin)
+  papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    buchenFahrzeuge = rows || [];
+    var sel = document.getElementById('buchen-fahrzeug');
+    sel.innerHTML = '<option value="">—</option>' + buchenFahrzeuge.map(function(f) {
+      var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
+      return '<option value="' + f.id + '" data-typ="' + (f.typ || '') + '" data-kz="' + (f.kennzeichen || '') + '">' + label + '</option>';
+    }).join('');
+    renderSammelFzs();
+  }).catch(function() {});
+}
+var buchenFahrzeuge = [];
+function renderSammelFzs() {
+  var el = document.getElementById('buchen-sammel-fzs'); if (!el) return;
+  if (!buchenFahrzeuge.length) { el.innerHTML = '<div style="font-size:13px;color:var(--muted)">' + t('no_vehicles') + '</div>'; return; }
+  el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">' + t('select_vehicles') + '</div>' +
+    buchenFahrzeuge.map(function(f) {
+      var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
+      return '<label class="check-row" style="margin:0 0 4px"><input type="checkbox" class="sammel-fz" value="' + f.id + '"> ' + label + '</label>';
+    }).join('');
+}
+function buchenSammelToggle() {
+  var on = document.getElementById('buchen-sammel').checked;
+  document.getElementById('buchen-sammel-info').style.display = on ? '' : 'none';
+  document.getElementById('buchen-sammel-fzs').style.display = on ? '' : 'none';
+  // Einzel-Fahrzeug + Kennzeichen ausblenden, wenn Sammeltermin
+  var ff = document.getElementById('buchen-fahrzeug-fg'); if (ff) ff.style.display = on ? 'none' : '';
+  var kf = document.getElementById('buchen-kz-fg'); if (kf) kf.style.display = on ? 'none' : '';
+}
+function buchenTyp() {
+  var sel = document.getElementById('buchen-fahrzeug');
+  var opt = sel.options[sel.selectedIndex];
+  return opt ? (opt.getAttribute('data-typ') || '') : '';
+}
+function buchenFahrzeugChange() {
+  var sel = document.getElementById('buchen-fahrzeug');
+  var opt = sel.options[sel.selectedIndex];
+  var kz = opt ? opt.getAttribute('data-kz') : '';
+  if (kz) buchenKzInTeile(kz);
+  buchenSlotsLaden();
+}
+function buchenKzInTeile(kz) {
+  var k1='',k2='',k3='',k4=''; kz=(kz||'').trim();
+  if (kz) { var t=kz.split('-'); k1=t[0]||''; k2=t[1]||''; var rest=(t[2]||'').trim().split(' '); k3=rest[0]||''; k4=rest[1]||''; }
+  document.getElementById('buchen-kz1').value=k1; document.getElementById('buchen-kz2').value=k2;
+  document.getElementById('buchen-kz3').value=k3; document.getElementById('buchen-kz4').value=k4;
+}
+function buchenKzAusTeilen() {
+  var k1=document.getElementById('buchen-kz1').value.trim(), k2=document.getElementById('buchen-kz2').value.trim(),
+      k3=document.getElementById('buchen-kz3').value.trim(), k4=document.getElementById('buchen-kz4').value.trim();
+  var kz=[k1,k2,k3].filter(Boolean).join('-'); if (k4) kz+=' '+k4; return kz.trim();
+}
+function terminStatusLabel(s) {
+  var de = { angefragt:'Angefragt', bestaetigt:'Bestätigt', abgeschlossen:'Abgeschlossen', storniert:'Storniert', abgesagt:'Storniert' };
+  var en = { angefragt:'Requested', bestaetigt:'Confirmed', abgeschlossen:'Completed', storniert:'Cancelled', abgesagt:'Cancelled' };
+  return (LANG === 'en' ? en : de)[s] || s || '';
+}
+
+var selectedSlot = null;
+function buchenSlotsLaden() {
+  var artikelId = document.getElementById('buchen-artikel').value;
+  var datum = document.getElementById('buchen-datum').value;
+  var typ = buchenTyp();
+  var zoll = document.getElementById('buchen-zoll').value;
+  var wrap = document.getElementById('buchen-slots-wrap');
+  var slotsEl = document.getElementById('buchen-slots');
+  var preisEl = document.getElementById('buchen-preis');
+  selectedSlot = null;
+  preisEl.textContent = '';
+  if (!artikelId) { wrap.classList.add('hidden'); return; }
+  // Preis + Dauer aus Staffel (Typ + Zoll) anzeigen
+  papi('GET', '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(p) {
+    if (p && p.preis != null) {
+      var brutto = Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100);
+      preisEl.textContent = t('price') + ': ' + brutto.toFixed(2).replace('.', ',') + ' €' + (p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '');
+    }
+  }).catch(function() {});
+  if (!datum) { wrap.classList.add('hidden'); return; }
+  slotsEl.innerHTML = '<div class="empty">' + t('loading') + '</div>';
+  wrap.classList.remove('hidden');
+  papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + artikelId + '&typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(r) {
+    var slots = (r && r.slots) || r || [];
+    if (!slots.length) { slotsEl.innerHTML = '<div class="empty">' + t('no_slots') + '</div>'; return; }
+    slotsEl.innerHTML = slots.map(function(s) {
+      var zeit = typeof s === 'string' ? s : (s.von || s.uhrzeit || s.zeit);
+      return '<div class="slot" data-zeit="' + zeit + '" onclick="slotWaehlen(this)">' + zeit.substring(0, 5) + '</div>';
+    }).join('');
+  }).catch(function(e) {
+    slotsEl.innerHTML = '<div class="empty">' + e.message + '</div>';
+  });
+}
+
+function slotWaehlen(el) {
+  document.querySelectorAll('.slot').forEach(function(s) { s.classList.remove('sel'); });
+  el.classList.add('sel');
+  selectedSlot = el.getAttribute('data-zeit');
+}
+
+function terminBuchen() {
+  var artikelId = document.getElementById('buchen-artikel').value;
+  var datum = document.getElementById('buchen-datum').value;
+  var notiz = document.getElementById('buchen-notiz').value.trim();
+  if (!artikelId) { notify(t('select_slot'), 'err'); return; }
+  if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
+  var sammelCb = document.getElementById('buchen-sammel');
+  var istSammel = KUNDE && KUNDE.ist_gewerbe && sammelCb && sammelCb.checked;
+  if (istSammel) {
+    var ids = Array.prototype.slice.call(document.querySelectorAll('.sammel-fz:checked')).map(function(c) { return c.value; });
+    if (!ids.length) { notify(t('select_min_one'), 'err'); return; }
+    papi('POST', '/daten/termine', {
+      datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
+      beschreibung: notiz || null, sammeltermin: true, fahrzeug_ids: ids
+    }).then(function() {
+      notify(t('collective_requested'), 'ok');
+      document.getElementById('buchen-notiz').value = '';
+      sammelCb.checked = false; buchenSammelToggle(); selectedSlot = null;
+      portalNav('termine');
+    }).catch(function(e) { notify(e.message, 'err'); });
+    return;
+  }
+  var kz = buchenKzAusTeilen();
+  var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
+  var zoll = document.getElementById('buchen-zoll').value || null;
+  papi('POST', '/daten/termine', {
+    datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
+    kennzeichen: kz || null, beschreibung: notiz || null,
+    fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll
+  }).then(function() {
+    notify(t('booked'), 'ok');
+    document.getElementById('buchen-notiz').value = '';
+    selectedSlot = null;
+    portalNav('termine');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// Saison-Hinweis: in den Wochen vor dem Wechsel auf fruehe Terminbuchung hinweisen
+function saisonHinweisHtml() {
+  var now = new Date();
+  var m = now.getMonth() + 1, d = now.getDate();
+  var key = null;
+  // Winter-Saison: 1. Sept bis 15. Nov | Sommer-Saison: 15. Feb bis 30. Apr
+  if ((m === 9) || (m === 10) || (m === 11 && d <= 15)) key = 'saison_hint_winter';
+  else if ((m === 2 && d >= 15) || (m === 3) || (m === 4)) key = 'saison_hint_sommer';
+  if (!key) return '';
+  var fleet = (KUNDE && KUNDE.ist_gewerbe) ? '<div style="margin-top:6px;font-size:13px">' + t('saison_hint_fleet') + '</div>' : '';
+  return '<div style="background:rgba(234,179,8,.12);border:1px solid #eab308;border-radius:10px;padding:13px 15px;margin-bottom:14px;color:var(--text,#ececec)">' +
+    '<strong style="color:#eab308">' + t(key) + '</strong>' + fleet + '</div>';
+}
+function setSaisonBanner(page) {
+  var el = document.getElementById('saison-banner-' + page);
+  if (el) el.innerHTML = saisonHinweisHtml();
+}
+
+// ── PROFIL ──
+function ladeProfil() {
+  papi('GET', '/auth/me').then(function(k) {
+    KUNDE = k;
+    var el = document.getElementById('profil-inhalt');
+    var html = '<div class="g2">';
+    html += '<div class="iz"><div class="iz-l">' + t('firstname') + '</div><div class="iz-v">' + (k.vorname || '') + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('lastname') + '</div><div class="iz-v">' + (k.nachname || '') + '</div></div>';
+    html += '<div class="iz"><div class="iz-l">' + t('email') + '</div><div class="iz-v">' + (k.portal_email || k.email || '') + '</div></div>';
+    if (k.kunden_nr) html += '<div class="iz"><div class="iz-l">Kunden-Nr.</div><div class="iz-v">' + k.kunden_nr + '</div></div>';
+    html += '</div>';
+    el.innerHTML = html;
+    var g = function(id) { return document.getElementById(id); };
+    if (g('pf-tel')) g('pf-tel').value = k.telefon || '';
+    if (g('pf-kz')) g('pf-kz').value = k.kennzeichen || '';
+    if (g('pf-marke')) g('pf-marke').value = k.fahrzeug_marke || '';
+    if (g('pf-modell')) g('pf-modell').value = k.fahrzeug_modell || '';
+    var cs = g('consent-state');
+    if (cs) { var on = k.einwilligung_saison_erinnerung || k.einwilligung_werbung; cs.textContent = on ? t('consent_on') : t('consent_off'); }
+  }).catch(function() {});
+}
+
+function profilSpeichern() {
+  var v = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell') })
+    .then(function() { notify(t('contact_saved'), 'ok'); ladeProfil(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
+function einwilligungWiderrufen() {
+  if (!confirm(t('consent_revoke_confirm'))) return;
+  papi('POST', '/auth/einwilligung-widerrufen', {})
+    .then(function(r) { notify((r && r.message) || t('consent_revoked'), 'ok'); ladeProfil(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
+function resendBestaetigung() {
+  var em = (document.getElementById('li-email').value || '').trim();
+  if (!em) { notify(t('resend_need_email'), 'err'); return; }
+  papi('POST', '/auth/bestaetigung-erneut', { email: em })
+    .then(function() { var ok = document.getElementById('login-ok'); ok.textContent = t('resend_sent'); ok.classList.remove('hidden'); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
+function ladeRechnungen() {
+  papi('GET', '/daten/rechnungen').then(function(rows) {
+    var el = document.getElementById('rechnungen-liste');
+    if (!rows || !rows.length) { el.innerHTML = '<div class="empty">' + t('no_invoices') + '</div>'; return; }
+    el.innerHTML = rows.map(function(r) {
+      var betrag = (Number(r.brutto_summe) || 0).toFixed(2).replace('.', ',') + ' €';
+      var storno = r.status === 'storniert';
+      var extra = storno ? ' · ' + t('cancelled') : (r.zahlungsstatus === 'bezahlt' ? ' · ' + t('invoice_paid') : '');
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px' + (storno ? ';opacity:.6' : '') + '">' +
+        '<div><div style="font-weight:700">' + (r.rechnungsnr || '') + '</div>' +
+        '<div style="font-size:12px;color:var(--muted)">' + fmtDatum(r.rechnungsdatum) + ' · ' + betrag + extra + '</div></div>' +
+        '<button class="btn btn-g btn-sm" onclick="rechnungPdf(\'' + r.id + '\')">PDF</button></div>';
+    }).join('');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function rechnungPdf(id) {
+  fetch(API + '/daten/rechnungen/' + id + '/pdf', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error('PDF nicht verfügbar'); return r.blob(); })
+    .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+function ladeFahrzeuge() {
+  papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    var el = document.getElementById('fahrzeuge-liste');
+    if (!rows || !rows.length) { el.innerHTML = '<div class="empty">' + t('no_vehicles') + '</div>'; return; }
+    el.innerHTML = rows.map(function(f) {
+      var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
+      var meta = [f.typ, f.kennzeichen, f.baujahr].filter(Boolean).join(' · ') + (f.hu_datum ? ' · HU ' + fmtDatum(f.hu_datum) : '');
+      var huHinweis = '';
+      if (f.hu_datum) {
+        var diff = Math.round((new Date(String(f.hu_datum).substring(0, 10) + 'T12:00:00') - new Date()) / 86400000);
+        if (diff < 0) huHinweis = '<span style="color:#c0392b;font-weight:700"> · HU überfällig</span>';
+        else if (diff < 60) huHinweis = '<span style="color:#eab308;font-weight:700"> · HU bald fällig</span>';
+      }
+      var raeder = f.raeder || [];
+      var raederHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">' +
+        '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px">' + t('stored_tires') + '</div>' +
+        (raeder.length ? raeder.map(function(r) {
+          return '<div style="font-size:13px;display:flex;justify-content:space-between;gap:8px;padding:3px 0;flex-wrap:wrap">' +
+            '<span>' + saisonBadge(r.reifen_typ) + ' ' + (r.reifen_groesse || '') + (r.reifen_marke ? ' · ' + r.reifen_marke : '') + '</span>' +
+            '<span style="color:var(--muted)">' + (r.status || '') + (r.lagerplatz ? ' · ' + t('storage_place') + ' ' + r.lagerplatz : '') + '</span></div>';
+        }).join('') : '<div style="font-size:13px;color:var(--muted)">' + t('no_stored_tires') + '</div>') + '</div>';
+      return '<div style="padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+        '<div><div style="font-weight:700">' + titel + '</div><div style="font-size:12px;color:var(--muted)">' + meta + huHinweis + '</div></div>' +
+        '<div style="display:flex;gap:6px">' +
+          '<button class="btn btn-g btn-sm" onclick="fzEdit(\'' + f.id + '\')">' + t('edit') + '</button>' +
+          '<button class="btn btn-sm" style="background:#c0392b;color:#fff;border:none" onclick="fzLoeschen(\'' + f.id + '\')">x</button>' +
+        '</div></div>' + raederHtml + '</div>';
+    }).join('');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzFormZeigen() {
+  document.getElementById('fz-id').value = '';
+  document.getElementById('fz-form-titel').textContent = t('add_vehicle');
+  document.getElementById('fz-typ').value = 'PKW';
+  ['fz-marke', 'fz-modell', 'fz-baujahr', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
+  fzKzInTeile('');
+  document.getElementById('fz-form-card').style.display = '';
+}
+function fzFormAbbrechen() { document.getElementById('fz-form-card').style.display = 'none'; }
+function fzEdit(id) {
+  papi('GET', '/daten/fahrzeuge').then(function(rows) {
+    var f = (rows || []).find(function(x) { return x.id === id; }); if (!f) return;
+    document.getElementById('fz-id').value = f.id;
+    document.getElementById('fz-form-titel').textContent = t('edit_vehicle');
+    document.getElementById('fz-typ').value = f.typ || 'PKW';
+    document.getElementById('fz-marke').value = f.marke || '';
+    document.getElementById('fz-modell').value = f.modell || '';
+    fzKzInTeile(f.kennzeichen || '');
+    document.getElementById('fz-baujahr').value = f.baujahr || '';
+    document.getElementById('fz-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
+    document.getElementById('fz-form-card').style.display = '';
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzKzAusTeilen() {
+  var k1 = document.getElementById('fz-kz1').value.trim(), k2 = document.getElementById('fz-kz2').value.trim(), k3 = document.getElementById('fz-kz3').value.trim(), k4 = document.getElementById('fz-kz4').value.trim();
+  var kz = [k1, k2, k3].filter(Boolean).join('-'); if (k4) kz += ' ' + k4; return kz.trim();
+}
+function fzKzInTeile(kz) {
+  var k1 = '', k2 = '', k3 = '', k4 = ''; kz = (kz || '').trim();
+  if (kz) { var teile = kz.split('-'); k1 = teile[0] || ''; k2 = teile[1] || ''; var rest = (teile[2] || '').trim().split(' '); k3 = rest[0] || ''; k4 = rest[1] || ''; }
+  document.getElementById('fz-kz1').value = k1; document.getElementById('fz-kz2').value = k2; document.getElementById('fz-kz3').value = k3; document.getElementById('fz-kz4').value = k4;
+}
+function fzSpeichern() {
+  var kennz = fzKzAusTeilen();
+  if (!document.getElementById('fz-marke').value.trim() || !document.getElementById('fz-modell').value.trim() || !kennz) {
+    notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return;
+  }
+  var hu = document.getElementById('fz-hu').value;
+  var data = {
+    typ: document.getElementById('fz-typ').value,
+    marke: document.getElementById('fz-marke').value.trim(),
+    modell: document.getElementById('fz-modell').value.trim(),
+    kennzeichen: kennz,
+    baujahr: document.getElementById('fz-baujahr').value ? parseInt(document.getElementById('fz-baujahr').value) : null,
+    hu_datum: hu ? hu + '-01' : null
+  };
+  var id = document.getElementById('fz-id').value;
+  var p = id ? papi('PUT', '/daten/fahrzeuge/' + id, data) : papi('POST', '/daten/fahrzeuge', data);
+  p.then(function() { notify(t('vehicle_saved'), 'ok'); fzFormAbbrechen(); ladeFahrzeuge(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function fzLoeschen(id) {
+  if (!confirm(t('delete_vehicle_confirm'))) return;
+  papi('DELETE', '/daten/fahrzeuge/' + id).then(function() { notify(t('vehicle_deleted'), 'ok'); ladeFahrzeuge(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+function kontoLoeschen() {
+  papi('GET', '/daten/einlagerungen').then(function(rows) {
+    var aktiv = (rows || []).filter(function(e) { return e.status !== 'Abgeholt'; });
+    if (aktiv.length) {
+      alert(t('delete_account_active').replace('{tel}', FIRMA_TEL ? ' (' + FIRMA_TEL + ')' : ''));
+      return;
+    }
+    if (!confirm(t('delete_account_confirm'))) return;
+    papi('POST', '/auth/konto-loeschen').then(function() {
+      alert(t('delete_account_done'));
+      portalLogout();
+    }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function profilPwAendern() {
+  var pw = document.getElementById('profil-pw').value;
+  if (pw.length < 8) { notify(t('pw_min'), 'err'); return; }
+  papi('PUT', '/auth/passwort-aendern', { passwort: pw }).then(function() {
+    notify(t('pw_changed'), 'ok');
+    document.getElementById('profil-pw').value = '';
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── DSGVO / AGB Anzeige ──
+function zeigeDsgvo() {
+  window.open('datenschutz.html', '_blank');
+}
+function zeigeAgb() {
+  window.open('agb.html', '_blank');
+}
+
+// ── BESTÄTIGUNG / RESET aus URL ──
+function checkUrlParams() {
+  var params = new URLSearchParams(window.location.search);
+  var bestaetigen = params.get('bestaetigen');
+  var reset = params.get('reset');
+  if (bestaetigen) {
+    papi('GET', '/auth/bestaetigen/' + bestaetigen).then(function() {
+      var okEl = document.getElementById('login-ok');
+      okEl.textContent = LANG === 'en' ? 'Email confirmed. We will activate your account shortly.' : 'E-Mail bestätigt. Wir schalten Ihr Konto in Kürze frei.';
+      okEl.classList.remove('hidden');
+    }).catch(function(e) {
+      var errEl = document.getElementById('login-err');
+      errEl.textContent = e.message; errEl.classList.remove('hidden');
+    });
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+  if (reset) {
+    // Reset-Formular zeigen (vereinfacht: Passwort neu setzen)
+    var np = prompt(LANG === 'en' ? 'Enter new password (min. 8 chars):' : 'Neues Passwort eingeben (mind. 8 Zeichen):');
+    if (np && np.length >= 8) {
+      papi('POST', '/auth/passwort-reset', { token: reset, passwort: np }).then(function() {
+        notify(t('pw_changed'), 'ok');
+      }).catch(function(e) { notify(e.message, 'err'); });
+    }
+    window.history.replaceState({}, '', window.location.pathname);
+  }
+}
+
+// ── INIT ──
+var ZIEL_NACH_LOGIN = null;
+function initPortal() {
+  setLang(LANG);
+  checkUrlParams();
+  var _p = new URLSearchParams(window.location.search);
+  var wantBuchen = _p.has('buchen') || window.location.hash === '#buchen';
+  var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
+  // Wer ueber "Termin buchen" kommt, soll nach Login/Registrierung direkt zur Buchung
+  if (wantBuchen || wantReg) ZIEL_NACH_LOGIN = 'buchen';
+  if (TOKEN) {
+    papi('GET', '/auth/me').then(function(k) {
+      KUNDE = k;
+      startPortal();
+    }).catch(function() {
+      portalLogout();
+    });
+  } else {
+    // Stammkunden zuerst zur Login-Maske (Registrierung nur bei ausdruecklichem ?registrieren)
+    zeigeScreen(wantReg ? 'register' : 'login');
+  }
+}
+initPortal();
+</script>
+</body>
+</html>

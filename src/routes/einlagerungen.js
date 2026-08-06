@@ -1,0 +1,255 @@
+const router = require('express').Router();
+const { query, withTransaction } = require('../db/index');
+const { authenticate, requireStaff } = require('../middleware/auth');
+const { auditLog } = require('../middleware/errorHandler');
+const { sendMail } = require('../lib/mailer');
+
+// Kunden benachrichtigen, wenn seine Raeder abholbereit sind (best-effort, protokolliert in email_log).
+async function benachrichtigeAbholbereit(einlagerungId) {
+  try {
+    const r = (await query(
+      `SELECT e.beleg_nr, e.reifen_groesse, e.lagerplatz, k.vorname, k.email, k.portal_email
+       FROM einlagerungen e JOIN kunden k ON k.id = e.kunden_id WHERE e.id=$1`, [einlagerungId])).rows[0];
+    if (!r) return;
+    const mail = r.portal_email || r.email;
+    if (!mail) return;
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const firma = einst.firmenname || 'Schröder & Scholz';
+    await sendMail({
+      to: mail,
+      subject: 'Ihre Räder sind abholbereit — ' + firma,
+      typ: 'abholbereit', bezugId: einlagerungId,
+      html: '<p>Hallo ' + (r.vorname || '') + ',</p>' +
+        '<p>Ihre eingelagerten Räder' + (r.reifen_groesse ? ' (' + r.reifen_groesse + ')' : '') + ' sind <strong>abholbereit</strong>.</p>' +
+        '<p>Sie können sie zu unseren Öffnungszeiten abholen' + (einst.telefon ? ' oder uns unter ' + einst.telefon + ' erreichen' : '') + '.</p>' +
+        '<p>Mit freundlichen Grüßen,<br>' + firma + '</p>'
+    });
+  } catch (e) { console.error('[Abholbereit-Mail]', e.message); }
+}
+
+router.use(authenticate, requireStaff);
+
+const nextBelegNr = async () => {
+  const { rows } = await query("SELECT nextval('seq_beleg_nr') as nr");
+  return `E-${String(rows[0].nr).padStart(4,'0')}`;
+};
+
+router.get('/statistiken', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT * FROM v_statistiken');
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.get('/', async (req, res, next) => {
+  try {
+    const { suche, status, typ, limit = 200, offset = 0 } = req.query;
+    let sql = `
+      SELECT e.*,
+        k.kunden_nr,
+        k.vorname || ' ' || k.nachname AS kundenname,
+        k.kennzeichen, k.telefon, k.email, k.firma,
+        f.kennzeichen AS fahrzeug_kennzeichen, f.marke AS fahrzeug_marke
+      FROM einlagerungen e
+      JOIN kunden k ON e.kunden_id = k.id
+      LEFT JOIN fahrzeuge f ON f.id = e.fahrzeug_id
+      WHERE 1=1`;
+    const params = [];
+    if (status) {
+      params.push(status);
+      sql += ` AND e.status=$${params.length}`;
+    }
+    if (typ) {
+      params.push(typ);
+      sql += ` AND e.reifen_typ=$${params.length}`;
+    }
+    if (suche) {
+      params.push(`%${suche}%`);
+      const n = params.length;
+      sql += ` AND (k.vorname ILIKE $${n} OR k.nachname ILIKE $${n}
+               OR k.kennzeichen ILIKE $${n} OR e.lagerplatz ILIKE $${n}
+               OR e.beleg_nr ILIKE $${n} OR e.reifen_groesse ILIKE $${n})`;
+    }
+    params.push(parseInt(limit));
+    sql += ` ORDER BY e.erstellt_am DESC LIMIT $${params.length}`;
+    params.push(parseInt(offset));
+    sql += ` OFFSET $${params.length}`;
+    const { rows } = await query(sql, params);
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT e.*,
+         k.kunden_nr,
+         k.vorname || ' ' || k.nachname AS kundenname,
+         k.kennzeichen, k.telefon, k.email,
+         k.strasse, k.plz, k.ort,
+         k.fahrzeug_marke, k.fahrzeug_modell
+       FROM einlagerungen e
+       JOIN kunden k ON e.kunden_id = k.id
+       WHERE e.id::text=$1 OR UPPER(e.beleg_nr)=UPPER($1)`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Einlagerung nicht gefunden.' });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// GET /:id/historie — kompletter Radsatz-Verlauf (Vorgaenger + Folgeeinlagerungen), alt -> neu.
+router.get('/:id/historie', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `WITH RECURSIVE chain AS (
+         SELECT * FROM einlagerungen WHERE id::text=$1
+         UNION
+         SELECT e.* FROM einlagerungen e
+           JOIN chain c ON e.id = c.vorgaenger_id OR e.vorgaenger_id = c.id
+       )
+       SELECT id, beleg_nr, reifen_groesse, reifen_typ, reifen_marke, reifen_modell,
+              profil_vl, profil_vr, profil_hl, profil_hr, dot, anzahl, felgen,
+              lagerplatz, status, eingelagert_am, abgeholt_am, vorgaenger_id
+       FROM chain
+       ORDER BY eingelagert_am ASC, erstellt_am ASC`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Einlagerung nicht gefunden.' });
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/', async (req, res, next) => {
+  try {
+    const { kunden_id, reifen_groesse, reifen_typ, reifen_marke, reifen_modell,
+            profil_vl, profil_vr, profil_hl, profil_hr,
+            anzahl, felgen, dot, lagerplatz, bemerkungen, fahrzeug_id, vorgaenger_id } = req.body;
+    if (!kunden_id || !reifen_groesse || !reifen_typ || !lagerplatz)
+      return res.status(400).json({
+        error: 'kunden_id, reifen_groesse, reifen_typ und lagerplatz sind Pflicht.'
+      });
+    // Serverseitige Validierung (verhindert, dass Garbage in die Werkstattdaten gelangt)
+    // Format Breite/Verhaeltnis R Zoll (z.B. 205/55 R16 91W) + plausible Wertebereiche (verhindert 000/00 R00 o.ae.)
+    const _dm = String(reifen_groesse).match(/^(\d{3})\/(\d{2})\s*[A-Z]{0,2}\s*(\d{2})\s*[0-9A-Z ]*$/i);
+    if (!_dm || +_dm[1] < 125 || +_dm[1] > 355 || +_dm[2] < 25 || +_dm[2] > 85 || +_dm[3] < 10 || +_dm[3] > 24)
+      return res.status(400).json({ error: 'Reifendimension ungültig (Format z. B. 205/55 R16 91W).' });
+    for (const p of [profil_vl, profil_vr, profil_hl, profil_hr]) {
+      if (p != null && p !== '' && (isNaN(p) || Number(p) < 0 || Number(p) > 15))
+        return res.status(400).json({ error: 'Profiltiefe muss zwischen 0 und 15 mm liegen.' });
+    }
+    const anz = anzahl == null || anzahl === '' ? 4 : parseInt(anzahl);
+    if (isNaN(anz) || anz < 1 || anz > 12)
+      return res.status(400).json({ error: 'Anzahl muss zwischen 1 und 12 liegen.' });
+    // Lagerplatz normalisieren (trim + Grossschreibung) -> sonst umgehen Leerzeichen/Kleinschreibung die Doppelbelegungssperre
+    const lp = String(lagerplatz).trim().toUpperCase();
+    if (!lp) return res.status(400).json({ error: 'Lagerplatz erforderlich.' });
+    // Pruefung + Insert in einer Transaktion mit Advisory-Lock je Lagerplatz
+    // -> verhindert, dass zwei gleichzeitige Einlagerungen denselben Platz belegen.
+    const neu = await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['lagerplatz:' + lp]);
+      const belegt = await client.query(
+        "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt'", [lp]);
+      if (belegt.rows.length) { const e = new Error(`Lagerplatz ${lp} ist bereits belegt.`); e.status = 409; throw e; }
+      // Vorgaenger (Folgeeinlagerung) nur uebernehmen, wenn er zum selben Kunden gehoert.
+      let vg = vorgaenger_id || null;
+      if (vg) {
+        const chk = await client.query('SELECT id FROM einlagerungen WHERE id=$1 AND kunden_id=$2', [vg, kunden_id]);
+        if (!chk.rows.length) vg = null;
+      }
+      const belegRes = await client.query("SELECT nextval('seq_beleg_nr') AS n");
+      const beleg_nr = 'E-' + String(belegRes.rows[0].n).padStart(4, '0');
+      const ins = await client.query(
+        `INSERT INTO einlagerungen
+           (beleg_nr, kunden_id, reifen_groesse, reifen_typ, reifen_marke, reifen_modell,
+            profil_vl, profil_vr, profil_hl, profil_hr,
+            anzahl, felgen, dot, lagerplatz, bemerkungen, erstellt_von, fahrzeug_id, vorgaenger_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+         RETURNING *`,
+        [beleg_nr, kunden_id, reifen_groesse, reifen_typ,
+         reifen_marke||null, reifen_modell||null,
+         profil_vl||null, profil_vr||null, profil_hl||null, profil_hr||null,
+         anz, felgen||'Nein', dot||null,
+         lp, bemerkungen||null, req.user.id, fahrzeug_id||null, vg]
+      );
+      return ins.rows[0];
+    });
+    await auditLog({ userId: req.user.id, aktion: 'einlagerung.erstellt',
+      tabelle: 'einlagerungen', datensatzId: neu.id, neueWerte: neu, req });
+    res.status(201).json(neu);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.patch('/:id/status', async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    if (!['Eingelagert','Abholbereit','Abgeholt'].includes(status))
+      return res.status(400).json({ error: 'Ungültiger Status.' });
+    const now = new Date();
+    const { rows } = await query(
+      `UPDATE einlagerungen SET
+         status         = $1,
+         abholbereit_am = CASE WHEN $1='Abholbereit' THEN $2 WHEN $1='Eingelagert' THEN NULL ELSE abholbereit_am END,
+         abgeholt_am    = CASE WHEN $1='Abgeholt'    THEN $2 WHEN $1 IN ('Eingelagert','Abholbereit') THEN NULL ELSE abgeholt_am END,
+         geaendert_von  = $3
+       WHERE id::text=$4 OR beleg_nr=$4
+       RETURNING *`,
+      [status, now, req.user.id, req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden.' });
+    await auditLog({ userId: req.user.id,
+      aktion: `einlagerung.status.${status.toLowerCase()}`,
+      tabelle: 'einlagerungen', datensatzId: req.params.id,
+      neueWerte: { status }, req });
+    // Kunde automatisch informieren, sobald die Raeder abholbereit sind
+    if (status === 'Abholbereit') benachrichtigeAbholbereit(req.params.id);
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// Lagerplatz einer bestehenden Einlagerung aendern (mit Belegt-Pruefung + Sperre)
+router.patch('/:id/lagerplatz', async (req, res, next) => {
+  try {
+    const { lagerplatz } = req.body;
+    if (!lagerplatz || !lagerplatz.trim()) return res.status(400).json({ error: 'Lagerplatz erforderlich.' });
+    const lp = lagerplatz.trim().toUpperCase();
+    const updated = await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['lagerplatz:' + lp]);
+      const belegt = await client.query(
+        "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt' AND id<>$2", [lp, req.params.id]);
+      if (belegt.rows.length) { const e = new Error(`Lagerplatz ${lp} ist bereits belegt.`); e.status = 409; throw e; }
+      const r = await client.query(
+        'UPDATE einlagerungen SET lagerplatz=$1, geaendert_von=$2 WHERE id=$3 RETURNING *',
+        [lp, req.user.id, req.params.id]);
+      return r.rows[0];
+    });
+    if (!updated) return res.status(404).json({ error: 'Nicht gefunden.' });
+    await auditLog({ userId: req.user.id, aktion: 'einlagerung.lagerplatz_geaendert',
+      tabelle: 'einlagerungen', datensatzId: req.params.id, neueWerte: { lagerplatz: lp }, req });
+    res.json(updated);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      "DELETE FROM einlagerungen WHERE id=$1 AND status='Abgeholt' RETURNING id, beleg_nr",
+      [req.params.id]
+    );
+    if (!rows.length)
+      return res.status(400).json({
+        error: 'Nur abgeholte Einlagerungen können gelöscht werden.'
+      });
+    await auditLog({ userId: req.user.id, aktion: 'einlagerung.geloescht',
+      tabelle: 'einlagerungen', datensatzId: req.params.id, req });
+    res.json({ message: 'Gelöscht.' });
+  } catch (err) { next(err); }
+});
+
+module.exports = router;

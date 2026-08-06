@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homepage verwalten — Schröder & Scholz</title>
+<meta name="robots" content="noindex">
+<style>
+  /* HELL (Standard, folgt System) */
+  :root, :root[data-theme="light"] { --bg:#f3f2ef; --panel:#ffffff; --panel2:#f6f4f0; --text:#201e1b; --muted:#6f6a61; --accent:#eab308; --accent-text:#87680c; --accent-ink:#1c1608; --border:#e2ddd3; --green:#1a8f52; --red:#c8402a; color-scheme:light; }
+  @media (prefers-color-scheme:dark) {
+    :root:not([data-theme="light"]) { --bg:#0d1117; --panel:#161b22; --panel2:#1c232d; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --accent-ink:#1c1608; --border:#2a3441; --green:#3ecf8e; --red:#e5534b; color-scheme:dark; }
+  }
+  :root[data-theme="dark"] { --bg:#0d1117; --panel:#161b22; --panel2:#1c232d; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --accent-ink:#1c1608; --border:#2a3441; --green:#3ecf8e; --red:#e5534b; color-scheme:dark; }
+  .wm-tx { fill:var(--text); } .wm-sub { fill:var(--muted); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); font-size:15px; }
+  a { color:var(--accent-text); }
+
+  /* Kopfleiste */
+  .top { position:sticky; top:0; z-index:40; background:var(--panel); border-bottom:3px solid var(--accent); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .sprung { position:sticky; top:58px; z-index:20; background:var(--bg); display:flex; flex-wrap:wrap; gap:6px; padding:10px 0; margin-bottom:14px; border-bottom:1px solid var(--border); }
+  .top-l { display:flex; align-items:center; gap:14px; }
+  .top-l svg { height:34px; width:auto; display:block; }
+  .top-tag { font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase; color:var(--muted); border-left:1px solid var(--border); padding-left:14px; }
+  .top-r { display:flex; gap:8px; }
+  .top a, .top button { color:var(--text); background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px 14px; text-decoration:none; cursor:pointer; font-size:13px; font-family:inherit; }
+  .top .view { background:var(--accent); color:var(--accent-ink); border:none; font-weight:700; }
+  .theme-btn { display:inline-flex; align-items:center; justify-content:center; padding:8px 10px; }
+  .theme-btn svg { width:16px; height:16px; display:block; }
+
+  .wrap { max-width:860px; margin:0 auto; padding:22px 18px 80px; }
+  .intro { background:var(--panel); border:1px solid var(--border); border-left:3px solid var(--accent); border-radius:10px; padding:14px 16px; color:var(--muted); font-size:13px; line-height:1.6; margin-bottom:20px; }
+  .intro b { color:var(--text); }
+
+  /* Abschnitts-Karte */
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; margin-bottom:12px; overflow:hidden; transition:border-color .15s; }
+  .card:hover { border-color:#3a4654; }
+  .card.hidden-sec { opacity:.6; }
+  .card-head { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; user-select:none; }
+  .card-head:hover { background:var(--panel2); }
+  .chev { color:var(--muted); font-size:13px; transition:transform .15s; width:12px; flex:none; }
+  .card:not(.collapsed) .chev { transform:rotate(90deg); }
+  .ord { font-size:12px; font-weight:800; color:var(--muted); width:20px; flex:none; }
+  .badge { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.6px; color:#171717; background:var(--accent); padding:3px 9px; border-radius:20px; flex:none; }
+  .badge.auto { background:#3a4250; color:#cfd6df; }
+  .head-title { flex:1; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  .tag-hidden { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); border:1px solid var(--border); border-radius:20px; padding:2px 8px; flex:none; }
+  .sw { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); flex:none; }
+  .sw input { width:34px; height:20px; -webkit-appearance:none; appearance:none; background:var(--border); border-radius:20px; position:relative; cursor:pointer; transition:.15s; }
+  .sw input:checked { background:var(--green); }
+  .sw input::after { content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:.15s; }
+  .sw input:checked::after { left:16px; }
+
+  .card-body { padding:4px 16px 16px; border-top:1px solid var(--border); }
+  .card.collapsed .card-body { display:none; }
+  label { display:block; font-size:12px; color:var(--muted); margin:12px 0 5px; font-weight:600; }
+  input[type=text], input[type=email], input[type=password], input:not([type]), textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; padding:10px 12px; outline:none; }
+  input:focus, textarea:focus { border-color:var(--accent-text); }
+  textarea { min-height:90px; resize:vertical; line-height:1.5; }
+
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:16px; padding-top:14px; border-top:1px dashed var(--border); }
+  .btn { border:none; border-radius:8px; padding:10px 16px; cursor:pointer; font-family:inherit; font-size:13px; font-weight:700; }
+  .btn-p { background:var(--accent); color:#171717; } .btn-g { background:var(--bg); color:var(--text); border:1px solid var(--border); font-weight:600; }
+  .btn-d { background:transparent; color:var(--red); border:1px solid var(--red); } .btn-d:hover { background:var(--red); color:#fff; }
+  .btn-icon { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:8px; width:38px; height:38px; cursor:pointer; font-size:15px; }
+  .btn-icon:disabled { opacity:.35; cursor:default; }
+
+  /* Bild */
+  .imgbox { aspect-ratio:4/3; max-width:280px; border-radius:10px; margin-top:6px; overflow:hidden; background:var(--panel2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; position:relative; }
+  .imgbox.wide { aspect-ratio:1600/760; max-width:100%; }
+  .imgbox img { width:100%; height:100%; object-fit:cover; display:block; }
+  .imgph { color:var(--muted); font-size:13px; }
+  .imgbox.busy::after { content:'Wird verarbeitet …'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:color-mix(in srgb,var(--bg) 82%,transparent); color:var(--accent-text); font-weight:700; font-size:13px; }
+  .uprow { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .filebtn { display:inline-block; background:var(--accent); color:#171717; font-weight:700; font-size:13px; padding:10px 16px; border-radius:8px; cursor:pointer; }
+  .imghint { color:var(--muted); font-size:12px; margin-top:8px; line-height:1.5; }
+  .autohint { color:var(--muted); font-size:13px; margin-top:12px; background:var(--bg); border-radius:8px; padding:10px 12px; line-height:1.5; }
+
+  .add { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+  .notice { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--green); color:#06281a; padding:11px 20px; border-radius:10px; font-weight:700; opacity:0; transition:.2s; pointer-events:none; z-index:60; box-shadow:0 8px 24px rgba(0,0,0,.3); }
+  .notice.show { opacity:1; } .notice.err { background:var(--red); color:#fff; }
+
+  /* Visuelle Vorschau */
+  .vhint { max-width:1100px; margin:16px auto 0; padding:0 18px; color:var(--muted); font-size:13px; line-height:1.6; }
+  .vframe-wrap { max-width:1100px; margin:12px auto 40px; padding:0 18px; }
+  #cms-frame { width:100%; height:80vh; border:1px solid var(--border); border-radius:12px; background:#fff; display:block; }
+  /* Bearbeiten-Modal */
+  .ve-ov { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:flex-start; justify-content:center; z-index:80; overflow:auto; padding:30px 14px; }
+  .ve-ov.open { display:flex; }
+  .ve-modal { background:var(--panel); border:1px solid var(--border); border-radius:14px; max-width:540px; width:100%; padding:22px; }
+  .ve-modal h2 { font-size:17px; margin-bottom:10px; }
+  .ve-modal .vx { float:right; background:none; border:none; color:var(--muted); font-size:24px; cursor:pointer; line-height:1; }
+
+  /* Login */
+  #login { max-width:360px; margin:70px auto; padding:0 18px; }
+  #login .login-logo { display:flex; justify-content:center; margin-bottom:22px; }
+  #login .login-logo svg { height:42px; width:auto; }
+  #login .box { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:26px 24px; }
+  #login h1 { font-size:17px; margin-bottom:4px; } #login .hint { color:var(--muted); font-size:13px; margin-bottom:18px; }
+  #login label { margin-top:14px; }
+  .ve-item { border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .ve-item-h { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .ve-item-h b { font-size:13px; color:var(--muted); }
+  .ve-item textarea { min-height:60px; }
+</style>
+</head>
+<body>
+<script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<div id="login" style="display:none">
+  <div class="login-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="280" height="50"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+  <div class="box">
+    <h1>Homepage verwalten</h1>
+    <div class="hint">Bitte mit Ihrem Mitarbeiter-Konto anmelden.</div>
+    <label>E-Mail</label><input id="l-email" type="email" autocapitalize="none">
+    <label>Passwort</label><input id="l-pass" type="password" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="row" style="border:none;padding:0;margin-top:18px"><button class="btn btn-p" onclick="doLogin()">Anmelden</button></div>
+    <div style="margin-top:14px"><a href="#" onclick="pwVergessen();return false" style="color:var(--muted);font-size:13px">Passwort vergessen?</a></div>
+  </div>
+</div>
+
+<div id="cms" style="display:none">
+  <div class="top">
+    <div class="top-l">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="190" height="34"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+      <span class="top-tag">Homepage-Verwaltung</span>
+    </div>
+    <div class="top-r">
+      <button id="tab-visuell" class="view" onclick="setView('visuell')">Visuelle Vorschau</button>
+      <button id="tab-liste" onclick="setView('liste')">Einstellungen &amp; Listen</button>
+      <button id="btn-undo" onclick="cmsUndo()" title="Letzte Änderung rückgängig machen">&#8634; Rückgängig</button>
+      <a href="https://www.schroeder-scholz.de/" target="_blank" rel="noopener">Ansehen</a>
+      <button id="theme-btn" class="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button>
+      <button onclick="logout()">Abmelden</button>
+    </div>
+  </div>
+  <div id="view-visuell">
+    <div class="vhint">Klicken Sie in der Vorschau oben rechts in einem Bereich auf <b>„✎ Bearbeiten"</b>, um Text oder Bild zu ändern. Für Banner, Gutscheine und Buchungs-Leistungen oben auf <b>„Einstellungen &amp; Listen"</b> wechseln.</div>
+    <div style="max-width:1100px;margin:8px auto 0;padding:0 18px;display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:var(--muted)">Ansicht:</span><button id="pv-desktop" class="view" onclick="setPvWidth('desktop')">Desktop</button><button id="pv-mobil" onclick="setPvWidth('mobil')">Mobil</button></div>
+    <div class="vframe-wrap"><iframe id="cms-frame" title="Homepage-Vorschau"></iframe></div>
+  </div>
+  <div class="wrap" id="view-liste" style="display:none">
+    <div class="intro">Tippen Sie auf einen Abschnitt, um ihn zu <b>bearbeiten</b>. Mit dem Schalter rechts blenden Sie ihn <b>ein/aus</b>, mit den Pfeilen ändern Sie die <b>Reihenfolge</b>. Jede Speicherung aktualisiert die Homepage sofort. <b>Öffnungszeiten</b> und <b>Kontakt</b> werden automatisch aus Ihren Firmendaten (Einstellungen) gefüllt.</div>
+    <div class="sprung">
+      <span style="font-size:12px;color:var(--muted);align-self:center;margin-right:2px">Springe zu:</span>
+      <button class="btn btn-g" onclick="zuPanel('p-design')">Design &amp; Schriften</button>
+      <button class="btn btn-g" onclick="zuPanel('p-seo')">SEO</button>
+      <button class="btn btn-g" onclick="zuPanel('p-banner')">Banner &amp; Gutscheine</button>
+      <button class="btn btn-g" onclick="zuPanel('p-buchung')">Buchung</button>
+      <button class="btn btn-g" onclick="zuPanel('p-nav')">Navigation</button>
+      <button class="btn btn-g" onclick="zuPanel('p-medien')">Medien</button>
+      <button class="btn btn-g" onclick="zuPanel('p-abschnitte')">Abschnitte</button>
+    </div>
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-design" style="font-size:16px;margin-bottom:4px">Design &amp; Schriften</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Schriftarten, Schriftgröße und Farben der ganzen Website. Eigene Schriften (WOFF2/WOFF/TTF/OTF) werden datensparsam <b>selbst gehostet</b> – kein externer Google-Dienst.</div>
+
+      <label>Eigene Schrift hochladen</label>
+      <div class="uprow" style="align-items:center;gap:8px">
+        <input type="text" id="fo-label" placeholder="Name, z. B. Montserrat" style="flex:1;min-width:140px">
+        <label class="filebtn" style="margin:0">Datei wählen<input type="file" id="fo-file" accept=".woff2,.woff,.ttf,.otf,font/*" style="display:none" onchange="fontHochladen()"></label>
+      </div>
+      <div class="imghint" style="margin-top:6px">Erst den Namen eingeben, dann die Datei wählen. Empfohlen: <b>WOFF2</b> (klein &amp; schnell). Max. 3 MB.</div>
+      <div id="fo-liste" style="margin-top:10px"></div>
+
+      <label style="margin-top:16px">Schriftart Überschriften</label>
+      <select id="dz-head" onchange="designLive()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px"></select>
+      <label>Schriftart Fließtext</label>
+      <select id="dz-body" onchange="designLive()" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px"></select>
+
+      <label style="margin-top:14px">Basis-Schriftgröße: <span id="dz-skala-lbl">100%</span></label>
+      <input type="range" id="dz-skala" min="70" max="160" step="5" value="100" oninput="document.getElementById('dz-skala-lbl').textContent=this.value+'%';designLive()" style="width:100%">
+
+      <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:14px">
+        <div><label style="margin-top:0">Akzentfarbe</label><input type="color" id="dz-akzent" value="#eab308" oninput="designLive()" style="width:62px;height:40px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg)"></div>
+        <div><label style="margin-top:0">Text auf Akzent</label><input type="color" id="dz-akzentink" value="#171717" oninput="designLive()" style="width:62px;height:40px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg)"></div>
+        <div><label style="margin-top:0">Dunkle Flächen (Kopf/Fuß)</label><input type="color" id="dz-dunkel" value="#171717" oninput="designLive()" style="width:62px;height:40px;padding:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg)"></div>
+      </div>
+      <div id="dz-warn" style="display:none;margin-top:10px;font-size:12px;color:var(--accent-text);background:var(--bg);border-radius:8px;padding:8px 10px;line-height:1.5"></div>
+      <label style="margin-top:12px">Sofort-Vorschau</label>
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden">
+        <div id="dz-pv-bar" style="padding:10px 14px;font-weight:700;color:#fff">Kopf-/Fußzeile</div>
+        <div style="padding:16px;background:#fff;color:#1a1a1a">
+          <div id="dz-pv-h" style="font-weight:800;margin-bottom:6px">Überschrift-Beispiel</div>
+          <div id="dz-pv-t" style="color:#444">So liest sich Ihr Fließtext auf der Website.</div>
+          <span id="dz-pv-btn" style="display:inline-block;margin-top:12px;padding:9px 18px;border-radius:8px;font-weight:700">Termin buchen</span>
+        </div>
+      </div>
+      <div class="row"><button class="btn btn-g" onclick="designVerwerfen()">Änderungen verwerfen</button><button class="btn btn-g" onclick="designStandard()">Auf Standard zurücksetzen</button><button class="btn btn-p" onclick="designSpeichern()">Design speichern</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-seo" style="font-size:16px;margin-bottom:4px">SEO &amp; Vorschau (Google / Teilen)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">So erscheint die Startseite bei Google und beim Teilen (WhatsApp/Facebook). Feld leer lassen = automatischer Standardtext.</div>
+
+      <label>Seitentitel <span id="seo-t-cnt" style="color:var(--muted);font-weight:400"></span></label>
+      <input type="text" id="seo-titel" maxlength="120" oninput="seoPreview()" placeholder="Schröder &amp; Scholz – Reifenservice in Ihrer Stadt">
+      <label>Meta-Beschreibung <span id="seo-d-cnt" style="color:var(--muted);font-weight:400"></span></label>
+      <textarea id="seo-besch" maxlength="320" oninput="seoPreview()" placeholder="Ein Satz, der Kunden zum Klicken bringt (ca. 150 Zeichen)."></textarea>
+
+      <label>Vorschaubild beim Teilen</label>
+      <div class="imgbox wide" id="seo-ogbox"><span class="imgph">Standard: Kopfbild der Seite</span></div>
+      <input type="hidden" id="seo-og" value="">
+      <div class="uprow" style="margin-top:8px"><label class="filebtn">Bild wählen<input type="file" accept="image/*" hidden onchange="seoOgUpload(this)"></label><button class="btn btn-g" onclick="seoOgEntfernen()">Standard verwenden</button></div>
+      <div class="imghint">Wird auf 1600×760 zugeschnitten (ideal für Facebook/WhatsApp).</div>
+
+      <label style="margin-top:16px">Google-Vorschau</label>
+      <div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:12px 14px">
+        <div id="seo-g-titel" style="color:#1a0dab;font-size:18px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">…</div>
+        <div style="color:#006621;font-size:13px">https://www.schroeder-scholz.de/</div>
+        <div id="seo-g-desc" style="color:#4d5156;font-size:13px;line-height:1.4">…</div>
+      </div>
+      <div class="row"><button class="btn btn-p" onclick="seoSpeichern()">SEO speichern</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:12px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-banner" style="font-size:16px;margin-bottom:4px">Aktionsbanner / Werbung</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:8px">Blendet oben auf der Homepage ein Werbebanner mit Gutschein-Code ein – z. B. zum Saisonstart.</div>
+      <label style="display:flex;align-items:center;gap:9px;margin:10px 0"><span class="sw"><input type="checkbox" id="ak-aktiv"></span> Banner anzeigen</label>
+      <label>Text</label><input type="text" id="ak-text" placeholder="Buche jetzt deinen Termin und sichere dir 10% Rabatt!">
+      <label>Gutschein-Code (optional, wird hervorgehoben)</label><input type="text" id="ak-code" placeholder="SAISON10">
+      <label>Position</label>
+      <select id="ak-pos" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px">
+        <option value="leiste">Leiste oben (über die ganze Breite)</option>
+        <option value="ecke-links">Ecke oben links</option>
+        <option value="ecke-rechts">Ecke oben rechts</option>
+      </select>
+      <label>Button-Ziel</label><input type="text" id="ak-link" placeholder="/portal/?buchen">
+      <div class="row"><button class="btn btn-p" onclick="bannerSpeichern()">Banner speichern</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 style="font-size:16px;margin-bottom:4px">Gutscheine</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:10px">Codes für Rabatte. Aktive, gültige Codes lassen sich beim Erstellen einer Rechnung anwenden.</div>
+      <div id="gs-liste"></div>
+      <div style="margin-top:12px;border-top:1px dashed var(--border);padding-top:14px">
+        <label>Neuen Gutschein anlegen</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input type="text" id="gs-code" placeholder="Code z. B. SAISON10" style="flex:1;min-width:150px">
+          <input type="number" id="gs-rabatt" placeholder="Rabatt %" min="1" max="100" style="width:120px">
+          <input type="date" id="gs-bis" title="gültig bis (optional)" style="width:170px">
+        </div>
+        <input type="text" id="gs-besch" placeholder="Beschreibung (optional, intern)" style="margin-top:8px">
+        <div class="row"><button class="btn btn-p" onclick="gutscheinAnlegen()">Gutschein anlegen</button></div>
+      </div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-buchung" style="font-size:16px;margin-bottom:4px">Online-Terminbuchung (Gäste)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:10px">Buchungsbereich auf der Homepage, in dem auch Gäste ohne Konto einen Termin buchen können. Termine erscheinen direkt im Kalender.</div>
+      <label style="display:flex;align-items:center;gap:9px;margin:10px 0"><span class="sw"><input type="checkbox" id="bu-aktiv"></span> Buchungsbereich anzeigen</label>
+      <label>Überschrift</label><input type="text" id="bu-titel" placeholder="Online Termin buchen">
+      <label>Einleitungstext</label><textarea id="bu-text" placeholder="Wählen Sie Ihre Leistung und einen freien Termin – schnell und ohne Anruf."></textarea>
+      <div class="row"><button class="btn btn-p" onclick="buchungSpeichern()">Buchungsbereich speichern</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 style="font-size:16px;margin-bottom:4px">Buchungs-Leistungen (Assistent /termin/)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Diese Leistungen zeigt der Buchungsassistent. Die Leistung selbst (Preis/Dauer) wird im Admin unter „Artikel" erfasst – hier wählen Sie, welche als <b>Hauptleistung</b> (große Bildkachel) bzw. <b>Zusatzleistung</b> erscheinen, und hinterlegen Bild + Text.</div>
+      <h3 style="font-size:14px;margin:6px 0 8px;color:var(--text)">Hauptleistungen (Bildkacheln)</h3>
+      <div id="bl-haupt"></div>
+      <div class="uprow" style="margin-top:8px;align-items:center"><select id="bl-add-haupt" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:13px"></select><button class="btn btn-g" onclick="leistungAdd('haupt')">+ hinzufügen</button></div>
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Zusatzleistungen</h3>
+      <div id="bl-zusatz"></div>
+      <div class="uprow" style="margin-top:8px;align-items:center"><select id="bl-add-zusatz" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font-size:13px"></select><button class="btn btn-g" onclick="leistungAdd('zusatz')">+ hinzufügen</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-nav" style="font-size:16px;margin-bottom:4px">Navigationsbuttons (Kopfzeile)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Die Menüpunkte oben auf der Startseite. Ziel kann ein Abschnitt der Startseite (<b>#leistungen</b>, <b>#oeffnungszeiten</b>, <b>#kontakt</b>) oder ein Link (z.B. <b>/portal/</b>, <b>/termin/</b>) sein. „Als Button" hebt den Punkt farbig hervor (z.B. Kundenportal).</div>
+      <div id="nav-liste"></div>
+      <div class="row"><button class="btn btn-g" onclick="navAdd()">+ Menüpunkt</button><button class="btn btn-p" onclick="navSpeichern()">Navigation speichern</button></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-medien" style="font-size:16px;margin-bottom:4px">Medien (hochgeladene Bilder)</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:10px">Alle hochgeladenen Bilder. <b>„benutzt"</b> = wird gerade auf der Seite gezeigt (Ort steht unter dem Bild). Nicht benötigte Bilder können Sie löschen, um Speicher zu sparen.</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:7px;margin:0;font-size:13px;color:var(--text)"><input type="checkbox" onchange="medienFilter(this)" style="width:auto"> Nur ungenutzte anzeigen</label>
+        <span id="med-count" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="med-liste" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px"></div>
+    </div></div>
+
+    <h2 id="p-abschnitte" style="font-size:16px;margin:6px 2px 10px">Abschnitte</h2>
+    <div id="liste"></div>
+    <div class="add">
+      <button class="btn btn-g" onclick="addSektion('text')">+ Text-Abschnitt</button>
+      <button class="btn btn-g" onclick="addSektion('leistung')">+ Leistung</button>
+      <button class="btn btn-g" onclick="addSektion('faq')">+ FAQ</button>
+      <button class="btn btn-g" onclick="addSektion('kundenstimmen')">+ Kundenstimmen</button>
+      <button class="btn btn-g" onclick="addSektion('galerie')">+ Galerie</button>
+    </div>
+  </div>
+</div>
+<div class="ve-ov" id="ve-ov"><div class="ve-modal">
+  <button class="vx" onclick="veClose()">&times;</button>
+  <h2 id="ve-titel">Bereich bearbeiten</h2>
+  <div id="ve-body"></div>
+</div></div>
+<div class="notice" id="notice"></div>
+
+<script>
+'use strict';
+// Theme (Hell/Dunkel, folgt System, speicherbar)
+var _SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+var _MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 14.5A8 8 0 0 1 9.5 4 7 7 0 1 0 20 14.5Z"/></svg>';
+function themeIsDark(){var t=document.documentElement.getAttribute('data-theme');if(t==='dark')return true;if(t==='light')return false;return !!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);}
+function updateThemeIcon(){var b=document.getElementById('theme-btn');if(b)b.innerHTML=themeIsDark()?_SUN:_MOON;}
+function toggleTheme(){var t=themeIsDark()?'light':'dark';document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('rp_theme',t);}catch(e){}updateThemeIcon();}
+updateThemeIcon();
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
+var TOKEN = localStorage.getItem('rp_token');
+var SEK = [];
+var GS = [];
+var OFFEN = {};
+var TYP_LABEL = { hero: 'Start', leistung: 'Leistung', text: 'Text', oeffnungszeiten: 'Öffnungszeiten', kontakt: 'Kontakt', faq: 'FAQ', kundenstimmen: 'Kundenstimmen', galerie: 'Galerie' };
+
+function notify(m, err) { var n = document.getElementById('notice'); n.textContent = m; n.className = 'notice show' + (err ? ' err' : ''); setTimeout(function(){ n.className = 'notice'; }, 2600); }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+// Hochgeladene Bilder liegen im Homepage-Webroot (/uploads/...). Die CMS-Vorschau laeuft aber auf der
+// Admin-Domain, wo /uploads/ nicht existiert -> absolute Homepage-URL verwenden, sonst keine Vorschau.
+var HOMEPAGE_ORIGIN = 'https://www.schroeder-scholz.de';
+function bildUrl(u) { u = u || ''; return u.charAt(0) === '/' ? HOMEPAGE_ORIGIN + u : u; }
+
+function api(method, path, body) {
+  var o = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) o.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body !== undefined) o.body = JSON.stringify(body);
+  return fetch(API + path, o).then(function(r) {
+    if (r.status === 401) { TOKEN = null; localStorage.removeItem('rp_token'); zeige(); throw new Error('Bitte anmelden'); }
+    if (!r.ok) return r.json().catch(function(){return {};}).then(function(e){ throw new Error(e.error || ('Fehler ' + r.status)); });
+    return r.json().catch(function(){ return null; });
+  });
+}
+function zeige() {
+  document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
+  document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
+  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); navLaden(); designLaden(); seoLaden(); medienLaden(); setView('visuell'); }
+}
+
+// ── Visueller Editor (Baukasten) ──
+var PREVIEW_URL = 'https://www.schroeder-scholz.de/?editor=1';
+var VIEW = 'visuell', frameGeladen = false;
+function reloadFrame() { var f = document.getElementById('cms-frame'); if (f) f.src = PREVIEW_URL + '&t=' + Date.now(); }
+function setView(v) {
+  VIEW = v;
+  document.getElementById('view-visuell').style.display = v === 'visuell' ? 'block' : 'none';
+  document.getElementById('view-liste').style.display = v === 'visuell' ? 'none' : 'block';
+  document.getElementById('tab-visuell').className = v === 'visuell' ? 'view' : '';
+  document.getElementById('tab-liste').className = v === 'liste' ? 'view' : '';
+  if (v === 'visuell' && !frameGeladen) { reloadFrame(); frameGeladen = true; }
+}
+window.addEventListener('message', function (ev) {
+  if (ev.origin !== 'https://www.schroeder-scholz.de') return;
+  if (ev.data && ev.data.type === 'cms-edit' && ev.data.id) oeffneVisualEdit(ev.data.id);
+});
+function feldVe(id, label, val, ta) {
+  return '<label>' + label + '</label>' + (ta ? '<textarea id="' + id + '">' + esc(val || '') + '</textarea>' : '<input type="text" id="' + id + '" value="' + esc(val || '') + '">');
+}
+function veOpen(s, h) {
+  document.getElementById('ve-titel').textContent = (TYP_LABEL[s.typ] || 'Bereich') + ' bearbeiten';
+  document.getElementById('ve-body').innerHTML = h;
+  document.getElementById('ve-ov').classList.add('open');
+}
+function oeffneVisualEdit(id) {
+  var s = SEK.find(function (x) { return x.id === id; });
+  if (!s) { notify('Bereich nicht gefunden – Vorschau neu laden.', true); return; }
+  if (s.typ === 'faq') return veFaqEditor(s);
+  if (s.typ === 'kundenstimmen') return veKsEditor(s);
+  if (s.typ === 'galerie') return veGalEditor(s);
+  var h = '';
+  h += feldVe('ve-h', 'Überschrift', s.headline);
+  if (s.typ === 'hero') h += feldVe('ve-sub', 'Unterzeile', s.subline);
+  if (s.typ === 'text' || s.typ === 'leistung') h += '<label>Text</label>' + richEditor('ve-i', inhaltZuHtml(s.inhalt));
+  if (s.typ === 'hero' || s.typ === 'text' || s.typ === 'leistung') {
+    var fmt = (s.typ === 'hero') ? 'hero' : 'inhalt';
+    h += '<label>Bild</label>';
+    h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="ve-box">' + (s.bild_url ? '<img src="' + esc(bildUrl(s.bild_url)) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
+    h += '<input type="hidden" id="ve-b" value="' + esc(s.bild_url || '') + '">';
+    h += '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="veBild(\'' + fmt + '\',this)"></label></div>';
+    h += '<div class="imghint">Wird automatisch passend zugeschnitten (' + (fmt === 'hero' ? 'breites Querformat' : '4:3') + ').</div>';
+    h += feldVe('ve-alt', 'Bildbeschreibung (Alt-Text – für Google &amp; Screenreader)', s.bild_alt);
+  }
+  if (s.typ === 'hero') { h += feldVe('ve-ct', 'Button-Text', s.cta_text); h += feldVe('ve-cu', 'Button-Ziel', s.cta_url); }
+  if (s.typ === 'leistung') {
+    var hl = (typeof BL !== 'undefined' && BL ? BL : []).filter(function (b) { return b.rolle === 'haupt'; });
+    var opts = '<option value="">— keine (nur Link zur Terminseite) —</option>' + hl.map(function (b) {
+      var nm = b.titel || ((typeof ARTIKEL !== 'undefined' && ARTIKEL ? ARTIKEL : []).find(function (a) { return a.id === b.artikel_id; }) || {}).name || b.artikel_id;
+      return '<option value="' + esc(b.artikel_id) + '"' + (s.buchung_artikel_id === b.artikel_id ? ' selected' : '') + '>' + esc(nm) + '</option>';
+    }).join('');
+    h += '<label>Verknüpfte Buchungsleistung</label><select id="ve-bl">' + opts + '</select>';
+    h += '<div class="imghint">Beim Klick auf diese Kachel wird im Buchungsassistenten diese Leistung vorausgewählt.</div>';
+  }
+  h += '<div class="row"><button class="btn btn-p" onclick="veSpeichern(\'' + id + '\')">Speichern</button></div>';
+  veOpen(s, h);
+}
+// ── Rich-Text-Editor (Fett/Kursiv/Listen/Links) ──
+function richEditor(id, html) {
+  var b = 'type="button" style="background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 9px;cursor:pointer;font-family:inherit;font-size:13px"';
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">' +
+    '<button ' + b + ' title="Fett" onmousedown="return rtCmd(event,\'bold\')"><b>F</b></button>' +
+    '<button ' + b + ' title="Kursiv" onmousedown="return rtCmd(event,\'italic\')"><i>K</i></button>' +
+    '<button ' + b + ' title="Aufzählung (Punkte)" onmousedown="return rtCmd(event,\'insertUnorderedList\')">&bull; Liste</button>' +
+    '<button ' + b + ' title="Nummerierte Liste" onmousedown="return rtCmd(event,\'insertOrderedList\')">1. Liste</button>' +
+    '<button ' + b + ' title="Link einfügen (Text markieren, dann klicken)" onmousedown="return rtLink(event)">Link</button>' +
+    '<button ' + b + ' title="Formatierung entfernen" onmousedown="return rtCmd(event,\'removeFormat\')">Format entfernen</button>' +
+    '</div>' +
+    '<div id="rt-linkbar" style="display:none;gap:6px;margin-bottom:6px;align-items:center">' +
+    '<input type="text" id="rt-linkurl" placeholder="https://… oder /termin/" style="flex:1;min-width:120px" onkeydown="if(event.key===\'Enter\'){event.preventDefault();rtLinkApply();}else if(event.key===\'Escape\'){rtLinkCancel();}">' +
+    '<button ' + b + ' onclick="rtLinkApply()">Einfügen</button>' +
+    '<button ' + b + ' onclick="rtLinkCancel()">Abbrechen</button>' +
+    '</div>' +
+    '<div id="' + id + '" contenteditable="true" style="min-height:90px;border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:10px 12px;font-size:14px;line-height:1.6;color:var(--text)">' + (html || '') + '</div>';
+}
+function rtCmd(ev, cmd) { ev.preventDefault(); document.execCommand(cmd, false, null); return false; }
+// Inline-Link-Feld statt prompt: Auswahl merken, Feld zeigen, dann Link auf die Auswahl setzen
+var rtSavedRange = null;
+function rtLink(ev) {
+  ev.preventDefault();
+  var sel = window.getSelection();
+  rtSavedRange = (sel && sel.rangeCount) ? sel.getRangeAt(0).cloneRange() : null;
+  var bar = document.getElementById('rt-linkbar');
+  if (bar) { bar.style.display = 'flex'; var u = document.getElementById('rt-linkurl'); u.value = ''; setTimeout(function () { u.focus(); }, 0); }
+  return false;
+}
+function rtLinkApply() {
+  var url = (document.getElementById('rt-linkurl').value || '').trim();
+  var bar = document.getElementById('rt-linkbar'); if (bar) bar.style.display = 'none';
+  if (!url) return;
+  if (rtSavedRange) { var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rtSavedRange); }
+  document.execCommand('createLink', false, url);
+}
+function rtLinkCancel() { var bar = document.getElementById('rt-linkbar'); if (bar) bar.style.display = 'none'; }
+function inhaltZuHtml(inhalt) {
+  inhalt = inhalt || '';
+  if (/<\/?(b|strong|i|em|u|a|ul|ol|li|p|br)\b/i.test(inhalt)) return inhalt;
+  return esc(inhalt).replace(/\n/g, '<br>');
+}
+// Client-seitige Bereinigung auf erlaubte Tags (Renderer sanitisiert zusaetzlich serverseitig)
+function cleanRich(el) {
+  var ALLOW = { B: 'b', STRONG: 'strong', I: 'i', EM: 'em', U: 'u', A: 'a', UL: 'ul', OL: 'ol', LI: 'li', BR: 'br', P: 'p', DIV: 'p' };
+  function walk(node) {
+    var out = '';
+    Array.prototype.forEach.call(node.childNodes, function (n) {
+      if (n.nodeType === 3) { out += esc(n.nodeValue); return; }
+      if (n.nodeType !== 1) return;
+      var tag = ALLOW[n.tagName];
+      if (!tag) { out += walk(n); return; }
+      if (tag === 'br') { out += '<br>'; return; }
+      if (n.tagName === 'A') {
+        var href = (n.getAttribute('href') || '').trim();
+        if (!/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(href)) { out += walk(n); return; }
+        out += '<a href="' + esc(href) + '">' + walk(n) + '</a>'; return;
+      }
+      out += '<' + tag + '>' + walk(n) + '</' + tag + '>';
+    });
+    return out;
+  }
+  return walk(el).replace(/<p>\s*<\/p>/g, '').trim();
+}
+function veClose() { document.getElementById('ve-ov').classList.remove('open'); }
+function cmsUndo() {
+  if (!confirm('Letzte Änderung an einem Abschnitt rückgängig machen?')) return;
+  api('POST', '/homepage/sektionen-undo').then(function (r) {
+    notify('Rückgängig gemacht' + (r && r.beschreibung ? ': ' + r.beschreibung : '') + '.');
+    laden(); if (typeof reloadFrame === 'function') reloadFrame();
+  }).catch(function (e) { notify(e.message, true); });
+}
+function veVal(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
+// ── Editoren fuer strukturierte Bausteine ──
+var VE_ITEMS = [], GAL_URLS = [];
+function veFaqEditor(s) {
+  VE_ITEMS = ((s.daten && s.daten.items) || []).map(function (i) { return { frage: i.frage || '', antwort: i.antwort || '' }; });
+  var h = feldVe('ve-h', 'Überschrift', s.headline) +
+    '<label>Fragen &amp; Antworten</label><div id="ve-items"></div>' +
+    '<button type="button" class="btn btn-g" onclick="faqAdd()">+ Frage</button>' +
+    '<div class="row"><button class="btn btn-p" onclick="veSpeichern(\'' + s.id + '\')">Speichern</button></div>';
+  veOpen(s, h); renderFaqItems();
+}
+function renderFaqItems() {
+  document.getElementById('ve-items').innerHTML = VE_ITEMS.map(function (it, ix) {
+    return '<div class="ve-item"><div class="ve-item-h"><b>Frage ' + (ix + 1) + '</b><button type="button" class="btn-icon" onclick="faqDel(' + ix + ')">&times;</button></div>' +
+      '<input type="text" id="fi-f-' + ix + '" placeholder="Frage" value="' + esc(it.frage) + '">' +
+      '<textarea id="fi-a-' + ix + '" placeholder="Antwort">' + esc(it.antwort) + '</textarea></div>';
+  }).join('') || '<div class="imghint" style="margin-top:0">Noch keine Frage – auf „+ Frage".</div>';
+}
+function faqSync() { VE_ITEMS.forEach(function (it, ix) { var f = document.getElementById('fi-f-' + ix), a = document.getElementById('fi-a-' + ix); if (f) it.frage = f.value; if (a) it.antwort = a.value; }); }
+function faqAdd() { faqSync(); VE_ITEMS.push({ frage: '', antwort: '' }); renderFaqItems(); }
+function faqDel(ix) { faqSync(); VE_ITEMS.splice(ix, 1); renderFaqItems(); }
+function veKsEditor(s) {
+  VE_ITEMS = ((s.daten && s.daten.items) || []).map(function (i) { return { text: i.text || '', name: i.name || '', sterne: i.sterne || 5 }; });
+  var h = feldVe('ve-h', 'Überschrift', s.headline) +
+    feldVe('ve-ks-url', 'Google-Bewertungslink (optional)', (s.daten && s.daten.google_url) || '') +
+    '<label>Kundenstimmen</label><div id="ve-items"></div>' +
+    '<button type="button" class="btn btn-g" onclick="ksAdd()">+ Stimme</button>' +
+    '<div class="row"><button class="btn btn-p" onclick="veSpeichern(\'' + s.id + '\')">Speichern</button></div>';
+  veOpen(s, h); renderKsItems();
+}
+function renderKsItems() {
+  document.getElementById('ve-items').innerHTML = VE_ITEMS.map(function (it, ix) {
+    var opts = ''; for (var n = 5; n >= 1; n--) opts += '<option value="' + n + '"' + (it.sterne === n ? ' selected' : '') + '>' + n + ' Sterne</option>';
+    return '<div class="ve-item"><div class="ve-item-h"><b>Stimme ' + (ix + 1) + '</b><button type="button" class="btn-icon" onclick="ksDel(' + ix + ')">&times;</button></div>' +
+      '<textarea id="ks-t-' + ix + '" placeholder="Zitat des Kunden">' + esc(it.text) + '</textarea>' +
+      '<div class="uprow" style="margin-top:8px"><input type="text" id="ks-n-' + ix + '" placeholder="Name (z. B. A. Gabriel)" value="' + esc(it.name) + '" style="flex:1"><select id="ks-s-' + ix + '" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px">' + opts + '</select></div></div>';
+  }).join('') || '<div class="imghint" style="margin-top:0">Noch keine Kundenstimme.</div>';
+}
+function ksSync() { VE_ITEMS.forEach(function (it, ix) { var t = document.getElementById('ks-t-' + ix), n = document.getElementById('ks-n-' + ix), st = document.getElementById('ks-s-' + ix); if (t) it.text = t.value; if (n) it.name = n.value; if (st) it.sterne = parseInt(st.value) || 5; }); }
+function ksAdd() { ksSync(); VE_ITEMS.push({ text: '', name: '', sterne: 5 }); renderKsItems(); }
+function ksDel(ix) { ksSync(); VE_ITEMS.splice(ix, 1); renderKsItems(); }
+function veGalEditor(s) {
+  GAL_URLS = ((s.daten && s.daten.bilder) || []).slice();
+  var h = feldVe('ve-h', 'Überschrift', s.headline) +
+    '<label>Bilder</label><div id="ve-gal" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px"></div>' +
+    '<div class="uprow" style="margin-top:8px"><label class="filebtn">Bild hinzufügen<input type="file" accept="image/*" hidden onchange="galAdd(this)"></label></div>' +
+    '<div class="imghint">Wird auf 4:3 zugeschnitten. Reihenfolge = Reihenfolge des Hinzufügens.</div>' +
+    '<div class="row"><button class="btn btn-p" onclick="veSpeichern(\'' + s.id + '\')">Speichern</button></div>';
+  veOpen(s, h); renderGal();
+}
+function renderGal() {
+  document.getElementById('ve-gal').innerHTML = GAL_URLS.map(function (u, ix) {
+    return '<div style="position:relative"><img src="' + esc(bildUrl(u)) + '" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;display:block"><button type="button" class="btn-icon" onclick="galDel(' + ix + ')" style="position:absolute;top:2px;right:2px;width:24px;height:24px">&times;</button></div>';
+  }).join('') || '<div class="imghint" style="margin-top:0">Noch keine Bilder.</div>';
+}
+function galAdd(inp) {
+  var f = inp.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function (e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: 'inhalt' }).then(function (res) { GAL_URLS.push(res.url); renderGal(); notify('Bild hinzugefügt – „Speichern".'); }).catch(function (err) { notify(err.message, true); });
+  };
+  r.readAsDataURL(f); inp.value = '';
+}
+function galDel(ix) { GAL_URLS.splice(ix, 1); renderGal(); }
+function veSpeichern(id) {
+  var s = SEK.find(function (x) { return x.id === id; }); if (!s) return;
+  var data = { sichtbar: s.sichtbar, headline: veVal('ve-h') !== undefined ? veVal('ve-h') : s.headline };
+  if (s.typ === 'faq') { faqSync(); data.daten = { items: VE_ITEMS }; }
+  else if (s.typ === 'kundenstimmen') { ksSync(); data.daten = { google_url: veVal('ve-ks-url') || '', items: VE_ITEMS }; }
+  else if (s.typ === 'galerie') { data.daten = { bilder: GAL_URLS.slice() }; }
+  else {
+    data.subline = veVal('ve-sub') !== undefined ? veVal('ve-sub') : s.subline;
+    var rich = document.getElementById('ve-i');
+    data.inhalt = (rich && rich.isContentEditable) ? cleanRich(rich) : (veVal('ve-i') !== undefined ? veVal('ve-i') : s.inhalt);
+    data.bild_url = veVal('ve-b') !== undefined ? veVal('ve-b') : s.bild_url;
+    data.bild_alt = veVal('ve-alt') !== undefined ? veVal('ve-alt') : s.bild_alt;
+    data.cta_text = veVal('ve-ct') !== undefined ? veVal('ve-ct') : s.cta_text;
+    data.cta_url = veVal('ve-cu') !== undefined ? veVal('ve-cu') : s.cta_url;
+    data.buchung_artikel_id = veVal('ve-bl') !== undefined ? (veVal('ve-bl') || null) : s.buchung_artikel_id;
+  }
+  // Sanfte Erinnerung: Bild ohne Bildbeschreibung ist schlecht für Google & Screenreader
+  if (data.bild_url && !(data.bild_alt || '').trim()) {
+    if (!confirm('Das Bild hat noch keine Bildbeschreibung (Alt-Text) – wichtig für Google und Barrierefreiheit.\n\nTrotzdem ohne Beschreibung speichern?')) {
+      var altEl = document.getElementById('ve-alt'); if (altEl) altEl.focus();
+      return;
+    }
+  }
+  api('PUT', '/homepage/sektionen/' + id, data).then(function () { notify('Gespeichert – Vorschau wird aktualisiert.'); veClose(); laden(); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+function veBild(fmt, inp) {
+  var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('ve-box'); if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : '') + ' busy';
+  var r = new FileReader();
+  r.onload = function (e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: fmt }).then(function (res) {
+      document.getElementById('ve-b').value = res.url;
+      if (box) { box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); box.innerHTML = '<img src="' + esc(bildUrl(res.url)) + '" alt="">'; }
+      notify('Bild hochgeladen – jetzt „Speichern".');
+    }).catch(function (err) { if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
+}
+function doLogin() {
+  var email = document.getElementById('l-email').value.trim();
+  var passwort = document.getElementById('l-pass').value;
+  fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, passwort: passwort }) })
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error||'Login fehlgeschlagen'); return j; }); })
+    .then(function(j){ TOKEN = j.token; localStorage.setItem('rp_token', TOKEN); zeige(); })
+    .catch(function(e){ notify(e.message, true); });
+}
+function logout() { TOKEN = null; localStorage.removeItem('rp_token'); zeige(); }
+function pwVergessen() {
+  var email = (document.getElementById('l-email').value || '').trim();
+  if (!email) { notify('Bitte zuerst Ihre E-Mail eingeben.', true); return; }
+  fetch(API + '/auth/passwort-reset-anfrage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email }) })
+    .then(function(r) {
+      if (r.status === 429) { notify('Zu viele Anfragen. Bitte ein paar Minuten warten.', true); return; }
+      if (!r.ok) { notify('Senden fehlgeschlagen. Bitte später erneut versuchen.', true); return; }
+      notify('Falls die E-Mail bekannt ist, wurde ein Reset-Link gesendet (auch Spam prüfen).');
+    })
+    .catch(function() { notify('Senden fehlgeschlagen (Netzwerk).', true); });
+}
+
+function laden() {
+  api('GET', '/homepage/sektionen').then(function(rows){ SEK = rows || []; render(); }).catch(function(e){ notify(e.message, true); });
+}
+// ── Aktionsbanner ──
+function bannerLaden() {
+  api('GET', '/homepage/banner').then(function(b){
+    b = b || {};
+    document.getElementById('ak-aktiv').checked = !!b.aktion_aktiv;
+    document.getElementById('ak-text').value = b.aktion_text || '';
+    document.getElementById('ak-code').value = b.aktion_code || '';
+    document.getElementById('ak-pos').value = b.aktion_position || 'leiste';
+    document.getElementById('ak-link').value = b.aktion_link || '';
+  }).catch(function(){});
+}
+// ── Buchungs-Leistungen ──
+var ARTIKEL = [], BL = [];
+function leistungenLaden() {
+  Promise.all([api('GET', '/artikel').catch(function(){return [];}), api('GET', '/homepage/leistungen').catch(function(){return [];})]).then(function(res) {
+    ARTIKEL = res[0] || []; BL = res[1] || [];
+    var opt = '<option value="">— Artikel wählen —</option>' + ARTIKEL.map(function(a){ return '<option value="' + a.id + '">' + esc(a.name) + ' (' + (a.dauer_minuten || 30) + ' Min)</option>'; }).join('');
+    var h = document.getElementById('bl-add-haupt'), z = document.getElementById('bl-add-zusatz');
+    if (h) h.innerHTML = opt; if (z) z.innerHTML = opt;
+    leistungenRender();
+  });
+}
+function leistungenRender() {
+  ['haupt', 'zusatz'].forEach(function(rolle) {
+    var el = document.getElementById('bl-' + rolle); if (!el) return;
+    var list = BL.filter(function(x){ return x.rolle === rolle; }).sort(function(a,b){ return a.sortierung - b.sortierung; });
+    if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine.</div>'; return; }
+    el.innerHTML = list.map(function(l) {
+      return '<div class="card" style="margin-bottom:10px"><div class="card-body" style="border-top:none;padding-top:12px">' +
+        '<div style="font-weight:700;color:var(--accent-text);margin-bottom:4px">' + esc(l.artikel_name) + '</div>' +
+        '<label>Titel (optional)</label><input type="text" id="bl-t-' + l.id + '" value="' + esc(l.titel || '') + '" placeholder="' + esc(l.artikel_name) + '">' +
+        '<label>Kurzbeschreibung</label><textarea id="bl-b-' + l.id + '">' + esc(l.beschreibung || '') + '</textarea>' +
+        '<label>Bild</label><div class="imgbox" id="bl-box-' + l.id + '">' + (l.bild_url ? '<img src="' + esc(bildUrl(l.bild_url)) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>' +
+        '<input type="hidden" id="bl-img-' + l.id + '" value="' + esc(l.bild_url || '') + '">' +
+        '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="leistungBild(\'' + l.id + '\',this)"></label></div>' +
+        '<div class="row"><button class="btn btn-p" onclick="leistungSpeichern(\'' + l.id + '\')">Speichern</button>' +
+        '<span class="sw" style="margin-left:auto"><span style="font-size:12px;color:var(--muted)">aktiv</span><input type="checkbox" id="bl-a-' + l.id + '"' + (l.aktiv ? ' checked' : '') + '></span>' +
+        '<button class="btn btn-d" onclick="leistungLoeschen(\'' + l.id + '\')">Entfernen</button></div>' +
+        '</div></div>';
+    }).join('');
+  });
+}
+function leistungAdd(rolle) {
+  var sel = document.getElementById('bl-add-' + rolle); var aid = sel.value;
+  if (!aid) { notify('Bitte einen Artikel wählen.', true); return; }
+  api('POST', '/homepage/leistungen', { artikel_id: aid, rolle: rolle }).then(function(){ notify('Hinzugefügt.'); sel.value = ''; leistungenLaden(); }).catch(function(e){ notify(e.message, true); });
+}
+function leistungSpeichern(id, meldung) {
+  api('PUT', '/homepage/leistungen/' + id, {
+    titel: document.getElementById('bl-t-' + id).value,
+    beschreibung: document.getElementById('bl-b-' + id).value,
+    bild_url: document.getElementById('bl-img-' + id).value,
+    aktiv: document.getElementById('bl-a-' + id).checked
+  }).then(function(){ notify(meldung || 'Gespeichert.'); leistungenLaden(); }).catch(function(e){ notify(e.message, true); });
+}
+function leistungBild(id, inp) {
+  var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('bl-box-' + id); if (box) box.className = 'imgbox busy';
+  var r = new FileReader();
+  r.onload = function(e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: 'inhalt' }).then(function(res){
+      document.getElementById('bl-img-' + id).value = res.url;
+      leistungSpeichern(id, 'Bild hochgeladen und gespeichert.');
+    }).catch(function(err){ if (box) box.className = 'imgbox'; notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
+}
+function leistungLoeschen(id) { if (!confirm('Leistung aus dem Buchungsassistenten entfernen?')) return; api('DELETE', '/homepage/leistungen/' + id).then(function(){ notify('Entfernt.'); leistungenLaden(); }).catch(function(e){ notify(e.message, true); }); }
+function buchungLaden() {
+  api('GET', '/homepage/buchung').then(function(b){
+    b = b || {};
+    document.getElementById('bu-aktiv').checked = b.buchung_aktiv !== false;
+    document.getElementById('bu-titel').value = b.buchung_titel || '';
+    document.getElementById('bu-text').value = b.buchung_text || '';
+  }).catch(function(){});
+}
+function buchungSpeichern() {
+  api('PUT', '/homepage/buchung', {
+    buchung_aktiv: document.getElementById('bu-aktiv').checked,
+    buchung_titel: document.getElementById('bu-titel').value,
+    buchung_text: document.getElementById('bu-text').value
+  }).then(function(){ notify('Buchungsbereich gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
+}
+
+// ── Navigationsbuttons ──
+var NAV = [];
+function navLaden() {
+  api('GET', '/homepage/nav').then(function(rows){ NAV = Array.isArray(rows) ? rows : []; navRender(); }).catch(function(){});
+}
+function navRender() {
+  var el = document.getElementById('nav-liste'); if (!el) return;
+  if (!NAV.length) { el.innerHTML = '<div class="imgph" style="padding:8px 0">Keine Menüpunkte.</div>'; return; }
+  el.innerHTML = NAV.map(function(i, idx){
+    return '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px">' +
+      '<input type="text" value="' + esc(i.label || '') + '" placeholder="Beschriftung" style="flex:1;min-width:130px" oninput="NAV[' + idx + '].label=this.value">' +
+      '<input type="text" value="' + esc(i.url || '') + '" placeholder="#abschnitt oder /link/" style="flex:1;min-width:130px" oninput="NAV[' + idx + '].url=this.value">' +
+      '<label class="sw" title="Als hervorgehobenen Button anzeigen"><input type="checkbox"' + (i.btn ? ' checked' : '') + ' onchange="NAV[' + idx + '].btn=this.checked"> Button</label>' +
+      '<label class="sw" title="Sichtbar"><input type="checkbox"' + (i.sichtbar !== false ? ' checked' : '') + ' onchange="NAV[' + idx + '].sichtbar=this.checked"> sichtbar</label>' +
+      '<button class="btn-icon" title="nach oben" onclick="navMove(' + idx + ',-1)"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+      '<button class="btn-icon" title="nach unten" onclick="navMove(' + idx + ',1)"' + (idx === NAV.length - 1 ? ' disabled' : '') + '>↓</button>' +
+      '<button class="btn-icon" title="entfernen" onclick="navDel(' + idx + ')" style="color:var(--red)">✕</button>' +
+      '</div>';
+  }).join('');
+}
+function navAdd() { NAV.push({ label: '', url: '#', sichtbar: true, btn: false }); navRender(); }
+function navDel(idx) { NAV.splice(idx, 1); navRender(); }
+function navMove(idx, dir) {
+  var j = idx + dir; if (j < 0 || j >= NAV.length) return;
+  var tmp = NAV[idx]; NAV[idx] = NAV[j]; NAV[j] = tmp; navRender();
+}
+function navSpeichern() {
+  var clean = NAV.filter(function(i){ return i.label && i.label.trim(); });
+  if (!clean.length) { notify('Mindestens ein Menüpunkt mit Beschriftung erforderlich.', true); return; }
+  api('PUT', '/homepage/nav', clean).then(function(){ notify('Navigation gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
+}
+function bannerSpeichern() {
+  api('PUT', '/homepage/banner', {
+    aktion_aktiv: document.getElementById('ak-aktiv').checked,
+    aktion_text: document.getElementById('ak-text').value,
+    aktion_code: document.getElementById('ak-code').value,
+    aktion_position: document.getElementById('ak-pos').value,
+    aktion_link: document.getElementById('ak-link').value
+  }).then(function(){ notify('Banner gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
+}
+// ── Gutscheine ──
+function gutscheineLaden() {
+  api('GET', '/gutscheine').then(function(rows){ GS = rows || []; gutscheineRender(); }).catch(function(){});
+}
+function gutscheineRender() {
+  var el = document.getElementById('gs-liste'); if (!el) return;
+  if (!GS.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Gutscheine angelegt.</div>'; return; }
+  el.innerHTML = GS.map(function(g){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
+      '<strong style="color:var(--accent-text);letter-spacing:.5px">' + esc(g.code) + '</strong>' +
+      '<span>' + g.rabatt_prozent + '%</span>' +
+      '<span style="color:var(--muted);font-size:12px">' + (g.gueltig_bis ? 'gültig bis ' + g.gueltig_bis : 'unbegrenzt') + '</span>' +
+      '<span class="sw" style="margin-left:auto"><span style="font-size:12px;color:var(--muted)">aktiv</span><input type="checkbox" ' + (g.aktiv ? 'checked' : '') + ' onchange="gutscheinAktiv(\'' + g.id + '\',this.checked)"></span>' +
+      '<button class="btn btn-d" style="padding:5px 11px" onclick="gutscheinLoeschen(\'' + g.id + '\')">Löschen</button>' +
+      '</div>';
+  }).join('');
+}
+function gutscheinAnlegen() {
+  var code = document.getElementById('gs-code').value.trim();
+  var rabatt = parseInt(document.getElementById('gs-rabatt').value);
+  if (!code || !(rabatt >= 1 && rabatt <= 100)) { notify('Code und Rabatt (1–100 %) angeben.', true); return; }
+  api('POST', '/gutscheine', { code: code, rabatt_prozent: rabatt, gueltig_bis: document.getElementById('gs-bis').value || null, beschreibung: document.getElementById('gs-besch').value || null })
+    .then(function(){ notify('Gutschein angelegt.'); ['gs-code','gs-rabatt','gs-bis','gs-besch'].forEach(function(i){ document.getElementById(i).value=''; }); gutscheineLaden(); })
+    .catch(function(e){ notify(e.message, true); });
+}
+function gutscheinAktiv(id, val) { api('PATCH', '/gutscheine/' + id, { aktiv: val }).then(function(){ notify('Aktualisiert.'); }).catch(function(e){ notify(e.message, true); }); }
+function gutscheinLoeschen(id) { if (!confirm('Gutschein wirklich löschen?')) return; api('DELETE', '/gutscheine/' + id).then(function(){ notify('Gelöscht.'); gutscheineLaden(); }).catch(function(e){ notify(e.message, true); }); }
+function feld(id, label, val, ta) {
+  return '<label>' + label + '</label>' + (ta
+    ? '<textarea id="' + id + '">' + esc(val) + '</textarea>'
+    : '<input type="text" id="' + id + '" value="' + esc(val) + '">');
+}
+function toggleCard(id) {
+  OFFEN[id] = !OFFEN[id];
+  var c = document.getElementById('card-' + id);
+  if (c) c.classList.toggle('collapsed', !OFFEN[id]);
+}
+function render() {
+  var html = SEK.map(function(s, idx) {
+    var auto = (s.typ === 'oeffnungszeiten' || s.typ === 'kontakt');
+    var titel = s.headline || (s.typ === 'hero' ? 'Startbereich' : 'Ohne Titel');
+    var c = 'card' + (OFFEN[s.id] ? '' : ' collapsed') + (s.sichtbar ? '' : ' hidden-sec');
+    var h = '<div class="' + c + '" id="card-' + s.id + '">';
+    // Kopf (klickbar)
+    h += '<div class="card-head" onclick="toggleCard(\'' + s.id + '\')">' +
+      '<span class="chev">&#9656;</span>' +
+      '<span class="ord">' + String(idx + 1).padStart(2, '0') + '</span>' +
+      '<span class="badge' + (auto ? ' auto' : '') + '">' + (TYP_LABEL[s.typ] || s.typ) + '</span>' +
+      '<span class="head-title">' + esc(titel) + '</span>' +
+      (s.sichtbar ? '' : '<span class="tag-hidden">ausgeblendet</span>') +
+      '<span class="sw" onclick="event.stopPropagation()"><span>sichtbar</span><input type="checkbox" id="v-' + s.id + '"' + (s.sichtbar ? ' checked' : '') + ' onchange="speichern(\'' + s.id + '\',\'Sichtbarkeit aktualisiert.\')"></span>' +
+      '</div>';
+    // Inhalt
+    h += '<div class="card-body">';
+    h += feld('h-' + s.id, 'Überschrift', s.headline);
+    if (s.typ === 'faq' || s.typ === 'kundenstimmen' || s.typ === 'galerie') {
+      var d = s.daten || {};
+      var anz = (d.items && d.items.length) || (d.bilder && d.bilder.length) || 0;
+      h += '<div class="autohint">' + (anz ? anz + ' Eintrag/Einträge hinterlegt.' : 'Noch keine Einträge.') + ' Zum Pflegen auf „Einträge bearbeiten" – oder in der visuellen Vorschau den Bereich anklicken.</div>';
+      h += '<div class="row"><button class="btn btn-p" onclick="speichern(\'' + s.id + '\')">Überschrift speichern</button>' +
+        '<button class="btn btn-g" onclick="oeffneVisualEdit(\'' + s.id + '\')">Einträge bearbeiten</button>' +
+        '<button class="btn btn-g" onclick="duplizieren(\'' + s.id + '\')">Duplizieren</button>' +
+        '<button class="btn-icon" title="nach oben" onclick="move(\'' + s.id + '\',\'up\')"' + (idx === 0 ? ' disabled' : '') + '>&#8593;</button>' +
+        '<button class="btn-icon" title="nach unten" onclick="move(\'' + s.id + '\',\'down\')"' + (idx === SEK.length - 1 ? ' disabled' : '') + '>&#8595;</button>' +
+        '<button class="btn btn-d" style="margin-left:auto" onclick="loeschen(\'' + s.id + '\')">Löschen</button></div>';
+      h += '</div></div>';
+      return h;
+    }
+    if (s.typ === 'hero') h += feld('sub-' + s.id, 'Unterzeile', s.subline);
+    if (!auto) h += feld('i-' + s.id, 'Text', s.inhalt, true);
+    if (s.typ === 'hero' || s.typ === 'text' || s.typ === 'leistung') {
+      var fmt = (s.typ === 'hero') ? 'hero' : 'inhalt';
+      h += '<label>Bild</label>';
+      h += '<div class="imgbox' + (fmt === 'hero' ? ' wide' : '') + '" id="box-' + s.id + '">' +
+        (s.bild_url ? '<img src="' + esc(bildUrl(s.bild_url)) + '" alt="">' : '<span class="imgph">Kein Bild</span>') + '</div>';
+      h += '<input type="hidden" id="b-' + s.id + '" value="' + esc(s.bild_url) + '">';
+      h += '<div class="uprow"><label class="filebtn">Bild auswählen<input type="file" accept="image/*" hidden onchange="bildUpload(\'' + s.id + '\',\'' + fmt + '\',this)"></label>' +
+        (s.bild_url ? '<button class="btn btn-g" onclick="bildEntfernen(\'' + s.id + '\')">Bild entfernen</button>' : '') + '</div>';
+      h += '<div class="imghint">Beliebiges Foto möglich – es wird automatisch passend zugeschnitten (' +
+        (fmt === 'hero' ? 'breites Querformat' : 'Format 4:3') + ') und fürs schnelle Laden optimiert. Die Vorschau zeigt den späteren Ausschnitt.</div>';
+    }
+    if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel (z. B. /portal/?registrieren)', s.cta_url); }
+    if (auto) h += '<div class="autohint">Der Inhalt dieses Abschnitts wird automatisch aus Ihren Firmendaten (Einstellungen) erzeugt – inklusive Adresse, Telefon und Karte.</div>';
+    h += '<div class="row"><button class="btn btn-p" onclick="speichern(\'' + s.id + '\')">Speichern</button>' +
+      '<button class="btn-icon" title="nach oben" onclick="move(\'' + s.id + '\',\'up\')"' + (idx === 0 ? ' disabled' : '') + '>&#8593;</button>' +
+      '<button class="btn-icon" title="nach unten" onclick="move(\'' + s.id + '\',\'down\')"' + (idx === SEK.length - 1 ? ' disabled' : '') + '>&#8595;</button>';
+    if (s.typ !== 'hero' && !auto) h += '<button class="btn btn-g" onclick="duplizieren(\'' + s.id + '\')">Duplizieren</button>';
+    if (s.typ !== 'hero' && !auto) h += '<button class="btn btn-d" style="margin-left:auto" onclick="loeschen(\'' + s.id + '\')">Löschen</button>';
+    h += '</div>';
+    h += '</div></div>';
+    return h;
+  }).join('');
+  document.getElementById('liste').innerHTML = html;
+}
+function v(id) { var e = document.getElementById(id); return e ? e.value : undefined; }
+function speichern(id, meldung) {
+  var s = SEK.find(function(x){ return x.id === id; }); if (!s) return;
+  var data = {
+    headline: v('h-' + id),
+    subline: v('sub-' + id) !== undefined ? v('sub-' + id) : s.subline,
+    inhalt: v('i-' + id) !== undefined ? v('i-' + id) : s.inhalt,
+    bild_url: v('b-' + id) !== undefined ? v('b-' + id) : s.bild_url,
+    cta_text: v('ct-' + id) !== undefined ? v('ct-' + id) : s.cta_text,
+    cta_url: v('cu-' + id) !== undefined ? v('cu-' + id) : s.cta_url,
+    sichtbar: document.getElementById('v-' + id).checked
+  };
+  api('PUT', '/homepage/sektionen/' + id, data).then(function(){ notify(meldung || 'Gespeichert – Homepage aktualisiert.'); laden(); }).catch(function(e){ notify(e.message, true); });
+}
+function bildUpload(id, fmt, inp) {
+  var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('box-' + id);
+  if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : '') + ' busy';
+  var r = new FileReader();
+  r.onload = function(e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: fmt }).then(function(res){
+      document.getElementById('b-' + id).value = res.url;
+      speichern(id, 'Bild hochgeladen und gespeichert.');
+    }).catch(function(err){ if (box) box.className = 'imgbox' + (fmt === 'hero' ? ' wide' : ''); notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
+}
+function bildEntfernen(id) {
+  if (!confirm('Bild wirklich entfernen?')) return;
+  document.getElementById('b-' + id).value = '';
+  speichern(id, 'Bild entfernt.');
+}
+function move(id, dir) { api('POST', '/homepage/sektionen/' + id + '/move', { dir: dir }).then(function(){ laden(); }).catch(function(e){ notify(e.message, true); }); }
+function loeschen(id) { if (!confirm('Abschnitt wirklich löschen?')) return; api('DELETE', '/homepage/sektionen/' + id).then(function(){ notify('Gelöscht.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
+function addSektion(typ) { api('POST', '/homepage/sektionen', { typ: typ }).then(function(r){ if (r && r.id) OFFEN[r.id] = true; notify('Abschnitt hinzugefügt.'); laden(); }).catch(function(e){ notify(e.message, true); }); }
+
+// ── SEO & Vorschau ──
+var SEO_DEF_TITEL = 'Schröder & Scholz – Reifenservice, Räderwechsel & Reifeneinlagerung';
+var SEO_DEF_DESC = 'Schröder & Scholz – Ihr Reifenservice: schneller Räderwechsel, sichere Reifeneinlagerung, Reifen & Felgen sowie Fahrwerkstechnik und Bremsenservice. Jetzt bequem online Termin buchen.';
+function seoLaden() {
+  api('GET', '/homepage/seo').then(function (c) {
+    c = c || {};
+    document.getElementById('seo-titel').value = c.titel || '';
+    document.getElementById('seo-besch').value = c.beschreibung || '';
+    document.getElementById('seo-og').value = c.og_bild || '';
+    var box = document.getElementById('seo-ogbox');
+    box.innerHTML = c.og_bild ? '<img src="' + esc(bildUrl(c.og_bild)) + '" alt="">' : '<span class="imgph">Standard: Kopfbild der Seite</span>';
+    seoPreview();
+  }).catch(function () {});
+}
+function seoPreview() {
+  var t = document.getElementById('seo-titel').value.trim();
+  var d = document.getElementById('seo-besch').value.trim();
+  function cnt(el, len, ideal) {
+    var over = len > ideal;
+    el.textContent = len + '/' + ideal + (over ? ' – etwas lang' : '');
+    el.style.color = over ? 'var(--accent)' : 'var(--muted)';
+  }
+  cnt(document.getElementById('seo-t-cnt'), t.length, 60);
+  cnt(document.getElementById('seo-d-cnt'), d.length, 155);
+  document.getElementById('seo-g-titel').textContent = t || SEO_DEF_TITEL;
+  document.getElementById('seo-g-desc').textContent = (d || SEO_DEF_DESC).slice(0, 160) + ((d || SEO_DEF_DESC).length > 160 ? '…' : '');
+}
+function seoOgUpload(inp) {
+  var f = inp.files[0]; if (!f) return;
+  var box = document.getElementById('seo-ogbox'); box.className = 'imgbox wide busy';
+  var r = new FileReader();
+  r.onload = function (e) {
+    api('POST', '/homepage/bild', { data: e.target.result, format: 'hero' }).then(function (res) {
+      document.getElementById('seo-og').value = res.url;
+      box.className = 'imgbox wide'; box.innerHTML = '<img src="' + esc(bildUrl(res.url)) + '" alt="">';
+      notify('Vorschaubild hochgeladen – „SEO speichern" nicht vergessen.');
+    }).catch(function (err) { box.className = 'imgbox wide'; notify(err.message, true); });
+  };
+  r.readAsDataURL(f);
+}
+function seoOgEntfernen() {
+  document.getElementById('seo-og').value = '';
+  document.getElementById('seo-ogbox').innerHTML = '<span class="imgph">Standard: Kopfbild der Seite</span>';
+}
+function seoSpeichern() {
+  var body = { titel: document.getElementById('seo-titel').value, beschreibung: document.getElementById('seo-besch').value, og_bild: document.getElementById('seo-og').value };
+  api('PUT', '/homepage/seo', body).then(function () { notify('SEO gespeichert.'); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+
+// ── Design & Schriften ──
+var FONT_STACKS = [
+  { label: 'Standard (System, serifenlos)', css: "-apple-system,'Segoe UI',Roboto,Arial,sans-serif" },
+  { label: 'Helvetica / Arial (klassisch)', css: "'Helvetica Neue',Arial,sans-serif" },
+  { label: 'Georgia (Serifen, elegant)', css: "Georgia,'Times New Roman',serif" },
+  { label: 'Palatino (Serifen, warm)', css: "'Palatino Linotype',Palatino,Georgia,serif" },
+  { label: 'Verdana (kräftig, gut lesbar)', css: 'Verdana,Geneva,sans-serif' },
+  { label: 'Tahoma (technisch)', css: 'Tahoma,Geneva,sans-serif' },
+  { label: 'Trebuchet (freundlich)', css: "'Trebuchet MS',Verdana,sans-serif" },
+  { label: 'Courier (Schreibmaschine)', css: "'Courier New',monospace" }
+];
+var FONTS = [], DESIGN = null;
+function uploadedCss(f) { return "'" + f.familie + "',-apple-system,Arial,sans-serif"; }
+function fontOptionsHtml(cur) {
+  function opt(v, l) { return '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(l) + '</option>'; }
+  var alle = FONT_STACKS.map(function (s) { return s.css; }).concat(FONTS.map(uploadedCss));
+  var h = '';
+  if (cur && alle.indexOf(cur) === -1) h += opt(cur, 'Aktuelle Schrift');
+  h += '<optgroup label="Eingebaute Schriften">' + FONT_STACKS.map(function (s) { return opt(s.css, s.label); }).join('') + '</optgroup>';
+  if (FONTS.length) h += '<optgroup label="Eigene Schriften">' + FONTS.map(function (f) { return opt(uploadedCss(f), f.label); }).join('') + '</optgroup>';
+  return h;
+}
+function rebuildFontSelects() {
+  ['dz-head', 'dz-body'].forEach(function (id) { var s = document.getElementById(id); var cur = s.value; s.innerHTML = fontOptionsHtml(cur); if (cur) s.value = cur; });
+}
+function applyDesign(c) {
+  c = c || {};
+  document.getElementById('dz-head').innerHTML = fontOptionsHtml(c.font_head || FONT_STACKS[0].css);
+  document.getElementById('dz-body').innerHTML = fontOptionsHtml(c.font_body || FONT_STACKS[0].css);
+  var sk = Math.round((parseFloat(c.skala) || 1) * 100);
+  document.getElementById('dz-skala').value = sk; document.getElementById('dz-skala-lbl').textContent = sk + '%';
+  document.getElementById('dz-akzent').value = c.akzent || '#eab308';
+  document.getElementById('dz-akzentink').value = c.akzent_ink || '#171717';
+  document.getElementById('dz-dunkel').value = c.dunkel || '#171717';
+  designLive();
+}
+// ── Live-Vorschau + Kontrast-Warnung ──
+function hexToRgb(h) { h = String(h || '').replace('#', ''); if (h.length === 3) h = h.replace(/(.)/g, '$1$1'); var n = parseInt(h, 16) || 0; return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function relLum(h) { var c = hexToRgb(h).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+function kontrast(a, b) { var l1 = relLum(a), l2 = relLum(b); return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05); }
+function designLive() {
+  var head = document.getElementById('dz-head').value, body = document.getElementById('dz-body').value;
+  var sc = (parseInt(document.getElementById('dz-skala').value, 10) || 100) / 100;
+  var ak = document.getElementById('dz-akzent').value, ink = document.getElementById('dz-akzentink').value, dk = document.getElementById('dz-dunkel').value;
+  var bar = document.getElementById('dz-pv-bar'); bar.style.background = dk; bar.style.fontFamily = body;
+  var h = document.getElementById('dz-pv-h'); h.style.fontFamily = head; h.style.fontSize = (22 * sc) + 'px';
+  var t = document.getElementById('dz-pv-t'); t.style.fontFamily = body; t.style.fontSize = (15 * sc) + 'px';
+  var btn = document.getElementById('dz-pv-btn'); btn.style.background = ak; btn.style.color = ink; btn.style.fontFamily = body;
+  var w = [];
+  if (kontrast(ak, ink) < 4.5) w.push('Der Button-Text auf der Akzentfarbe ist schwer lesbar.');
+  if (kontrast(dk, '#ffffff') < 4.5) w.push('Weißer Text auf den dunklen Flächen ist schwer lesbar.');
+  var wd = document.getElementById('dz-warn'); if (w.length) { wd.style.display = 'block'; wd.innerHTML = '⚠ Lesbarkeit: ' + w.join(' '); } else wd.style.display = 'none';
+  var f = document.getElementById('cms-frame');
+  if (f && f.contentWindow && f.src) f.contentWindow.postMessage({ type: 'cms-design', vars: { accent: ak, accent_ink: ink, dunkel: dk, font_head: head, font_body: body, sc: sc } }, 'https://www.schroeder-scholz.de');
+}
+// ── Vorschau-Breite (Desktop/Mobil) ──
+function setPvWidth(m) {
+  var f = document.getElementById('cms-frame'); if (!f) return;
+  if (m === 'mobil') { f.style.width = '390px'; f.style.margin = '0 auto'; f.style.display = 'block'; } else { f.style.width = '100%'; f.style.margin = '0'; }
+  document.getElementById('pv-desktop').className = m === 'desktop' ? 'view' : '';
+  document.getElementById('pv-mobil').className = m === 'mobil' ? 'view' : '';
+}
+// ── Sprungmenue: zu einem Panel scrollen (Offset fuer Kopfleiste + Sprungleiste) ──
+function zuPanel(id) {
+  var el = document.getElementById(id); if (!el) return;
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 130, behavior: 'smooth' });
+}
+// ── Abschnitt duplizieren ──
+function duplizieren(id) {
+  api('POST', '/homepage/sektionen/' + id + '/duplicate').then(function () { notify('Abschnitt dupliziert.'); laden(); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+// ── Medien-Uebersicht ──
+var MEDIEN = [], MED_NUR_FREI = false;
+function medienLaden() {
+  api('GET', '/homepage/medien').then(function (rows) { MEDIEN = rows || []; medienRender(); }).catch(function () {});
+}
+function medienFilter(cb) { MED_NUR_FREI = !!(cb && cb.checked); medienRender(); }
+function medienRender() {
+  var el = document.getElementById('med-liste'); if (!el) return;
+  var frei = MEDIEN.filter(function (m) { return !m.benutzt; }).length;
+  var cnt = document.getElementById('med-count'); if (cnt) cnt.textContent = MEDIEN.length + ' Bilder · ' + frei + ' ungenutzt';
+  var list = MED_NUR_FREI ? MEDIEN.filter(function (m) { return !m.benutzt; }) : MEDIEN;
+  if (!list.length) { el.innerHTML = '<div class="imghint" style="margin-top:0">' + (MEDIEN.length ? 'Keine ungenutzten Bilder.' : 'Noch keine Bilder hochgeladen.') + '</div>'; return; }
+  el.innerHTML = list.map(function (m) {
+    var verw = (m.verwendung && m.verwendung.length) ? m.verwendung.join(', ') : '';
+    return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">' +
+      '<img src="' + esc(bildUrl(m.url)) + '" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block">' +
+      '<div style="padding:5px 7px;font-size:11px;color:var(--muted)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px">' +
+      '<span>' + (m.benutzt ? '<span style="color:var(--green)">benutzt</span>' : '<span style="color:var(--accent-text)">ungenutzt</span>') + ' · ' + Math.round(m.groesse / 1024) + ' KB</span>' +
+      '<button class="btn-icon" title="Löschen" onclick="medLoeschen(\'' + esc(m.datei) + '\',' + (m.benutzt ? 'true' : 'false') + ')" style="width:26px;height:26px">&times;</button>' +
+      '</div>' +
+      (verw ? '<div style="margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(verw) + '">' + esc(verw) + '</div>' : '') +
+      '</div></div>';
+  }).join('');
+}
+function medLoeschen(datei, benutzt) {
+  var m = MEDIEN.find(function (x) { return x.datei === datei; });
+  if (benutzt) {
+    var wo = (m && m.verwendung && m.verwendung.length) ? '\n\nVerwendet in: ' + m.verwendung.join(', ') : '';
+    if (!confirm('Dieses Bild wird auf der Seite verwendet.' + wo + '\n\nTrotzdem löschen? Es verschwindet dann dort.')) return;
+  } else if (!confirm('Dieses Bild löschen?')) return;
+  api('DELETE', '/homepage/medien/' + encodeURIComponent(datei)).then(function () { notify('Bild gelöscht.'); medienLaden(); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+function fontsLaden() {
+  return api('GET', '/homepage/fonts').then(function (rows) {
+    FONTS = rows || [];
+    // @font-face fuer die CMS-Vorschau (absolute Homepage-URL, da CMS auf Admin-Domain laeuft)
+    var st = document.getElementById('fo-faces'); if (!st) { st = document.createElement('style'); st.id = 'fo-faces'; document.head.appendChild(st); }
+    st.textContent = FONTS.map(function (f) { return "@font-face{font-family:'" + f.familie + "';src:url('" + HOMEPAGE_ORIGIN + '/uploads/fonts/' + f.datei + "');font-display:swap}"; }).join('');
+    var el = document.getElementById('fo-liste');
+    if (!FONTS.length) { el.innerHTML = '<div class="imghint" style="margin-top:0">Noch keine eigene Schrift hochgeladen.</div>'; return; }
+    el.innerHTML = FONTS.map(function (f) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:6px">' +
+        '<span style="font-family:\'' + esc(f.familie) + '\',sans-serif;font-size:15px">' + esc(f.label) + ' <span style="color:var(--muted);font-size:12px">(' + esc(f.format) + ')</span></span>' +
+        '<button class="btn-icon" title="Löschen" onclick="fontLoeschen(\'' + f.id + '\')">&times;</button></div>';
+    }).join('');
+  });
+}
+function designLaden() {
+  fontsLaden().then(function () { return api('GET', '/homepage/design'); })
+    .then(function (c) { DESIGN = c; applyDesign(c); }).catch(function () {});
+}
+function fontHochladen() {
+  var fileEl = document.getElementById('fo-file'), label = document.getElementById('fo-label').value.trim();
+  var file = fileEl.files && fileEl.files[0]; if (!file) return;
+  if (!label) { notify('Bitte zuerst einen Namen für die Schrift eingeben.', true); fileEl.value = ''; return; }
+  if (file.size > 3 * 1024 * 1024) { notify('Datei zu groß (max. 3 MB). Bitte WOFF2 verwenden.', true); fileEl.value = ''; return; }
+  var r = new FileReader();
+  r.onload = function (e) {
+    api('POST', '/homepage/fonts', { label: label, data: e.target.result }).then(function () {
+      notify('Schrift „' + label + '" hochgeladen.'); document.getElementById('fo-label').value = ''; fileEl.value = '';
+      fontsLaden().then(rebuildFontSelects); reloadFrame();
+    }).catch(function (err) { notify(err.message, true); fileEl.value = ''; });
+  };
+  r.readAsDataURL(file);
+}
+function fontLoeschen(id) {
+  if (!confirm('Diese Schrift wirklich löschen? Falls sie gerade verwendet wird, greift wieder die Standardschrift.')) return;
+  api('DELETE', '/homepage/fonts/' + id).then(function () { notify('Schrift gelöscht.'); fontsLaden().then(rebuildFontSelects); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+function designSpeichern() {
+  var body = {
+    font_head: document.getElementById('dz-head').value,
+    font_body: document.getElementById('dz-body').value,
+    skala: (parseInt(document.getElementById('dz-skala').value, 10) || 100) / 100,
+    akzent: document.getElementById('dz-akzent').value,
+    akzent_ink: document.getElementById('dz-akzentink').value,
+    dunkel: document.getElementById('dz-dunkel').value
+  };
+  api('PUT', '/homepage/design', body).then(function (r) { DESIGN = (r && r.design) || body; notify('Design gespeichert.'); reloadFrame(); }).catch(function (e) { notify(e.message, true); });
+}
+function designStandard() {
+  applyDesign({ font_head: FONT_STACKS[0].css, font_body: FONT_STACKS[0].css, skala: 1, akzent: '#eab308', akzent_ink: '#171717', dunkel: '#171717' });
+  notify('Standard eingestellt – zum Übernehmen „Design speichern".');
+}
+// Ungespeicherte Aenderungen verwerfen -> zuletzt gespeicherten Stand wiederherstellen
+function designVerwerfen() {
+  if (DESIGN) applyDesign(DESIGN); else designLaden();
+  notify('Änderungen verworfen.');
+}
+
+zeige();
+</script>
+</body>
+</html>

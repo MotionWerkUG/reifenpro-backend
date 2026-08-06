@@ -1,0 +1,13 @@
+# Secrets
+.env
+# Abhaengigkeiten
+node_modules/
+# Geschaeftsdaten / PII — gehoeren NIE nach GitHub
+rechnungen/
+protokoll-dateien/
+gewerbe-dokumente/
+# Muell
+*.bak
+*.bak.*
+_qa-backup*
+.DS_Store

@@ -1,0 +1,2 @@
+ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_ip TEXT;
+ALTER TABLE kunden ADD COLUMN IF NOT EXISTS agb_version TEXT;
