@@ -1,5 +1,18 @@
 # ReifenPro — Projektkontext für Claude Code
 
+## Betrieb & Standort (Stand 2026-08-06 — Modell A)
+
+- **Code lebt auf dem Server:** `/home/deploy/projekte/reifenpro` (Standardstruktur, git-versioniert).
+- **Entwicklung:** Claude Code Desktop-App, per SSH mit dem Server verbunden, Ordner `reifenpro` waehlen.
+- **Laeuft als:** PM2-Prozess `reifenpro` aus `src/server.js` (Port aus .env). PM2 `sandumotion` NIE anfassen.
+- **Deploy Backend:** `git pull` dann `pm2 restart reifenpro`.
+- **Deploy Frontend:** liegt in `frontend/`; nach Aenderung nach `/var/www/reifenpro/` kopieren (nginx bedient das statisch). Portal: `frontend/portal/` nach `/var/www/reifenpro/portal/`.
+- **GitHub:** Branch `server-standard` (neue Standardstruktur). Alt-Backup: `/var/www/reifenpro-backend` (inaktiv).
+- **Geschaeftsdaten** (rechnungen/, protokoll-dateien/, gewerbe-dokumente/) liegen im Projektordner und sind per .gitignore ausgeschlossen — niemals nach GitHub.
+
+---
+
+
 ## Was ist das
 
 ReifenPro ist ein Reifenservice-Verwaltungssystem für die Firma **Schröder & Scholz**
