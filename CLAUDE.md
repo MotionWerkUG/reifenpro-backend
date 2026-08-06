@@ -105,3 +105,6 @@ Fertig, teils noch zu deployen/testen:
 - Aufsichtsbehörde: BayLDA, Promenade 18, 91522 Ansbach, [poststelle@lda.bayern.de](mailto:poststelle@lda.bayern.de)
 - Aufbewahrung: Rechnungen/Belege 8 Jahre, Verträge 8 Jahre ab Ende, Korrespondenz 6 Jahre
 - Auftragsverarbeiter: Contabo (Hosting), IONOS (E-Mail) — AV-Verträge nötig
+
+## Design
+UI-Aenderungen halten sich an DESIGN.md (Corporate Identity, aus der Live-Webseite abgeleitet).
