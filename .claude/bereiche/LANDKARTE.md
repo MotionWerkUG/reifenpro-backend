@@ -1,5 +1,7 @@
 # ReifenPro — Bereichs-Landkarte
 
+> **Aktualisierung 2026-08-06 (Modell A):** ReifenPro laeuft/entwickelt jetzt auf dem Server unter `/home/deploy/projekte/reifenpro` (Details: CLAUDE.md, Abschnitt Betrieb & Standort). Die frueheren Mac-Worktrees und scp-Deploy-Befehle in diesen Bereichs-Docs sind ueberholt: Deploy = `git pull` + `pm2 restart reifenpro` (Frontend nach /var/www/reifenpro kopieren). Datei-Listen, Audit und Aufgaben je Bereich gelten weiter.
+
 Das Projekt wird in drei getrennten Konversationen weiterbearbeitet. Jede Konversation
 bleibt in ihrem Revier. Diese Datei ist die Übersicht; die Details je Bereich stehen in
 `admin.md`, `homepage-cms.md`, `kundenportal.md`.
