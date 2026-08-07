@@ -108,3 +108,6 @@ Fertig, teils noch zu deployen/testen:
 
 ## Design
 UI-Aenderungen halten sich an DESIGN.md (Corporate Identity, aus der Live-Webseite abgeleitet).
+
+## Bereiche (getrennte Sessions)
+ReifenPro ist in vier Bereiche geteilt: Homepage/CMS, Kundenportal, Admin/Werkstatt, Rechnungswesen. Landkarte + Einstieg: `.claude/bereiche/LANDKARTE.md`. Pro Session einen Bereich; Agents/Skills liegen zentral in `.claude/` und sind ueberall verfuegbar.
