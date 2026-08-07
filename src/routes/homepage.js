@@ -238,6 +238,62 @@ router.put('/buchung', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── Firmendaten: Kontakt & Öffnungszeiten (fuer Redakteure ohne Admin-Zugriff) ──
+// Bearbeitet gezielt die oeffentlich sichtbaren Spalten aus `einstellungen`
+// (Adresse/Telefon/E-Mail/Geo/Social/Oeffnungszeiten) und laesst alle anderen unberuehrt.
+const FIRMA_SELECT = 'firmenname, strasse, plz, ort, telefon, email, geo_breite, geo_laenge, ' +
+  'google_bewertung_url, facebook_url, instagram_url, mo_fr_von, mo_fr_bis, sa_offen, sa_von, sa_bis, so_offen, so_von, so_bis';
+router.get('/firmendaten', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT ' + FIRMA_SELECT + ' FROM einstellungen ORDER BY id LIMIT 1');
+    const data = rows[0] || {};
+    // Rechnungsrelevante Stammdaten (Firmenname/Adresse) darf nur der Admin aendern.
+    // Flag steuert im CMS, ob diese Felder editierbar oder nur lesbar angezeigt werden.
+    data.darf_stammdaten = req.user.rolle === 'admin';
+    res.json(data);
+  } catch (e) { next(e); }
+});
+router.put('/firmendaten', async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const istAdmin = req.user.rolle === 'admin';
+    // Freitext: Winkelklammern raus (kein HTML/JS in Firmendaten), trimmen, begrenzen
+    const t = (v, n) => String(v == null ? '' : v).replace(/[<>]/g, '').trim().slice(0, n) || null;
+    const url = (v) => (/^https?:\/\//i.test(String(v || '').trim()) ? String(v).trim().slice(0, 300) : null);
+    // Uhrzeit nur HH:MM akzeptieren, sonst NULL (Zeile verschwindet dann von der Website)
+    const zeit = (v) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '').trim()) ? String(v).trim() : null);
+    // Geo-Koordinate als Dezimalzahl (Komma erlaubt), sonst NULL
+    const geo = (v) => { let s = String(v || '').trim().replace(',', '.'); return /^-?\d{1,3}(\.\d{1,8})?$/.test(s) ? s : null; };
+    // Firmenname + Adresse sind Pflichtangaben fuer den Rechnungskopf (§ 14 UStG) und
+    // duerfen NUR vom Admin geaendert werden. Mitarbeiter behalten die bestehenden Werte.
+    const cur = (await query('SELECT firmenname, strasse, plz, ort FROM einstellungen ORDER BY id LIMIT 1')).rows[0];
+    if (!cur) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
+    let firmenname = cur.firmenname, strasse = cur.strasse, plz = cur.plz, ort = cur.ort;
+    if (istAdmin) {
+      firmenname = t(b.firmenname, 120); strasse = t(b.strasse, 120); plz = t(b.plz, 10); ort = t(b.ort, 80);
+      // Pflichtfelder duerfen nicht geleert werden (sonst unvollstaendiger Rechnungskopf)
+      if (!firmenname || !strasse || !plz || !ort)
+        return res.status(400).json({ error: 'Firmenname, Straße, PLZ und Ort dürfen nicht leer sein (Pflichtangaben für Rechnungen).' });
+    }
+    const saOffen = b.sa_offen === true;
+    const soOffen = b.so_offen === true;
+    await query(
+      `UPDATE einstellungen SET firmenname=$1, strasse=$2, plz=$3, ort=$4, telefon=$5, email=$6,
+         geo_breite=$7, geo_laenge=$8, google_bewertung_url=$9, facebook_url=$10, instagram_url=$11,
+         mo_fr_von=$12, mo_fr_bis=$13, sa_offen=$14, sa_von=$15, sa_bis=$16, so_offen=$17, so_von=$18, so_bis=$19,
+         geaendert_am=NOW()
+       WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)`,
+      [firmenname, strasse, plz, ort, t(b.telefon, 40), t(b.email, 160),
+       geo(b.geo_breite), geo(b.geo_laenge), url(b.google_bewertung_url), url(b.facebook_url), url(b.instagram_url),
+       zeit(b.mo_fr_von), zeit(b.mo_fr_bis),
+       saOffen, saOffen ? zeit(b.sa_von) : null, saOffen ? zeit(b.sa_bis) : null,
+       soOffen, soOffen ? zeit(b.so_von) : null, soOffen ? zeit(b.so_bis) : null]
+    );
+    await regenerate();
+    res.json({ message: 'Firmendaten gespeichert.' });
+  } catch (e) { next(e); }
+});
+
 // ── Buchungs-Leistungen (Haupt-/Zusatzleistungen fuer den Buchungsassistenten) ──
 router.get('/leistungen', async (req, res, next) => {
   try {
