@@ -223,8 +223,9 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     const ok = await bcrypt.compare(passwort, k ? k.portal_password : DUMMY_HASH);
     if (!k || !ok) return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     // Status-Hinweise erst NACH korrektem Passwort (verraet sonst Existenz des Kontos)
-    if (!k.portal_email_bestaetigt) return res.status(401).json({ error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });
-    if (!k.portal_freigegeben) return res.status(401).json({ error: 'Ihr Konto wurde noch nicht freigeschaltet. Wir melden uns in Kürze.' });
+    // code: maschinenlesbar, damit das Portal die Meldung lokalisieren kann (DE/EN); error bleibt als Fallback
+    if (!k.portal_email_bestaetigt) return res.status(401).json({ code: 'EMAIL_UNBESTAETIGT', error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });
+    if (!k.portal_freigegeben) return res.status(401).json({ code: 'NICHT_FREIGEGEBEN', error: 'Ihr Konto wurde noch nicht freigeschaltet. Wir melden uns in Kürze.' });
     const token = jwt.sign({ id: k.id, typ: 'kunde' }, process.env.JWT_SECRET, { expiresIn: '8h' });
     res.json({
       token,

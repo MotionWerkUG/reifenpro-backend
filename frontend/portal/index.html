@@ -434,6 +434,7 @@ var KUNDE = null;
 var LANG = localStorage.getItem('rp_portal_lang') || 'de';
 var STORNO_FRIST = 24;
 var FIRMA_TEL = '';
+var REG_TIMER = null; // Auto-Redirect nach Registrierung -> merken, damit er einen inzwischen aktiven Nutzer nicht aus der App reisst
 var artikelListe = [];
 
 // ── ÜBERSETZUNGEN ──
@@ -459,7 +460,12 @@ var I18N = {
     notes: 'Anmerkung (optional)', book_btn: 'Termin buchen', my_data: 'Meine Daten',
     change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
     password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
-    accept_required: 'Bitte Datenschutz und AGB akzeptieren', reg_success: 'Registrierung erfolgreich. Bitte bestätigen Sie Ihre E-Mail.',
+    accept_required: 'Bitte Datenschutz und AGB akzeptieren',
+    reg_success: 'Registrierung erfolgreich. So geht es weiter: 1. Bestätigen Sie Ihre E-Mail über den Link, den wir Ihnen soeben gesendet haben. 2. Danach schalten wir Ihren Zugang frei — in der Regel innerhalb eines Werktags. Anschließend können Sie sich anmelden.',
+    login_pending_confirm: 'Ihre E-Mail-Adresse ist noch nicht bestätigt. Bitte klicken Sie auf den Link in unserer Bestätigungsmail. Nicht erhalten? Lassen Sie sie unten erneut senden.',
+    login_pending_approval: 'Ihre E-Mail ist bestätigt — jetzt schalten wir Ihren Zugang noch frei. Das erledigen wir in der Regel innerhalb eines Werktags und melden uns bei Ihnen.',
+    overview_hello: 'Schön, dass Sie da sind',
+    overview_onboarding: 'Sobald wir Ihr Konto mit Ihren eingelagerten Rädern verknüpft haben, sehen Sie hier Ihre Räder, Lagerplätze und anstehenden Termine. Die Zuordnung erfolgt automatisch anhand Ihrer E-Mail-Adresse. Wenn Räder bei uns liegen, hier aber nichts erscheint, melden Sie sich kurz bei uns — wir gleichen das gern ab.',
     login_failed: 'Anmeldung fehlgeschlagen', reset_sent: 'Falls die E-Mail existiert, wurde ein Link gesendet.',
     no_storage: 'Aktuell sind Ihnen keine eingelagerten Räder zugeordnet.', no_appointments: 'Keine Termine vorhanden.',
     no_storage_hint: 'Sobald Ihr Zugang freigeschaltet ist, ordnen wir Ihre eingelagerten Räder automatisch anhand Ihrer E-Mail-Adresse zu. Wenn Sie sicher sind, dass Räder bei uns liegen, melden Sie sich kurz bei uns — wir gleichen das gern ab.',
@@ -509,7 +515,12 @@ var I18N = {
     notes: 'Note (optional)', book_btn: 'Book appointment', my_data: 'My data',
     change_password: 'Change password', new_password: 'New password', save: 'Save',
     password_mismatch: 'Passwords do not match',
-    accept_required: 'Please accept privacy policy and terms', reg_success: 'Registration successful. Please confirm your email.',
+    accept_required: 'Please accept privacy policy and terms',
+    reg_success: 'Registration successful. What happens next: 1. Confirm your email via the link we just sent you. 2. We then activate your access — usually within one business day. After that you can sign in.',
+    login_pending_confirm: 'Your email address is not confirmed yet. Please click the link in our confirmation email. Did not receive it? Resend it below.',
+    login_pending_approval: 'Your email is confirmed — we just need to activate your access. We usually do this within one business day and will get back to you.',
+    overview_hello: 'Great to have you here',
+    overview_onboarding: 'Once we have linked your account with your stored wheels, you will see your wheels, storage locations and upcoming appointments here. Linking happens automatically using your email address. If wheels are stored with us but nothing shows up here, please get in touch — we are happy to check.',
     login_failed: 'Login failed', reset_sent: 'If the email exists, a link has been sent.',
     no_storage: 'No stored wheels are currently linked to your account.', no_appointments: 'No appointments.',
     no_storage_hint: 'Once your access is activated, we automatically link your stored wheels using your email address. If you are sure wheels are stored with us, please get in touch — we are happy to check.',
@@ -581,7 +592,16 @@ function notify(msg, typ) {
   setTimeout(function() { el.innerHTML = ''; }, 3500);
 }
 
+// HTML-Escape fuer Werte, die per innerHTML eingebaut werden (Schutz gegen gespeicherte XSS)
+function pEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
 function zeigeScreen(s) {
+  // Jeder Screen-Wechsel bricht einen ausstehenden Registrierungs-Redirect ab (sonst Rauswurf aus aktiver Session)
+  if (REG_TIMER) { clearTimeout(REG_TIMER); REG_TIMER = null; }
   ['login', 'register', 'gewerbe', 'reset', 'app'].forEach(function(x) {
     document.getElementById('screen-' + x).classList.add('hidden');
   });
@@ -611,14 +631,20 @@ function portalLogin() {
   if (!email || !pass) { errEl.textContent = t('login_failed'); errEl.classList.remove('hidden'); return; }
   // Direkter fetch (NICHT papi()), damit 401 als "Anmeldung fehlgeschlagen" gezeigt und nicht als Logout verschluckt wird
   fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, passwort: pass }) })
-    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error(j.error || t('login_failed')); return j; }); })
+    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) { var err = new Error(j.error || t('login_failed')); err.code = j.code; throw err; } return j; }); })
     .then(function(r) {
       TOKEN = r.token;
       localStorage.setItem('rp_portal_token', TOKEN);
       KUNDE = r.kunde;
       startPortal();
     })
-    .catch(function(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); });
+    .catch(function(e) {
+      // Status-Codes vom Backend lokalisiert erklaeren (E-Mail/Freigabe), sonst rohe Meldung
+      var msg = e.message;
+      if (e.code === 'EMAIL_UNBESTAETIGT') msg = t('login_pending_confirm');
+      else if (e.code === 'NICHT_FREIGEGEBEN') msg = t('login_pending_approval');
+      errEl.textContent = msg; errEl.classList.remove('hidden');
+    });
 }
 
 function portalRegister() {
@@ -647,7 +673,12 @@ function portalRegister() {
     okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
     document.getElementById('reg-pass').value = '';
     document.getElementById('reg-pass2').value = '';
-    setTimeout(function() { zeigeScreen('login'); }, 3000);
+    // Nach 7s zurueck zum Login — aber nur, wenn der Nutzer noch auf dem Register-Screen ist (kein Rauswurf aus aktiver Session)
+    if (REG_TIMER) clearTimeout(REG_TIMER);
+    REG_TIMER = setTimeout(function() {
+      REG_TIMER = null;
+      if (!document.getElementById('screen-register').classList.contains('hidden')) zeigeScreen('login');
+    }, 7000);
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
   });
@@ -777,20 +808,36 @@ function fmtDatum(d) {
 function ladeUeberblick() {
   var el = document.getElementById('ueberblick-inhalt');
   el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
-  Promise.all([
-    papi('GET', '/daten/einlagerungen').catch(function() { return []; }),
-    papi('GET', '/daten/termine').catch(function() { return []; })
+  // allSettled statt Promise.all + .catch: echte Serverfehler NICHT als "leer" umdeuten,
+  // sonst wuerde ein Bestandskunde bei einem 500 faelschlich den Erststart-Text sehen.
+  Promise.allSettled([
+    papi('GET', '/daten/einlagerungen'),
+    papi('GET', '/daten/termine')
   ]).then(function(res) {
-    var einl = (res[0] || []).filter(function(e) { return e.status === 'Eingelagert'; });
-    var termine = (res[1] || []).filter(function(tm) {
+    var einlOk = res[0].status === 'fulfilled';
+    var termOk = res[1].status === 'fulfilled';
+    var einlAlle = einlOk ? (res[0].value || []) : [];
+    var termineAlle = termOk ? (res[1].value || []) : [];
+    var einl = einlAlle.filter(function(e) { return e.status === 'Eingelagert'; });
+    var termine = termineAlle.filter(function(tm) {
       return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= new Date().toISOString().substring(0,10);
     });
     var html = '';
-    html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + KUNDE.vorname + '</strong></div>';
+    html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + pEsc(KUNDE.vorname) + '</strong></div>';
     html += '<div class="g2">';
     html += '<div class="iz"><div class="iz-l">' + t('active_storage') + '</div><div class="iz-v" style="font-size:24px;color:var(--accent-text)">' + einl.length + '</div></div>';
     html += '<div class="iz"><div class="iz-l">' + t('upcoming') + '</div><div class="iz-v" style="font-size:24px;color:var(--blue)">' + termine.length + '</div></div>';
     html += '</div>';
+    // Erststart-Onboarding nur, wenn BEIDE Abfragen erfolgreich waren UND der Kunde ueberhaupt keine
+    // Einlagerung (jeder Status) und keinen Termin (jeder Status, auch vergangene) hat. So sieht weder ein
+    // Bestandskunde mit reiner Abhol-/Termin-Historie noch ein Kunde bei einem API-Fehler den beruhigenden Text.
+    if (einlOk && termOk && !einlAlle.length && !termineAlle.length) {
+      html += '<div style="margin-top:16px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;line-height:1.55">';
+      html += '<div style="font-weight:700;margin-bottom:6px">' + t('overview_hello') + '</div>';
+      html += '<div style="font-size:13px;color:var(--muted)">' + t('overview_onboarding') + '</div>';
+      if (FIRMA_TEL) html += '<div style="font-size:13px;margin-top:8px">' + t('phone_req') + ': <strong>' + pEsc(FIRMA_TEL) + '</strong></div>';
+      html += '</div>';
+    }
     html += '<button class="btn btn-p" style="margin-top:16px" onclick="portalNav(\'buchen\')">' + t('book_now') + '</button>';
     el.innerHTML = html;
   });
