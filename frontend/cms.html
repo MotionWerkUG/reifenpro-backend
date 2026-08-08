@@ -55,7 +55,7 @@
   .card-body { padding:4px 16px 16px; border-top:1px solid var(--border); }
   .card.collapsed .card-body { display:none; }
   label { display:block; font-size:12px; color:var(--muted); margin:12px 0 5px; font-weight:600; }
-  input[type=text], input[type=email], input[type=password], input:not([type]), textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; padding:10px 12px; outline:none; }
+  input[type=text], input[type=email], input[type=password], input[type=tel], input[type=time], input[type=date], input[type=number], input[type=url], input:not([type]), textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; padding:10px 12px; outline:none; }
   input:focus, textarea:focus { border-color:var(--accent-text); }
   textarea { min-height:90px; resize:vertical; line-height:1.5; }
 
@@ -143,6 +143,7 @@
     <div class="intro">Tippen Sie auf einen Abschnitt, um ihn zu <b>bearbeiten</b>. Mit dem Schalter rechts blenden Sie ihn <b>ein/aus</b>, mit den Pfeilen ändern Sie die <b>Reihenfolge</b>. Jede Speicherung aktualisiert die Homepage sofort. <b>Öffnungszeiten</b> und <b>Kontakt</b> werden automatisch aus Ihren Firmendaten (Einstellungen) gefüllt.</div>
     <div class="sprung">
       <span style="font-size:12px;color:var(--muted);align-self:center;margin-right:2px">Springe zu:</span>
+      <button class="btn btn-g" onclick="zuPanel('p-firma')">Kontakt &amp; Zeiten</button>
       <button class="btn btn-g" onclick="zuPanel('p-design')">Design &amp; Schriften</button>
       <button class="btn btn-g" onclick="zuPanel('p-seo')">SEO</button>
       <button class="btn btn-g" onclick="zuPanel('p-banner')">Banner &amp; Gutscheine</button>
@@ -151,6 +152,51 @@
       <button class="btn btn-g" onclick="zuPanel('p-medien')">Medien</button>
       <button class="btn btn-g" onclick="zuPanel('p-abschnitte')">Abschnitte</button>
     </div>
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-firma" style="font-size:16px;margin-bottom:4px">Kontaktdaten &amp; Öffnungszeiten</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Adresse, Telefon, E-Mail und Öffnungszeiten Ihrer Firma. Diese Angaben erscheinen auf der Startseite (Abschnitte <b>„Kontakt"</b> und <b>„Öffnungszeiten"</b>), in der Fußzeile und bei Google.</div>
+
+      <h3 style="font-size:14px;margin:6px 0 8px;color:var(--text)">Kontakt &amp; Adresse</h3>
+      <div id="fd-stamm-hint" style="display:none;margin-bottom:8px;font-size:12px;color:var(--accent-text);background:var(--bg);border-radius:8px;padding:8px 10px;line-height:1.5">Firmenname und Adresse sind Rechnungsangaben (§ 14 UStG) und können nur von Administratoren geändert werden. Telefon, E-Mail, Öffnungszeiten, Karte und Social können Sie bearbeiten.</div>
+      <label>Firmenname</label><input type="text" id="fd-firmenname" maxlength="120" placeholder="Schröder &amp; Scholz">
+      <label>Straße &amp; Hausnummer</label><input type="text" id="fd-strasse" maxlength="120" placeholder="Musterstraße 1">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:0 0 120px"><label>PLZ</label><input type="text" id="fd-plz" maxlength="10" placeholder="12345"></div>
+        <div style="flex:1;min-width:150px"><label>Ort</label><input type="text" id="fd-ort" maxlength="80" placeholder="Musterstadt"></div>
+      </div>
+      <label>Telefon</label><input type="tel" id="fd-telefon" maxlength="40" placeholder="08856 1234567">
+      <label>E-Mail</label><input type="email" id="fd-email" maxlength="160" placeholder="info@schroeder-scholz.de">
+
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Standort für die Karte (optional)</h3>
+      <div class="imghint" style="margin-top:0;margin-bottom:8px">Nur nötig, wenn die Karte nicht genau auf Ihren Betrieb zeigt. Koordinaten finden Sie bei Google Maps per Rechtsklick auf den Standort.</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:130px"><label>Breite (Latitude)</label><input type="text" id="fd-geo-breite" maxlength="20" placeholder="51.3540"></div>
+        <div style="flex:1;min-width:130px"><label>Länge (Longitude)</label><input type="text" id="fd-geo-laenge" maxlength="20" placeholder="12.4230"></div>
+      </div>
+
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Social &amp; Bewertungen (optional)</h3>
+      <label>Google-Bewertungslink</label><input type="url" id="fd-google" maxlength="300" placeholder="https://g.page/...">
+      <label>Facebook-Seite</label><input type="url" id="fd-facebook" maxlength="300" placeholder="https://facebook.com/...">
+      <label>Instagram-Profil</label><input type="url" id="fd-instagram" maxlength="300" placeholder="https://instagram.com/...">
+
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Öffnungszeiten</h3>
+      <div class="imghint" style="margin-top:0;margin-bottom:10px">Leere Zeiten oder ausgeschaltete Tage erscheinen nicht auf der Website. Für „geschlossen" den Tag einfach ohne Zeit lassen.</div>
+      <label>Montag – Freitag</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="time" id="fd-mofr-von" style="width:130px"> <span style="color:var(--muted)">bis</span> <input type="time" id="fd-mofr-bis" style="width:130px">
+      </div>
+      <label style="display:flex;align-items:center;gap:9px;margin:14px 0 6px"><span class="sw"><input type="checkbox" id="fd-sa-offen"></span> Samstag geöffnet</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="time" id="fd-sa-von" style="width:130px"> <span style="color:var(--muted)">bis</span> <input type="time" id="fd-sa-bis" style="width:130px">
+      </div>
+      <label style="display:flex;align-items:center;gap:9px;margin:14px 0 6px"><span class="sw"><input type="checkbox" id="fd-so-offen"></span> Sonntag geöffnet</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="time" id="fd-so-von" style="width:130px"> <span style="color:var(--muted)">bis</span> <input type="time" id="fd-so-bis" style="width:130px">
+      </div>
+
+      <div class="row"><button class="btn btn-p" onclick="firmendatenSpeichern()">Kontaktdaten &amp; Zeiten speichern</button></div>
+    </div></div>
+
     <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
       <h2 id="p-design" style="font-size:16px;margin-bottom:4px">Design &amp; Schriften</h2>
       <div class="imghint" style="margin-top:0;margin-bottom:12px">Schriftarten, Schriftgröße und Farben der ganzen Website. Eigene Schriften (WOFF2/WOFF/TTF/OTF) werden datensparsam <b>selbst gehostet</b> – kein externer Google-Dienst.</div>
@@ -336,7 +382,7 @@ function api(method, path, body) {
 function zeige() {
   document.getElementById('login').style.display = TOKEN ? 'none' : 'block';
   document.getElementById('cms').style.display = TOKEN ? 'block' : 'none';
-  if (TOKEN) { laden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); navLaden(); designLaden(); seoLaden(); medienLaden(); setView('visuell'); }
+  if (TOKEN) { laden(); firmendatenLaden(); bannerLaden(); gutscheineLaden(); buchungLaden(); leistungenLaden(); navLaden(); designLaden(); seoLaden(); medienLaden(); setView('visuell'); }
 }
 
 // ── Visueller Editor (Baukasten) ──
@@ -675,6 +721,40 @@ function buchungSpeichern() {
     buchung_titel: document.getElementById('bu-titel').value,
     buchung_text: document.getElementById('bu-text').value
   }).then(function(){ notify('Buchungsbereich gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
+}
+
+// ── Firmendaten: Kontakt & Öffnungszeiten ──
+function firmendatenLaden() {
+  api('GET', '/homepage/firmendaten').then(function(f){
+    f = f || {};
+    var txt = function(id, val){ var e = document.getElementById(id); if (e) e.value = val || ''; };
+    var zeit = function(id, val){ var e = document.getElementById(id); if (e) e.value = val ? String(val).slice(0, 5) : ''; };
+    txt('fd-firmenname', f.firmenname); txt('fd-strasse', f.strasse); txt('fd-plz', f.plz); txt('fd-ort', f.ort);
+    txt('fd-telefon', f.telefon); txt('fd-email', f.email);
+    txt('fd-geo-breite', f.geo_breite); txt('fd-geo-laenge', f.geo_laenge);
+    txt('fd-google', f.google_bewertung_url); txt('fd-facebook', f.facebook_url); txt('fd-instagram', f.instagram_url);
+    zeit('fd-mofr-von', f.mo_fr_von); zeit('fd-mofr-bis', f.mo_fr_bis);
+    document.getElementById('fd-sa-offen').checked = !!f.sa_offen; zeit('fd-sa-von', f.sa_von); zeit('fd-sa-bis', f.sa_bis);
+    document.getElementById('fd-so-offen').checked = !!f.so_offen; zeit('fd-so-von', f.so_von); zeit('fd-so-bis', f.so_bis);
+    // Firmenname/Adresse sind Rechnungsangaben: nur fuer Admins editierbar, sonst nur lesbar
+    var stamm = f.darf_stammdaten === true;
+    ['fd-firmenname', 'fd-strasse', 'fd-plz', 'fd-ort'].forEach(function(id){
+      var e = document.getElementById(id); if (e) { e.disabled = !stamm; e.style.opacity = stamm ? '' : '0.6'; }
+    });
+    var hint = document.getElementById('fd-stamm-hint'); if (hint) hint.style.display = stamm ? 'none' : 'block';
+  }).catch(function(){});
+}
+function firmendatenSpeichern() {
+  var val = function(id){ var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  api('PUT', '/homepage/firmendaten', {
+    firmenname: val('fd-firmenname'), strasse: val('fd-strasse'), plz: val('fd-plz'), ort: val('fd-ort'),
+    telefon: val('fd-telefon'), email: val('fd-email'),
+    geo_breite: val('fd-geo-breite'), geo_laenge: val('fd-geo-laenge'),
+    google_bewertung_url: val('fd-google'), facebook_url: val('fd-facebook'), instagram_url: val('fd-instagram'),
+    mo_fr_von: val('fd-mofr-von'), mo_fr_bis: val('fd-mofr-bis'),
+    sa_offen: document.getElementById('fd-sa-offen').checked, sa_von: val('fd-sa-von'), sa_bis: val('fd-sa-bis'),
+    so_offen: document.getElementById('fd-so-offen').checked, so_von: val('fd-so-von'), so_bis: val('fd-so-bis')
+  }).then(function(){ notify('Kontaktdaten gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
 }
 
 // ── Navigationsbuttons ──
