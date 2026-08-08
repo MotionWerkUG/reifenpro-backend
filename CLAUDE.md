@@ -5,9 +5,11 @@
 - **Code lebt auf dem Server:** `/home/deploy/projekte/reifenpro` (Standardstruktur, git-versioniert).
 - **Entwicklung:** Claude Code Desktop-App, per SSH mit dem Server verbunden, Ordner `reifenpro` waehlen.
 - **Laeuft als:** PM2-Prozess `reifenpro` aus `src/server.js` (Port aus .env). PM2 `sandumotion` NIE anfassen.
-- **Deploy Backend:** `git pull` dann `pm2 restart reifenpro`.
-- **Deploy Frontend:** liegt in `frontend/`; nach Aenderung nach `/var/www/reifenpro/` kopieren (nginx bedient das statisch). Portal: `frontend/portal/` nach `/var/www/reifenpro/portal/`.
-- **GitHub:** Branch `server-standard` (neue Standardstruktur). Alt-Backup: `/var/www/reifenpro-backend` (inaktiv).
+- **Parallele Sessions = getrennte Worktrees:** Pro Bereich ein eigener Arbeitsordner (git worktree) neben dem Hauptordner — `reifenpro-homepage`, `reifenpro-portal`, `reifenpro-admin`, `reifenpro-rechnungen`. Der Hauptordner `reifenpro` ist `main` und dient nur als Deploy-/Integrationsordner (nicht direkt drin entwickeln). Landkarte + Anleitung: `.claude/bereiche/LANDKARTE.md`.
+- **Deploy Backend:** Bereichs-Branch nach `main` mergen, dann im Hauptordner `pm2 restart reifenpro`.
+- **Deploy Frontend:** liegt in `frontend/`; nach Aenderung nach `/var/www/reifenpro/` kopieren (`cp`, ggf. `sudo`; nginx bedient das statisch). Portal: `frontend/portal/` nach `/var/www/reifenpro/portal/`.
+- **Kein Staging:** eigener Einzelbetrieb → es wird direkt auf Prod deployt; darum vor jedem Deploy strikt `/release-gate`.
+- **GitHub:** Haupt-/Integrationsbranch `main`. Alt-Backup: `/var/www/reifenpro-backend` (inaktiv, NICHT dorthin deployen).
 - **Geschaeftsdaten** (rechnungen/, protokoll-dateien/, gewerbe-dokumente/) liegen im Projektordner und sind per .gitignore ausgeschlossen — niemals nach GitHub.
 
 ---
@@ -35,16 +37,16 @@ Geschäft: Kunden lagern Winter-/Sommerreifen ein (Einlagerung), Räderwechsel (
   - /reifenpro/ -> /var/www/reifenpro/ (Frontend)
   - /reifenpro/portal/ -> Kundenportal
 - Frontend Admin: /var/www/reifenpro/index.html — API-Pfad /reifenpro/api
-- Backend-Source: /var/www/reifenpro-backend/src/
-- GitHub: github.com/MotionWerkUG/reifenpro-backend (Dateien im ROOT des Repos)
+- Backend-Source (aktiv): /home/deploy/projekte/reifenpro/src/ (Modell A). Das alte /var/www/reifenpro-backend ist inaktives Backup.
+- GitHub: github.com/MotionWerkUG/reifenpro-backend (Standardstruktur: src/, frontend/)
 
-## Deployment
+## Deployment (Modell A — Code liegt auf dem Server)
 
-- HTML/Frontend: über GitHub, dann curl auf Server nach /var/www/reifenpro/
-- Backend/DB: direkt auf Server
-- Frontend-Deploy-Befehl (Admin):
-  curl -L -o /var/www/reifenpro/index.html “<https://raw.githubusercontent.com/MotionWerkUG/reifenpro-backend/main/index.html>”
-- Nach Backend-Änderung: pm2 restart reifenpro
+- Gearbeitet wird im Bereichs-Worktree; zum Deployen den Branch nach `main` mergen.
+- Backend: im Hauptordner `/home/deploy/projekte/reifenpro` `pm2 restart reifenpro`.
+- Frontend: Datei aus `frontend/` nach `/var/www/reifenpro/` kopieren (`cp`, ggf. `sudo`;
+  Portal nach `/var/www/reifenpro/portal/`). CMS-Website zusaetzlich neu generieren (siehe `.claude/bereiche/homepage/`).
+- KEIN curl-Deploy von GitHub mehr, NICHT nach `/var/www/reifenpro-backend` (inaktiv).
 
 ## FIRMENPRINZIPIEN (strikt)
 
@@ -56,10 +58,15 @@ Geschäft: Kunden lagern Winter-/Sommerreifen ein (Einlagerung), Räderwechsel (
 - Werkstatt/Etikett: Kundenname nur als Kürzel OHNE Vokale (z.B. “A.Gbry”)
 - Lagerplatz möglichst prominent (Etikett riesig, Werkstatt orange/gelb hervorgehoben)
 - NIEMALS behaupten etwas sei behoben ohne verifizierbare Bestätigung
-- Bei Frontend-Lieferung IMMER den curl-Deploy-Befehl automatisch mitschicken
+- Bei Frontend-Lieferung IMMER den cp-Deploy-Befehl (nach /var/www/reifenpro/) automatisch mitschicken
 
 ## Marke / Design
 
+- **Hierarchie (wer steht wo):** Über allem steht die Firma **Schröder & Scholz** — Davids
+  eigener Reifenservice-Betrieb, für den ReifenPro gebaut wird. Nach außen (Website,
+  Kundenportal) tritt AUSSCHLIESSLICH „Schröder & Scholz" auf. **ReifenPro** ist nur der
+  interne Anwendungsname (Admin/Werkstatt). **Allit Solutions** ist Davids
+  Software-Anbietermarke im Hintergrund und taucht kundenseitig NICHT auf.
 - Firmenname: Schröder & Scholz (im Kundenportal NUR dieser Name)
 - ReifenPro = Name der Anwendung (nur im Admin/Werkstatt-Bereich)
 - Untertitel im Logo: “Reifenservice und Fahrzeugtechnik”

@@ -4,8 +4,27 @@ ReifenPro ist EIN Serverprojekt (`/home/deploy/projekte/reifenpro`, Modell A). F
 Arbeit in getrennten Sessions ist es in **vier Bereiche** geteilt. Jeder Bereich hat einen
 eigenen Ordner mit knappem `CLAUDE.md` (Kontext) + `START.md` (Einstieg).
 
+## Getrennte Arbeitsordner (git worktrees) — WICHTIG bei parallelen Sessions
+Damit sich gleichzeitig laufende Sessions nicht in die Quere kommen, hat **jeder Bereich einen
+eigenen Arbeitsordner** (git worktree) neben dem Hauptordner. Der Hauptordner
+`/home/deploy/projekte/reifenpro` ist `main` und dient nur als **Deploy-/Integrationsordner**.
+
+| Bereich | Arbeitsordner | Branch |
+|---|---|---|
+| Homepage/CMS | `reifenpro-homepage` | `homepage/*` |
+| Kundenportal | `reifenpro-portal` | `portal/*` |
+| Admin/Werkstatt | `reifenpro-admin` | `admin/*` |
+| Rechnungswesen | `reifenpro-rechnungen` | `rechnungen/*` |
+| Deploy/Integration | `reifenpro` | `main` (nicht direkt drin entwickeln) |
+
+- **Pro Session im passenden Bereichs-Ordner arbeiten**, nicht mehrere Sessions im selben Ordner
+  (sonst landet fremde, uncommittete Arbeit im selben Diff).
+- `.claude/`, `.gitignore` etc. sind git-getrackt → in jedem Worktree automatisch vorhanden.
+  `node_modules` und `.env` sind pro Worktree als Symlink auf den Hauptordner eingerichtet.
+- Neuen Bereichs-Worktree anlegen: `git worktree add -b <bereich>/<thema> ../reifenpro-<bereich> main`.
+- Fertig gestellt: Bereichs-Branch nach `main` mergen, dann aus `reifenpro` (main) deployen.
+
 ## So arbeitest du token-sparsam
-- **Immer das Projekt öffnen** (`/home/deploy/projekte/reifenpro`), NICHT einzelne Unterordner.
 - Zu Beginn sagst du, welcher Bereich: „Lies `.claude/bereiche/<bereich>/START.md`."
 - **Agents & Skills liegen EINMAL zentral** in `.claude/agents` + `.claude/skills` und sind
   damit in JEDER Session automatisch da — sie werden NICHT pro Ordner dupliziert. Das hält
@@ -32,6 +51,7 @@ Skill: `/release-gate` (Vor-Deploy-Tor). Verifikation im Browser: `bereiche/VERI
 Befunde/To-dos: `bereiche/AUDIT-2026-08-06.md`. Design: `DESIGN.md` (CI).
 
 ## Deploy (Modell A, für alle Bereiche gleich)
-Backend: `git pull && pm2 restart reifenpro`. Frontend: Datei nach `/var/www/reifenpro/`
+Erst Bereichs-Branch nach `main` mergen, dann **aus dem Hauptordner `reifenpro` (main)**
+deployen: Backend `pm2 restart reifenpro`. Frontend: Datei nach `/var/www/reifenpro/`
 kopieren (Portal nach `/var/www/reifenpro/portal/`). CMS-Website zusätzlich neu generieren
 (siehe `bereiche/homepage/`). PM2 `sandumotion` NIE anfassen. Details in der Root-`CLAUDE.md`.

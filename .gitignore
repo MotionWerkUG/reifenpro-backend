@@ -1,5 +1,7 @@
 # Secrets
 .env
+# Persoenliche/lokale Claude-Code-Einstellungen (Permissions pro Maschine)
+.claude/settings.local.json
 # Abhaengigkeiten
 node_modules/
 # Geschaeftsdaten / PII — gehoeren NIE nach GitHub
