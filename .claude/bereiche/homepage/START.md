@@ -1,6 +1,7 @@
 # Kickoff: Homepage / CMS
 
-Projekt `/home/deploy/projekte/reifenpro` in Claude Code öffnen, dann als erste Nachricht:
+Ordner **`/home/deploy/projekte/reifenpro-homepage`** in Claude Code öffnen (eigener
+Worktree für diesen Bereich, NICHT den Sammelordner `reifenpro`), dann als erste Nachricht:
 
 > Lies `.claude/bereiche/homepage/CLAUDE.md` und den Homepage-Abschnitt von
 > `.claude/bereiche/AUDIT-2026-08-06.md`. Wir arbeiten ausschließlich am Bereich Homepage/CMS.

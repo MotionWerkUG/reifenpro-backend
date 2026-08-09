@@ -1,6 +1,7 @@
 # Kickoff: Kundenportal
 
-Projekt `/home/deploy/projekte/reifenpro` öffnen, dann als erste Nachricht:
+Ordner **`/home/deploy/projekte/reifenpro-portal`** in Claude Code öffnen (eigener
+Worktree für diesen Bereich, NICHT den Sammelordner `reifenpro`), dann als erste Nachricht:
 
 > Lies `.claude/bereiche/kundenportal/CLAUDE.md` und den Portal-Abschnitt von
 > `.claude/bereiche/AUDIT-2026-08-06.md`. Wir arbeiten ausschließlich am Kundenportal.
