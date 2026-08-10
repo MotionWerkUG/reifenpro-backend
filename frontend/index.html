@@ -889,6 +889,22 @@ html, body { max-width: 100%; overflow-x: hidden; }
   </div>
 </div>
 
+<!-- RÄDERWECHSEL (Werkstattbrett): eingelagerten Satz abholen + optional neuen Satz einlagern -->
+<div class="ov" id="m-rwechsel">
+  <div class="modal">
+    <button class="mx" onclick="closeModal('rwechsel')">x</button>
+    <div class="mtitle" id="rw-titel">Räderwechsel</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Der eingelagerte Satz wird abgeholt (aufs Fahrzeug montiert):</div>
+    <div id="rw-satz" style="margin-bottom:14px"></div>
+    <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:12px">Wird ein neuer Satz eingelagert?</div>
+    <div class="mfoot" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-g" onclick="closeModal('rwechsel')">Abbrechen</button>
+      <button class="btn btn-grn" onclick="rwAbholen(false)">Nur abholen</button>
+      <button class="btn btn-p" onclick="rwAbholen(true)">Ja – neuen Satz einlagern</button>
+    </div>
+  </div>
+</div>
+
 <div class="ov" id="m-nt">
   <div class="modal">
     <button class="mx" onclick="closeModal('nt')">x</button>
@@ -1399,6 +1415,9 @@ function doLogout() {
 function startApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  // Modals einer evtl. zuvor abgebrochenen/abgelaufenen Sitzung schliessen, damit beim (Neu-)Login
+  // kein Dialog (z.B. "Neue Einlagerung") unaufgefordert offen stehen bleibt.
+  Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
   document.getElementById('h-user').textContent = USER ? USER.vorname + ' ' + USER.nachname : '-';
   loadEinst();
   loadK();
@@ -2896,10 +2915,12 @@ function wiedereinlagern(id) {
 var neLetzterSatz = null;
 var neFormGen = 0;          // invalidiert veraltete asynchrone Platz-Vorschlaege (Race-Schutz)
 var nePendingFahrzeug = null; // Fahrzeug, das nach dem Laden der Fahrzeugliste vorausgewaehlt werden soll
+var neSuppressPrefill = false; // beim Raederwechsel-Neu-Zweig den "Letzten Satz uebernehmen"-Button unterdruecken
 function neKundeChange(manuell) {
   var kid = gv('ne-k');
   var fzSel = document.getElementById('ne-fahrzeug');
   var btn = document.getElementById('ne-prefill-btn');
+  var suppress = neSuppressPrefill; neSuppressPrefill = false; // einmalig konsumieren
   neLetzterSatz = null;
   if (fzSel) fzSel.innerHTML = '<option value="">— kein Fahrzeug —</option>';
   if (btn) btn.style.display = 'none';
@@ -2919,7 +2940,9 @@ function neKundeChange(manuell) {
   }).catch(function() { nePendingFahrzeug = null; });
   api('GET', '/kunden/' + kid + '/einlagerungen').then(function(rows) {
     rows = rows || [];
-    if (rows.length) { neLetzterSatz = rows[0]; if (btn) btn.style.display = ''; }
+    // Im Raederwechsel-Neu-Zweig NICHT anbieten: der zuletzt erstellte Satz ist meist der gerade
+    // abgeholte -> "uebernehmen" wuerde die bewusst geleerten Reifenfelder wieder befuellen.
+    if (rows.length && !suppress) { neLetzterSatz = rows[0]; if (btn) btn.style.display = ''; }
   }).catch(function() {});
   // Beim manuellen Kundenwechsel den Stammplatz dieses Kunden neu vorschlagen
   if (manuell) {
@@ -3639,7 +3662,8 @@ function renderWS() {
     var leistung = t.artikel_name || t.termin_typ || '';
     var lagerplaetze = '';
     if (t.kunden_id) {
-      var kEinl = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status === 'Eingelagert'; });
+      // Aktive Saetze = eingelagert ODER abholbereit (konsistent mit server.js-Tagesmail: status <> 'Abgeholt')
+      var kEinl = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status !== 'Abgeholt'; });
       if (kEinl.length) lagerplaetze = kEinl.map(function(e) { return e.lagerplatz; }).join(', ');
     }
     var istNaechster = !istErledigt && idx === 0;
@@ -3658,7 +3682,7 @@ function renderWS() {
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
           '<span style="font-size:13px;color:var(--muted)">' + kEsc(kuerzel) + '</span>' +
           (t.fahrzeug_marke ? '<span style="font-size:12px;color:var(--muted)">' + kEsc(t.fahrzeug_marke + (t.fahrzeug_modell ? ' ' + t.fahrzeug_modell : '')) + '</span>' : '') +
-          (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent-text);letter-spacing:1px">' + lagerplaetze + '</span>' : '') +
+          (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent-text);letter-spacing:1px">' + kEsc(lagerplaetze) + '</span>' : '') +
         '</div>' +
         (einlInfo ? '<div style="font-size:11px;color:var(--yellow);margin-top:6px;padding:5px 8px;background:var(--ydim);border-radius:5px">' + einlInfo + '</div>' : '') +
         (t.beschreibung ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + kEsc(t.beschreibung) + '</div>' : '') +
@@ -3667,7 +3691,8 @@ function renderWS() {
         (istErledigt
           ? '<button class="btn btn-g btn-sm" data-tid="' + t.id + '" onclick="terminWiederOeffnen(this.getAttribute(\'data-tid\'))">Wieder öffnen</button>' +
             (t.kunden_id ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="rechnungAusTermin(this.getAttribute(\'data-tid\'))">Rechnung</button>' : '')
-          : '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
+          : (lagerplaetze ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="raederwechsel(this.getAttribute(\'data-tid\'))">Räderwechsel</button>' : '') +
+            '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
             '<button class="btn btn-danger btn-sm" data-tid="' + t.id + '" onclick="terminAbsagen(this.getAttribute(\'data-tid\'))">Absagen</button>') +
       '</div>' +
       '</div></div>';
@@ -3689,6 +3714,137 @@ function terminErledigt(id) {
 }
 function terminWiederOeffnen(id) {
   api('PATCH', '/termine/' + id + '/status', { status: 'bestaetigt' }).then(function() { notify('Wieder geöffnet.'); loadTermineWerkstatt(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── RÄDERWECHSEL (Werkstattbrett) ──
+// Ein Klick auf der heutigen Termin-Karte: den eingelagerten Satz abholen (aufs Fahrzeug montiert),
+// Termin automatisch erledigen und optional direkt einen frischen neuen Satz einlagern.
+// Der neue Satz ist meist ein komplett anderer Radsatz -> KEINE Reifendaten des abgeholten Satzes uebernehmen.
+var rwCtx = null;
+var rwBusy = false; // sperrt Doppelklick/Doppel-Tap waehrend der PATCH-Kette
+// Busy-Zustand setzen und dabei die Modal-Buttons (auch "Abbrechen") sperren, damit waehrend der
+// laufenden PATCH-Kette nichts dazwischenfunkt (verhindert "Abbrechen tut nichts"-Falle).
+function rwSetBusy(b) {
+  rwBusy = b;
+  // Alle Buttons des Modals sperren: Footer (Abbrechen/Aktionen) UND das obere "x" (.mx),
+  // damit der Dialog waehrend der laufenden Kette nicht weggeklickt werden kann.
+  Array.prototype.forEach.call(document.querySelectorAll('#m-rwechsel .mfoot button, #m-rwechsel .mx'), function(btn) { btn.disabled = b; });
+}
+function raederwechsel(terminId) {
+  var t = allTermine.find(function(x) { return x.id === terminId; });
+  if (!t || !t.kunden_id) { notify('Kein Kunde am Termin – Räderwechsel nicht möglich.', 'err'); return; }
+  // Aktive Saetze des Kunden = eingelagert ODER abholbereit (nicht abgeholt).
+  var saetze = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status !== 'Abgeholt'; });
+  if (!saetze.length) { notify('Kein eingelagerter Satz für diesen Kunden.', 'err'); return; }
+  // Wenn der Termin ein konkretes Fahrzeug hat, auf dessen Saetze eingrenzen (verhindert falschen Radsatz
+  // bei Kunden mit mehreren Fahrzeugen). Nur eingrenzen, wenn dadurch Treffer bleiben.
+  if (t.fahrzeug_id) {
+    var fzMatch = saetze.filter(function(e) { return e.fahrzeug_id === t.fahrzeug_id; });
+    if (fzMatch.length) saetze = fzMatch;
+  }
+  rwCtx = { terminId: terminId, kundenId: t.kunden_id, kundenName: t.kundenname || t.kontakt_name || '', fahrzeugId: t.fahrzeug_id || null, saetze: saetze };
+  var name = rwCtx.kundenName;
+  var kuerzel = name ? nameKuerzelFn(name.split(' ')[0], name.split(' ').slice(1).join(' ')) : '-';
+  document.getElementById('rw-titel').textContent = 'Räderwechsel — ' + kuerzel + (t.kennzeichen ? ' · ' + t.kennzeichen : '');
+  var satzZeile = function(e) {
+    var fz = [e.fahrzeug_marke, e.fahrzeug_kennzeichen].filter(Boolean).join(' ');
+    return '<span style="font-size:16px;font-weight:900;color:var(--accent-text);letter-spacing:1px">' + kEsc(e.lagerplatz || '?') + '</span>' +
+      ' <span style="font-size:13px;color:var(--muted)">' + kEsc(e.reifen_groesse || '') + (e.reifen_typ ? ' · ' + kEsc(e.reifen_typ) : '') + '</span>' +
+      (fz ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + kEsc(fz) + '</div>' : '');
+  };
+  var box = document.getElementById('rw-satz');
+  if (saetze.length === 1) {
+    // Genau ein Satz: fest angezeigt, keine Auswahl.
+    box.innerHTML = '<div style="padding:12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px">' + satzZeile(saetze[0]) + '</div>';
+  } else {
+    // Mehrere Saetze (selten): welcher wird montiert? Bewusst KEINE Vorauswahl -> Fehlklick-Schutz.
+    box.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Mehrere Sätze – bitte wählen, welcher montiert wird:</div>' +
+      saetze.map(function(e) {
+        return '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;margin-bottom:6px">' +
+          '<input type="radio" name="rw-satz-sel" value="' + kEsc(e.id) + '"><span>' + satzZeile(e) + '</span></label>';
+      }).join('');
+  }
+  openModal('rwechsel');
+}
+function rwAbholen(mitNeu) {
+  if (!rwCtx || rwBusy) return;
+  var satz;
+  if (rwCtx.saetze.length === 1) { satz = rwCtx.saetze[0]; }
+  else {
+    var sel = document.querySelector('input[name="rw-satz-sel"]:checked');
+    if (!sel) { notify('Bitte wählen, welcher Satz montiert wird.', 'err'); return; }
+    satz = rwCtx.saetze.find(function(e) { return e.id === sel.value; });
+  }
+  if (!satz) { notify('Satz nicht gefunden.', 'err'); return; }
+  rwSetBusy(true);
+  var setId = satz.id;
+  var freedPlatz = satz.lagerplatz || '';
+  var terminId = rwCtx.terminId;
+  var ctx = rwCtx;           // fuer den optionalen Neu-Zweig festhalten
+  var terminOk = true;       // ob der Termin serverseitig wirklich erledigt wurde
+  var sessionWeg = false;    // Sitzung waehrend der Kette abgelaufen (401 -> api() hat abgemeldet)
+  api('PATCH', '/einlagerungen/' + setId + '/status', { status: 'Abgeholt' }).then(function(res) {
+    if (!res) throw new Error('__abbruch__'); // 401/Sitzung abgelaufen -> api() hat abgemeldet, nichts vortaeuschen
+    var i = allE.findIndex(function(e) { return e.id === setId; });
+    if (i !== -1) allE[i].status = 'Abgeholt';
+    // Termin automatisch erledigen; ein Fehler hier ist nicht fatal (Satz ist schon abgeholt).
+    return api('PATCH', '/termine/' + terminId + '/status', { status: 'abgeschlossen' })
+      .then(function(tr) { if (tr === null) sessionWeg = true; else if (!tr) terminOk = false; }) // null = 401
+      .catch(function() { terminOk = false; });
+  }).then(function() {
+    rwSetBusy(false);
+    closeModal('rwechsel');
+    // Ist die Sitzung im zweiten Schritt abgelaufen, ist die App bereits abgemeldet: nicht den
+    // Erfolgspfad weiterlaufen lassen (keine unsichtbare Meldung, kein ungewolltes Neu-Modal).
+    if (sessionWeg) return;
+    loadTermineWerkstatt();
+    renderE(); renderDash(); renderLager();
+    if (mitNeu) {
+      rwNeuerSatz(ctx, freedPlatz, terminOk);
+    } else if (terminOk) {
+      notify('Satz abgeholt, Termin erledigt.');
+    } else {
+      notify('Satz abgeholt – Termin bitte noch manuell auf „Erledigt" setzen.', 'err');
+    }
+  }).catch(function(e) {
+    rwSetBusy(false);
+    if (e && e.message === '__abbruch__') return; // stiller Abbruch bei Sitzungsablauf
+    notify(e.message, 'err');
+  });
+}
+// Frisches Einlagern des vom Fahrzeug kommenden Satzes anstossen: nur Kunde/Fahrzeug/frei gewordener
+// Platz vorbefuellen, Reifenfelder leer (anderer Radsatz -> keine Verkettung, keine Daten uebernehmen).
+function rwNeuerSatz(ctx, freedPlatz, terminOk) {
+  aktK = (typeof allK !== 'undefined' && allK) ? allK.find(function(x) { return x.id === ctx.kundenId; }) || null : null;
+  nePendingFahrzeug = ctx.fahrzeugId || null;
+  neSuppressPrefill = true; // "Letzten Satz uebernehmen" hier nicht anbieten (frischer Radsatz)
+  openModal('ne'); // fillNeForm: Kunde + Fahrzeugliste + Platzvorschlag (async)
+  neResetReifendaten();
+  ++neFormGen; // fillNeForms asynchronen Platzvorschlag verwerfen – wir setzen den frei gewordenen Platz
+  var lpIn = document.getElementById('ne-lagerplatz');
+  var lInfo = document.getElementById('ne-lager-info');
+  if (freedPlatz) {
+    if (lpIn) lpIn.value = freedPlatz;
+    if (lInfo) { lInfo.dataset.lagerplatz = freedPlatz; lInfo.innerHTML = '<span style="color:var(--blue)">Frei gewordener Platz: <strong>' + kEsc(freedPlatz) + '</strong> (frei änderbar)</span>'; }
+  }
+  var vg = document.getElementById('ne-vorgaenger'); if (vg) vg.value = '';
+  notify(terminOk
+    ? 'Satz abgeholt, Termin erledigt. Neuen Satz jetzt komplett neu erfassen (Profil messen).'
+    : 'Satz abgeholt. Termin noch manuell erledigen. Neuen Satz jetzt komplett neu erfassen (Profil messen).', terminOk ? undefined : 'err');
+}
+// Reifenfelder des ne-Modals leeren, damit der neue Satz frisch startet (keine Altwerte).
+function neResetReifendaten() {
+  var setV = function(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); };
+  setV('ne-gr', ''); setV('ne-br', ''); setV('ne-qu', ''); setV('ne-zo', ''); setV('ne-li', '');
+  var typ = document.getElementById('ne-typ'); if (typ) typ.selectedIndex = 0;
+  var mk = document.getElementById('ne-mk'); if (mk) mk.value = '';
+  var mkMan = document.getElementById('ne-mk-man'); if (mkMan) { mkMan.value = ''; mkMan.style.display = 'none'; }
+  var moSel = document.getElementById('ne-mo-sel'); if (moSel) moSel.innerHTML = '<option value="">— erst Hersteller wählen —</option>';
+  var moMan = document.getElementById('ne-mo-man'); if (moMan) { moMan.value = ''; moMan.style.display = 'none'; }
+  var anz = document.getElementById('ne-anz'); if (anz) anz.value = '4';
+  var fel = document.getElementById('ne-fel'); if (fel) fel.selectedIndex = 0;
+  var rnd = document.getElementById('ne-rnd'); if (rnd) rnd.checked = false;
+  setV('ne-dot', ''); setV('ne-vl', ''); setV('ne-vr', ''); setV('ne-hl', ''); setV('ne-hr', ''); setV('ne-bem', '');
 }
 
 function druckListe() {
