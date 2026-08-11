@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
+const oeffnung = require('../lib/oeffnung');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
@@ -54,25 +55,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function zeitZuMin(z) { if (!z) return 0; const s = String(z).substring(0, 5); const p = s.split(':').map(Number); return p[0] * 60 + (p[1] || 0); }
 function minZuZeit(min) { return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
-function getBayernFeiertage(jahr) {
-  const a = jahr % 19, b = Math.floor(jahr / 100), c = jahr % 100;
-  const d2 = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3), h2 = (19 * a + b - d2 - g + 15) % 30;
-  const i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h2 - k) % 7;
-  const m2 = Math.floor((a + 11 * h2 + 22 * l) / 451);
-  const monat = Math.floor((h2 + l - 7 * m2 + 114) / 31);
-  const tag = ((h2 + l - 7 * m2 + 114) % 31) + 1;
-  const ostern = new Date(jahr, monat - 1, tag);
-  const fmt = (x) => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
-  const add = (x, t) => { const n = new Date(x); n.setDate(n.getDate() + t); return fmt(n); };
-  return [jahr + '-01-01', jahr + '-01-06', add(ostern, -2), add(ostern, 1), jahr + '-05-01', add(ostern, 39), add(ostern, 50), add(ostern, 60), jahr + '-08-15', jahr + '-10-03', jahr + '-11-01', jahr + '-12-25', jahr + '-12-26'];
-}
-function isFeiertag(datumStr) {
-  const m = String(datumStr).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return false;
-  return getBayernFeiertage(parseInt(m[1])).includes(m[1] + '-' + m[2] + '-' + m[3]);
-}
-function wochentagVon(datumStr) { const m = String(datumStr).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return 1; return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])).getDay(); }
 
 // Oeffnungszeiten fuer ein Datum (ohne Leistung)
 async function oeffnungFuerTag(datum) {
@@ -80,13 +62,13 @@ async function oeffnungFuerTag(datum) {
   if (!einst) return { fehler: 'Einstellungen fehlen' };
   const urlaub = await query('SELECT id FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
   if (urlaub.rows.length) return { grund: 'Betriebsurlaub', einst };
-  if (isFeiertag(datum)) return { grund: 'Feiertag', einst };
-  const wt = wochentagVon(datum);
-  let vonStr, bisStr;
-  if (wt === 0) { if (!einst.so_offen) return { grund: 'Geschlossen', einst }; vonStr = einst.so_von; bisStr = einst.so_bis; }
-  else if (wt === 6) { if (!einst.sa_offen) return { grund: 'Geschlossen', einst }; vonStr = einst.sa_von; bisStr = einst.sa_bis; }
-  else { vonStr = einst.mo_fr_von || '08:00'; bisStr = einst.mo_fr_bis || '18:00'; }
-  return { einst, vonStr, bisStr };
+  // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die regulaere Woche; 1-2 Spannen/Tag.
+  const off = await oeffnung.oeffnungFuerTag(datum);
+  if (off.geschlossen) {
+    const bt = (await query('SELECT bezeichnung FROM besondere_tage WHERE datum=$1 AND geschlossen=true', [datum])).rows[0];
+    return { grund: (bt && bt.bezeichnung) ? bt.bezeichnung : 'Geschlossen', einst };
+  }
+  return { einst, spannen: off.spannen };
 }
 
 async function freieSlots(datum, dauer) {
@@ -94,16 +76,17 @@ async function freieSlots(datum, dauer) {
   if (o.fehler) return { error: o.fehler };
   if (o.grund) return { slots: [], grund: o.grund };
   const einst = o.einst;
-  const mpVon = einst.mittagspause_von, mpBis = einst.mittagspause_bis;
   const maxParallel = einst.max_parallele_termine || 1;
   const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')", [datum])).rows;
   const slots = [];
-  const vonMin = zeitZuMin(o.vonStr), bisMin = zeitZuMin(o.bisStr);
-  for (let start = vonMin; start + dauer <= bisMin; start += 15) {
-    const ende = start + dauer;
-    if (mpVon && mpBis) { const a = zeitZuMin(mpVon), b = zeitZuMin(mpBis); if (start < b && ende > a) continue; }
-    const ueber = gebuchte.filter(t => start < zeitZuMin(t.uhrzeit_bis) && ende > zeitZuMin(t.uhrzeit_von)).length;
-    if (ueber < maxParallel) slots.push({ von: minZuZeit(start), bis: minZuZeit(ende) });
+  // Ueber jede Oeffnungsspanne (Vormittag/Nachmittag) einzeln -> die Mittagspause zwischen den Spannen bleibt frei.
+  for (const sp of o.spannen) {
+    const vonMin = zeitZuMin(sp[0]), bisMin = zeitZuMin(sp[1]);
+    for (let start = vonMin; start + dauer <= bisMin; start += 15) {
+      const ende = start + dauer;
+      const ueber = gebuchte.filter(t => start < zeitZuMin(t.uhrzeit_bis) && ende > zeitZuMin(t.uhrzeit_von)).length;
+      if (ueber < maxParallel) slots.push({ von: minZuZeit(start), bis: minZuZeit(ende) });
+    }
   }
   return { slots, dauer };
 }
@@ -153,7 +136,7 @@ router.get('/kalkulation', limiter, async (req, res, next) => {
 router.get('/slots', limiter, async (req, res, next) => {
   try {
     const { datum } = req.query;
-    if (!datum) return res.status(400).json({ error: 'datum erforderlich' });
+    if (!datum || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return res.status(400).json({ error: 'Gültiges datum (YYYY-MM-DD) erforderlich' });
     let dauer = parseInt(req.query.dauer);
     if (!(dauer > 0)) {
       if (req.query.artikel_id) {
@@ -210,6 +193,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
     if (!vorname || !nachname || !telefon || !email || !kennzeichen || !strasse || !plz || !ort || !datum || !uhrzeit_von || !mainIds.length)
       return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen (inkl. Anschrift und mindestens eine Leistung).' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
     const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
@@ -225,12 +209,9 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const heuteStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
     const startMin = zeitZuMin(uhrzeit_von), endeMin = startMin + dauer;
-    if (startMin < zeitZuMin(o.vonStr) || endeMin > zeitZuMin(o.bisStr))
-      return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
-    if (o.einst.mittagspause_von && o.einst.mittagspause_bis) {
-      const mpA = zeitZuMin(o.einst.mittagspause_von), mpB = zeitZuMin(o.einst.mittagspause_bis);
-      if (startMin < mpB && endeMin > mpA) return res.status(400).json({ error: 'Die gewählte Uhrzeit fällt in die Mittagspause.' });
-    }
+    // Muss vollstaendig in eine Oeffnungsspanne fallen (deckt Oeffnungszeiten UND Mittagspause ab).
+    const imFenster = (o.spannen || []).some(sp => startMin >= zeitZuMin(sp[0]) && endeMin <= zeitZuMin(sp[1]));
+    if (!imFenster) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
     if (datum === heuteStr) {
       const jetztMin = zeitZuMin(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }));
       if (startMin <= jetztMin) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt in der Vergangenheit.' });

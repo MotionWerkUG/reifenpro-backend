@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { query } = require('../db/index');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { regenerate } = require('../lib/homepage-generate');
+const feiertage = require('../lib/feiertage');
 
 // Editierbare Spalten (Whitelist). id und geaendert_am werden nie direkt gesetzt.
 // Spaltennamen stammen ausschliesslich aus dieser festen Liste -> keine SQL-Injection.
@@ -19,7 +20,7 @@ const ALLOWED = [
   'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
   'max_parallele_termine', 'termine_pro_stunde', 'stornierung_frist_h', 'portal_url',
   'bank', 'iban', 'bic', 'zahlungsziel_tage',
-  'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge'
+  'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland'
 ];
 
 // Spalten vom Typ time/integer/numeric: leerer String wird zu NULL,
@@ -98,6 +99,120 @@ router.put('/', authenticate, requireAdmin, async (req, res, next) => {
     );
     regenerate().catch(function () {});
     res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+// ── Öffnungszeiten (neues Modell: je Wochentag, 2 Spannen) ──
+router.get('/oeffnungszeiten', authenticate, async (req, res, next) => {
+  try {
+    const woche = (await query('SELECT wochentag, geschlossen, von1, bis1, von2, bis2 FROM oeffnungszeiten ORDER BY wochentag')).rows;
+    const e = (await query('SELECT bundesland FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    res.json({ woche, bundesland: e.bundesland || 'BY' });
+  } catch (err) { next(err); }
+});
+
+router.put('/oeffnungszeiten', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const woche = Array.isArray(req.body.woche) ? req.body.woche : [];
+    const t = (v) => (v === '' || v == null) ? null : v;
+    for (const d of woche) {
+      const wt = parseInt(d.wochentag, 10);
+      if (!(wt >= 0 && wt <= 6)) continue;
+      await query(
+        `INSERT INTO oeffnungszeiten (wochentag, geschlossen, von1, bis1, von2, bis2)
+         VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT (wochentag) DO UPDATE SET geschlossen=$2, von1=$3, bis1=$4, von2=$5, bis2=$6`,
+        [wt, !!d.geschlossen, t(d.von1), t(d.bis1), t(d.von2), t(d.bis2)]
+      );
+    }
+    // Alt-Felder (mo_fr/sa/so/mittagspause) fuer die Homepage-Anzeige aus dem Wochenraster synchron
+    // halten -> der Homepage-Renderer (anderer Bereich) bleibt unveraendert und zeigt weiter die
+    // regulaeren Zeiten. Besondere Tage/Feiertage wirken separat ueber die Buchungslogik.
+    if (woche.length) {
+      const byWt = {}; woche.forEach((d) => { byWt[parseInt(d.wochentag, 10)] = d; });
+      const mo = byWt[0], sa = byWt[5], so = byWt[6];
+      const pause = (d) => d && !d.geschlossen && d.von2 && d.bis2;
+      const sync = {
+        mo_fr_von: mo && !mo.geschlossen ? t(mo.von1) : null,
+        mo_fr_bis: mo && !mo.geschlossen ? t(pause(mo) ? mo.bis2 : mo.bis1) : null,
+        mittagspause_von: pause(mo) ? t(mo.bis1) : null,
+        mittagspause_bis: pause(mo) ? t(mo.von2) : null,
+        sa_offen: sa ? !sa.geschlossen : false,
+        sa_von: sa && !sa.geschlossen ? t(sa.von1) : null,
+        sa_bis: sa && !sa.geschlossen ? t(sa.bis1) : null,
+        so_offen: so ? !so.geschlossen : false,
+        so_von: so && !so.geschlossen ? t(so.von1) : null,
+        so_bis: so && !so.geschlossen ? t(so.bis1) : null
+      };
+      const scols = Object.keys(sync);
+      await query(
+        'UPDATE einstellungen SET ' + scols.map((c, i) => c + '=$' + (i + 1)).join(', ') + ', geaendert_am=NOW() WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)',
+        scols.map((c) => sync[c])
+      );
+    }
+    if (req.body.bundesland) {
+      await query('UPDATE einstellungen SET bundesland=$1, geaendert_am=NOW() WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)', [req.body.bundesland]);
+    }
+    regenerate().catch(function () {});
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Besondere Tage (Feiertage, Betriebsurlaub) — ueberschreiben die regulaere Woche ──
+router.get('/besondere-tage', authenticate, async (req, res, next) => {
+  try {
+    const jahr = parseInt(req.query.jahr, 10);
+    let sql = "SELECT id, to_char(datum,'YYYY-MM-DD') AS datum, bezeichnung, geschlossen, to_char(von,'HH24:MI') AS von, to_char(bis,'HH24:MI') AS bis, quelle FROM besondere_tage";
+    const params = [];
+    if (jahr) { params.push(jahr); sql += ' WHERE extract(year from datum)=$1'; }
+    sql += ' ORDER BY datum';
+    res.json((await query(sql, params)).rows);
+  } catch (err) { next(err); }
+});
+
+router.post('/besondere-tage', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const { datum, bezeichnung, geschlossen, von, bis, quelle } = req.body || {};
+    if (!datum || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return res.status(400).json({ error: 'Gültiges Datum (YYYY-MM-DD) erforderlich.' });
+    const t = (v) => (v === '' || v == null) ? null : v;
+    const { rows } = await query(
+      `INSERT INTO besondere_tage (datum, bezeichnung, geschlossen, von, bis, quelle)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT (datum) DO UPDATE SET bezeichnung=$2, geschlossen=$3, von=$4, bis=$5, quelle=$6
+       RETURNING id, to_char(datum,'YYYY-MM-DD') AS datum, bezeichnung, geschlossen, to_char(von,'HH24:MI') AS von, to_char(bis,'HH24:MI') AS bis, quelle`,
+      [datum, t(bezeichnung), geschlossen == null ? true : !!geschlossen, t(von), t(bis), quelle === 'feiertag' ? 'feiertag' : 'manuell']
+    );
+    regenerate().catch(function () {});
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.delete('/besondere-tage/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    await query('DELETE FROM besondere_tage WHERE id=$1', [req.params.id]);
+    regenerate().catch(function () {});
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Feiertage automatisch fuer Bundesland + Jahr anlegen (bestehende Tage bleiben unangetastet) ──
+router.post('/feiertage-generieren', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const jahr = parseInt(req.query.jahr || (req.body && req.body.jahr), 10) || new Date().getFullYear();
+    const e = (await query('SELECT bundesland FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    const bl = (req.body && req.body.bundesland) || e.bundesland || 'BY';
+    const liste = feiertage.feiertage(bl, jahr);
+    let angelegt = 0;
+    for (const f of liste) {
+      const r = await query(
+        `INSERT INTO besondere_tage (datum, bezeichnung, geschlossen, quelle)
+         VALUES ($1,$2,true,'feiertag') ON CONFLICT (datum) DO NOTHING`,
+        [f.datum, f.name]
+      );
+      if (r.rowCount) angelegt++;
+    }
+    regenerate().catch(function () {});
+    res.json({ jahr, bundesland: bl, gefunden: liste.length, angelegt });
   } catch (err) { next(err); }
 });
 
