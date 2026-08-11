@@ -18,35 +18,42 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
   const ids = mainIds.concat(zusatzIds);
   const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
   if (!ids.length) return leer;
+  const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false; // Standard: Preise inkl. MwSt (Brutto)
   const arts = (await query('SELECT * FROM artikel WHERE id = ANY($1::uuid[]) AND aktiv IS NOT false', [ids])).rows;
   const vars = (await query('SELECT * FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows;
   const byArt = {}; arts.forEach(function (a) { byArt[a.id] = a; });
   const varsByArt = {}; vars.forEach(function (v) { (varsByArt[v.artikel_id] = varsByArt[v.artikel_id] || []).push(v); });
   const order = mainIds.map(function (id) { return { id: id, rolle: 'haupt' }; })
     .concat(zusatzIds.map(function (id) { return { id: id, rolle: 'zusatz' }; }));
-  const positionen = []; let netto = 0, mwst = 0, dauer = 0; const gewaehlt = [];
+  const positionen = []; let netto = 0, brutto = 0, dauer = 0; const gewaehlt = [];
   order.forEach(function (it) {
     const a = byArt[it.id]; if (!a) return;
     const variants = varsByArt[a.id] || [];
     const basis = resolvePreis(a, variants, null, zoll);          // ohne Fahrzeugtyp-Zuschlag
     const eff = resolvePreis(a, variants, typ || null, zoll);     // mit gewaehltem Typ
     const effPreis = Number(eff.preis) || 0;
-    const grund = round2(Math.min(Number(basis.preis) || 0, effPreis));
-    const zuschlag = round2(effPreis - grund);
+    const grundPreis = Math.min(Number(basis.preis) || 0, effPreis);
     const satz = Number(eff.mwst_satz != null ? eff.mwst_satz : 19);
-    const zeilenNetto = round2(effPreis);
+    const f = 1 + satz / 100;
+    // inkl=true: gespeicherter Preis ist Brutto (Endpreis), Netto abgeleitet. inkl=false: Preis ist Netto.
+    const nettoVon = function (p) { return inkl ? round2(p / f) : round2(p); };
+    const bruttoVon = function (p) { return inkl ? round2(p) : round2(p * f); };
+    const grund = nettoVon(grundPreis);
+    const zuschlag = round2(nettoVon(effPreis) - grund);
+    const zeilenNetto = nettoVon(effPreis);
+    const zeilenBrutto = bruttoVon(effPreis);
     netto = round2(netto + zeilenNetto);
-    mwst = round2(mwst + zeilenNetto * satz / 100);
+    brutto = round2(brutto + zeilenBrutto);
     dauer += (eff.dauer_minuten != null ? eff.dauer_minuten : (a.dauer_minuten || 30));
     gewaehlt.push(a.name);
     positionen.push({
       artikel_id: a.id, bezeichnung: a.name, rolle: it.rolle,
       grundpreis_netto: grund, zuschlag_netto: zuschlag,
       fahrzeugtyp: zuschlag > 0 ? (typ || null) : null,
-      mwst_satz: satz, zeilen_netto: zeilenNetto
+      mwst_satz: satz, zeilen_netto: zeilenNetto, zeilen_brutto: zeilenBrutto
     });
   });
-  return { positionen: positionen, netto: round2(netto), mwst: round2(mwst), brutto: round2(netto + mwst), dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt };
+  return { positionen: positionen, netto: round2(netto), mwst: round2(brutto - netto), brutto: round2(brutto), dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt };
 }
 
 const limiter = rateLimit({ windowMs: 900000, max: 30, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });

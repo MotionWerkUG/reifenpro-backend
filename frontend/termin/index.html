@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Termin buchen — Schröder & Scholz</title>
+<meta name="robots" content="noindex">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#f4f5f7;color:#1a1a1a;line-height:1.55}
+  a{color:inherit}
+  .top{background:#171717;border-bottom:3px solid #eab308;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:30}
+  .top a.logo{display:inline-flex;align-items:center}
+  .top svg{height:38px;width:auto;display:block}
+  .top a.back{color:#cfcfcf;font-size:13px;font-weight:600;text-decoration:none}.top a.back:hover{color:#eab308}
+  .wrap{max-width:960px;margin:0 auto;padding:26px 18px 80px}
+  .steps{display:flex;gap:6px;margin-bottom:26px;flex-wrap:wrap}
+  .step{flex:1;min-width:110px;font-size:12px;font-weight:700;color:#9aa0a6;border-top:3px solid #dfe2e6;padding-top:8px;text-transform:uppercase;letter-spacing:.4px}
+  .step.on{color:#171717;border-top-color:#eab308}
+  .step.done{color:#1a7f37;border-top-color:#1a7f37}
+  h1{font-size:clamp(22px,4vw,30px);font-weight:800;margin-bottom:6px}
+  .sub{color:#666;margin-bottom:22px;font-size:15px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px}
+  .lcard{background:#fff;border:2px solid #e6e8ec;border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;display:flex;flex-direction:column;text-align:left;padding:0;min-height:300px}
+  .lcard:hover{border-color:#eab308;transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.08)}
+  .lcard.sel{border-color:#eab308;box-shadow:0 0 0 3px rgba(234,179,8,.25)}
+  .lcard-img{aspect-ratio:4/3;background:#eef0f3 center/cover no-repeat;position:relative}
+  .lcard-body{flex:1;display:flex;flex-direction:column}
+  .lcard-img .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:800;color:#c2c7cf}
+  .lcard-check{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:50%;background:#eab308;color:#171717;display:none;align-items:center;justify-content:center;font-weight:900;font-size:16px}
+  .lcard.sel .lcard-check{display:flex}
+  .lcard-body{padding:14px 16px}
+  .lcard h3{font-size:16px;margin-bottom:4px}
+  .lcard p{font-size:13px;color:#666}
+  .lcard .dauer{font-size:12px;color:#999;margin-top:auto;padding-top:8px}
+  .lcard .preis{font-size:17px;color:#171717;font-weight:800;margin-top:8px}
+  .lcard .preis .ab{font-size:12px;font-weight:600;color:#888;margin-right:3px}
+  .pricebar{position:sticky;top:8px;z-index:30;background:#fff;border:1px solid #e6e8ec;border-radius:12px;padding:12px 16px;margin:0 0 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+  .pricebar .pb-z{display:flex;align-items:center;gap:9px;font-size:14px;color:#555;font-weight:600}
+  .pricebar .pb-z select{padding:9px 11px;border:1px solid #d5d9e0;border-radius:9px;font-size:15px;background:#fff;color:#1a1a1a;font-family:inherit}
+  .pricebar .pb-sum{text-align:right;margin-left:auto}
+  .pricebar .pb-lab{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+  .pricebar .pb-total{font-size:26px;font-weight:800;color:#171717;line-height:1.05}
+  .pricebar .pb-total .ab{font-size:14px;font-weight:600;color:#888;margin-right:4px}
+  .pricebar .pb-hint{flex-basis:100%;font-size:11.5px;color:#9a9a95;margin-top:2px;line-height:1.4}
+  .field{margin-bottom:16px}
+  label.lab{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;margin-bottom:6px}
+  input[type=date],input[type=text],input[type=tel],input[type=email],select{width:100%;border:1px solid #d5d9e0;border-radius:10px;padding:13px 14px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}
+  input:focus,select:focus{outline:none;border-color:#eab308}
+  .slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .slot{border:1px solid #d5d9e0;background:#fff;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:600;cursor:pointer}
+  .slot:hover{border-color:#eab308}.slot.on{background:#eab308;border-color:#eab308;color:#171717}
+  .info{font-size:13px;color:#888;margin-top:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .kz{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .kz span{color:#999;font-weight:700}
+  .kz input{min-width:0;text-align:center;font-family:monospace;text-transform:uppercase;font-weight:700;font-size:15px;border:1px solid #d5d9e0;border-radius:10px;background:#fff;color:#1a1a1a;padding:13px 4px}
+  .kz input:focus{outline:none;border-color:#eab308}
+  .kz input:nth-of-type(1){flex:0 0 64px}.kz input:nth-of-type(2){flex:0 0 52px}.kz input:nth-of-type(3){flex:0 0 74px}.kz input:nth-of-type(4){flex:0 0 46px}
+  .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#555;margin-top:14px;line-height:1.5}.check input{width:auto;margin-top:3px}.check a{color:#171717;text-decoration:underline}
+  .sum{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:18px 20px;margin-bottom:18px}
+  .sum h3{font-size:15px;margin-bottom:10px}
+  .sum .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #f0f1f3;font-size:14px}
+  .sum .row:last-child{border-bottom:none}
+  .sum .subrow{display:flex;justify-content:space-between;gap:10px;padding:2px 0 2px 14px;font-size:13px;color:#7a7f87}
+  .sum .total{font-size:16px;font-weight:800;margin-top:6px}
+  .sum .hint{font-size:12px;color:#999;margin-top:8px}
+  .nav{display:flex;justify-content:space-between;gap:12px;margin-top:26px}
+  .btn{border:none;border-radius:10px;padding:14px 26px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+  .btn-p{background:#eab308;color:#171717}.btn-p:disabled{opacity:.5;cursor:default}
+  .btn-g{background:#fff;border:1px solid #d5d9e0;color:#444}
+  .err{display:none;background:#fdecea;color:#b3261e;border:1px solid #f5c6c2;border-radius:10px;padding:13px 15px;font-size:14px;margin-top:14px}
+  .hidden{display:none!important}
+  .done-box{text-align:center;padding:40px 16px}
+  .done-box .ok{width:72px;height:72px;border-radius:50%;background:#e7f7ee;color:#1a7f37;font-size:38px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
+  .muted{color:#888;font-size:13px}
+  @media(max-width:600px){.grid2{grid-template-columns:1fr}.step{min-width:0;font-size:0;padding-top:6px}.step::first-letter{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <a href="/" class="logo" aria-label="Zur Startseite"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="212" height="38"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></a>
+  <a href="/" class="back">← Zur Startseite</a>
+</div>
+<div class="wrap">
+  <div class="steps">
+    <div class="step on" id="st1">1 · Leistungen</div>
+    <div class="step" id="st2">2 · Zusatz</div>
+    <div class="step" id="st3">3 · Fahrzeug &amp; Termin</div>
+    <div class="step" id="st4">4 · Ihre Daten</div>
+  </div>
+
+  <!-- Mitlaufender Preis -->
+  <div class="pricebar" id="pricebar">
+    <div class="pb-z">
+      <label for="pb-zoll">Zollgröße</label>
+      <select id="pb-zoll" onchange="setZoll(this.value)">
+        <option value="">— wählen —</option>
+        <option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option>
+      </select>
+    </div>
+    <div class="pb-sum">
+      <div class="pb-lab">Gesamt (ca., inkl. MwSt)</div>
+      <div class="pb-total" id="pb-total"><span class="ab">ab</span>—</div>
+    </div>
+    <div class="pb-hint">Der Preis läuft mit und ändert sich je nach Leistung, Zollgröße und Zusatz. Unverbindliche Schätzung – der Endpreis kann je nach Aufwand abweichen.</div>
+  </div>
+
+  <!-- Schritt 1: Hauptleistungen (Mehrfachauswahl) -->
+  <div id="p1">
+    <h1>Welche Leistungen benötigen Sie?</h1>
+    <div class="sub">Mehrfachauswahl möglich. Die Preise sind „ab"-Preise (PKW); je nach Fahrzeug kann ein Zuschlag hinzukommen.</div>
+    <div class="cards" id="haupt-cards"></div>
+  </div>
+
+  <!-- Schritt 2: Zusatzleistungen -->
+  <div id="p2" class="hidden">
+    <h1>Zusatzleistungen</h1>
+    <div class="sub">Optional – wählen Sie passende Zusatzleistungen (Mehrfachauswahl möglich).</div>
+    <div class="cards" id="zusatz-cards"></div>
+  </div>
+
+  <!-- Schritt 3: Fahrzeug & Termin -->
+  <div id="p3" class="hidden">
+    <h1>Fahrzeug &amp; Wunschtermin</h1>
+    <div class="sub">Die Fahrzeugart bestimmt mögliche Zuschläge (z.B. SUV).</div>
+    <div class="grid2">
+      <div class="field"><label class="lab">Fahrzeugart *</label>
+        <select id="fz-typ" onchange="state.fahrzeugtyp=this.value;preisLive();"><option value="">— bitte wählen —</option><option>PKW</option><option>SUV</option><option>Transporter</option><option>Motorrad</option><option>Sonstiges</option></select>
+      </div>
+      <div class="field"><label class="lab">Zollgröße (optional)</label>
+        <select id="fz-zoll" onchange="setZoll(this.value);"><option value="">— k.A. —</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option></select>
+      </div>
+    </div>
+    <div class="field"><label class="lab">Kennzeichen *</label>
+      <div class="kz">
+        <input id="f-kz1" maxlength="3" placeholder="WOR" oninput="this.value=this.value.toUpperCase()">
+        <span>-</span><input id="f-kz2" maxlength="2" placeholder="AB" oninput="this.value=this.value.toUpperCase()">
+        <span>-</span><input id="f-kz3" maxlength="4" placeholder="1234">
+        <input id="f-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">
+      </div>
+    </div>
+    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Ihr gewünschtes Termindatum (nicht das Datum der Erstzulassung).</div></div>
+    <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div class="slots" id="slots"></div><div class="info" id="slots-info"></div></div>
+  </div>
+
+  <!-- Schritt 4: Daten & Bestätigung -->
+  <div id="p4" class="hidden">
+    <h1>Ihre Kontaktdaten</h1>
+    <div class="sub">Damit wir Ihren Termin bestätigen und ggf. eine Rechnung erstellen können.</div>
+    <div class="sum" id="sum-box"></div>
+    <div class="grid2">
+      <div class="field"><label class="lab">Anrede</label>
+        <select id="f-anrede"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
+      </div>
+      <div class="field"><label class="lab">Telefon *</label><input type="tel" id="f-tel"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label class="lab">Vorname *</label><input type="text" id="f-vorname"></div>
+      <div class="field"><label class="lab">Nachname *</label><input type="text" id="f-nachname"></div>
+    </div>
+    <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email"></div>
+    <div class="field"><label class="lab">Straße &amp; Hausnummer *</label><input type="text" id="f-strasse"></div>
+    <div class="grid2">
+      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz"></div>
+      <div class="field"><label class="lab">Ort *</label><input type="text" id="f-ort"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
+    <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
+    <input type="text" id="f-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+  </div>
+
+  <!-- Erfolg -->
+  <div id="pdone" class="hidden"><div class="done-box">
+    <div class="ok">✓</div>
+    <h1>Termin bestätigt!</h1>
+    <div id="done-text" class="sub" style="margin-top:10px"></div>
+    <a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none;margin-top:10px">Zur Startseite</a>
+  </div></div>
+
+  <div class="err" id="err"></div>
+  <div class="nav" id="navbar">
+    <button class="btn btn-g" id="btn-back" onclick="zurueck()" style="visibility:hidden">Zurück</button>
+    <button class="btn btn-p" id="btn-next" onclick="weiter()">Weiter</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+var API = '/api/gast';
+var LEIST = { haupt: [], zusatz: [] };
+var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datum: '', slot: '' };
+
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function eur(n){return (Number(n)||0).toFixed(2).replace('.',',')+' €';}
+function dauerVon(a){return a&&a.dauer_minuten?a.dauer_minuten:30;}
+function alleGewaehlt(){return state.haupt.concat(state.zusatz);}
+function gesamtDauer(){var d=0;alleGewaehlt().forEach(function(a){d+=dauerVon(a);});return d||30;}
+
+function ladeLeistungen(){
+  fetch(API+'/leistungen').then(function(r){return r.json();}).then(function(d){
+    LEIST=d||{haupt:[],zusatz:[]};
+    renderCards('haupt-cards', LEIST.haupt, 'haupt');
+    renderCards('zusatz-cards', LEIST.zusatz, 'zusatz');
+    if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Bitte rufen Sie uns an.</p>';
+    vorauswahlAusUrl(); preisLive();
+  }).catch(function(){ document.getElementById('haupt-cards').innerHTML='<p class="muted">Leistungen konnten nicht geladen werden.</p>'; });
+}
+// Vorauswahl aus ?leistung=<artikel_id> (von der Startseite verlinkt)
+function vorauswahlAusUrl(){
+  try{ var p=new URLSearchParams(location.search); var id=p.get('leistung'); if(!id)return;
+    var l=LEIST.haupt.find(function(x){return x.artikel_id===id;}); if(l && !state.haupt.some(function(h){return h.artikel_id===id;})){ state.haupt.push(l); markSel(); }
+  }catch(e){}
+}
+function bild(l){ return l.bild_url ? ('background-image:url(\''+esc(l.bild_url)+'\')') : ''; }
+function preisText(l){ var ab=(l.ab_brutto!=null?l.ab_brutto:(l.ab_netto!=null?l.ab_netto:l.preis)); return (Number(ab)>0)?('<span class="ab">ab</span>'+eur(ab)):''; }
+function renderCards(elId, list, rolle){
+  var el=document.getElementById(elId); if(!el)return;
+  el.innerHTML=(list||[]).map(function(l){
+    var ph = l.bild_url ? '' : '<div class="ph">'+esc((l.titel||'?').charAt(0))+'</div>';
+    var pt = preisText(l);
+    return '<div class="lcard" data-id="'+esc(l.artikel_id)+'" onclick="pick(\''+rolle+'\',\''+esc(l.artikel_id)+'\')">'+
+      '<div class="lcard-img" style="'+bild(l)+'">'+ph+'<div class="lcard-check">✓</div></div>'+
+      '<div class="lcard-body"><h3>'+esc(l.titel)+'</h3>'+
+      (l.beschreibung?'<p>'+esc(l.beschreibung)+'</p>':'')+
+      (pt?'<div class="preis">'+pt+'</div>':'')+
+      '<div class="dauer">ca. '+dauerVon(l)+' Min</div>'+
+      '</div></div>';
+  }).join('');
+  markSel();
+}
+function markSel(){
+  document.querySelectorAll('#haupt-cards .lcard').forEach(function(c){ c.classList.toggle('sel', state.haupt.some(function(h){return h.artikel_id===c.getAttribute('data-id');})); });
+  document.querySelectorAll('#zusatz-cards .lcard').forEach(function(c){ c.classList.toggle('sel', state.zusatz.some(function(z){return z.artikel_id===c.getAttribute('data-id');})); });
+}
+function toggleIn(arr, item){ var i=arr.findIndex(function(x){return x.artikel_id===item.artikel_id;}); if(i===-1)arr.push(item); else arr.splice(i,1); }
+function pick(rolle, id){
+  if(rolle==='haupt'){ var h=LEIST.haupt.find(function(x){return x.artikel_id===id;}); if(h)toggleIn(state.haupt,h); }
+  else { var z=LEIST.zusatz.find(function(x){return x.artikel_id===id;}); if(z)toggleIn(state.zusatz,z); }
+  markSel(); preisLive();
+}
+// Mitlaufender Preis: bei jeder Auswahl neu berechnen
+var _pvTimer=null, _pvSeq=0;
+function setZoll(v){
+  state.zoll=v;
+  var a=document.getElementById('fz-zoll'), b=document.getElementById('pb-zoll');
+  if(a && a.value!==v) a.value=v;
+  if(b && b.value!==v) b.value=v;
+  preisLive();
+}
+function preisLive(){
+  var el=document.getElementById('pb-total'); if(!el)return;
+  if(!state.haupt.length){ el.innerHTML='<span class="ab">ab</span>—'; return; }
+  clearTimeout(_pvTimer);
+  _pvTimer=setTimeout(function(){
+    var seq=++_pvSeq;
+    var zollReq=state.zoll;
+    var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(zollReq||'');
+    fetch(url).then(function(r){return r.json();}).then(function(k){
+      if(seq!==_pvSeq) return; // veraltete Antwort -> ignorieren
+      var pre = zollReq ? '' : '<span class="ab">ab</span>';
+      el.innerHTML = pre + eur(k.brutto);
+    }).catch(function(){ if(seq===_pvSeq) el.textContent='—'; });
+  }, 180);
+}
+function ladeSlots(){
+  state.slot=''; state.datum=document.getElementById('datum').value;
+  var w=document.getElementById('slots-wrap'),sl=document.getElementById('slots'),info=document.getElementById('slots-info');
+  if(!state.datum){w.style.display='none';return;}
+  w.style.display='block'; sl.innerHTML=''; info.textContent='Lädt …';
+  fetch(API+'/slots?datum='+encodeURIComponent(state.datum)+'&dauer='+gesamtDauer()).then(function(r){return r.json();}).then(function(d){
+    info.textContent='';
+    if(d.grund){info.textContent='An diesem Tag ist keine Buchung möglich ('+d.grund+'). Bitte anderen Tag wählen.';return;}
+    if(!d.slots||!d.slots.length){info.textContent='Keine freien Zeiten an diesem Tag.';return;}
+    sl.innerHTML=d.slots.map(function(s){return '<button type="button" class="slot" data-von="'+s.von+'">'+s.von+'</button>';}).join('');
+  }).catch(function(){info.textContent='Zeiten konnten nicht geladen werden.';});
+}
+document.addEventListener('click', function(ev){
+  var t=ev.target;
+  if(t&&t.className&&t.className.indexOf('slot')!==-1&&t.getAttribute('data-von')){
+    state.slot=t.getAttribute('data-von');
+    document.querySelectorAll('.slot').forEach(function(s){s.classList.remove('on');}); t.classList.add('on');
+  }
+});
+function kz(){ var v=function(id){return (document.getElementById(id).value||'').trim();};
+  var k=[v('f-kz1'),v('f-kz2'),v('f-kz3')].filter(Boolean).join('-'); var k4=v('f-kz4'); if(k4)k+=' '+k4; return k.trim(); }
+function idsCsv(arr){ return arr.map(function(a){return a.artikel_id;}).join(','); }
+function renderSum(){
+  var box=document.getElementById('sum-box');
+  box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
+  var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'');
+  fetch(url).then(function(r){return r.json();}).then(function(k){
+    var rows='';
+    (k.positionen||[]).forEach(function(p){
+      rows+='<div class="row"><span>'+esc(p.bezeichnung)+(p.rolle==='zusatz'?' <span class="muted">(Zusatz)</span>':'')+'</span><strong>'+eur(p.grundpreis_netto)+'</strong></div>';
+      if(Number(p.zuschlag_netto)>0) rows+='<div class="subrow"><span>+ Zuschlag '+esc(p.fahrzeugtyp||state.fahrzeugtyp||'')+'</span><span>'+eur(p.zuschlag_netto)+'</span></div>';
+    });
+    rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
+    rows+='<div class="row"><span>Nettobetrag</span><span>'+eur(k.netto)+'</span></div>';
+    rows+='<div class="row"><span>zzgl. MwSt</span><span>'+eur(k.mwst)+'</span></div>';
+    rows+='<div class="row total"><span>Gesamt (brutto)</span><span>'+eur(k.brutto)+'</span></div>';
+    box.innerHTML='<h3>Ihre Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis Ihrer Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
+  }).catch(function(){ box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
+}
+function zeigeSchritt(n){
+  state.schritt=n;
+  [1,2,3,4].forEach(function(i){document.getElementById('p'+i).classList.toggle('hidden', i!==n);});
+  document.getElementById('err').style.display='none';
+  for(var i=1;i<=4;i++){var s=document.getElementById('st'+i);s.classList.toggle('on',i===n);s.classList.toggle('done',i<n);}
+  document.getElementById('btn-back').style.visibility = n>1 ? 'visible':'hidden';
+  document.getElementById('btn-next').textContent = n===4 ? 'Termin verbindlich buchen' : 'Weiter';
+  if(n===4) renderSum();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function fehler(m){var e=document.getElementById('err');e.textContent=m;e.style.display='block';}
+function weiter(){
+  var n=state.schritt;
+  if(n===1){ if(!state.haupt.length){fehler('Bitte wählen Sie mindestens eine Leistung.');return;} zeigeSchritt(2); return; }
+  if(n===2){ zeigeSchritt(3); return; }
+  if(n===3){
+    if(!state.fahrzeugtyp){fehler('Bitte wählen Sie die Fahrzeugart.');return;}
+    if(!kz()){fehler('Bitte geben Sie das Kennzeichen ein.');return;}
+    if(!state.datum){fehler('Bitte ein Datum wählen.');return;}
+    if(!state.slot){fehler('Bitte eine Uhrzeit wählen.');return;}
+    zeigeSchritt(4); return;
+  }
+  if(n===4){ absenden(); return; }
+}
+function zurueck(){ if(state.schritt>1) zeigeSchritt(state.schritt-1); }
+function absenden(){
+  var v=function(id){return (document.getElementById(id).value||'').trim();};
+  var d={ main_ids: state.haupt.map(function(h){return h.artikel_id;}), zusatz_ids: state.zusatz.map(function(z){return z.artikel_id;}),
+    anrede:v('f-anrede'), vorname:v('f-vorname'), nachname:v('f-nachname'), telefon:v('f-tel'), email:v('f-email'),
+    strasse:v('f-strasse'), plz:v('f-plz'), ort:v('f-ort'),
+    fahrzeugtyp:state.fahrzeugtyp, zoll:state.zoll, kennzeichen:kz(),
+    datum:state.datum, uhrzeit_von:state.slot,
+    datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
+  if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
+  if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
+  var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
+  fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
+    .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})
+    .then(function(j){
+      document.querySelectorAll('.steps,#navbar').forEach(function(x){x.classList.add('hidden');});
+      [1,2,3,4].forEach(function(i){document.getElementById('p'+i).classList.add('hidden');});
+      var betrag = (j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '';
+      document.getElementById('done-text').textContent='Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
+      document.getElementById('pdone').classList.remove('hidden');
+      window.scrollTo({top:0,behavior:'smooth'});
+    })
+    .catch(function(x){fehler(x.message);})
+    .then(function(){b.disabled=false;b.textContent=bt;});
+}
+(function(){var dt=document.getElementById('datum');var n=new Date();dt.min=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2);})();
+ladeLeistungen();
+</script>
+</body>
+</html>
