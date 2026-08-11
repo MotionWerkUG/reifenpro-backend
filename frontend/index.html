@@ -2584,15 +2584,22 @@ function loadLagerEinst() {
       var frei = o.regale.reduce(function(s, r) { return s + r.plaetze_frei; }, 0);
       return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
-        '<div style="font-weight:700">' + o.name + (o.beschreibung ? '<span style="font-size:12px;color:var(--muted);margin-left:8px">' + o.beschreibung + '</span>' : '') + '</div>' +
+        '<div style="font-weight:700">' + kEsc(o.name) + (o.beschreibung ? '<span style="font-size:12px;color:var(--muted);margin-left:8px">' + kEsc(o.beschreibung) + '</span>' : '') + '</div>' +
         '<div style="font-size:12px"><span style="color:var(--green)">' + frei + ' frei</span> / ' + tot + '</div></div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-        o.regale.map(function(rg) { return '<span style="background:var(--panel);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;font-size:12px">' + rg.name + ' (' + rg.plaetze_von + '-' + rg.plaetze_bis + ')</span>'; }).join('') +
+        o.regale.map(function(rg) {
+          // Der Pseudo-Ort "Nicht zugeordnet" liefert Regale ohne von/bis -> Platzanzahl statt "undefined-undefined".
+          var span = (rg.plaetze_von != null && rg.plaetze_bis != null) ? ' (' + rg.plaetze_von + '-' + rg.plaetze_bis + ')' : (rg.plaetze_total ? ' (' + rg.plaetze_total + ' Plätze)' : '');
+          return '<span style="background:var(--panel);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;font-size:12px">' + kEsc(rg.name || 'Sonstige') + span + '</span>';
+        }).join('') +
         '</div>' +
-        '<div style="margin-top:10px;display:flex;gap:6px">' +
-        '<button class="btn btn-g btn-sm" onclick="lagerRegalHinzu(\'' + o.id + '\',\'' + o.name + '\')">+ Regal</button>' +
-        '<button class="btn btn-danger btn-sm" onclick="lagerOrtLoeschen(\'' + o.id + '\')">Deaktivieren</button>' +
-        '</div></div>';
+        // Aktionen nur fuer echte Lagerorte; der Pseudo-Ort "Nicht zugeordnet" (id null) hat keine.
+        (o.unzugeordnet ? '' :
+          '<div style="margin-top:10px;display:flex;gap:6px">' +
+          '<button class="btn btn-g btn-sm" onclick="lagerRegalHinzu(\'' + o.id + '\',\'' + o.name + '\')">+ Regal</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="lagerOrtLoeschen(\'' + o.id + '\')">Deaktivieren</button>' +
+          '</div>') +
+        '</div>';
     }).join('');
   }).catch(function() {});
 }
@@ -2606,10 +2613,10 @@ function lagerRegalHinzu(ortId, ortName) {
 }
 function saveRegal() {
   var ortId = gv('nrg-ort-id'), rn = gv('nrg-name');
-  if (!rn) { notify('Regalname ist Pflicht.', 'err'); return; }
+  if (!rn) { notify('Regalname ist Pflicht.', 'err'); var nf = document.getElementById('nrg-name'); if (nf) nf.focus(); return; }
   var rv = parseInt(gv('nrg-von')) || 1;
   var rb = parseInt(gv('nrg-bis')) || 20;
-  if (rb < rv) { notify('„Plätze bis" muss größer/gleich „von" sein.', 'err'); return; }
+  if (rb < rv) { notify('„Plätze bis" muss größer/gleich „von" sein.', 'err'); var bf = document.getElementById('nrg-bis'); if (bf) bf.focus(); return; }
   api('POST', '/lager/regale', { ort_id: ortId, name: rn, plaetze_von: rv, plaetze_bis: rb })
     .then(function() { notify('Regal angelegt!'); closeModal('nrg'); loadLager(); loadLagerEinst(); })
     .catch(function(e) { notify(e.message, 'err'); });
