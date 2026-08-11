@@ -658,27 +658,46 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
         <div class="etab-panel" data-epanel="zeiten" style="display:none">
           <div class="ssec"><h3>Öffnungszeiten</h3>
-          <div class="g2" style="margin-bottom:10px">
-            <div class="fg"><label>Mo-Fr von</label><input id="s-mfv" type="time" value="08:00"></div>
-            <div class="fg"><label>Mo-Fr bis</label><input id="s-mfb" type="time" value="18:00"></div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+            <button class="btn btn-g btn-sm" onclick="ozAlleWerktage()">Mo-Zeiten auf Di–Fr übernehmen</button>
           </div>
-          <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px">
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:10px">
-              <input type="checkbox" id="s-sao"> <span style="font-weight:600">Samstag geöffnet</span>
-            </label>
-            <div class="g2">
-              <div class="fg"><label>Sa von</label><input id="s-sav" type="time" value="08:00"></div>
-              <div class="fg"><label>Sa bis</label><input id="s-sab" type="time" value="13:00"></div>
-            </div>
-          </div>
-          <div class="g3">
-            <div class="fg"><label>Mittagspause von</label><input id="s-mpv" type="time" placeholder="optional"></div>
-            <div class="fg"><label>Mittagspause bis</label><input id="s-mpb" type="time" placeholder="optional"></div>
+          <div id="oz-grid" style="margin-bottom:6px"></div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">Zweiter Zeitraum = Nachmittag; die Lücke dazwischen ist die Mittagspause. Beide Nachmittagsfelder leer lassen, wenn durchgehend geöffnet.</div>
+          <div class="g2">
             <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
-          </div>
-          <div class="g3" style="margin-top:10px">
             <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
-          </div></div>
+          </div>
+          <div style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="saveOeffnung()">Öffnungszeiten speichern</button></div>
+          </div>
+          <div class="ssec"><h3>Besondere Tage (Feiertage &amp; Sonderöffnung)</h3>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Überschreiben die reguläre Woche für einzelne Tage. Feiertage werden aus dem Bundesland automatisch berechnet.</div>
+          <div class="g2" style="margin-bottom:8px;align-items:end">
+            <div class="fg"><label>Bundesland (für Feiertagsberechnung)</label>
+              <select id="s-bland">
+                <option value="BW">Baden-Württemberg</option><option value="BY">Bayern</option>
+                <option value="BE">Berlin</option><option value="BB">Brandenburg</option>
+                <option value="HB">Bremen</option><option value="HH">Hamburg</option>
+                <option value="HE">Hessen</option><option value="MV">Mecklenburg-Vorpommern</option>
+                <option value="NI">Niedersachsen</option><option value="NW">Nordrhein-Westfalen</option>
+                <option value="RP">Rheinland-Pfalz</option><option value="SL">Saarland</option>
+                <option value="SN">Sachsen</option><option value="ST">Sachsen-Anhalt</option>
+                <option value="SH">Schleswig-Holstein</option><option value="TH">Thüringen</option>
+              </select>
+            </div>
+            <div class="fg"><button class="btn btn-g btn-sm" onclick="generiereFeiertage()" style="width:100%">Feiertage eintragen</button></div>
+          </div>
+          <div id="bt-liste" style="margin-bottom:12px"></div>
+          <div class="g3" style="margin-bottom:6px">
+            <div class="fg"><label>Datum</label><input id="bt-datum" type="date"></div>
+            <div class="fg"><label>Bezeichnung</label><input id="bt-bez" placeholder="z.B. Betriebsurlaub"></div>
+            <div class="fg"><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;height:38px;font-size:13px"><input type="checkbox" id="bt-geschlossen" checked onchange="btToggleZeiten()"> geschlossen</label></div>
+          </div>
+          <div class="g2" id="bt-zeiten" style="margin-bottom:8px;display:none">
+            <div class="fg"><label>Geöffnet von</label><input id="bt-von" type="time"></div>
+            <div class="fg"><label>Geöffnet bis</label><input id="bt-bis" type="time"></div>
+          </div>
+          <button class="btn btn-g btn-sm" onclick="addBesondererTag()">Tag hinzufügen</button>
+          </div>
           <div class="ssec"><h3>Betriebsurlaub</h3>
           <div id="urlaub-liste" style="margin-bottom:12px"></div>
           <div class="g2" style="margin-bottom:8px">
@@ -1613,7 +1632,7 @@ function showPage(n, fromPop) {
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
-  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); }
+  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
 }
@@ -2361,13 +2380,7 @@ function fillEinst() {
   fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
   fv('s-zzt', EINST.zahlungsziel_tage || 14);
   // Oeffnungszeiten
-  if (EINST.mo_fr_von) fv('s-mfv', String(EINST.mo_fr_von).substring(0, 5));
-  if (EINST.mo_fr_bis) fv('s-mfb', String(EINST.mo_fr_bis).substring(0, 5));
-  if (EINST.sa_von) fv('s-sav', String(EINST.sa_von).substring(0, 5));
-  if (EINST.sa_bis) fv('s-sab', String(EINST.sa_bis).substring(0, 5));
-  fc('s-sao', EINST.sa_offen);
-  if (EINST.mittagspause_von) fv('s-mpv', String(EINST.mittagspause_von).substring(0, 5));
-  if (EINST.mittagspause_bis) fv('s-mpb', String(EINST.mittagspause_bis).substring(0, 5));
+  // Öffnungszeiten (mo_fr/sa/mittagspause) laufen jetzt über das Wochenraster (loadOeffnung), nicht mehr hier.
   fv('s-mpt', EINST.max_parallele_termine || 1);
   fv('s-vd', EINST.vertragsdauer_monate || 6);
   fv('s-af', EINST.abholungsfrist_wochen || 4);
@@ -2401,10 +2414,7 @@ function saveEinst() {
     bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
     zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
     logo_url: EINST.logo_url || null,
-    mo_fr_von: gv('s-mfv') || null, mo_fr_bis: gv('s-mfb') || null,
-    sa_von: gv('s-sav') || null, sa_bis: gv('s-sab') || null,
-    sa_offen: document.getElementById('s-sao') ? document.getElementById('s-sao').checked : false,
-    mittagspause_von: gv('s-mpv') || null, mittagspause_bis: gv('s-mpb') || null,
+    // Öffnungszeiten (mo_fr/sa/mittagspause) werden über /einstellungen/oeffnungszeiten gepflegt, nicht hier.
     max_parallele_termine: parseInt(gv('s-mpt')) || 1,
     vertragsdauer_monate: parseInt(gv('s-vd')) || 6,
     abholungsfrist_wochen: parseInt(gv('s-af')) || 4,
@@ -2415,8 +2425,120 @@ function saveEinst() {
   };
   api('PUT', '/einstellungen', data).then(function(r) {
     if (r) EINST = r;
+    saveOeffnung(true); // Öffnungszeiten-Raster + Bundesland mitspeichern
     notify('Einstellungen gespeichert!');
   }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── ÖFFNUNGSZEITEN (Wochenraster) + BESONDERE TAGE ──
+var OZ_TAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+function loadOeffnung() {
+  api('GET', '/einstellungen/oeffnungszeiten').then(function(r) {
+    if (!r) return;
+    renderOzGrid(r.woche || []);
+    var bl = document.getElementById('s-bland'); if (bl && r.bundesland) bl.value = r.bundesland;
+  }).catch(function(){});
+  loadBesondere();
+}
+function renderOzGrid(woche) {
+  var el = document.getElementById('oz-grid'); if (!el) return;
+  var byWt = {}; (woche || []).forEach(function(d){ byWt[d.wochentag] = d; });
+  var hm = function(t){ return t ? String(t).substring(0, 5) : ''; };
+  var html = '';
+  for (var wt = 0; wt < 7; wt++) {
+    var d = byWt[wt] || { geschlossen: wt === 6 };
+    var offen = !d.geschlossen;
+    html += '<div style="display:grid;grid-template-columns:92px 116px 1fr;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--border2)">' +
+      '<span style="font-size:13px">' + OZ_TAGE[wt] + '</span>' +
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox" id="oz-' + wt + '-offen" ' + (offen ? 'checked' : '') + ' onchange="ozToggle(' + wt + ')"><span id="oz-' + wt + '-lbl" style="color:' + (offen ? 'var(--green)' : 'var(--muted)') + '">' + (offen ? 'Geöffnet' : 'Geschlossen') + '</span></label>' +
+      '<div id="oz-' + wt + '-times" style="display:' + (offen ? 'flex' : 'none') + ';gap:5px;align-items:center;flex-wrap:wrap">' +
+        '<input type="time" id="oz-' + wt + '-von1" value="' + hm(d.von1) + '" style="width:104px"><span style="color:var(--muted)">–</span><input type="time" id="oz-' + wt + '-bis1" value="' + hm(d.bis1) + '" style="width:104px">' +
+        '<span style="color:var(--muted);margin:0 4px;font-size:11px">Nachm.</span>' +
+        '<input type="time" id="oz-' + wt + '-von2" value="' + hm(d.von2) + '" style="width:104px"><span style="color:var(--muted)">–</span><input type="time" id="oz-' + wt + '-bis2" value="' + hm(d.bis2) + '" style="width:104px">' +
+      '</div>' +
+    '</div>';
+  }
+  el.innerHTML = html;
+}
+function ozToggle(wt) {
+  var cb = document.getElementById('oz-' + wt + '-offen'); if (!cb) return;
+  var times = document.getElementById('oz-' + wt + '-times');
+  var lbl = document.getElementById('oz-' + wt + '-lbl');
+  var offen = cb.checked;
+  if (times) times.style.display = offen ? 'flex' : 'none';
+  if (lbl) { lbl.textContent = offen ? 'Geöffnet' : 'Geschlossen'; lbl.style.color = offen ? 'var(--green)' : 'var(--muted)'; }
+}
+function ozAlleWerktage() {
+  ['von1', 'bis1', 'von2', 'bis2'].forEach(function(f){
+    var src = document.getElementById('oz-0-' + f); if (!src) return;
+    for (var wt = 1; wt < 5; wt++) { var t = document.getElementById('oz-' + wt + '-' + f); if (t) t.value = src.value; }
+  });
+  var offen = document.getElementById('oz-0-offen').checked;
+  for (var wt = 1; wt < 5; wt++) { var cb = document.getElementById('oz-' + wt + '-offen'); if (cb) { cb.checked = offen; ozToggle(wt); } }
+  notify('Mo-Zeiten auf Di–Fr übernommen (noch speichern).');
+}
+function saveOeffnung(silent) {
+  var woche = [];
+  for (var wt = 0; wt < 7; wt++) {
+    var cb = document.getElementById('oz-' + wt + '-offen'); if (!cb) continue;
+    woche.push({ wochentag: wt, geschlossen: !cb.checked,
+      von1: gv('oz-' + wt + '-von1'), bis1: gv('oz-' + wt + '-bis1'),
+      von2: gv('oz-' + wt + '-von2'), bis2: gv('oz-' + wt + '-bis2') });
+  }
+  if (!woche.length) return;
+  return api('PUT', '/einstellungen/oeffnungszeiten', { woche: woche, bundesland: gv('s-bland') })
+    .then(function(){ if (!silent) notify('Öffnungszeiten gespeichert.'); })
+    .catch(function(e){ notify(e.message, 'err'); });
+}
+function btToggleZeiten() {
+  var z = document.getElementById('bt-zeiten'), g = document.getElementById('bt-geschlossen');
+  if (z && g) z.style.display = g.checked ? 'none' : 'flex';
+}
+function loadBesondere() {
+  var jahr = new Date().getFullYear();
+  api('GET', '/einstellungen/besondere-tage?jahr=' + jahr).then(function(rows){ renderBt(rows || []); }).catch(function(){});
+}
+function renderBt(rows) {
+  var el = document.getElementById('bt-liste'); if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px">Noch keine besonderen Tage für dieses Jahr.</div>'; return; }
+  el.innerHTML = rows.map(function(t){
+    var status = t.geschlossen ? '<span style="color:var(--muted)">geschlossen</span>' : '<span style="color:var(--green)">' + kEsc((t.von || '') + '–' + (t.bis || '')) + '</span>';
+    var badge = t.quelle === 'feiertag' ? '<span style="font-size:10px;border:1px solid var(--border2);border-radius:4px;padding:1px 5px;color:var(--muted);margin-left:6px">Feiertag</span>' : '';
+    var dsp = t.datum ? t.datum.split('-').reverse().join('.') : '';
+    return '<div style="display:grid;grid-template-columns:88px 1fr auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border2)">' +
+      '<span style="font-size:12px;color:var(--muted)">' + dsp + '</span>' +
+      '<span style="font-size:13px">' + kEsc(t.bezeichnung || '') + badge + '</span>' +
+      '<span style="font-size:12px">' + status + '</span>' +
+      '<button class="btn btn-danger btn-sm" onclick="delBesondererTag(\'' + t.id + '\')">X</button>' +
+    '</div>';
+  }).join('');
+}
+function addBesondererTag() {
+  var datum = gv('bt-datum');
+  if (!datum) { notify('Bitte ein Datum wählen.', 'err'); var e = document.getElementById('bt-datum'); if (e) e.focus(); return; }
+  var geschlossen = document.getElementById('bt-geschlossen').checked;
+  api('POST', '/einstellungen/besondere-tage', {
+    datum: datum, bezeichnung: gv('bt-bez'), geschlossen: geschlossen,
+    von: geschlossen ? null : gv('bt-von'), bis: geschlossen ? null : gv('bt-bis'), quelle: 'manuell'
+  }).then(function(){
+    notify('Tag gespeichert.');
+    ['bt-datum', 'bt-bez', 'bt-von', 'bt-bis'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+    loadBesondere();
+  }).catch(function(e){ notify(e.message, 'err'); });
+}
+function delBesondererTag(id) {
+  if (!confirm('Diesen Tag entfernen?')) return;
+  api('DELETE', '/einstellungen/besondere-tage/' + id).then(function(){ notify('Entfernt.'); loadBesondere(); }).catch(function(e){ notify(e.message, 'err'); });
+}
+function generiereFeiertage() {
+  var jahr = new Date().getFullYear();
+  var bl = gv('s-bland');
+  var gen = function(j){ return api('POST', '/einstellungen/feiertage-generieren?jahr=' + j, { bundesland: bl }); };
+  gen(jahr).then(function(r1){ return gen(jahr + 1).then(function(r2){
+    var n = (r1 ? r1.angelegt : 0) + (r2 ? r2.angelegt : 0);
+    notify(n + ' Feiertage für ' + jahr + '/' + (jahr + 1) + ' eingetragen (' + bl + ').');
+    loadBesondere();
+  }); }).catch(function(e){ notify(e.message, 'err'); });
 }
 
 // ── BETRIEBSURLAUB ──

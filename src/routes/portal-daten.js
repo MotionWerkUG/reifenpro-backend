@@ -4,6 +4,7 @@ const router = express.Router();
 const { query, withTransaction } = require('../db/index');
 const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
+const oeffnung = require('../lib/oeffnung');
 const fs = require('fs');
 
 // ── GET /api/portal/daten/einlagerungen ──
@@ -58,7 +59,7 @@ router.get('/termine/vergangen', authKunde, async (req, res, next) => {
 router.get('/freie-slots', authKunde, async (req, res, next) => {
   try {
     const { datum, artikel_id } = req.query;
-    if (!datum || !artikel_id) return res.status(400).json({ error: 'datum und artikel_id erforderlich' });
+    if (!datum || !artikel_id || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return res.status(400).json({ error: 'Gültiges datum (YYYY-MM-DD) und artikel_id erforderlich' });
 
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
     if (!einst) return res.status(500).json({ error: 'Einstellungen fehlen' });
@@ -70,10 +71,6 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     const eff = resolvePreis(artRes.rows[0], varianten, req.query.typ || null, req.query.zoll);
     const dauer = eff.dauer_minuten || 30;
 
-    // Wochentag bestimmen
-    const d = new Date(datum);
-    const wochentag = d.getDay(); // 0=So, 1=Mo, ..., 6=Sa
-
     // Betriebsurlaub pruefen
     const urlaub = await query(
       'SELECT id FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1',
@@ -81,24 +78,13 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     );
     if (urlaub.rows.length) return res.json({ slots: [], grund: 'Betriebsurlaub' });
 
-    // Bayerische Feiertage pruefen
-    if (isFeiertag(d)) return res.json({ slots: [], grund: 'Feiertag' });
-
-    // Oeffnungszeiten bestimmen
-    let vonStr, bisStr;
-    if (wochentag === 0) {
-      if (!einst.so_offen) return res.json({ slots: [], grund: 'Geschlossen' });
-      vonStr = einst.so_von; bisStr = einst.so_bis;
-    } else if (wochentag === 6) {
-      if (!einst.sa_offen) return res.json({ slots: [], grund: 'Geschlossen' });
-      vonStr = einst.sa_von; bisStr = einst.sa_bis;
-    } else {
-      vonStr = einst.mo_fr_von || '08:00'; bisStr = einst.mo_fr_bis || '18:00';
+    // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die regulaere Woche; 1-2 Spannen/Tag.
+    // (Fixt zugleich den frueheren kaputten Feiertag-Check, der ein Date-Objekt an einen String-Matcher gab.)
+    const off = await oeffnung.oeffnungFuerTag(datum);
+    if (off.geschlossen) {
+      const bt = (await query('SELECT bezeichnung FROM besondere_tage WHERE datum=$1 AND geschlossen=true', [datum])).rows[0];
+      return res.json({ slots: [], grund: (bt && bt.bezeichnung) ? bt.bezeichnung : 'Geschlossen' });
     }
-
-    // Mittagspause
-    const mpVon = einst.mittagspause_von;
-    const mpBis = einst.mittagspause_bis;
     const maxParallel = einst.max_parallele_termine || 1;
 
     // Bestehende Termine an diesem Tag laden
@@ -108,34 +94,21 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
       [datum]
     );
 
-    // Alle 15-Min-Slots generieren
+    // 15-Min-Slots je Oeffnungsspanne (Mittagspause = Luecke zwischen den Spannen)
     const slots = [];
-    const vonMin = zeitZuMin(vonStr);
-    const bisMin = zeitZuMin(bisStr);
-
-    for (let start = vonMin; start + dauer <= bisMin; start += 15) {
-      const ende = start + dauer;
-
-      // Mittagspause pruefen
-      if (mpVon && mpBis) {
-        const mpVonMin = zeitZuMin(mpVon);
-        const mpBisMin = zeitZuMin(mpBis);
-        if (start < mpBisMin && ende > mpVonMin) continue;
-      }
-
-      // Ueberschneidungen zaehlen
-      const ueberschneidungen = gebuchte.rows.filter(t => {
-        const tVon = zeitZuMin(t.uhrzeit_von);
-        const tBis = zeitZuMin(t.uhrzeit_bis);
-        return start < tBis && ende > tVon;
-      }).length;
-
-      if (ueberschneidungen < maxParallel) {
-        slots.push({
-          von: minZuZeit(start),
-          bis: minZuZeit(ende),
-          verfuegbar: true
-        });
+    for (const sp of off.spannen) {
+      const vonMin = zeitZuMin(sp[0]);
+      const bisMin = zeitZuMin(sp[1]);
+      for (let start = vonMin; start + dauer <= bisMin; start += 15) {
+        const ende = start + dauer;
+        const ueberschneidungen = gebuchte.rows.filter(t => {
+          const tVon = zeitZuMin(t.uhrzeit_von);
+          const tBis = zeitZuMin(t.uhrzeit_bis);
+          return start < tBis && ende > tVon;
+        }).length;
+        if (ueberschneidungen < maxParallel) {
+          slots.push({ von: minZuZeit(start), bis: minZuZeit(ende), verfuegbar: true });
+        }
       }
     }
 
@@ -147,7 +120,7 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
 router.post('/termine', authKunde, async (req, res, next) => {
   try {
     const { datum, uhrzeit_von, artikel_id, beschreibung, kennzeichen, fahrzeug_id, typ, zoll } = req.body;
-    if (!datum || !uhrzeit_von || !artikel_id) return res.status(400).json({ error: 'Pflichtfelder fehlen' });
+    if (!datum || !uhrzeit_von || !artikel_id || !/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Pflichtfelder fehlen oder ungültiges Datum/Uhrzeit' });
 
     const artRes = await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
     if (!artRes.rows.length) return res.status(404).json({ error: 'Artikel nicht gefunden' });
@@ -167,17 +140,14 @@ router.post('/termine', authKunde, async (req, res, next) => {
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
     const _bu = await query('SELECT 1 FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
     if (_bu.rows.length) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Betriebsurlaub).' });
-    if (isFeiertag(datum)) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Feiertag).' });
-    const _wt = new Date(datum + 'T12:00:00').getDay();
-    let _von, _bis;
-    if (_wt === 0) { if (!einst || !einst.so_offen) return res.status(409).json({ error: 'An diesem Tag ist geschlossen.' }); _von = einst.so_von; _bis = einst.so_bis; }
-    else if (_wt === 6) { if (!einst || !einst.sa_offen) return res.status(409).json({ error: 'An diesem Tag ist geschlossen.' }); _von = einst.sa_von; _bis = einst.sa_bis; }
-    else { _von = (einst && einst.mo_fr_von) || '08:00'; _bis = (einst && einst.mo_fr_bis) || '18:00'; }
-    if (vonMin < zeitZuMin(_von) || (vonMin + dauer) > zeitZuMin(_bis)) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
-    if (einst && einst.mittagspause_von && einst.mittagspause_bis) {
-      const _mpA = zeitZuMin(einst.mittagspause_von), _mpB = zeitZuMin(einst.mittagspause_bis);
-      if (vonMin < _mpB && (vonMin + dauer) > _mpA) return res.status(400).json({ error: 'Die gewählte Uhrzeit fällt in die Mittagspause.' });
+    // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die Woche; Slot muss in eine Spanne fallen.
+    const _off = await oeffnung.oeffnungFuerTag(datum);
+    if (_off.geschlossen) {
+      const _bt = (await query('SELECT bezeichnung FROM besondere_tage WHERE datum=$1 AND geschlossen=true', [datum])).rows[0];
+      return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (' + ((_bt && _bt.bezeichnung) ? _bt.bezeichnung : 'geschlossen') + ').' });
     }
+    const _imFenster = (_off.spannen || []).some(sp => vonMin >= zeitZuMin(sp[0]) && (vonMin + dauer) <= zeitZuMin(sp[1]));
+    if (!_imFenster) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
     if (datum === heuteStr) {
       const _jetzt = zeitZuMin(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }));
       if (vonMin <= _jetzt) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt in der Vergangenheit.' });
@@ -276,7 +246,7 @@ router.post('/termine', authKunde, async (req, res, next) => {
 router.put('/termine/:id', authKunde, async (req, res, next) => {
   try {
     const { datum, uhrzeit_von } = req.body;
-    if (!datum || !uhrzeit_von) return res.status(400).json({ error: 'Datum und Uhrzeit erforderlich' });
+    if (!datum || !uhrzeit_von || !/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Gültiges Datum und Uhrzeit erforderlich' });
     const t = (await query('SELECT * FROM termine WHERE id=$1 AND kunden_id=$2', [req.params.id, req.kunde.id])).rows[0];
     if (!t) return res.status(404).json({ error: 'Termin nicht gefunden' });
     if (['storniert', 'abgesagt', 'abgeschlossen'].includes(t.status)) return res.status(400).json({ error: 'Dieser Termin kann nicht mehr verschoben werden.' });
@@ -300,6 +270,26 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
     }
     const uhrzeit_bis = minZuZeit(zeitZuMin(uhrzeit_von) + dauer);
     const maxParallel = einst.max_parallele_termine || 1;
+
+    // NEUES Datum/Uhrzeit wie bei der Neubuchung validieren — sonst umgeht Verschieben
+    // Öffnungszeiten/Feiertage/Betriebsurlaub/Vergangenheit komplett (Buchung -> Feiertag/Pause/Vergangenheit).
+    const heuteStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+    if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
+    if (datum === heuteStr) {
+      const jetzt = zeitZuMin(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }));
+      if (zeitZuMin(uhrzeit_von) <= jetzt) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt in der Vergangenheit.' });
+    }
+    const _bu = await query('SELECT 1 FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
+    if (_bu.rows.length) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Betriebsurlaub).' });
+    const _off = await oeffnung.oeffnungFuerTag(datum);
+    if (_off.geschlossen) {
+      const _bt = (await query('SELECT bezeichnung FROM besondere_tage WHERE datum=$1 AND geschlossen=true', [datum])).rows[0];
+      return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (' + ((_bt && _bt.bezeichnung) ? _bt.bezeichnung : 'geschlossen') + ').' });
+    }
+    const _vonMin = zeitZuMin(uhrzeit_von);
+    const _imFenster = (_off.spannen || []).some(sp => _vonMin >= zeitZuMin(sp[0]) && (_vonMin + dauer) <= zeitZuMin(sp[1]));
+    if (!_imFenster) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
+
     // Konfliktpruefung + Update unter Advisory-Lock je Tag -> gleiche Race-Absicherung wie beim Buchen
     const updated = await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
@@ -509,49 +499,6 @@ function minZuZeit(min) {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
-}
-function isFeiertag(datum) {
-  // Robust fuer String ('2026-06-04' bzw. mit Zeitanteil) UND Date-Objekt; lokale Formatierung statt toISOString
-  // (sonst Off-by-one in Europe/Berlin und Bypass bei angehaengtem Zeitanteil).
-  let s;
-  if (datum instanceof Date) {
-    s = datum.getFullYear() + '-' + String(datum.getMonth() + 1).padStart(2, '0') + '-' + String(datum.getDate()).padStart(2, '0');
-  } else {
-    s = String(datum).substring(0, 10);
-  }
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return false;
-  return getBayernFeiertage(parseInt(m[1])).includes(s);
-}
-function getBayernFeiertage(jahr) {
-  // Ostern berechnen (Gauss-Algorithmus)
-  const a = jahr % 19, b = Math.floor(jahr / 100), c = jahr % 100;
-  const d2 = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3), h2 = (19 * a + b - d2 - g + 15) % 30;
-  const i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h2 - k) % 7;
-  const m2 = Math.floor((a + 11 * h2 + 22 * l) / 451);
-  const monat = Math.floor((h2 + l - 7 * m2 + 114) / 31);
-  const tag = ((h2 + l - 7 * m2 + 114) % 31) + 1;
-  const ostern = new Date(jahr, monat - 1, tag);
-  // Lokale Formatierung (NICHT toISOString) -> sonst Off-by-one in Zeitzonen mit positivem Offset (Europe/Berlin)
-  const fmt = (d3) => d3.getFullYear() + '-' + String(d3.getMonth() + 1).padStart(2, '0') + '-' + String(d3.getDate()).padStart(2, '0');
-  const add = (d3, t) => { const n = new Date(d3); n.setDate(n.getDate() + t); return fmt(n); };
-  return [
-    jahr + '-01-01', // Neujahr
-    jahr + '-01-06', // Heilige Drei Koenige
-    add(ostern, -2),  // Karfreitag
-    add(ostern, 1),   // Ostermontag
-    jahr + '-05-01', // Tag der Arbeit
-    add(ostern, 39),  // Christi Himmelfahrt
-    add(ostern, 50),  // Pfingstmontag
-    add(ostern, 60),  // Fronleichnam
-    jahr + '-08-15', // Maria Himmelfahrt
-    jahr + '-10-03', // Tag der Deutschen Einheit
-    jahr + '-11-01', // Allerheiligen
-    jahr + '-12-25', // 1. Weihnachtstag
-    jahr + '-12-26', // 2. Weihnachtstag
-  ];
 }
 
 async function sendMail(to, subject, html) {
