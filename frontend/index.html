@@ -313,6 +313,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
 <script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <div id="loader"><div class="ll">Reifen<span>Pro</span></div><div class="lb"><div class="lbf"></div></div></div>
 
+<!-- Inaktivitaets-Warnung (Sicherheits-Timeout) -->
+<div id="idle-warn" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px">
+  <div class="modal" style="max-width:360px;text-align:center">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">Automatische Abmeldung</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Aus Sicherheitsgründen werden Sie in <strong id="idle-count">60</strong> Sekunden abgemeldet.</div>
+    <button class="btn btn-p" style="width:100%;justify-content:center;padding:10px" onclick="idleReset()">Angemeldet bleiben</button>
+  </div>
+</div>
+
 <div id="login-screen" style="display:none">
   <div class="lbox">
     <div id="ls-login">
@@ -606,93 +615,128 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <!-- EINSTELLUNGEN -->
       <div class="page" id="page-einstellungen">
         <div class="ph"><div class="pt">Einstellungen</div><button class="btn btn-p" onclick="saveEinst()">Speichern</button></div>
-        <div class="ssec"><h3>Firmendaten</h3><div class="fgrid">
-          <div class="fg"><label>Firmenname *</label><input id="s-fn"></div>
-          <div class="fg"><label>Inhaber *</label><input id="s-ih"></div>
-          <div class="fg"><label>Straße *</label><input id="s-str"></div>
-          <div class="fg"><label>PLZ *</label><input id="s-plz"></div>
-          <div class="fg"><label>Ort *</label><input id="s-ort"></div>
-          <div class="fg"><label>Telefon</label><input id="s-tel"></div>
-          <div class="fg"><label>E-Mail *</label><input id="s-mail" type="email"></div>
-          <div class="fg"><label>Website</label><input id="s-web"></div>
-          <div class="fg"><label>Google-Bewertungslink</label><input id="s-google" placeholder="https://g.page/r/... oder Google-Profil"></div>
-          <div class="fg"><label>Facebook-Seite</label><input id="s-fb" placeholder="https://facebook.com/..."></div>
-          <div class="fg"><label>Instagram-Profil</label><input id="s-ig" placeholder="https://instagram.com/..."></div>
-          <div class="fg"><label>Steuernummer</label><input id="s-steu"></div>
-          <div class="fg"><label>USt-ID</label><input id="s-ustid" placeholder="DE123456789"></div>
-          <div class="fg"><label>Rechtsform</label>
-            <select id="s-rf">
-              <option value="UG (haftungsbeschränkt)">UG (haftungsbeschränkt)</option>
-              <option value="GmbH">GmbH</option>
-              <option value="GbR">GbR</option>
-              <option value="Einzelunternehmen">Einzelunternehmen</option>
-            </select>
+        <!-- Reiter: reine Layout-Gliederung, Feld-IDs unveraendert -->
+        <div id="einst-tabs" style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border2);margin-bottom:18px">
+          <button class="etab" data-etab="firma" onclick="showEinstTab('firma')" style="background:none;border:none;border-bottom:2px solid var(--accent-text);color:var(--accent-text);font-weight:700;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Firma &amp; Recht</button>
+          <button class="etab" data-etab="zeiten" onclick="showEinstTab('zeiten')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Öffnungszeiten &amp; Termine</button>
+          <button class="etab" data-etab="preise" onclick="showEinstTab('preise')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Preise &amp; Vertrag</button>
+          <button class="etab" data-etab="bank" onclick="showEinstTab('bank')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Bank &amp; Buchhaltung</button>
+          <button class="etab" data-etab="mail" onclick="showEinstTab('mail')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">E-Mail-Texte</button>
+          <button class="etab" data-etab="homepage" onclick="showEinstTab('homepage')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Homepage &amp; Kontakt</button>
+        </div>
+
+        <div class="etab-panel" data-epanel="firma">
+          <div class="ssec"><h3>Firmendaten</h3><div class="fgrid">
+            <div class="fg"><label>Firmenname *</label><input id="s-fn"></div>
+            <div class="fg"><label>Inhaber *</label><input id="s-ih"></div>
+            <div class="fg"><label>Straße *</label><input id="s-str"></div>
+            <div class="fg"><label>PLZ *</label><input id="s-plz"></div>
+            <div class="fg"><label>Ort *</label><input id="s-ort"></div>
+            <div class="fg"><label>Telefon</label><input id="s-tel"></div>
+            <div class="fg"><label>E-Mail *</label><input id="s-mail" type="email"></div>
+            <div class="fg"><label>Steuernummer</label><input id="s-steu"></div>
+            <div class="fg"><label>USt-ID</label><input id="s-ustid" placeholder="DE123456789"></div>
+            <div class="fg"><label>Rechtsform</label>
+              <select id="s-rf">
+                <option value="UG (haftungsbeschränkt)">UG (haftungsbeschränkt)</option>
+                <option value="GmbH">GmbH</option>
+                <option value="GbR">GbR</option>
+                <option value="Einzelunternehmen">Einzelunternehmen</option>
+              </select>
+            </div>
+            <div class="fg"><label>Handelsreg.-Nr.</label><input id="s-hrnr" placeholder="HRB 12345"></div>
+            <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
+            <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
+            <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
+            <div class="fg full"><label>Logo (JPG/PNG)</label>
+              <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
+              <div id="s-logo-prev" style="margin-top:8px"></div>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="etab-panel" data-epanel="zeiten" style="display:none">
+          <div class="ssec"><h3>Öffnungszeiten</h3>
+          <div class="g2" style="margin-bottom:10px">
+            <div class="fg"><label>Mo-Fr von</label><input id="s-mfv" type="time" value="08:00"></div>
+            <div class="fg"><label>Mo-Fr bis</label><input id="s-mfb" type="time" value="18:00"></div>
           </div>
-          <div class="fg"><label>Handelsreg.-Nr.</label><input id="s-hrnr" placeholder="HRB 12345"></div>
-          <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
-          <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
-          <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
-          <div class="fg"><label>Bank</label><input id="s-bank" placeholder="Sparkasse ..."></div>
-          <div class="fg"><label>IBAN</label><input id="s-iban" placeholder="DE00 0000 0000 0000 0000 00"></div>
-          <div class="fg"><label>BIC</label><input id="s-bic" placeholder="XXXXDE00XXX"></div>
-          <div class="fg"><label>Zahlungsziel (Tage)</label><input id="s-zzt" type="number" min="0" placeholder="14"></div>
-          <div class="fg"><label>Portal-URL</label><input id="s-purl" placeholder="https://..."></div>
-          <div class="fg full"><label>Logo (JPG/PNG)</label>
-            <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
-            <div id="s-logo-prev" style="margin-top:8px"></div>
+          <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:10px">
+              <input type="checkbox" id="s-sao"> <span style="font-weight:600">Samstag geöffnet</span>
+            </label>
+            <div class="g2">
+              <div class="fg"><label>Sa von</label><input id="s-sav" type="time" value="08:00"></div>
+              <div class="fg"><label>Sa bis</label><input id="s-sab" type="time" value="13:00"></div>
+            </div>
           </div>
-        </div></div>
-        <div class="ssec"><h3>Öffnungszeiten</h3>
-        <div class="g2" style="margin-bottom:10px">
-          <div class="fg"><label>Mo-Fr von</label><input id="s-mfv" type="time" value="08:00"></div>
-          <div class="fg"><label>Mo-Fr bis</label><input id="s-mfb" type="time" value="18:00"></div>
-        </div>
-        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:10px">
-            <input type="checkbox" id="s-sao"> <span style="font-weight:600">Samstag geöffnet</span>
-          </label>
-          <div class="g2">
-            <div class="fg"><label>Sa von</label><input id="s-sav" type="time" value="08:00"></div>
-            <div class="fg"><label>Sa bis</label><input id="s-sab" type="time" value="13:00"></div>
+          <div class="g3">
+            <div class="fg"><label>Mittagspause von</label><input id="s-mpv" type="time" placeholder="optional"></div>
+            <div class="fg"><label>Mittagspause bis</label><input id="s-mpb" type="time" placeholder="optional"></div>
+            <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
           </div>
-        </div>
-        <div class="g3">
-          <div class="fg"><label>Mittagspause von</label><input id="s-mpv" type="time" placeholder="optional"></div>
-          <div class="fg"><label>Mittagspause bis</label><input id="s-mpb" type="time" placeholder="optional"></div>
-          <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
-        </div></div>
-        <div class="ssec"><h3>Betriebsurlaub</h3>
-        <div id="urlaub-liste" style="margin-bottom:12px"></div>
-        <div class="g2" style="margin-bottom:8px">
-          <div class="fg"><label>Von</label><input id="bu-von" type="date"></div>
-          <div class="fg"><label>Bis</label><input id="bu-bis" type="date"></div>
-        </div>
-        <div class="fg" style="margin-bottom:8px"><label>Beschreibung</label><input id="bu-bez" placeholder="z.B. Sommerurlaub"></div>
-        <button class="btn btn-g btn-sm" style="margin-bottom:16px" onclick="saveUrlaub()">Eintragen</button>
-        <div class="ssec"><h3>Vertragseinstellungen</h3><div class="g2">
-          <div class="fg"><label>Vertragsdauer (Monate)</label><input id="s-vd" type="number" value="6"></div>
-          <div class="fg"><label>Abholungsfrist (Wochen)</label><input id="s-af" type="number" value="4"></div>
-          <div class="fg"><label>Lagerungsort</label><input id="s-lo" placeholder="z.B. Firmengelände"></div>
-          <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
-        </div></div>
-        <div class="ssec"><h3>Artikelpreisliste</h3>
-          <div id="artikel-liste" style="margin-bottom:14px"></div>
-          <button class="btn btn-g btn-sm" onclick="openModal('na')">+ Neuer Artikel</button>
-        </div>
-        <div class="ssec"><h3>Lagerstruktur</h3>
-          <div id="lager-einst" style="margin-bottom:12px"></div>
-          <button class="btn btn-g btn-sm" onclick="openModal('nl')">+ Neuer Lagerort</button>
-        </div>
-        <div class="ssec"><h3>E-Mail Texte</h3>
-          <div class="fgrid">
-            <div class="fg"><label>Nach Einlagerung</label><textarea id="s-me" rows="2"></textarea></div>
-            <div class="fg"><label>Nach Abholung</label><textarea id="s-ma" rows="2"></textarea></div>
-            <div class="fg"><label>Räder nachziehen</label><textarea id="s-mn" rows="2" placeholder="Bitte Radschrauben nach 50-100 km nachziehen."></textarea></div>
-            <div class="fg"><label>Bewertungsanfrage</label><textarea id="s-mb" rows="2"></textarea></div>
-            <div class="fg"><label>Terminbestätigung</label><textarea id="s-mt" rows="2"></textarea></div>
-            <div class="fg"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="2"></textarea></div>
+          <div class="g3" style="margin-top:10px">
+            <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
+          </div></div>
+          <div class="ssec"><h3>Betriebsurlaub</h3>
+          <div id="urlaub-liste" style="margin-bottom:12px"></div>
+          <div class="g2" style="margin-bottom:8px">
+            <div class="fg"><label>Von</label><input id="bu-von" type="date"></div>
+            <div class="fg"><label>Bis</label><input id="bu-bis" type="date"></div>
+          </div>
+          <div class="fg" style="margin-bottom:8px"><label>Beschreibung</label><input id="bu-bez" placeholder="z.B. Sommerurlaub"></div>
+          <button class="btn btn-g btn-sm" onclick="saveUrlaub()">Eintragen</button>
           </div>
         </div>
+
+        <div class="etab-panel" data-epanel="preise" style="display:none">
+          <div class="ssec"><h3>Vertragseinstellungen</h3><div class="g2">
+            <div class="fg"><label>Vertragsdauer (Monate)</label><input id="s-vd" type="number" value="6"></div>
+            <div class="fg"><label>Abholungsfrist (Wochen)</label><input id="s-af" type="number" value="4"></div>
+            <div class="fg"><label>Lagerungsort</label><input id="s-lo" placeholder="z.B. Firmengelände"></div>
+          </div></div>
+          <div class="ssec"><h3>Artikelpreisliste</h3>
+            <div id="artikel-liste" style="margin-bottom:14px"></div>
+            <button class="btn btn-g btn-sm" onclick="openModal('na')">+ Neuer Artikel</button>
+          </div>
+          <div class="ssec"><h3>Lagerstruktur</h3>
+            <div id="lager-einst" style="margin-bottom:12px"></div>
+            <button class="btn btn-g btn-sm" onclick="openModal('nl')">+ Neuer Lagerort</button>
+          </div>
+        </div>
+
+        <div class="etab-panel" data-epanel="bank" style="display:none">
+          <div class="ssec"><h3>Bank &amp; Buchhaltung</h3><div class="fgrid">
+            <div class="fg"><label>Bank</label><input id="s-bank" placeholder="Sparkasse ..."></div>
+            <div class="fg"><label>IBAN</label><input id="s-iban" placeholder="DE00 0000 0000 0000 0000 00"></div>
+            <div class="fg"><label>BIC</label><input id="s-bic" placeholder="XXXXDE00XXX"></div>
+            <div class="fg"><label>Zahlungsziel (Tage)</label><input id="s-zzt" type="number" min="0" placeholder="14"></div>
+          </div></div>
+        </div>
+
+        <div class="etab-panel" data-epanel="mail" style="display:none">
+          <div class="ssec"><h3>E-Mail Texte</h3>
+            <div class="fgrid">
+              <div class="fg"><label>Nach Einlagerung</label><textarea id="s-me" rows="2"></textarea></div>
+              <div class="fg"><label>Nach Abholung</label><textarea id="s-ma" rows="2"></textarea></div>
+              <div class="fg"><label>Räder nachziehen</label><textarea id="s-mn" rows="2" placeholder="Bitte Radschrauben nach 50-100 km nachziehen."></textarea></div>
+              <div class="fg"><label>Bewertungsanfrage</label><textarea id="s-mb" rows="2"></textarea></div>
+              <div class="fg"><label>Terminbestätigung</label><textarea id="s-mt" rows="2"></textarea></div>
+              <div class="fg"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="2"></textarea></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="etab-panel" data-epanel="homepage" style="display:none">
+          <div class="ssec"><h3>Homepage &amp; Kontakt</h3><div class="fgrid">
+            <div class="fg"><label>Website</label><input id="s-web"></div>
+            <div class="fg"><label>Google-Bewertungslink</label><input id="s-google" placeholder="https://g.page/r/... oder Google-Profil"></div>
+            <div class="fg"><label>Facebook-Seite</label><input id="s-fb" placeholder="https://facebook.com/..."></div>
+            <div class="fg"><label>Instagram-Profil</label><input id="s-ig" placeholder="https://instagram.com/..."></div>
+            <div class="fg"><label>Portal-URL</label><input id="s-purl" placeholder="https://..."></div>
+          </div></div>
+        </div>
+
         <div style="display:flex;justify-content:flex-end;padding-bottom:40px;margin-top:10px">
           <button class="btn btn-p" style="padding:12px 32px" onclick="saveEinst()">Alle Einstellungen speichern</button>
         </div>
@@ -951,7 +995,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <button class="btn btn-g btn-sm" onclick="closeModal('dok')">Fertig</button>
       </div>
     </div>
-    <div id="sig-wrap" style="margin-bottom:14px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
+    <!-- Dokument ZUERST (muss vor der Unterschrift lesbar sein), Unterschriftenfeld darunter -->
+    <div style="background:#fff;border-radius:8px;overflow:auto;max-height:52vh;margin-bottom:14px"><div id="dok-inhalt"></div></div>
+    <div id="sig-wrap" style="margin-bottom:4px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px">Digitale Unterschrift des Kunden</div>
       <div style="position:relative">
         <canvas id="sig-canvas" width="900" height="180"></canvas>
@@ -959,7 +1005,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben.</div>
     </div>
-    <div style="background:#fff;border-radius:8px;overflow:auto;max-height:52vh"><div id="dok-inhalt"></div></div>
   </div>
 </div>
 
@@ -1322,7 +1367,7 @@ function api(method, path, body) {
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (body !== undefined) opts.body = JSON.stringify(body);
   return fetch(API + path, opts).then(function(r) {
-    if (r.status === 401) { doLogout(); return null; }
+    if (r.status === 401) { doLogout('expired'); return null; }
     if (!r.ok) {
       return r.json().catch(function() { return {}; }).then(function(e) {
         var err = new Error(e.error || e.message || ('Fehler ' + r.status));
@@ -1400,16 +1445,68 @@ function pwResetAbschluss(token) {
     .then(function() { alert('Passwort geändert. Bitte melden Sie sich mit dem neuen Passwort an.'); history.replaceState({}, '', location.pathname); })
     .catch(function(e) { alert(e.message); history.replaceState({}, '', location.pathname); });
 }
-function doLogout() {
+function doLogout(grund) {
+  idleStop(); // Inaktivitaets-Timer anhalten
   // Direkter fetch (NICHT api()), sonst loest ein 401 erneut doLogout() aus -> Endlosschleife
   try {
     fetch(API + '/auth/logout', { method: 'POST', headers: TOKEN ? { 'Authorization': 'Bearer ' + TOKEN } : {} }).catch(function() {});
   } catch (e) {}
   TOKEN = null; USER = null;
   localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user');
+  // Offene Fach-Modals schliessen: sonst bleiben sie (hoeherer z-index) ueber dem Login-Screen
+  // sichtbar -> Kundendaten/Unterschrift offen + Login blockiert (Sicherheitszweck des Logouts).
+  Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
+  // Freundlicher Hinweis statt kommentarlosem Rauswurf
+  var le = document.getElementById('lerr');
+  if (le) {
+    if (grund === 'idle') { le.textContent = 'Sie wurden aus Sicherheitsgründen wegen Inaktivität abgemeldet.'; le.style.display = 'block'; }
+    else if (grund === 'expired') { le.textContent = 'Ihre Sitzung ist abgelaufen. Bitte erneut anmelden.'; le.style.display = 'block'; }
+    else { le.style.display = 'none'; }
+  }
 }
+
+// ── IDLE-TIMEOUT (Sicherheit: unbeaufsichtigter Tresen-Rechner meldet sich ab) ──
+// Meldet nach Inaktivitaet ab; JEDE Nutzeraktivitaet (Klick, Taste, Scroll, Maus, Touch) setzt die
+// Zeit zurueck. 60s vorher Vorwarnung mit "Angemeldet bleiben". Nur aktiv wenn eingeloggt.
+var IDLE_MS = 30 * 60 * 1000;   // Inaktivitaets-Grenze (30 Min) – bei Bedarf hier anpassen
+var IDLE_WARN_MS = 60 * 1000;   // Vorwarnzeit (60 s)
+var idleTimer = null, idleWarnTimer = null, idleCountTimer = null, idleLastReset = 0;
+function idleStop() {
+  clearTimeout(idleTimer); clearTimeout(idleWarnTimer); clearInterval(idleCountTimer);
+  idleTimer = idleWarnTimer = idleCountTimer = null;
+  var w = document.getElementById('idle-warn'); if (w) w.style.display = 'none';
+}
+function idleReset() {
+  idleStop();
+  idleLastReset = Date.now();     // Drossel-Stempel auch bei direktem Reset (Button/Login) setzen
+  if (!TOKEN) return;             // nur bei aktiver Sitzung timern
+  idleWarnTimer = setTimeout(idleShowWarn, Math.max(0, IDLE_MS - IDLE_WARN_MS));
+  idleTimer = setTimeout(function() { doLogout('idle'); }, IDLE_MS);
+}
+function idleShowWarn() {
+  var w = document.getElementById('idle-warn'); if (!w) return;
+  var rest = Math.round(IDLE_WARN_MS / 1000);
+  var cEl = document.getElementById('idle-count'); if (cEl) cEl.textContent = rest;
+  w.style.display = 'flex';
+  idleCountTimer = setInterval(function() {
+    rest -= 1;
+    if (cEl) cEl.textContent = Math.max(0, rest);
+    if (rest <= 0) clearInterval(idleCountTimer);
+  }, 1000);
+}
+// Aktivitaet gedrosselt (max 1x/2s) registrieren, damit Mausbewegung nicht dauernd neu timert.
+function idleActivity() {
+  if (!TOKEN) return;
+  var now = Date.now();
+  if (now - idleLastReset < 2000) return;
+  idleLastReset = now;
+  idleReset();
+}
+['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(function(ev) {
+  document.addEventListener(ev, idleActivity, { passive: true });
+});
 
 // ── APP START ──
 function startApp() {
@@ -1418,6 +1515,7 @@ function startApp() {
   // Modals einer evtl. zuvor abgebrochenen/abgelaufenen Sitzung schliessen, damit beim (Neu-)Login
   // kein Dialog (z.B. "Neue Einlagerung") unaufgefordert offen stehen bleibt.
   Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
+  idleReset(); // Inaktivitaets-Timer fuer die neue Sitzung starten
   document.getElementById('h-user').textContent = USER ? USER.vorname + ' ' + USER.nachname : '-';
   loadEinst();
   loadK();
@@ -1440,6 +1538,7 @@ function startApp() {
     if (history.replaceState) { try { history.replaceState({ page: 'dashboard' }, '', '#dashboard'); } catch (x) {} }
   }
 }
+var uhrTimer = null;
 function startUhr() {
   function tick() {
     var el = document.getElementById('h-clock'); if (!el) return;
@@ -1448,8 +1547,9 @@ function startUhr() {
     var zeit = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     el.textContent = tag + '  ' + zeit;
   }
+  clearInterval(uhrTimer); // altes Interval aufraeumen (startApp/startUhr laeuft bei jedem Re-Login)
   tick();
-  setInterval(tick, 1000);
+  uhrTimer = setInterval(tick, 1000);
 }
 function befuelleJahrDropdown() {
   var sel = document.getElementById('kal-jahr-sel'); if (!sel) return;
@@ -2209,6 +2309,18 @@ function nkKundentypChange() {
 }
 
 // ── EINSTELLUNGEN ──
+// Einstellungs-Reiter umschalten: aktiven Knopf hervorheben, nur das passende Panel zeigen.
+function showEinstTab(name) {
+  Array.prototype.forEach.call(document.querySelectorAll('#einst-tabs .etab'), function(b) {
+    var on = b.getAttribute('data-etab') === name;
+    b.style.color = on ? 'var(--accent-text)' : 'var(--muted)';
+    b.style.borderBottom = on ? '2px solid var(--accent-text)' : '2px solid transparent';
+    b.style.fontWeight = on ? '700' : '500';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#page-einstellungen .etab-panel'), function(p) {
+    p.style.display = p.getAttribute('data-epanel') === name ? '' : 'none';
+  });
+}
 function loadEinst() {
   api('GET', '/einstellungen').then(function(r) {
     if (r) EINST = r;
