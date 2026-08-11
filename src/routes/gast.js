@@ -110,6 +110,7 @@ router.get('/leistungen', limiter, async (req, res, next) => {
     // "ab"-Preis je Leistung = niedrigster moeglicher Nettopreis (Basis bzw. guenstigste Variante)
     const ids = rows.map(r => r.artikel_id);
     const vars = ids.length ? (await query('SELECT artikel_id, preis FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows : [];
+    const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
     const minByArt = {};
     vars.forEach(v => { const p = Number(v.preis); if (minByArt[v.artikel_id] == null || p < minByArt[v.artikel_id]) minByArt[v.artikel_id] = p; });
     rows.forEach(r => {
@@ -117,8 +118,9 @@ router.get('/leistungen', limiter, async (req, res, next) => {
       let ab = basis;
       if (minByArt[r.artikel_id] != null) ab = (ab == null) ? minByArt[r.artikel_id] : Math.min(ab, minByArt[r.artikel_id]);
       const satz = Number(r.mwst_satz != null ? r.mwst_satz : 19);
-      r.ab_netto = ab != null ? round2(ab) : null;
-      r.ab_brutto = ab != null ? round2(ab * (1 + satz / 100)) : null;
+      const f = 1 + satz / 100;
+      r.ab_netto = ab != null ? (inkl ? round2(ab / f) : round2(ab)) : null;
+      r.ab_brutto = ab != null ? (inkl ? round2(ab) : round2(ab * f)) : null;
     });
     res.json({
       haupt: rows.filter(r => r.rolle === 'haupt'),
