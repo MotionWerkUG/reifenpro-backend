@@ -508,6 +508,7 @@ var I18N = {
     booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
+    past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -566,6 +567,7 @@ var I18N = {
     booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
+    past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -912,12 +914,12 @@ function ladeEinlagerungen() {
     el.innerHTML = rows.map(function(e) {
       var html = '<div class="card">';
       html += '<div class="card-titel">';
-      html += '<span class="lager-tag">' + (e.lagerplatz || '-') + '</span>';
-      html += '<span class="badge ' + (e.status === 'Eingelagert' ? 'b-g' : 'b-y') + '">' + (e.status || '') + '</span>';
+      html += '<span class="lager-tag">' + pEsc(e.lagerplatz || '-') + '</span>';
+      html += '<span class="badge ' + (e.status === 'Eingelagert' ? 'b-g' : 'b-y') + '">' + pEsc(e.status || '') + '</span>';
       html += '</div>';
       html += '<div class="g2">';
-      if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + e.kennzeichen + '</div></div>';
-      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).join(' ');
+      if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + pEsc(e.kennzeichen) + '</div></div>';
+      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).map(pEsc).join(' ');
       if (reifen) html += '<div class="iz"><div class="iz-l">' + t('tire') + '</div><div class="iz-v">' + reifen + '</div></div>';
       if (e.saison) html += '<div class="iz"><div class="iz-l">' + t('season') + '</div><div class="iz-v">' + saisonText(e.saison) + '</div></div>';
       if (e.eingelagert_am) html += '<div class="iz"><div class="iz-l">' + t('stored_since') + '</div><div class="iz-v">' + fmtDatum(e.eingelagert_am) + '</div></div>';
@@ -929,7 +931,7 @@ function ladeEinlagerungen() {
       if (e.profil_hr) pt.push('HR ' + e.profil_hr);
       if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pt.join(', ') + ' mm</div></div>';
       html += '</div>';
-      if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + e.bemerkungen + '</div></div>';
+      if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + pEsc(e.bemerkungen) + '</div></div>';
       html += '</div>';
       return html;
     }).join('');
@@ -938,40 +940,72 @@ function ladeEinlagerungen() {
   });
 }
 
+// Rendert eine Terminkarte. mitAktionen=true nur fuer die Sektion "kommende Termine".
+function terminKarte(tm, mitAktionen) {
+  // "vorbei": Termin-Startzeitpunkt (Datum + Uhrzeit, lokale Zeit) liegt in der Vergangenheit.
+  // Mit Uhrzeit gebaut (kein reines 'YYYY-MM-DD' -> keine UTC-Vortag-Falle).
+  var vorbei = false;
+  if (tm.datum) {
+    var dt = new Date(tm.datum.substring(0, 10) + 'T' + (tm.uhrzeit_von || '00:00').substring(0, 5) + ':00');
+    vorbei = !isNaN(dt.getTime()) && dt.getTime() <= Date.now();
+  }
+  var storniert = tm.status === 'storniert';
+  var html = '<div class="card" style="' + (vorbei || storniert ? 'opacity:0.6' : '') + '">';
+  html += '<div class="card-titel">';
+  html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
+  var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
+  html += '<span class="badge ' + badge + '">' + pEsc(terminStatusLabel(tm.status)) + '</span>';
+  html += '</div>';
+  html += '<div class="iz"><div class="iz-v">' + pEsc(tm.artikel_name || tm.termin_typ || '') + '</div></div>';
+  if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + pEsc(tm.kennzeichen) + '</div>';
+  if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + pEsc(tm.beschreibung) + '</div>';
+  // Aktionen nur fuer kommende, noch offene Termine (angefragt/bestaetigt) und nur solange nicht vorbei.
+  // Schliesst abgeschlossen/abgesagt/storniert und bereits verstrichene (auch heutige) Termine aus.
+  if (mitAktionen && !vorbei && (tm.status === 'angefragt' || tm.status === 'bestaetigt')) {
+    html += '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button class="btn btn-g btn-sm" onclick="terminVerschiebenStart(\'' + tm.id + '\',\'' + (tm.artikel_id || '') + '\')">' + t('reschedule') + '</button>' +
+      '<button class="btn btn-g btn-sm" style="color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>' +
+      '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function ladeTermine() {
   var el = document.getElementById('termine-liste');
   el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
-  papi('GET', '/daten/termine').then(function(rows) {
-    if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>'; return; }
-    var _hn = new Date();
-    var heute = _hn.getFullYear() + '-' + String(_hn.getMonth() + 1).padStart(2, '0') + '-' + String(_hn.getDate()).padStart(2, '0');
-    var stornoHinweis = '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
-    el.innerHTML = stornoHinweis + rows.sort(function(a,b) {
-      return (b.datum||'').localeCompare(a.datum||'');
-    }).map(function(tm) {
-      var vergangen = tm.datum && tm.datum.substring(0,10) < heute;
-      var storniert = tm.status === 'storniert';
-      var html = '<div class="card" style="' + (vergangen || storniert ? 'opacity:0.6' : '') + '">';
-      html += '<div class="card-titel">';
-      html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
-      var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
-      html += '<span class="badge ' + badge + '">' + terminStatusLabel(tm.status) + '</span>';
-      html += '</div>';
-      html += '<div class="iz"><div class="iz-v">' + (tm.artikel_name || tm.termin_typ || '') + '</div></div>';
-      if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + tm.kennzeichen + '</div>';
-      if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + tm.beschreibung + '</div>';
-      // Stornieren wenn zukünftig und nicht storniert
-      if (!vergangen && !storniert) {
-        html += '<div style="display:flex;gap:8px;margin-top:12px">' +
-          '<button class="btn btn-g btn-sm" onclick="terminVerschiebenStart(\'' + tm.id + '\',\'' + (tm.artikel_id || '') + '\')">' + t('reschedule') + '</button>' +
-          '<button class="btn btn-g btn-sm" style="color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>' +
-          '</div>';
-      }
-      html += '</div>';
-      return html;
-    }).join('');
-  }).catch(function(e) {
-    el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
+  // Kommende und vergangene Termine getrennt laden (Historie = eigener Endpoint, bisher ungenutzt).
+  // allSettled: ein Fehler in einer Abfrage soll die andere Sektion nicht verschlucken.
+  Promise.allSettled([
+    papi('GET', '/daten/termine'),
+    papi('GET', '/daten/termine/vergangen')
+  ]).then(function(res) {
+    var kommend = res[0].status === 'fulfilled' ? (res[0].value || []) : [];
+    var vergangen = res[1].status === 'fulfilled' ? (res[1].value || []) : [];
+    if (res[0].status !== 'fulfilled' && res[1].status !== 'fulfilled') {
+      el.innerHTML = '<div class="card"><div class="empty">' + t('error_loading') + '</div></div>';
+      return;
+    }
+    if (!kommend.length && !vergangen.length) {
+      el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>';
+      return;
+    }
+    var html = '';
+    // Kommende Termine (aufsteigend, mit Aktionen) + Storno-Hinweis nur wenn welche vorhanden
+    if (kommend.length) {
+      html += '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
+      html += kommend.sort(function(a,b) { return (a.datum||'').localeCompare(b.datum||''); })
+        .map(function(tm) { return terminKarte(tm, true); }).join('');
+    } else {
+      html += '<div class="card"><div class="empty">' + t('no_upcoming_appointments') + '</div></div>';
+    }
+    // Vergangene Termine (Historie, absteigend, ohne Aktionen)
+    if (vergangen.length) {
+      html += '<div style="margin:22px 0 10px;font-size:13px;font-weight:700;color:var(--muted)">' + t('past_appointments') + '</div>';
+      html += vergangen.sort(function(a,b) { return (b.datum||'').localeCompare(a.datum||''); })
+        .map(function(tm) { return terminKarte(tm, false); }).join('');
+    }
+    el.innerHTML = html;
   });
 }
 
