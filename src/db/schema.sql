@@ -189,3 +189,7 @@ CREATE TABLE IF NOT EXISTS besondere_tage (
   von time, bis time,
   quelle      text DEFAULT 'manuell'    -- 'manuell' | 'feiertag'
 );
+
+-- Eigene Einwilligung fuer Bewertungsanfragen (getrennt von der Saison-Erinnerung; § 7 UWG / BGH VI ZR 225/17).
+ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung boolean DEFAULT false;
+ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung_am timestamp with time zone;

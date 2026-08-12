@@ -12,9 +12,9 @@ const jwt = require('jsonwebtoken');
 const { kundenMailHtml } = require('./src/lib/mail-template');
 
 // Oeffentlicher 1-Klick-Abmeldelink fuer Werbe-Mails (Pflicht nach § 7 UWG). Token 1 Jahr gueltig.
-function abmeldeLink(kundeId) {
+function abmeldeLink(kundeId, zweck) {
   try {
-    const token = jwt.sign({ id: kundeId, typ: 'unsub' }, process.env.JWT_SECRET, { expiresIn: '365d' });
+    const token = jwt.sign({ id: kundeId, typ: 'unsub', z: zweck || 'saison' }, process.env.JWT_SECRET, { expiresIn: '365d' });
     return 'https://www.schroeder-scholz.de/api/gast/einwilligung/abmelden?token=' + token;
   } catch (e) { return null; }
 }
@@ -204,7 +204,7 @@ async function bewertungsAnfrage() {
      WHERE t.status = 'abgeschlossen'
        AND t.datum BETWEEN CURRENT_DATE - 14 AND CURRENT_DATE - 1
        AND (t.bewertung_gesendet IS NULL OR t.bewertung_gesendet = false)
-       AND k.einwilligung_saison_erinnerung = true AND k.einwilligung_saison_bestaetigt = true
+       AND k.einwilligung_bewertung = true
        AND (k.portal_email IS NOT NULL OR k.email IS NOT NULL)`
   );
   const firma = einst.firmenname || 'Schröder & Scholz';
@@ -213,7 +213,7 @@ async function bewertungsAnfrage() {
     const mail = t.portal_email || t.email || t.kontakt_email;
     if (!mail) continue;
     try {
-      const link = abmeldeLink(t.kunden_id);
+      const link = abmeldeLink(t.kunden_id, 'bewertung');
       const abmeldung = link
         ? 'Sie erhalten diese Anfrage aufgrund Ihrer erteilten Einwilligung. <a href="' + link + '">Hier mit einem Klick abmelden</a>.'
         : 'Sie erhalten diese Anfrage aufgrund Ihrer erteilten Einwilligung; jederzeit kostenfrei widerrufbar.';
