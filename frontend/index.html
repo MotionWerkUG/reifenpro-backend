@@ -4054,7 +4054,7 @@ function rwAbholen(mitNeu) {
   var ctx = rwCtx;           // fuer den optionalen Neu-Zweig festhalten
   var terminOk = true;       // ob der Termin serverseitig wirklich erledigt wurde
   var sessionWeg = false;    // Sitzung waehrend der Kette abgelaufen (401 -> api() hat abgemeldet)
-  api('PATCH', '/einlagerungen/' + setId + '/status', { status: 'Abgeholt' }).then(function(res) {
+  api('PATCH', '/einlagerungen/' + setId + '/status', { status: 'Abgeholt', montiert: true }).then(function(res) {
     if (!res) throw new Error('__abbruch__'); // 401/Sitzung abgelaufen -> api() hat abgemeldet, nichts vortaeuschen
     var i = allE.findIndex(function(e) { return e.id === setId; });
     if (i !== -1) allE[i].status = 'Abgeholt';

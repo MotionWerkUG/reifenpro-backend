@@ -3,28 +3,71 @@ const { query, withTransaction } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { sendMail } = require('../lib/mailer');
+const { kundenMailHtml } = require('../lib/mail-template');
 
-// Kunden benachrichtigen, wenn seine Raeder abholbereit sind (best-effort, protokolliert in email_log).
-async function benachrichtigeAbholbereit(einlagerungId) {
+// Oeffnungszeiten als lesbarer Text (aus den synchron gehaltenen Firmendaten-Feldern).
+function oeffnungszeilenText(e) {
+  const hm = (t) => t ? String(t).substring(0, 5) : '';
+  const z = [];
+  if (e.mo_fr_von && e.mo_fr_bis) z.push('Mo–Fr ' + hm(e.mo_fr_von) + '–' + hm(e.mo_fr_bis) + ' Uhr');
+  if (e.sa_offen && e.sa_von && e.sa_bis) z.push('Sa ' + hm(e.sa_von) + '–' + hm(e.sa_bis) + ' Uhr');
+  if (e.so_offen && e.so_von && e.so_bis) z.push('So ' + hm(e.so_von) + '–' + hm(e.so_bis) + ' Uhr');
+  return z.join(', ');
+}
+
+// Gemeinsamer Kontext (Kunde + Einlagerung + Firmendaten + Platzhalter) fuer alle Einlagerungs-Mails.
+async function ladeMailKontext(einlagerungId) {
+  const r = (await query(
+    `SELECT e.beleg_nr, e.reifen_groesse, e.reifen_typ, e.lagerplatz,
+            to_char(e.eingelagert_am,'DD.MM.YYYY') AS eingelagert_am,
+            k.anrede, k.vorname, k.nachname, k.email, k.portal_email,
+            COALESCE(f.kennzeichen, k.kennzeichen) AS kennzeichen
+     FROM einlagerungen e JOIN kunden k ON k.id = e.kunden_id
+     LEFT JOIN fahrzeuge f ON f.id = e.fahrzeug_id WHERE e.id=$1`, [einlagerungId])).rows[0];
+  if (!r) return null;
+  const mail = r.portal_email || r.email;
+  if (!mail) return null;
+  const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+  const vars = {
+    vorname: r.vorname, nachname: r.nachname, kennzeichen: r.kennzeichen,
+    beleg_nr: r.beleg_nr, reifen_typ: r.reifen_typ, reifen_groesse: r.reifen_groesse,
+    lagerplatz: r.lagerplatz, eingelagert_am: r.eingelagert_am,
+    firmenname: einst.firmenname || 'Schröder & Scholz', telefon: einst.telefon || '',
+    portal_url: einst.portal_url || '', oeffnungszeiten: oeffnungszeilenText(einst),
+    bewertungslink: einst.google_bewertung_url || ''
+  };
+  return { mail, r, einst, vars };
+}
+
+// Vorlage aus den Einstellungen versenden (best-effort). Fallback-Text, falls das Feld leer ist
+// (verhindert stilles Verstummen einer bisher immer versendeten Mail).
+async function sendeEinlagerungsMail(einlagerungId, textFeld, typ, titel, betreff, fallback) {
   try {
-    const r = (await query(
-      `SELECT e.beleg_nr, e.reifen_groesse, e.lagerplatz, k.vorname, k.email, k.portal_email
-       FROM einlagerungen e JOIN kunden k ON k.id = e.kunden_id WHERE e.id=$1`, [einlagerungId])).rows[0];
-    if (!r) return;
-    const mail = r.portal_email || r.email;
-    if (!mail) return;
-    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-    const firma = einst.firmenname || 'Schröder & Scholz';
-    await sendMail({
-      to: mail,
-      subject: 'Ihre Räder sind abholbereit — ' + firma,
-      typ: 'abholbereit', bezugId: einlagerungId,
-      html: '<p>Hallo ' + (r.vorname || '') + ',</p>' +
-        '<p>Ihre eingelagerten Räder' + (r.reifen_groesse ? ' (' + r.reifen_groesse + ')' : '') + ' sind <strong>abholbereit</strong>.</p>' +
-        '<p>Sie können sie zu unseren Öffnungszeiten abholen' + (einst.telefon ? ' oder uns unter ' + einst.telefon + ' erreichen' : '') + '.</p>' +
-        '<p>Mit freundlichen Grüßen,<br>' + firma + '</p>'
+    const ctx = await ladeMailKontext(einlagerungId);
+    if (!ctx) return; // kein Empfaenger
+    const html = kundenMailHtml(ctx.einst, {
+      anrede: ctx.r.anrede, vorname: ctx.r.vorname, nachname: ctx.r.nachname,
+      titel: titel, text: ctx.einst[textFeld] || fallback, vars: ctx.vars
     });
-  } catch (e) { console.error('[Abholbereit-Mail]', e.message); }
+    await sendMail({ to: ctx.mail, subject: betreff(ctx), typ: typ, bezugId: einlagerungId, html: html });
+  } catch (e) { console.error('[Mail ' + typ + ']', e.message); }
+}
+
+const firmaOf = (ctx) => ctx.einst.firmenname || 'Schröder & Scholz';
+async function benachrichtigeEinlagerung(id) {
+  return sendeEinlagerungsMail(id, 'email_einlagerung', 'einlagerung', 'Einlagerungsbestätigung',
+    (ctx) => 'Ihre Einlagerungsbestätigung — Beleg ' + (ctx.r.beleg_nr || '') + ' — ' + firmaOf(ctx),
+    'wir bestätigen die Einlagerung Ihrer Räder (Beleg {beleg_nr}, {kennzeichen}) auf Lagerplatz {lagerplatz}.');
+}
+async function benachrichtigeAbholbereit(id) {
+  return sendeEinlagerungsMail(id, 'email_abholbereit', 'abholbereit', 'Ihre Räder sind abholbereit',
+    (ctx) => 'Ihre Räder sind abholbereit' + (ctx.r.kennzeichen ? ' — ' + ctx.r.kennzeichen : '') + ' — ' + firmaOf(ctx),
+    'Ihre eingelagerten Räder ({reifen_groesse}) sind abholbereit. Sie können sie zu unseren Öffnungszeiten abholen: {oeffnungszeiten}.');
+}
+async function benachrichtigeNachziehen(id) {
+  return sendeEinlagerungsMail(id, 'email_raeder_nachziehen', 'nachziehen', 'Wichtiger Sicherheitshinweis: Radschrauben nachziehen',
+    (ctx) => 'Sicherheitshinweis: Radschrauben nachziehen' + (ctx.r.kennzeichen ? ' — ' + ctx.r.kennzeichen : ''),
+    'Bitte lassen Sie die Radschrauben nach den ersten 50 bis 100 gefahrenen Kilometern nachziehen. Zu Ihrer Sicherheit.');
 }
 
 router.use(authenticate, requireStaff);
@@ -176,6 +219,7 @@ router.post('/', async (req, res, next) => {
     });
     await auditLog({ userId: req.user.id, aktion: 'einlagerung.erstellt',
       tabelle: 'einlagerungen', datensatzId: neu.id, neueWerte: neu, req });
+    benachrichtigeEinlagerung(neu.id); // Einlagerungsbeleg per E-Mail (best-effort)
     res.status(201).json(neu);
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });
@@ -206,6 +250,9 @@ router.patch('/:id/status', async (req, res, next) => {
       neueWerte: { status }, req });
     // Kunde automatisch informieren, sobald die Raeder abholbereit sind
     if (status === 'Abholbereit') benachrichtigeAbholbereit(req.params.id);
+    // Nachzieh-Hinweis NUR wenn die Räder tatsächlich montiert wurden (Räderwechsel-Flow setzt montiert=true),
+    // nicht bei simpler Abholung eingelagerter Räder.
+    if (status === 'Abgeholt' && req.body.montiert === true) benachrichtigeNachziehen(req.params.id);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });

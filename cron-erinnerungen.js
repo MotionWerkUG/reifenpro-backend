@@ -9,6 +9,7 @@ require('dotenv').config();
 const { query } = require('./src/db/index');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
+const { kundenMailHtml } = require('./src/lib/mail-template');
 
 // Oeffentlicher 1-Klick-Abmeldelink fuer Werbe-Mails (Pflicht nach § 7 UWG). Token 1 Jahr gueltig.
 function abmeldeLink(kundeId) {
@@ -56,7 +57,7 @@ async function terminErinnerungen() {
   // Fenster morgen..uebermorgen (statt exakt +2 Tage) -> ein verpasster Lauf holt die Erinnerung nach.
   // Datum in SQL gerechnet (CURRENT_DATE) statt UTC-JS -> kein Zeitzonen-Off-by-one.
   const { rows } = await query(
-    `SELECT t.*, k.vorname, k.nachname, k.portal_email, k.email, a.name AS artikel_name
+    `SELECT t.*, k.anrede, k.vorname, k.nachname, k.portal_email, k.email, a.name AS artikel_name
      FROM termine t
      LEFT JOIN kunden k ON k.id = t.kunden_id
      LEFT JOIN artikel a ON a.id = t.artikel_id
@@ -73,18 +74,19 @@ async function terminErinnerungen() {
     const name = t.vorname || t.kontakt_name || 'Kunde';
     const leistung = t.artikel_name || t.termin_typ || 'Termin';
     try {
-      await sendMail(
-        mail,
-        'Terminerinnerung — ' + (einst.firmenname || 'Schröder & Scholz'),
-        '<p>Hallo ' + name + ',</p>' +
-        '<p>wir möchten Sie an Ihren Termin erinnern:</p>' +
-        '<p style="font-size:16px"><strong>' + fmtDatum(t.datum) + '</strong><br>' +
-        'Uhrzeit: ' + (t.uhrzeit_von || '').substring(0,5) + ' Uhr<br>' +
-        'Leistung: ' + leistung + '</p>' +
-        '<p>Wir freuen uns auf Ihren Besuch.</p>' +
-        '<p>Mit freundlichen Grüßen,<br>' + (einst.firmenname || 'Schröder & Scholz') + '</p>',
-        'terminerinnerung', t.id
-      );
+      const htmlErinnerung = kundenMailHtml(einst, {
+        anrede: t.anrede, vorname: t.vorname, nachname: t.nachname,
+        titel: 'Terminerinnerung',
+        text: einst.email_termin_erinnerung || 'wir möchten Sie an Ihren Termin am {datum} um {uhrzeit} Uhr erinnern ({leistung}, {kennzeichen}).',
+        vars: {
+          vorname: t.vorname || t.kontakt_name || '', nachname: t.nachname || '',
+          kennzeichen: t.kennzeichen || '', datum: fmtDatum(t.datum),
+          uhrzeit: (t.uhrzeit_von || '').substring(0, 5), leistung: leistung,
+          stornofrist: einst.stornierung_frist_h || 24, portal_url: einst.portal_url || '',
+          telefon: einst.telefon || '', firmenname: einst.firmenname || 'Schröder & Scholz'
+        }
+      });
+      await sendMail(mail, 'Erinnerung: Ihr Termin am ' + fmtDatum(t.datum), htmlErinnerung, 'terminerinnerung', t.id);
       await query('UPDATE termine SET erinnerung_gesendet = true WHERE id = $1', [t.id]);
       gesendet++;
     } catch (e) {
@@ -109,7 +111,7 @@ async function saisonErinnerung() {
   const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
   // Nur Kunden mit per Double-Opt-in BESTAETIGTER Einwilligung
   const { rows } = await query(
-    `SELECT DISTINCT k.id, k.vorname, k.nachname, k.portal_email, k.email
+    `SELECT DISTINCT k.id, k.anrede, k.vorname, k.nachname, k.portal_email, k.email
      FROM kunden k
      WHERE k.einwilligung_saison_erinnerung = true
        AND k.einwilligung_saison_bestaetigt = true
@@ -127,17 +129,19 @@ async function saisonErinnerung() {
       ? 'Sie erhalten diese E-Mail, weil Sie Saison-Erinnerungen abonniert haben. <a href="' + link + '">Hier mit einem Klick abmelden</a>.'
       : 'Sie erhalten diese E-Mail, weil Sie Saison-Erinnerungen abonniert haben. Sie können dem jederzeit widersprechen.';
     try {
-      await sendMail(
-        mail,
-        'Zeit für den Räderwechsel — ' + (einst.firmenname || 'Schröder & Scholz'),
-        '<p>Hallo ' + k.vorname + ',</p>' +
-        '<p>die ' + saison + 'saison steht vor der Tür. Es ist Zeit für den Räderwechsel von ' + gegenSaison + ' auf ' + saison + 'räder.</p>' +
-        '<p>Buchen Sie jetzt bequem online Ihren Wunschtermin in unserem Kundenportal:</p>' +
-        '<p><a href="' + (einst.portal_url || 'http://161.97.187.239/reifenpro/portal/') + '" style="background:#eab308;color:#171717;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold">Termin buchen</a></p>' +
-        '<p>Mit freundlichen Grüßen,<br>' + (einst.firmenname || 'Schröder & Scholz') + '</p>' +
-        '<p style="font-size:11px;color:#888">' + abmeldung + '</p>',
-        'saison', k.id
-      );
+      const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+      const htmlSaison = kundenMailHtml(einst, {
+        anrede: k.anrede, vorname: k.vorname, nachname: k.nachname,
+        titel: 'Zeit für den Räderwechsel',
+        text: einst.email_erinnerung || 'die neue Saison steht bevor – Zeit, die Räder zu wechseln. Bitte vereinbaren Sie frühzeitig einen Termin über {portal_url} oder telefonisch unter {telefon}.',
+        vars: {
+          vorname: k.vorname || '', nachname: k.nachname || '', portal_url: portalUrl,
+          telefon: einst.telefon || '', firmenname: einst.firmenname || 'Schröder & Scholz'
+        },
+        button: { text: 'Termin buchen', url: portalUrl },
+        hinweis: abmeldung
+      });
+      await sendMail(mail, 'Zeit für den Räderwechsel — ' + (einst.firmenname || 'Schröder & Scholz'), htmlSaison, 'saison', k.id);
       gesendet++;
     } catch (e) {
       console.error('Fehler Saison-Erinnerung ' + k.id + ':', e.message);
@@ -193,30 +197,38 @@ async function bewertungsAnfrage() {
   const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
   const url = einst.google_bewertung_url;
   if (!url) { console.log('[' + new Date().toISOString() + '] Bewertungsanfrage: keine google_bewertung_url hinterlegt.'); return; }
+  // WERBUNG (BGH VI ZR 225/17): nur an Kunden mit bestaetigter Werbe-Einwilligung (Double-Opt-in) senden.
   const { rows } = await query(
-    `SELECT t.id, t.kontakt_name, t.kontakt_email, k.vorname, k.portal_email, k.email
-     FROM termine t LEFT JOIN kunden k ON k.id = t.kunden_id
+    `SELECT t.id, k.anrede, k.id AS kunden_id, k.vorname, k.nachname, k.portal_email, k.email
+     FROM termine t JOIN kunden k ON k.id = t.kunden_id
      WHERE t.status = 'abgeschlossen'
        AND t.datum BETWEEN CURRENT_DATE - 14 AND CURRENT_DATE - 1
        AND (t.bewertung_gesendet IS NULL OR t.bewertung_gesendet = false)
-       AND (k.portal_email IS NOT NULL OR k.email IS NOT NULL OR t.kontakt_email IS NOT NULL)`
+       AND k.einwilligung_saison_erinnerung = true AND k.einwilligung_saison_bestaetigt = true
+       AND (k.portal_email IS NOT NULL OR k.email IS NOT NULL)`
   );
   const firma = einst.firmenname || 'Schröder & Scholz';
   let gesendet = 0;
   for (const t of rows) {
     const mail = t.portal_email || t.email || t.kontakt_email;
     if (!mail) continue;
-    const name = t.vorname || t.kontakt_name || 'Kunde';
     try {
-      await sendMail(
-        mail,
-        'Wie war Ihr Besuch bei ' + firma + '?',
-        '<p>Hallo ' + name + ',</p>' +
-        '<p>vielen Dank für Ihren Besuch. Wenn Sie zufrieden waren, freuen wir uns sehr über eine kurze Bewertung – das dauert nur eine Minute und hilft uns sehr:</p>' +
-        '<p><a href="' + url + '" style="background:#eab308;color:#171717;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold">Jetzt bei Google bewerten</a></p>' +
-        '<p>Vielen Dank und bis zum nächsten Mal!<br>' + firma + '</p>',
-        'bewertung', t.id
-      );
+      const link = abmeldeLink(t.kunden_id);
+      const abmeldung = link
+        ? 'Sie erhalten diese Anfrage aufgrund Ihrer erteilten Einwilligung. <a href="' + link + '">Hier mit einem Klick abmelden</a>.'
+        : 'Sie erhalten diese Anfrage aufgrund Ihrer erteilten Einwilligung; jederzeit kostenfrei widerrufbar.';
+      const htmlBewertung = kundenMailHtml(einst, {
+        anrede: t.anrede, vorname: t.vorname, nachname: t.nachname,
+        titel: 'Ihre Rückmeldung hilft uns',
+        text: einst.email_bewertung || 'vielen Dank für Ihren Besuch. Über eine kurze Google-Bewertung würden wir uns sehr freuen: {bewertungslink}',
+        vars: {
+          vorname: t.vorname || '', nachname: t.nachname || '', bewertungslink: url,
+          firmenname: firma, telefon: einst.telefon || ''
+        },
+        button: { text: 'Jetzt bei Google bewerten', url: url },
+        hinweis: abmeldung
+      });
+      await sendMail(mail, 'Waren Sie zufrieden? Ihre Rückmeldung hilft uns — ' + firma, htmlBewertung, 'bewertung', t.id);
       await query('UPDATE termine SET bewertung_gesendet = true WHERE id = $1', [t.id]);
       gesendet++;
     } catch (e) {

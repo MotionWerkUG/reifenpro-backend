@@ -8,11 +8,12 @@ function esc(s) {
 }
 
 // Korrekte Anrede-Zeile: "Sehr geehrter Herr X," / "Sehr geehrte Frau Y," / sonst "Hallo Vorname,"
+// Rohwerte zurueckgeben; das Escaping passiert zentral in portalMailHtml (o.gruss) -> kein Doppel-Escape.
 function anredeGruss(anrede, vorname, nachname) {
-  const nn = esc(nachname || '');
+  const nn = String(nachname || '').trim();
   if (anrede === 'Herr' && nn) return 'Sehr geehrter Herr ' + nn;
   if (anrede === 'Frau' && nn) return 'Sehr geehrte Frau ' + nn;
-  const vn = esc(vorname || '');
+  const vn = String(vorname || '').trim();
   return vn ? 'Hallo ' + vn : 'Guten Tag';
 }
 
@@ -21,7 +22,11 @@ function portalMailHtml(einst, opts) {
   const e = einst || {};
   const o = opts || {};
   const adr = [e.strasse, [e.plz, e.ort].filter(Boolean).join(' ')].filter(Boolean).join(' · ');
-  const fuss = [adr, e.telefon ? 'Tel: ' + e.telefon : '', e.email || '', e.ust_id ? 'USt-IdNr. ' + e.ust_id : '']
+  // Impressum-Pflichtangaben (§ 5 DDG / § 37a HGB) — dynamisch aus den Firmendaten.
+  const firma = [e.firmenname, e.rechtsform].filter(Boolean).join(' ');
+  const vertreter = e.inhaber ? 'Vertretungsberechtigt: ' + e.inhaber : '';
+  const reg = [e.registergericht, e.handelsreg_nr].filter(Boolean).join(' ');
+  const fuss = [firma, adr, e.telefon ? 'Tel: ' + e.telefon : '', e.email || '', vertreter, reg, e.ust_id ? 'USt-IdNr. ' + e.ust_id : '']
     .filter(Boolean).map(esc).join('  ·  ');
 
   const absaetze = (o.absaetze || []).map(function (p) {
@@ -63,4 +68,30 @@ function portalMailHtml(einst, opts) {
     '</table></td></tr></table></body></html>';
 }
 
-module.exports = { portalMailHtml, anredeGruss };
+// Platzhalter {schluessel} in einem Vorlagentext durch echte Werte ersetzen (fehlende -> leer).
+function fuelleText(text, vars) {
+  const v = vars || {};
+  return String(text == null ? '' : text).replace(/\{(\w+)\}/g, function (m, key) {
+    return (v[key] != null && v[key] !== '') ? String(v[key]) : '';
+  });
+}
+
+// Baut eine fertige Kunden-Mail aus einem Vorlagentext (aus den Einstellungen) + Platzhaltern.
+// opts: { anrede, vorname, nachname, titel, text, vars, button:{text,url}, hinweis }
+// Der Vorlagentext nutzt \n\n als Absatztrenner und \n als Zeilenumbruch (z.B. Datenblock).
+function kundenMailHtml(einst, opts) {
+  const o = opts || {};
+  const gefuellt = fuelleText(o.text, o.vars);
+  const absaetze = gefuellt.split(/\n{2,}/).map(function (p) {
+    return esc(p).replace(/\n/g, '<br>');
+  });
+  return portalMailHtml(einst, {
+    titel: o.titel,
+    gruss: anredeGruss(o.anrede, o.vorname, o.nachname),
+    absaetze: absaetze,
+    button: o.button,
+    hinweis: o.hinweis
+  });
+}
+
+module.exports = { portalMailHtml, anredeGruss, fuelleText, kundenMailHtml };
