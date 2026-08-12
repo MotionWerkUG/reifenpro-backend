@@ -383,12 +383,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         <div class="fg" id="buchen-kz-fg">
           <label data-i18n="license_plate">Kennzeichen (optional)</label>
           <div style="display:flex;gap:6px;align-items:center">
-            <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase();terminBuchenAbbrechen()">
             <span style="color:var(--muted)">-</span>
-            <input id="buchen-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <input id="buchen-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase();terminBuchenAbbrechen()">
             <span style="color:var(--muted)">-</span>
-            <input id="buchen-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center">
-            <input id="buchen-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <input id="buchen-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center" oninput="terminBuchenAbbrechen()">
+            <input id="buchen-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase();terminBuchenAbbrechen()">
           </div>
         </div>
         <div id="buchen-slots-wrap" class="hidden">
@@ -397,9 +397,17 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         </div>
         <div class="fg" style="margin-top:14px">
           <label data-i18n="notes">Anmerkung (optional)</label>
-          <textarea id="buchen-notiz" rows="2"></textarea>
+          <textarea id="buchen-notiz" rows="2" oninput="terminBuchenAbbrechen()"></textarea>
         </div>
-        <button class="btn btn-p" onclick="terminBuchen()" data-i18n="book_btn">Termin buchen</button>
+        <button class="btn btn-p" id="buchen-btn" onclick="terminBuchen()" data-i18n="book_btn">Termin buchen</button>
+        <div id="buchen-bestaetigung" class="hidden" style="margin-top:14px;padding:14px 16px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px">
+          <div style="font-weight:700;margin-bottom:10px" data-i18n="confirm_booking_title">Bitte Buchung bestätigen</div>
+          <div id="buchen-bestaetigung-inhalt" style="font-size:14px;line-height:1.7"></div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-g btn-sm" onclick="terminBuchenAbbrechen()" data-i18n="back">Zurück</button>
+            <button class="btn btn-p btn-sm" id="buchen-bestaetigen-btn" onclick="terminBuchenBestaetigen()" data-i18n="confirm_book_btn">Verbindlich buchen</button>
+          </div>
+        </div>
       </div>
     </div>
     <!-- PROFIL -->
@@ -509,6 +517,8 @@ var I18N = {
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
     past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
+    confirm_booking_title: 'Bitte Buchung bestätigen', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -568,6 +578,8 @@ var I18N = {
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
     past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
+    confirm_booking_title: 'Please confirm your booking', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -875,15 +887,20 @@ function ladeUeberblick() {
   // sonst wuerde ein Bestandskunde bei einem 500 faelschlich den Erststart-Text sehen.
   Promise.allSettled([
     papi('GET', '/daten/einlagerungen'),
-    papi('GET', '/daten/termine')
+    papi('GET', '/daten/termine'),
+    papi('GET', '/daten/fahrzeuge')
   ]).then(function(res) {
     var einlOk = res[0].status === 'fulfilled';
     var termOk = res[1].status === 'fulfilled';
     var einlAlle = einlOk ? (res[0].value || []) : [];
     var termineAlle = termOk ? (res[1].value || []) : [];
+    var fahrzeuge = res[2].status === 'fulfilled' ? (res[2].value || []) : [];
     var einl = einlAlle.filter(function(e) { return e.status === 'Eingelagert'; });
+    // Heute LOKAL bilden (nicht toISOString()=UTC -> in UTC+2 zwischen 00-02 Uhr sonst Vortag; siehe Projekt-Learning)
+    var _hn = new Date();
+    var heuteLokal = _hn.getFullYear() + '-' + String(_hn.getMonth() + 1).padStart(2, '0') + '-' + String(_hn.getDate()).padStart(2, '0');
     var termine = termineAlle.filter(function(tm) {
-      return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= new Date().toISOString().substring(0,10);
+      return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= heuteLokal;
     });
     var html = '';
     html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + pEsc(KUNDE.vorname) + '</strong></div>';
@@ -891,6 +908,34 @@ function ladeUeberblick() {
     html += '<div class="iz"><div class="iz-l">' + t('active_storage') + '</div><div class="iz-v" style="font-size:24px;color:var(--accent-text)">' + einl.length + '</div></div>';
     html += '<div class="iz"><div class="iz-l">' + t('upcoming') + '</div><div class="iz-v" style="font-size:24px;color:var(--blue)">' + termine.length + '</div></div>';
     html += '</div>';
+    // Anreicherung: naechster Termin, Lagerplatz(e), HU — jeweils nur wenn Daten vorhanden.
+    var details = '';
+    var naechster = termine.slice().sort(function(a,b) {
+      return (a.datum + (a.uhrzeit_von || '')).localeCompare(b.datum + (b.uhrzeit_von || ''));
+    })[0];
+    if (naechster) {
+      var nlabel = pEsc(naechster.artikel_name || naechster.termin_typ || '');
+      // Status anhaengen, wenn noch nicht bestaetigt (z. B. Sammeltermin-Anfrage "angefragt")
+      var nstatus = (naechster.status && naechster.status !== 'bestaetigt') ? ' <span style="color:var(--muted)">· ' + pEsc(terminStatusLabel(naechster.status)) + '</span>' : '';
+      details += '<div class="iz"><div class="iz-l">' + t('next_appointment') + '</div><div class="iz-v">' + fmtDatum(naechster.datum) + ' — ' + (naechster.uhrzeit_von || '').substring(0,5) + (nlabel ? ' · ' + nlabel : '') + nstatus + '</div></div>';
+    }
+    var plaetze = einl.map(function(e) { return e.lagerplatz; }).filter(Boolean);
+    if (plaetze.length) {
+      details += '<div class="iz"><div class="iz-l">' + t('storage_place') + '</div><div class="iz-v">' + plaetze.map(pEsc).join(', ') + '</div></div>';
+    }
+    // HU: dringendste (frueheste) aus den Fahrzeugen des Kunden; Fallback auf kunden.hu_datum.
+    // (kunden.hu_datum wird serverseitig vom zuletzt gespeicherten Fahrzeug ueberschrieben -> waere fuer
+    // Mehrfahrzeug-Kunden ggf. nicht die dringendste HU.)
+    var huKandidaten = fahrzeuge.map(function(f) { return f.hu_datum ? String(f.hu_datum).substring(0,10) : null; }).filter(Boolean).sort();
+    var huDatum = huKandidaten.length ? huKandidaten[0] : (KUNDE.hu_datum ? String(KUNDE.hu_datum).substring(0,10) : null);
+    if (huDatum) {
+      var huDiff = Math.round((new Date(huDatum + 'T12:00:00') - new Date()) / 86400000);
+      var huHint = '';
+      if (huDiff < 0) huHint = ' <span style="color:#c0392b;font-weight:700">· ' + t('hu_overdue') + '</span>';
+      else if (huDiff < 60) huHint = ' <span style="color:#eab308;font-weight:700">· ' + t('hu_soon') + '</span>';
+      details += '<div class="iz"><div class="iz-l">' + t('hu_due') + '</div><div class="iz-v">' + fmtDatum(huDatum) + huHint + '</div></div>';
+    }
+    if (details) html += '<div style="margin-top:12px">' + details + '</div>';
     // Erststart-Onboarding nur, wenn BEIDE Abfragen erfolgreich waren UND der Kunde ueberhaupt keine
     // Einlagerung (jeder Status) und keinen Termin (jeder Status, auch vergangene) hat. So sieht weder ein
     // Bestandskunde mit reiner Abhol-/Termin-Historie noch ein Kunde bei einem API-Fehler den beruhigenden Text.
@@ -1055,12 +1100,14 @@ function ladeArtikel() {
     artikelListe = rows || [];
     var sel = document.getElementById('buchen-artikel');
     sel.innerHTML = artikelListe.map(function(a) {
-      return '<option value="' + a.id + '">' + a.name + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
+      return '<option value="' + a.id + '">' + pEsc(a.name) + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
     }).join('');
   }).catch(function() {});
 }
 
 function initBuchen() {
+  pendingBuchung = null;
+  terminBuchenAbbrechen(); // frischer Zustand: kein offenes Bestaetigungs-Panel
   var d = document.getElementById('buchen-datum');
   var n = new Date();
   var heute = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
@@ -1077,7 +1124,7 @@ function initBuchen() {
     var sel = document.getElementById('buchen-fahrzeug');
     sel.innerHTML = '<option value="">—</option>' + buchenFahrzeuge.map(function(f) {
       var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
-      return '<option value="' + f.id + '" data-typ="' + (f.typ || '') + '" data-kz="' + (f.kennzeichen || '') + '">' + label + '</option>';
+      return '<option value="' + f.id + '" data-typ="' + pEsc(f.typ || '') + '" data-kz="' + pEsc(f.kennzeichen || '') + '">' + pEsc(label) + '</option>';
     }).join('');
     renderSammelFzs();
   }).catch(function() {});
@@ -1089,10 +1136,11 @@ function renderSammelFzs() {
   el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">' + t('select_vehicles') + '</div>' +
     buchenFahrzeuge.map(function(f) {
       var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
-      return '<label class="check-row" style="margin:0 0 4px"><input type="checkbox" class="sammel-fz" value="' + f.id + '"> ' + label + '</label>';
+      return '<label class="check-row" style="margin:0 0 4px"><input type="checkbox" class="sammel-fz" value="' + f.id + '" onchange="terminBuchenAbbrechen()"> ' + pEsc(label) + '</label>';
     }).join('');
 }
 function buchenSammelToggle() {
+  terminBuchenAbbrechen(); // Umschalten Einzel/Sammel invalidiert eine offene Zusammenfassung
   var on = document.getElementById('buchen-sammel').checked;
   document.getElementById('buchen-sammel-info').style.display = on ? '' : 'none';
   document.getElementById('buchen-sammel-fzs').style.display = on ? '' : 'none';
@@ -1140,6 +1188,7 @@ function buchenSlotsLaden() {
   var preisEl = document.getElementById('buchen-preis');
   selectedSlot = null;
   preisEl.textContent = '';
+  terminBuchenAbbrechen(); // evtl. offene Zusammenfassung schliessen (Eingaben geaendert)
   if (!artikelId) { wrap.classList.add('hidden'); return; }
   // Preis + Dauer aus Staffel (Typ + Zoll) anzeigen
   papi('GET', '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(p) {
@@ -1167,8 +1216,12 @@ function slotWaehlen(el) {
   document.querySelectorAll('.slot').forEach(function(s) { s.classList.remove('sel'); });
   el.classList.add('sel');
   selectedSlot = el.getAttribute('data-zeit');
+  terminBuchenAbbrechen(); // evtl. offene Zusammenfassung schliessen (Auswahl geaendert)
 }
 
+var pendingBuchung = null;
+var buchungLaeuft = false; // In-Flight-Sperre: verhindert einen zweiten POST waehrend eine Buchung laeuft
+// Schritt 1: validieren, Zusammenfassung bauen und Bestaetigungs-Panel zeigen (bucht noch NICHT)
 function terminBuchen() {
   var artikelId = document.getElementById('buchen-artikel').value;
   var datum = document.getElementById('buchen-datum').value;
@@ -1177,33 +1230,73 @@ function terminBuchen() {
   if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
   var sammelCb = document.getElementById('buchen-sammel');
   var istSammel = KUNDE && KUNDE.ist_gewerbe && sammelCb && sammelCb.checked;
+  var artikelSel = document.getElementById('buchen-artikel');
+  var artikelName = artikelSel.options[artikelSel.selectedIndex] ? artikelSel.options[artikelSel.selectedIndex].text : '';
+  var rows = [];
+  rows.push([t('service'), artikelName]);
+  rows.push([t('date'), fmtDatum(datum)]);
+  rows.push([t('time_label'), (selectedSlot || '').substring(0, 5)]);
+  var payload;
   if (istSammel) {
     var ids = Array.prototype.slice.call(document.querySelectorAll('.sammel-fz:checked')).map(function(c) { return c.value; });
     if (!ids.length) { notify(t('select_min_one'), 'err'); return; }
-    papi('POST', '/daten/termine', {
-      datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
-      beschreibung: notiz || null, sammeltermin: true, fahrzeug_ids: ids
-    }).then(function() {
-      notify(t('collective_requested'), 'ok');
-      document.getElementById('buchen-notiz').value = '';
-      sammelCb.checked = false; buchenSammelToggle(); selectedSlot = null;
-      portalNav('termine');
-    }).catch(function(e) { notify(e.message, 'err'); });
-    return;
+    rows.push([t('collective_appt'), String(ids.length)]);
+    payload = { datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId, beschreibung: notiz || null, sammeltermin: true, fahrzeug_ids: ids };
+  } else {
+    var kz = buchenKzAusTeilen();
+    var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
+    var zoll = document.getElementById('buchen-zoll').value || null;
+    var fzSel = document.getElementById('buchen-fahrzeug');
+    var fzText = (fahrzeugId && fzSel.options[fzSel.selectedIndex]) ? fzSel.options[fzSel.selectedIndex].text : '';
+    if (fzText) rows.push([t('vehicle'), fzText]);
+    else if (kz) rows.push([t('license_plate'), kz]);
+    if (zoll) rows.push([t('inch'), zoll]);
+    payload = { datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId, kennzeichen: kz || null, beschreibung: notiz || null, fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll };
   }
-  var kz = buchenKzAusTeilen();
-  var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
-  var zoll = document.getElementById('buchen-zoll').value || null;
-  papi('POST', '/daten/termine', {
-    datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
-    kennzeichen: kz || null, beschreibung: notiz || null,
-    fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll
-  }).then(function() {
-    notify(t('booked'), 'ok');
+  if (notiz) rows.push([t('notes'), notiz]);
+  pendingBuchung = { payload: payload, sammel: istSammel };
+  var inhalt = rows.map(function(r) {
+    return '<div><span style="color:var(--muted)">' + r[0] + ':</span> <strong>' + pEsc(r[1]) + '</strong></div>';
+  }).join('');
+  var preisTxt = (document.getElementById('buchen-preis').textContent || '').trim();
+  if (preisTxt) inhalt += '<div style="margin-top:6px;color:var(--accent-text);font-weight:700">' + pEsc(preisTxt) + '</div>';
+  document.getElementById('buchen-bestaetigung-inhalt').innerHTML = inhalt;
+  document.getElementById('buchen-btn').classList.add('hidden');
+  document.getElementById('buchen-bestaetigung').classList.remove('hidden');
+  document.getElementById('buchen-bestaetigung').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Schritt 2: verbindlich buchen (POST)
+function terminBuchenBestaetigen() {
+  if (!pendingBuchung || buchungLaeuft) return; // kein zweiter Versand waehrend laufender Buchung
+  buchungLaeuft = true;
+  var btn = document.getElementById('buchen-bestaetigen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
+  var sammel = pendingBuchung.sammel;
+  papi('POST', '/daten/termine', pendingBuchung.payload).then(function() {
+    notify(sammel ? t('collective_requested') : t('booked'), 'ok');
     document.getElementById('buchen-notiz').value = '';
+    var sammelCb = document.getElementById('buchen-sammel');
+    if (sammel && sammelCb) { sammelCb.checked = false; buchenSammelToggle(); }
     selectedSlot = null;
+    pendingBuchung = null;
+    terminBuchenAbbrechen();
     portalNav('termine');
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    notify(e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = t('confirm_book_btn'); }
+  }).then(function() { buchungLaeuft = false; });
+}
+
+// Zusammenfassung schliessen, zurueck zum Formular
+function terminBuchenAbbrechen() {
+  pendingBuchung = null;
+  var p = document.getElementById('buchen-bestaetigung');
+  if (p) p.classList.add('hidden');
+  var b = document.getElementById('buchen-btn');
+  if (b) b.classList.remove('hidden');
+  var cb = document.getElementById('buchen-bestaetigen-btn');
+  if (cb) { cb.disabled = false; cb.textContent = t('confirm_book_btn'); }
 }
 
 // Saison-Hinweis: in den Wochen vor dem Wechsel auf fruehe Terminbuchung hinweisen
