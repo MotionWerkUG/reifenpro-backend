@@ -5,6 +5,7 @@ const { query, withTransaction } = require('../db/index');
 const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
+const { kundenMailHtml } = require('../lib/mail-template');
 const fs = require('fs');
 
 // ── GET /api/portal/daten/einlagerungen ──
@@ -211,19 +212,18 @@ router.post('/termine', authKunde, async (req, res, next) => {
     // Bestaetigungs-E-Mail an Kunden
     const portalUrl = einst ? (einst.portal_url || '') : '';
     const datumFormatiert = new Date(datum).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
-    await sendMail(
-      k.portal_email,
-      'Terminbestätigung — ' + datumFormatiert + ' ' + uhrzeit_von,
-      '<p>Hallo ' + k.vorname + ',</p>' +
-      '<p>Ihr Termin wurde erfolgreich gebucht:</p>' +
-      '<table style="border-collapse:collapse;margin:10px 0"><tr><td style="padding:4px 12px 4px 0;font-weight:700">Datum:</td><td>' + datumFormatiert + '</td></tr>' +
-      '<tr><td style="padding:4px 12px 4px 0;font-weight:700">Uhrzeit:</td><td>' + uhrzeit_von + ' Uhr</td></tr>' +
-      '<tr><td style="padding:4px 12px 4px 0;font-weight:700">Leistung:</td><td>' + art.name + '</td></tr>' +
-      '<tr><td style="padding:4px 12px 4px 0;font-weight:700">Kennzeichen:</td><td>' + (kennzeichen || k.kennzeichen || '') + '</td></tr></table>' +
-      '<p>Bei Fragen erreichen Sie uns unter: ' + (einst ? einst.telefon || '' : '') + '</p>' +
-      '<p>Stornierung möglich bis ' + (einst ? einst.stornierung_frist_h || 24 : 24) + ' Stunden vorher im Portal.</p>' +
-      '<p>Mit freundlichen Grüßen,<br>' + (einst ? einst.firmenname || 'ReifenPro' : 'ReifenPro') + '</p>'
-    ).catch(() => {});
+    const htmlBestaetigung = kundenMailHtml(einst || {}, {
+      anrede: k.anrede, vorname: k.vorname, nachname: k.nachname,
+      titel: 'Terminbestätigung',
+      text: (einst && einst.email_termin_bestaetigung) || 'wir bestätigen Ihren Termin am {datum} um {uhrzeit} Uhr ({leistung}, {kennzeichen}).',
+      vars: {
+        vorname: k.vorname || '', nachname: k.nachname || '', kennzeichen: kennzeichen || k.kennzeichen || '',
+        datum: datumFormatiert, uhrzeit: uhrzeit_von, leistung: art.name,
+        stornofrist: (einst && einst.stornierung_frist_h) || 24, portal_url: (einst && einst.portal_url) || '',
+        telefon: (einst && einst.telefon) || '', firmenname: (einst && einst.firmenname) || 'Schröder & Scholz'
+      }
+    });
+    await sendMail(k.portal_email, 'Terminbestätigung — ' + datumFormatiert + ' ' + uhrzeit_von, htmlBestaetigung).catch(() => {});
 
     // Benachrichtigung an Admin
     if (einst && einst.email) {
@@ -338,11 +338,17 @@ router.delete('/termine/:id', authKunde, async (req, res, next) => {
 
     // E-Mail an Kunden
     const datumF = new Date(t.datum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    await sendMail(
-      req.kunde.portal_email,
-      'Termin storniert — ' + datumF + ' ' + t.uhrzeit_von,
-      '<p>Hallo ' + req.kunde.vorname + ',</p><p>Ihr Termin am ' + datumF + ' um ' + t.uhrzeit_von + ' Uhr wurde erfolgreich storniert.</p>'
-    ).catch(() => {});
+    const htmlStorno = kundenMailHtml(einst || {}, {
+      anrede: req.kunde.anrede, vorname: req.kunde.vorname, nachname: req.kunde.nachname,
+      titel: 'Termin storniert',
+      text: (einst && einst.email_termin_stornierung) || 'hiermit bestätigen wir die Stornierung Ihres Termins am {datum} um {uhrzeit} Uhr. Es entstehen Ihnen keine Kosten.',
+      vars: {
+        vorname: req.kunde.vorname || '', datum: datumF, uhrzeit: (t.uhrzeit_von || '').substring(0, 5), leistung: '',
+        portal_url: (einst && einst.portal_url) || '', telefon: (einst && einst.telefon) || '',
+        firmenname: (einst && einst.firmenname) || 'Schröder & Scholz'
+      }
+    });
+    await sendMail(req.kunde.portal_email, 'Ihr Termin am ' + datumF + ' wurde storniert', htmlStorno).catch(() => {});
 
     // E-Mail an Admin
     if (einst && einst.email) {
