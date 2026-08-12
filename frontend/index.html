@@ -392,7 +392,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div><div class="hstat-v" id="hs-e">0</div><div class="hstat-l">Eingelagert</div></div>
       <div><div class="hstat-v" style="color:var(--green)" id="hs-f">-</div><div class="hstat-l">Frei</div></div>
     </div>
-    <div id="h-clock" style="font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;min-width:120px;text-align:right"></div><div class="huser"><button class="hbtn theme-btn" id="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button><div class="huser-dot"></div><span id="h-user">-</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
+    <div id="h-clock" style="font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;min-width:120px;text-align:right"></div><div class="huser"><button class="hbtn" onclick="openSuche()" title="Suche: Kunde, Kennzeichen, Lagerplatz" aria-label="Suche"><svg class="ni-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button><button class="hbtn theme-btn" id="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button><div class="huser-dot"></div><span id="h-user">-</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
   </header>
   <div class="body">
     <div class="nav-backdrop" onclick="closeNav()"></div>
@@ -580,7 +580,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-werkstatt">
         <div class="ph">
           <div class="pt" id="ws-dat">Werkstatt</div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-p btn-sm" onclick="walkIn()">+ Walk-in</button>
             <button class="btn btn-g btn-sm" onclick="wsVorherig()">Vorheriger Tag</button>
             <button class="btn btn-g btn-sm" onclick="wsHeute()">Heute</button>
             <button class="btn btn-g btn-sm" onclick="wsNaechster()">Nächster Tag</button>
@@ -1295,6 +1296,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
   </div>
 </div>
 
+<div class="ov" id="m-suche">
+  <div class="modal" style="max-width:520px">
+    <button class="mx" onclick="closeModal('suche')">x</button>
+    <div class="mtitle">Schnellsuche</div>
+    <input id="suche-q" placeholder="Name, Kennzeichen, Lagerplatz, Beleg-Nr. …" oninput="sucheGlobal()" onkeydown="if(event.key==='Escape')closeModal('suche')">
+    <div id="suche-res" style="max-height:52vh;overflow:auto;margin-top:12px"></div>
+  </div>
+</div>
+
 
 <div class="ov" id="m-etikett">
   <div class="modal" style="max-width:500px">
@@ -1823,6 +1833,7 @@ function renderKontakt() {
       '<div style="margin:10px 0;white-space:pre-wrap;background:var(--bg,#f6f7f9);padding:10px 12px;border-radius:8px">' + kEsc(a.nachricht) + '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button class="btn btn-p btn-sm" onclick="kontaktAntwortToggle(\'' + a.id + '\')">Antworten</button>' +
+      '<button class="btn btn-g btn-sm" onclick="kontaktNeuerKunde(\'' + a.id + '\')">Als Kunde anlegen</button>' +
       (a.erledigt
         ? '<button class="btn btn-g btn-sm" onclick="kontaktErledigt(\'' + a.id + '\',false)">Als offen markieren</button>'
         : '<button class="btn btn-g btn-sm" onclick="kontaktErledigt(\'' + a.id + '\',true)">Als erledigt markieren</button>') +
@@ -1841,6 +1852,20 @@ function kontaktSenden(id) {
   api('POST', '/kontakt/' + id + '/antwort', { text: t }).then(function() { notify('Antwort gesendet.'); loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); });
 }
 function kontaktErledigt(id, val) { api('PATCH', '/kontakt/' + id, { erledigt: val }).then(function() { loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); }); }
+// Kontaktanfrage als (Privat-)Kunde übernehmen: Namen/Kontakt ins Neuer-Kunde-Formular vorbefuellen.
+function kontaktNeuerKunde(id) {
+  var a = allKontakt.filter(function(x) { return x.id === id; })[0]; if (!a) return;
+  var parts = (a.name || '').trim().split(/\s+/);
+  var vn = parts.shift() || '';
+  var nn = parts.join(' ') || '';
+  var set = function(fid, v) { var e = document.getElementById(fid); if (e) e.value = v || ''; };
+  ['nk-str', 'nk-plz', 'nk-ort', 'nk-kz1', 'nk-kz2', 'nk-kz3', 'nk-kz4', 'nk-mo-man', 'nk-firmenname', 'nk-ustid'].forEach(function(fid) { set(fid, ''); });
+  set('nk-kundentyp', 'privat'); if (typeof nkKundentypChange === 'function') nkKundentypChange();
+  set('nk-vn', vn); set('nk-nn', nn); set('nk-tel', a.telefon); set('nk-mail', a.email);
+  var gc = document.getElementById('nk-gewerbe'); if (gc) gc.checked = false;
+  NK_FROM_ANFRAGE = null; // Kontaktanfrage hat keine Gewerbe-Verknuepfung
+  openModal('nk', false);
+}
 
 // ── GEWERBE-ANFRAGEN ──
 var allGewerbeAnf = [];
@@ -2984,6 +3009,39 @@ function konditionenSpeichern(id) {
     return api('PUT', '/kunden/' + id + '/konditionen', { grosskunden_rabatt: rabatt, preise: preise });
   }).then(function () { notify('Konditionen gespeichert.'); var k = allK.find(function (x) { return x.id === id; }); if (k) k.ist_gewerbe = flag; }).catch(function (e) { notify(e.message, 'err'); });
 }
+// ── Globale Schnellsuche (Header) — client-seitig über allK/allE ──
+function openSuche() {
+  var q = document.getElementById('suche-q'); if (q) q.value = '';
+  var r = document.getElementById('suche-res'); if (r) r.innerHTML = '<div style="color:var(--muted);font-size:13px">Name, Kennzeichen, Lagerplatz oder Beleg-Nr. eingeben.</div>';
+  openModal('suche');
+  setTimeout(function() { var el = document.getElementById('suche-q'); if (el) el.focus(); }, 50);
+}
+function sucheGlobal() {
+  var q = (gv('suche-q') || '').trim().toLowerCase(), res = document.getElementById('suche-res'); if (!res) return;
+  if (q.length < 2) { res.innerHTML = '<div style="color:var(--muted);font-size:13px">Mindestens 2 Zeichen…</div>'; return; }
+  var n = function(s) { return String(s == null ? '' : s).toLowerCase(); };
+  var kunden = (allK || []).filter(function(k) { return n(k.vorname + ' ' + k.nachname).indexOf(q) >= 0 || n(k.kennzeichen).indexOf(q) >= 0 || n(k.kunden_nr).indexOf(q) >= 0 || n(k.telefon).indexOf(q) >= 0; }).slice(0, 8);
+  var einl = (allE || []).filter(function(e) { return n(e.kundenname).indexOf(q) >= 0 || n(e.kennzeichen).indexOf(q) >= 0 || n(e.lagerplatz).indexOf(q) >= 0 || n(e.beleg_nr).indexOf(q) >= 0; }).slice(0, 8);
+  var it = function(inner, onclick) { return '<div onclick="' + onclick + '" style="cursor:pointer;padding:9px 11px;border-radius:8px;border-bottom:1px solid var(--border2)" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' + inner + '</div>'; };
+  var html = '';
+  if (kunden.length) {
+    html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:4px 0">Kunden</div>';
+    html += kunden.map(function(k) { return it('<strong>' + kEsc(k.vorname + ' ' + k.nachname) + '</strong> <span style="color:var(--muted);font-size:12px">' + kEsc(k.kennzeichen || '') + (k.kunden_nr ? ' · ' + kEsc(k.kunden_nr) : '') + '</span>', 'sucheZuKunde(\'' + k.id + '\')'); }).join('');
+  }
+  if (einl.length) {
+    html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:12px 0 4px">Einlagerungen</div>';
+    html += einl.map(function(e) { return it('<strong style="color:var(--accent-text)">' + kEsc(e.lagerplatz || '?') + '</strong> ' + kEsc(e.kundenname || '') + ' <span style="color:var(--muted);font-size:12px">' + kEsc(e.kennzeichen || '') + ' · ' + kEsc(e.reifen_groesse || '') + ' · ' + kEsc(e.status || '') + '</span>', 'sucheZuEinl(\'' + e.id + '\')'); }).join('');
+  }
+  if (!kunden.length && !einl.length) html = '<div style="color:var(--muted);font-size:13px">Nichts gefunden.</div>';
+  res.innerHTML = html;
+}
+function sucheZuKunde(id) { closeModal('suche'); showPage('kunden'); zeigeK(id); }
+function sucheZuEinl(id) {
+  closeModal('suche'); showPage('einlagerung');
+  var e = (allE || []).find(function(x) { return x.id === id; });
+  var f = document.getElementById('e-search');
+  if (f) { f.value = (e && (e.kennzeichen || e.lagerplatz || e.kundenname)) || ''; renderE(); }
+}
 function zeigeK(id) {
   aktK = allK.find(function(k) { return k.id === id; }); if (!aktK) return;
   document.getElementById('kd-name').textContent = (aktK.anrede ? aktK.anrede + ' ' : '') + aktK.vorname + ' ' + aktK.nachname;
@@ -3873,6 +3931,12 @@ function ntVorausfuellen(datum, zeit) {
   document.getElementById('nt-datum').value = datum;
   document.getElementById('nt-von').value = zeit;
   openModal('nt');
+}
+// Walk-in: Termin-Dialog fuer HEUTE + aktuelle Uhrzeit (auf 15 Min gerundet) oeffnen -> landet sofort aufs Werkstattbrett.
+function walkIn() {
+  var d = new Date();
+  var zeit = String(d.getHours()).padStart(2, '0') + ':' + String(Math.floor(d.getMinutes() / 15) * 15).padStart(2, '0');
+  ntVorausfuellen(isoLocal(d), zeit);
 }
 function zeigeTermin(id) {
   var t = allTermine.find(function(x) { return x.id === id; }); if (!t) return;
