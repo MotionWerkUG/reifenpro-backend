@@ -184,6 +184,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
       <input type="checkbox" id="reg-saison">
       <span data-i18n="accept_saison">Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).</span>
     </label>
+    <label class="check-row">
+      <input type="checkbox" id="reg-bewertung">
+      <span data-i18n="accept_bewertung">Ich bin einverstanden, nach dem Besuch einmalig per E-Mail um eine Bewertung gebeten zu werden (optional, jederzeit widerrufbar).</span>
+    </label>
     <button class="btn btn-p" onclick="portalRegister()" data-i18n="register_btn">Registrieren</button>
     <div class="auth-switch">
       <span data-i18n="have_account">Bereits registriert?</span> <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
@@ -448,6 +452,7 @@ var I18N = {
     dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
     accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
     accept_saison: 'Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).',
+    accept_bewertung: 'Ich bin einverstanden, nach dem Besuch einmalig per E-Mail um eine Bewertung gebeten zu werden (optional, jederzeit widerrufbar).',
     register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
     reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
     footer_impressum: 'Impressum', footer_datenschutz: 'Datenschutz', footer_agb: 'AGB', footer_faq: 'FAQ',
@@ -503,6 +508,7 @@ var I18N = {
     dsgvo_link: 'Privacy Policy', accept_read: 'and accept it.',
     accept_agb: 'I accept the', agb_link: 'Terms',
     accept_saison: 'I would like to receive seasonal tire change reminders by email (optional, revocable anytime).',
+    accept_bewertung: 'I agree to be asked once by email for a review after my visit (optional, revocable anytime).',
     register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
     reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
     footer_impressum: 'Legal notice', footer_datenschutz: 'Privacy', footer_agb: 'Terms', footer_faq: 'FAQ',
@@ -660,6 +666,7 @@ function portalRegister() {
   var dsgvo = document.getElementById('reg-dsgvo').checked;
   var agb = document.getElementById('reg-agb').checked;
   var saison = document.getElementById('reg-saison').checked;
+  var bewertung = document.getElementById('reg-bewertung').checked;
 
   if (!vorname || !nachname || !email || !pass) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
   if (pass.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
@@ -668,7 +675,7 @@ function portalRegister() {
 
   papi('POST', '/auth/registrieren', {
     vorname: vorname, nachname: nachname, email: email, telefon: telefon,
-    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison
+    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung
   }).then(function() {
     okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
     document.getElementById('reg-pass').value = '';
