@@ -176,6 +176,10 @@ router.get('/einwilligung/abmelden', async (req, res, next) => {
     if (!payload || payload.typ !== 'unsub' || !payload.id) {
       return res.status(400).send(seite('Link ungültig', 'Dieser Abmeldelink ist ungültig oder abgelaufen.'));
     }
+    if (payload.z === 'bewertung') {
+      await query('UPDATE kunden SET einwilligung_bewertung=false, einwilligung_bewertung_am=NULL, widerruf_datum=NOW(), geaendert_am=NOW() WHERE id=$1', [payload.id]);
+      return res.send(seite('Abgemeldet', 'Sie erhalten keine Bewertungsanfragen mehr. Falls Sie das später ändern möchten, können Sie die Einwilligung in Ihrem Kundenportal erneut erteilen.'));
+    }
     await query('UPDATE kunden SET einwilligung_saison_erinnerung=false, einwilligung_saison_bestaetigt=false, einwilligung_token=NULL, einwilligung_token_ablauf=NULL, widerruf_datum=NOW(), geaendert_am=NOW() WHERE id=$1', [payload.id]);
     res.send(seite('Abgemeldet', 'Sie erhalten keine Saison-Erinnerungen mehr. Falls Sie das später ändern möchten, können Sie die Einwilligung in Ihrem Kundenportal erneut erteilen.'));
   } catch (e) { next(e); }

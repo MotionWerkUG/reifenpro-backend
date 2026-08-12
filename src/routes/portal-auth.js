@@ -64,7 +64,7 @@ async function sendMail(to, subject, html) {
 // ── POST /api/portal/auth/registrieren ──
 router.post('/registrieren', registrierLimiter, async (req, res, next) => {
   try {
-    const { vorname, nachname, email, passwort, telefon, agb, dsgvo, saison } = req.body;
+    const { vorname, nachname, email, passwort, telefon, agb, dsgvo, saison, bewertung } = req.body;
     if (!vorname || !nachname || !email || !passwort) return res.status(400).json({ error: 'Pflichtfelder fehlen' });
     if (!agb || !dsgvo) return res.status(400).json({ error: 'AGB und Datenschutz müssen akzeptiert werden' });
     if (passwort.length < 8) return res.status(400).json({ error: 'Passwort muss mind. 8 Zeichen haben' });
@@ -102,9 +102,10 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
          portal_bestaetigung_token=$3, portal_token_ablauf=$4,
          portal_registriert_am=$5, portal_agb_akzeptiert=$6, portal_agb_datum=$5,
          portal_dsgvo_akzeptiert=$6, portal_dsgvo_datum=$5,
-         einwilligung_saison_erinnerung=$7, einwilligung_ip=$9, agb_version=$10
+         einwilligung_saison_erinnerung=$7, einwilligung_ip=$9, agb_version=$10,
+         einwilligung_bewertung=$11, einwilligung_bewertung_am=$12
          WHERE id=$8`,
-        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion]
+        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion, bewertung ? true : false, bewertung ? now : null]
       );
     } else {
       // Neuer Kunde anlegen (Kundennummer aus Sequenz wie im Admin -> keine Doppelnummern)
@@ -115,11 +116,12 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
          portal_email_bestaetigt, portal_bestaetigung_token, portal_token_ablauf,
          portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
          portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
-         einwilligung_ip, agb_version, aktiv)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,true)
+         einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,$14,$15,true)
          RETURNING id`,
         [nr, vn, nn, email.toLowerCase(), tel,
-         email.toLowerCase(), hash, token, ablauf, now, saison ? true : false, einwilligungIp, agbVersion]
+         email.toLowerCase(), hash, token, ablauf, now, saison ? true : false, einwilligungIp, agbVersion,
+         bewertung ? true : false, bewertung ? now : null]
       );
       kundeId = neu.rows[0].id;
     }
@@ -335,11 +337,12 @@ router.post('/einwilligung-widerrufen', authKunde, async (req, res, next) => {
   try {
     await query(
       `UPDATE kunden SET einwilligung_werbung=false, einwilligung_saison_erinnerung=false,
-       einwilligung_saison_bestaetigt=false, einwilligung_token=NULL, einwilligung_token_ablauf=NULL,
+       einwilligung_saison_bestaetigt=false, einwilligung_bewertung=false, einwilligung_bewertung_am=NULL,
+       einwilligung_token=NULL, einwilligung_token_ablauf=NULL,
        widerruf_datum=NOW(), geaendert_am=NOW() WHERE id=$1`,
       [req.kunde.id]
     );
-    res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe- oder Saison-Erinnerungen mehr.' });
+    res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe-, Saison- oder Bewertungs-E-Mails mehr.' });
   } catch (e) { next(e); }
 });
 
