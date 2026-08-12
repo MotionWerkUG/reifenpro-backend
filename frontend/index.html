@@ -429,16 +429,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div id="dash-kontakt"></div>
         <div id="dash-gewerbe"></div>
         <div class="stats">
-          <div class="sc sc-a clickable" onclick="showPage('einlagerung')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
-          <div class="sc sc-y"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
-          <div class="sc sc-g"><div class="sv" id="st-f">-</div><div class="sl">Freie Plätze</div></div>
+          <div class="sc sc-a clickable" onclick="dashEinl('')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
+          <div class="sc sc-y clickable" onclick="dashEinl('Abholbereit')"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
+          <div class="sc sc-g clickable" onclick="showPage('lagerplan')"><div class="sv" id="st-f">-</div><div class="sl">Freie Plätze</div></div>
           <div class="sc sc-b clickable" onclick="showPage('kunden')"><div class="sv" id="st-k">0</div><div class="sl">Kunden</div></div>
         </div>
         <div class="g2">
           <div class="pnl"><div class="ptitle">Letzte Einlagerungen</div><div id="dash-last"></div></div>
           <div>
             <div class="pnl"><div class="ptitle">Reifentypen</div><div id="dash-typ"></div></div>
-            <div class="pnl"><div class="ptitle">Heutige Termine</div><div id="dash-termine"></div></div>
+            <div class="pnl clickable" onclick="showPage('werkstatt')"><div class="ptitle">Heutige Termine <span style="font-size:11px;color:var(--muted);font-weight:400">→ Werkstattbrett</span></div><div id="dash-termine"></div></div>
           </div>
         </div>
         <div class="pnl"><div class="ptitle">Letzte Aktivität</div><div id="dash-aktivitaet"></div></div>
@@ -957,7 +957,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         </div>
       </div>
       <div class="fg"><label>Typ *</label>
-        <select id="ne-typ"><option value="Winter">Winterreifen</option><option value="Sommer">Sommerreifen</option></select>
+        <select id="ne-typ"><option value="Winter">Winterreifen</option><option value="Sommer">Sommerreifen</option><option value="Ganzjahr">Ganzjahresreifen</option></select>
       </div>
       <div class="fg"><label>Hersteller</label>
         <select id="ne-mk" onchange="neLadeModelle()">
@@ -989,7 +989,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="full">
         <label style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;display:block;margin-bottom:8px">Profiltiefe (mm) — VL wird auf alle übertragen wenn leer</label>
         <div class="g4">
-          <div class="fg"><label style="color:var(--blue)">VL *</label><input id="ne-vl" type="text" placeholder="z.B. 6,5" oninput="neAutoP(this)" onblur="neAutoPBlur(this)"></div>
+          <div class="fg"><label style="color:var(--blue)">VL</label><input id="ne-vl" type="text" placeholder="z.B. 6,5" oninput="neAutoP(this)" onblur="neAutoPBlur(this)"></div>
           <div class="fg"><label style="color:var(--blue)">VR</label><input id="ne-vr" type="text" placeholder="auto"></div>
           <div class="fg"><label style="color:var(--blue)">HL</label><input id="ne-hl" type="text" placeholder="auto"></div>
           <div class="fg"><label style="color:var(--blue)">HR</label><input id="ne-hr" type="text" placeholder="auto"></div>
@@ -1280,6 +1280,18 @@ html, body { max-width: 100%; overflow-x: hidden; }
     </div>
     <input type="hidden" id="nrg-ort-id">
     <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nrg')">Abbrechen</button><button class="btn btn-p" onclick="saveRegal()">Regal anlegen</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-platz">
+  <div class="modal" style="max-width:420px">
+    <button class="mx" onclick="closeModal('platz')">x</button>
+    <div class="mtitle">Lagerplatz ändern</div>
+    <div id="platz-info" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
+    <div class="fg full"><label>Neuer Lagerplatz</label><input id="platz-neu" placeholder="z.B. Halle-A-03" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+    <div id="platz-vorschlag" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+    <input type="hidden" id="platz-id">
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('platz')">Abbrechen</button><button class="btn btn-p" onclick="savePlatz()">Speichern</button></div>
   </div>
 </div>
 
@@ -1737,6 +1749,12 @@ function updateBreadcrumb() {
   var cur = NAV_LABELS[currentPage] || '';
   if (el) el.innerHTML = (navPrev && NAV_LABELS[navPrev] ? kEsc(NAV_LABELS[navPrev]) + ' › ' : '') + '<strong>' + kEsc(cur) + '</strong>';
   if (app) app.classList.toggle('has-prev', !!navPrev);
+}
+// Dashboard-Kachel -> Einlagerungsliste, optional nach Status gefiltert.
+function dashEinl(status) {
+  showPage('einlagerung');
+  var f = document.getElementById('e-sf');
+  if (f) { f.value = status || ''; renderE(); }
 }
 
 // ── KONTAKTANFRAGEN ──
@@ -3241,15 +3259,27 @@ function setS(id, status) {
     if (aktK) ladeDocs(aktK.id);
   }).catch(function(e) { notify(e.message, 'err'); });
 }
-// Lagerplatz einer bestehenden Einlagerung aendern
+// Lagerplatz einer bestehenden Einlagerung aendern (Modal statt prompt).
+var platzVorschlagWert = '';
 function platzAendern(id) {
   var e = allE.find(function(x) { return x.id === id; }); if (!e) return;
-  var neu = prompt('Neuer Lagerplatz für ' + (e.kundenname || '') + ' (' + e.reifen_groesse + '):', e.lagerplatz || '');
-  if (neu === null) return;
-  neu = neu.trim(); if (!neu) { notify('Kein Lagerplatz eingegeben.', 'err'); return; }
+  document.getElementById('platz-id').value = id;
+  document.getElementById('platz-info').textContent = [e.kundenname, e.reifen_groesse].filter(Boolean).join(' · ') + (e.lagerplatz ? '  ·  aktuell: ' + e.lagerplatz : '');
+  document.getElementById('platz-neu').value = e.lagerplatz || '';
+  var vs = document.getElementById('platz-vorschlag'); if (vs) vs.textContent = '';
+  platzVorschlagWert = '';
+  openModal('platz');
+  api('GET', '/lager/naechster-freier').then(function(r) {
+    if (r && r.verfuegbar && vs) { platzVorschlagWert = r.lagerplatz; vs.innerHTML = 'Nächster freier Platz: <strong>' + kEsc(r.lagerplatz) + '</strong> <button class="btn btn-g btn-sm" onclick="platzUebernehmen()">übernehmen</button>'; }
+  }).catch(function() {});
+}
+function platzUebernehmen() { if (platzVorschlagWert) document.getElementById('platz-neu').value = platzVorschlagWert; }
+function savePlatz() {
+  var id = gv('platz-id'), neu = (gv('platz-neu') || '').trim();
+  if (!neu) { notify('Bitte einen Lagerplatz eingeben.', 'err'); var el = document.getElementById('platz-neu'); if (el) el.focus(); return; }
   api('PATCH', '/einlagerungen/' + id + '/lagerplatz', { lagerplatz: neu }).then(function(r) {
     var i = allE.findIndex(function(x) { return x.id === id; }); if (i !== -1) allE[i].lagerplatz = r.lagerplatz;
-    renderE(); renderLager(); notify('Lagerplatz geändert auf ' + r.lagerplatz + '.');
+    closeModal('platz'); renderE(); renderLager(); notify('Lagerplatz geändert auf ' + r.lagerplatz + '.');
   }).catch(function(err) { notify(err.message, 'err'); });
 }
 // Abgeholte Einlagerung erneut einlagern (Folgeeinlagerung desselben Radsatzes):
@@ -3823,7 +3853,7 @@ function zeigeKalDetailFuerTag(dStr) {
           if (kEinl.length) lp = kEinl.map(function(e){return e.lagerplatz;}).join(', ');
         }
         var tid = t.id;
-        var row = '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">';
+        var row = '<div onclick="zeigeTermin(\'' + tid + '\')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">';
         row += '<div style="font-weight:700;color:' + col + ';min-width:50px">' + (t.uhrzeit_von||'').substring(0,5) + '</div>';
         row += '<div style="flex:1"><span style="font-weight:600">' + kEsc(t.artikel_name || t.termin_typ || '') + '</span>';
         row += ' <span style="color:var(--muted);font-size:12px">' + kEsc(kuerzel) + '</span>';
@@ -4461,12 +4491,12 @@ function druckEtikett(einlId) {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
         '<div style="min-width:0">' +
           '<div style="font-size:7.5pt;color:#777;line-height:1.1">' + kundenNr + ' &nbsp; ' + kuerzel + '</div>' +
-          '<div style="font-size:11pt;font-weight:700;color:#eab308;font-family:monospace;line-height:1.15">' + kennz + '</div>' +
+          '<div style="font-size:11pt;font-weight:700;color:#171717;font-family:monospace;line-height:1.15">' + kennz + '</div>' +
         '</div>' +
         '<div style="font-size:30pt;font-weight:900;color:' + posColor[pos] + ';line-height:.8">' + pos + '</div>' +
       '</div>' +
       // Lagerplatz riesig, fuellt die Mitte
-      '<div style="text-align:center;font-size:25pt;font-weight:900;color:#1a3a6e;letter-spacing:1.5px;line-height:1;border-top:2px solid #1a3a6e;border-bottom:2px solid #1a3a6e;padding:1.2mm 0">' + e.lagerplatz + '</div>' +
+      '<div style="text-align:center;font-size:25pt;font-weight:900;color:#171717;letter-spacing:1.5px;line-height:1;border-top:3px solid #eab308;border-bottom:3px solid #eab308;padding:1.2mm 0">' + e.lagerplatz + '</div>' +
       // Reifen-Info
       '<div>' +
         '<div style="font-size:9.5pt;font-weight:700;line-height:1.15">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +
