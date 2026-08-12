@@ -89,6 +89,33 @@ main { flex: 1; overflow-y: auto; padding: 24px; }
 .page { display: none; }
 .page.active { display: block; animation: fi .2s ease; }
 @keyframes fi { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+/* ── Navigation (einklappbare Icon-Leiste, WERKBANK-Muster) ── */
+aside { transition: width .18s ease; }
+.ni { position: relative; }
+.ni-ic { width: 19px; height: 19px; flex-shrink: 0; }
+.ni-label { margin-left: 11px; white-space: nowrap; }
+.ni.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 20px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-text); }
+.navcollapse { display: flex; justify-content: flex-end; padding: 6px 12px 2px; }
+.navcollapse button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 6px; line-height: 0; }
+.navcollapse button:hover { color: var(--text); background: color-mix(in srgb,var(--text) 8%,transparent); }
+.navback { display: none; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap; }
+#app.has-prev .navback { display: inline-flex; }
+.crumb { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumb strong { color: var(--text); font-weight: 600; }
+/* eingeklappt: nur Icons */
+#app.nav-collapsed aside { width: 64px; }
+#app.nav-collapsed .ni-label, #app.nav-collapsed .nsec { display: none; }
+#app.nav-collapsed .ni { justify-content: center; padding: 9px 0; margin: 1px 10px; }
+/* Modus "ausfahren": bei Hover kurz breit */
+#app.nav-collapsed.nav-expand aside:hover { width: 240px; box-shadow: 6px 0 18px rgba(0,0,0,.32); }
+#app.nav-collapsed.nav-expand aside:hover .ni-label { display: inline; }
+#app.nav-collapsed.nav-expand aside:hover .nsec { display: block; }
+#app.nav-collapsed.nav-expand aside:hover .ni { justify-content: flex-start; padding: 9px 14px; }
+/* Modus "Tooltip": Name kommt im eingeklappten Zustand ueber das native title-Attribut (kein Overflow-Clipping). */
+.navview-opt { text-align: left; cursor: pointer; background: var(--bg); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; color: var(--text); font-family: inherit; }
+.navview-opt.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.navview-opt .nvt { font-size: 13px; font-weight: 600; }
+.navview-opt .nvd { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
 
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap; text-decoration: none; }
@@ -254,6 +281,12 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
 @media (max-width: 768px) {
   .navtoggle { display: flex; }
   aside { position: fixed; top: 60px; left: 0; bottom: 0; z-index: 200; transform: translateX(-100%); transition: transform .2s ease; }
+  /* Mobil (Off-Canvas, Touch ohne :hover) IMMER volle Leiste — Einklapp-Ansicht nur am Desktop. */
+  #app.nav-collapsed aside { width: 240px; }
+  #app.nav-collapsed .ni-label { display: inline; }
+  #app.nav-collapsed .nsec { display: block; }
+  #app.nav-collapsed .ni { justify-content: flex-start; padding: 9px 14px; margin: 1px 8px; }
+  .navback { display: none !important; }
   #app.nav-open aside { transform: translateX(0); }
   #app.nav-open .nav-backdrop { display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 150; }
   .hstats { display: none; }
@@ -353,6 +386,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
   <header>
     <button class="navtoggle" onclick="toggleNav()" aria-label="Menü"><span class="bar"></span><span class="bar"></span><span class="bar"></span></button>
     <div class="hlogo">Reifen<span>Pro</span></div>
+    <button class="hbtn navback" onclick="navBack()" title="Zurück" aria-label="Zurück"><svg class="ni-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg> Zurück</button>
+    <div id="breadcrumb" class="crumb"></div>
     <div class="hstats">
       <div><div class="hstat-v" id="hs-e">0</div><div class="hstat-l">Eingelagert</div></div>
       <div><div class="hstat-v" style="color:var(--green)" id="hs-f">-</div><div class="hstat-l">Frei</div></div>
@@ -362,7 +397,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
   <div class="body">
     <div class="nav-backdrop" onclick="closeNav()"></div>
     <aside>
-      <div style="height:10px"></div>
+      <div class="navcollapse"><button onclick="navToggleCollapse()" title="Leiste ein-/ausklappen" aria-label="Navigation ein- oder ausklappen"><svg class="ni-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button></div>
       <div class="nsec">Verwaltung</div>
       <div class="ni active" data-page="dashboard">Dashboard</div>
       <div class="ni" data-page="kunden">Kunden</div>
@@ -615,6 +650,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <!-- EINSTELLUNGEN -->
       <div class="page" id="page-einstellungen">
         <div class="ph"><div class="pt">Einstellungen</div><button class="btn btn-p" onclick="saveEinst()">Speichern</button></div>
+        <div class="ssec" style="margin-bottom:18px"><h3>Ansicht der Navigation</h3>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Gilt nur für dieses Gerät und wird gemerkt. Die Leiste lässt sich auch jederzeit über das Symbol oben in der Seitenleiste ein-/ausklappen.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <button class="navview-opt" data-navview="pinned" onclick="navSetView('pinned')"><div class="nvt">Leiste angepinnt</div><div class="nvd">Immer breit mit Namen — am großen Bildschirm am übersichtlichsten.</div></button>
+            <button class="navview-opt" data-navview="tooltip" onclick="navSetView('tooltip')"><div class="nvt">Nur Namen bei Hover</div><div class="nvd">Schmale Icon-Leiste; der Name erscheint beim Drüberfahren.</div></button>
+            <button class="navview-opt" data-navview="expand" onclick="navSetView('expand')"><div class="nvt">Leiste ausfahren</div><div class="nvd">Schmal; klappt beim Drüberfahren kurz aus und zeigt alle Namen.</div></button>
+          </div>
+        </div>
         <!-- Reiter: reine Layout-Gliederung, Feld-IDs unveraendert -->
         <div id="einst-tabs" style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border2);margin-bottom:18px">
           <button class="etab" data-etab="firma" onclick="showEinstTab('firma')" style="background:none;border:none;border-bottom:2px solid var(--accent-text);color:var(--accent-text);font-weight:700;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Firma &amp; Recht</button>
@@ -1557,6 +1600,9 @@ function startApp() {
   // Modals einer evtl. zuvor abgebrochenen/abgelaufenen Sitzung schliessen, damit beim (Neu-)Login
   // kein Dialog (z.B. "Neue Einlagerung") unaufgefordert offen stehen bleibt.
   Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
+  navInitIcons();                                              // Sidebar-Icons einsetzen
+  applyNavView(localStorage.getItem('rp_nav_view') || 'pinned'); // gemerkte Ansicht anwenden
+  updateBreadcrumb();                                          // Brotkrumen initialisieren
   idleReset(); // Inaktivitaets-Timer fuer die neue Sitzung starten
   document.getElementById('h-user').textContent = USER ? USER.vorname + ' ' + USER.nachname : '-';
   loadEinst();
@@ -1619,6 +1665,7 @@ function closeNav() { document.getElementById('app').classList.remove('nav-open'
 var currentPage = 'dashboard';
 function showPage(n, fromPop) {
   closeNav();
+  if (currentPage && currentPage !== n) navPrev = currentPage;
   currentPage = n;
   if (!fromPop && window.history && history.pushState) { try { history.pushState({ page: n }, '', '#' + n); } catch (e) {} }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
@@ -1638,6 +1685,58 @@ function showPage(n, fromPop) {
   if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
+  updateBreadcrumb();
+}
+
+// ── Navigation: Icons (Inline-SVG), Ansicht-Modi, Zurück/Brotkrumen ──
+var NAV_LABELS = {};
+var navPrev = null;
+var NAV_ICONS = {
+  dashboard: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+  kunden: '<circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6a3 3 0 0 1 0 5.9"/><path d="M20.5 20c0-2-1-3.4-3-4.2"/>',
+  einlagerung: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5"/><path d="M12 12v9"/>',
+  lagerplan: '<path d="M9 4L3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
+  kalender: '<rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/>',
+  werkstatt: '<path d="M14.6 5.6a3.5 3.5 0 0 0-4.7 4.6l-5.9 5.9 2.1 2.1 5.9-5.9a3.5 3.5 0 0 0 4.6-4.7l-2.3 2.3-1.9-.1-.1-1.9z"/>',
+  statistik: '<path d="M4 20h16"/><rect x="5" y="11" width="3.4" height="6" rx="1"/><rect x="10.3" y="6" width="3.4" height="11" rx="1"/><rect x="15.6" y="13" width="3.4" height="4" rx="1"/>',
+  rechnungen: '<path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/><path d="M9 12h6M9 16h6M9 8h2"/>',
+  kontakt: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/>',
+  gewerbeanf: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5.5A2 2 0 0 1 10 3.5h4a2 2 0 0 1 2 2V7"/><path d="M3 12.5h18"/>',
+  users: '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="2.5"/><path d="M8 17c0-2 2-3 4-3s4 1 4 3"/>',
+  dsgvo: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  einstellungen: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
+};
+function navSvg(pg) {
+  var p = NAV_ICONS[pg] || NAV_ICONS.dashboard;
+  return '<svg class="ni-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+}
+function navInitIcons() {
+  document.querySelectorAll('aside .ni').forEach(function(ni) {
+    var pg = ni.getAttribute('data-page'); if (!pg) return;
+    var label = ni.textContent.trim(); NAV_LABELS[pg] = label;
+    ni.innerHTML = navSvg(pg) + '<span class="ni-label">' + label + '</span>';
+    ni.title = label; // im eingeklappten "Nur Namen"-Modus zeigt der Browser den Namen als Tooltip (kein Clipping)
+  });
+}
+function applyNavView(v) {
+  var app = document.getElementById('app'); if (!app) return;
+  app.classList.remove('nav-collapsed', 'nav-tooltip', 'nav-expand');
+  if (v === 'tooltip') { app.classList.add('nav-collapsed', 'nav-tooltip'); localStorage.setItem('rp_nav_hover', 'tooltip'); }
+  else if (v === 'expand') { app.classList.add('nav-collapsed', 'nav-expand'); localStorage.setItem('rp_nav_hover', 'expand'); }
+  localStorage.setItem('rp_nav_view', v);
+  document.querySelectorAll('.navview-opt').forEach(function(b) { b.classList.toggle('sel', b.getAttribute('data-navview') === v); });
+}
+function navSetView(v) { applyNavView(v); }
+function navToggleCollapse() {
+  var v = localStorage.getItem('rp_nav_view') || 'pinned';
+  applyNavView(v === 'pinned' ? (localStorage.getItem('rp_nav_hover') || 'tooltip') : 'pinned');
+}
+function navBack() { if (navPrev) showPage(navPrev); else if (window.history) history.back(); }
+function updateBreadcrumb() {
+  var el = document.getElementById('breadcrumb'), app = document.getElementById('app');
+  var cur = NAV_LABELS[currentPage] || '';
+  if (el) el.innerHTML = (navPrev && NAV_LABELS[navPrev] ? kEsc(NAV_LABELS[navPrev]) + ' › ' : '') + '<strong>' + kEsc(cur) + '</strong>';
+  if (app) app.classList.toggle('has-prev', !!navPrev);
 }
 
 // ── KONTAKTANFRAGEN ──
