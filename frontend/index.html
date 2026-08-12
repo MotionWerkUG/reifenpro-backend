@@ -287,6 +287,8 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
   #app.nav-collapsed .nsec { display: block; }
   #app.nav-collapsed .ni { justify-content: flex-start; padding: 9px 14px; margin: 1px 8px; }
   .navback { display: none !important; }
+  /* Kopfzeile auf Mobil schlank halten (sonst wird 'Abmelden' aus dem Bild gedraengt) */
+  .crumb, .hsearch { display: none !important; }
   #app.nav-open aside { transform: translateX(0); }
   #app.nav-open .nav-backdrop { display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 150; }
   .hstats { display: none; }
@@ -392,7 +394,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div><div class="hstat-v" id="hs-e">0</div><div class="hstat-l">Eingelagert</div></div>
       <div><div class="hstat-v" style="color:var(--green)" id="hs-f">-</div><div class="hstat-l">Frei</div></div>
     </div>
-    <div id="h-clock" style="font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;min-width:120px;text-align:right"></div><div class="huser"><button class="hbtn" onclick="openSuche()" title="Suche: Kunde, Kennzeichen, Lagerplatz" aria-label="Suche"><svg class="ni-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button><button class="hbtn theme-btn" id="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button><div class="huser-dot"></div><span id="h-user">-</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
+    <div id="h-clock" style="font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;min-width:120px;text-align:right"></div><div class="huser"><button class="hbtn hsearch" onclick="openSuche()" title="Suche: Kunde, Kennzeichen, Lagerplatz" aria-label="Suche"><svg class="ni-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button><button class="hbtn theme-btn" id="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button><div class="huser-dot"></div><span id="h-user">-</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
   </header>
   <div class="body">
     <div class="nav-backdrop" onclick="closeNav()"></div>
@@ -529,7 +531,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="sr">
           <input type="text" id="e-search" placeholder="Kunde, Kennzeichen, Lagerplatz..." oninput="renderE()">
           <select id="e-sf" onchange="renderE()"><option value="">Alle Status</option><option>Eingelagert</option><option>Abholbereit</option><option>Abgeholt</option></select>
-          <select id="e-tf" onchange="renderE()"><option value="">Alle Typen</option><option>Winter</option><option>Sommer</option></select>
+          <select id="e-tf" onchange="renderE()"><option value="">Alle Typen</option><option>Winter</option><option>Sommer</option><option>Ganzjahr</option></select>
           <button class="btn btn-g btn-sm" onclick="renderE()">Suchen</button>
         </div>
         <div class="tw">
@@ -3094,13 +3096,13 @@ function zeigeK(id) {
     : '<div style="color:var(--muted);font-size:13px;padding:10px 0">Keine Termine.</div>';
   ladeDocs(id);
   showPage('kd');
-  // Datenschutz-Warnung
+  // Datenschutz-Hinweis: dezent (kein blockierender confirm) und nur wenn wirklich nichts vorliegt
+  // (portal_verifiziert schliesst die frueher moegliche Falschmeldung aus). Der Status steht ohnehin
+  // sichtbar im Reiter "Datenschutz-Status" samt Aktions-Button.
   api('GET', '/kunden/' + aktK.id + '/dokumente').then(function(docs) {
     var hatDs = docs && docs.some(function(d) { return d.typ === 'datenschutzerklaerung' && d.unterschrieben; });
-    if (!hatDs) {
-      setTimeout(function() {
-        if (confirm('Datenschutzerklärung noch nicht unterzeichnet. Jetzt erstellen?')) oeffneDsgvo();
-      }, 600);
+    if (!hatDs && !aktK.portal_verifiziert) {
+      notify('Datenschutzerklärung für diesen Kunden noch nicht unterzeichnet — siehe „Datenschutz-Status".', 'info');
     }
   }).catch(function() {});
 }
