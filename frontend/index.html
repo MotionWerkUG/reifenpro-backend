@@ -741,13 +741,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
         <div class="etab-panel" data-epanel="mail" style="display:none">
           <div class="ssec"><h3>E-Mail Texte</h3>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Platzhalter werden beim Versand ersetzt: <code>{vorname}</code> <code>{nachname}</code> <code>{kennzeichen}</code> <code>{beleg_nr}</code> <code>{reifen_typ}</code> <code>{reifen_groesse}</code> <code>{lagerplatz}</code> <code>{eingelagert_am}</code> <code>{datum}</code> <code>{uhrzeit}</code> <code>{leistung}</code> <code>{stornofrist}</code> <code>{telefon}</code> <code>{oeffnungszeiten}</code> <code>{portal_url}</code> <code>{bewertungslink}</code>. Anrede und Impressum-Fußzeile werden automatisch ergänzt.</div>
             <div class="fgrid">
-              <div class="fg"><label>Nach Einlagerung</label><textarea id="s-me" rows="2"></textarea></div>
-              <div class="fg"><label>Nach Abholung</label><textarea id="s-ma" rows="2"></textarea></div>
-              <div class="fg"><label>Räder nachziehen</label><textarea id="s-mn" rows="2" placeholder="Bitte Radschrauben nach 50-100 km nachziehen."></textarea></div>
-              <div class="fg"><label>Bewertungsanfrage</label><textarea id="s-mb" rows="2"></textarea></div>
-              <div class="fg"><label>Terminbestätigung</label><textarea id="s-mt" rows="2"></textarea></div>
-              <div class="fg"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="2"></textarea></div>
+              <div class="fg full"><label>Einlagerungsbestätigung</label><textarea id="s-me" rows="4"></textarea></div>
+              <div class="fg full"><label>Räder abholbereit</label><textarea id="s-ma" rows="4"></textarea></div>
+              <div class="fg full"><label>Radschrauben nachziehen (Sicherheitshinweis)</label><textarea id="s-mn" rows="4"></textarea></div>
+              <div class="fg full"><label>Terminbestätigung</label><textarea id="s-mt" rows="4"></textarea></div>
+              <div class="fg full"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="4"></textarea></div>
+              <div class="fg full"><label>Terminstornierung</label><textarea id="s-msto" rows="4"></textarea></div>
+              <div class="fg full"><label>Saison-Erinnerung (Werbung — nur mit Einwilligung)</label><textarea id="s-msai" rows="4"></textarea></div>
+              <div class="fg full"><label>Bewertungsanfrage (Werbung — nur mit Einwilligung)</label><textarea id="s-mb" rows="4"></textarea></div>
             </div>
           </div>
         </div>
@@ -2389,6 +2392,7 @@ function fillEinst() {
   fv('s-me', EINST.email_einlagerung); fv('s-ma', EINST.email_abholbereit);
   fv('s-mn', EINST.email_raeder_nachziehen); fv('s-mb', EINST.email_bewertung);
   fv('s-mt', EINST.email_termin_bestaetigung); fv('s-mr', EINST.email_termin_erinnerung);
+  fv('s-msto', EINST.email_termin_stornierung); fv('s-msai', EINST.email_erinnerung);
   if (EINST.logo_url) {
     document.getElementById('s-logo-prev').innerHTML = '<img src="' + EINST.logo_url + '" style="max-height:60px;border-radius:6px">';
   }
@@ -2421,7 +2425,8 @@ function saveEinst() {
     lagerungsort: gv('s-lo'), stornierung_frist_h: parseInt(gv('s-sf')) || 24,
     email_einlagerung: gv('s-me'), email_abholbereit: gv('s-ma'),
     email_raeder_nachziehen: gv('s-mn'), email_bewertung: gv('s-mb'),
-    email_termin_bestaetigung: gv('s-mt'), email_termin_erinnerung: gv('s-mr')
+    email_termin_bestaetigung: gv('s-mt'), email_termin_erinnerung: gv('s-mr'),
+    email_termin_stornierung: gv('s-msto'), email_erinnerung: gv('s-msai')
   };
   api('PUT', '/einstellungen', data).then(function(r) {
     if (r) EINST = r;
