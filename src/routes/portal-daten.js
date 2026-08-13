@@ -186,6 +186,18 @@ router.post('/termine', authKunde, async (req, res, next) => {
       return res.status(201).json(ins.rows[0]);
     }
 
+    // Eigentumspruefung: fremde/unbekannte fahrzeug_id nicht an den Termin haengen (IDOR-Schutz).
+    // Nicht-UUID-Werte vorab verwerfen, sonst wirft die uuid-Spalte einen 500er statt sauber null.
+    let fzId = fahrzeug_id || null;
+    if (fzId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(fzId))) {
+        fzId = null;
+      } else {
+        const own = await query('SELECT 1 FROM fahrzeuge WHERE id=$1 AND kunden_id=$2', [fzId, k.id]);
+        if (!own.rows.length) fzId = null;
+      }
+    }
+
     // Verfuegbarkeitspruefung + Insert in einer Transaktion mit Advisory-Lock je Tag
     // -> verhindert Doppelbuchung desselben Slots bei gleichzeitigen Anfragen (TOCTOU).
     const rows = await withTransaction(async (client) => {
@@ -205,7 +217,7 @@ router.post('/termine', authKunde, async (req, res, next) => {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true) RETURNING *`,
         [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
          datum, uhrzeit_von, uhrzeit_bis, art.name,
-         kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fahrzeug_id || null]);
+         kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fzId]);
       return ins.rows;
     });
 
