@@ -184,6 +184,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
       <input type="checkbox" id="reg-saison">
       <span data-i18n="accept_saison">Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).</span>
     </label>
+    <label class="check-row">
+      <input type="checkbox" id="reg-bewertung">
+      <span data-i18n="accept_bewertung">Ich bin einverstanden, nach dem Besuch einmalig per E-Mail um eine Bewertung gebeten zu werden (optional, jederzeit widerrufbar).</span>
+    </label>
     <button class="btn btn-p" onclick="portalRegister()" data-i18n="register_btn">Registrieren</button>
     <div class="auth-switch">
       <span data-i18n="have_account">Bereits registriert?</span> <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
@@ -241,6 +245,27 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
       <input id="reset-email" type="email" autocapitalize="none" autocorrect="off">
     </div>
     <button class="btn btn-p" onclick="portalPwReset()" data-i18n="reset_btn">Reset-Link senden</button>
+    <div class="auth-switch">
+      <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
+    </div>
+  </div>
+</div>
+<!-- NEUES PASSWORT SETZEN (nach Klick auf Reset-Link) -->
+<div id="screen-neues-passwort" class="auth-wrap hidden">
+  <div class="auth-box">
+    <div class="auth-logo" style="display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="260" height="46" style="display:block"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg></div>
+    <div class="auth-sub" data-i18n="set_pw_sub">Neues Passwort vergeben</div>
+    <div id="np-err" class="auth-err hidden"></div>
+    <div id="np-ok" class="auth-ok hidden"></div>
+    <div class="fg">
+      <label data-i18n="new_password">Neues Passwort</label>
+      <input id="np-pass" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')portalNeuesPasswort()">
+    </div>
+    <div class="fg">
+      <label data-i18n="password_repeat">Passwort wiederholen</label>
+      <input id="np-pass2" type="password" autocomplete="new-password" onkeydown="if(event.key==='Enter')portalNeuesPasswort()">
+    </div>
+    <button class="btn btn-p" onclick="portalNeuesPasswort()" data-i18n="set_pw_btn">Passwort speichern</button>
     <div class="auth-switch">
       <a onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</a>
     </div>
@@ -358,12 +383,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         <div class="fg" id="buchen-kz-fg">
           <label data-i18n="license_plate">Kennzeichen (optional)</label>
           <div style="display:flex;gap:6px;align-items:center">
-            <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <input id="buchen-kz1" maxlength="3" placeholder="WOR" style="width:74px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase();terminBuchenAbbrechen()">
             <span style="color:var(--muted)">-</span>
-            <input id="buchen-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <input id="buchen-kz2" maxlength="2" placeholder="AB" style="width:58px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase();terminBuchenAbbrechen()">
             <span style="color:var(--muted)">-</span>
-            <input id="buchen-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center">
-            <input id="buchen-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
+            <input id="buchen-kz3" maxlength="4" placeholder="1234" style="width:66px;font-family:monospace;text-align:center" oninput="terminBuchenAbbrechen()">
+            <input id="buchen-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase();terminBuchenAbbrechen()">
           </div>
         </div>
         <div id="buchen-slots-wrap" class="hidden">
@@ -372,9 +397,17 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         </div>
         <div class="fg" style="margin-top:14px">
           <label data-i18n="notes">Anmerkung (optional)</label>
-          <textarea id="buchen-notiz" rows="2"></textarea>
+          <textarea id="buchen-notiz" rows="2" oninput="terminBuchenAbbrechen()"></textarea>
         </div>
-        <button class="btn btn-p" onclick="terminBuchen()" data-i18n="book_btn">Termin buchen</button>
+        <button class="btn btn-p" id="buchen-btn" onclick="terminBuchen()" data-i18n="book_btn">Termin buchen</button>
+        <div id="buchen-bestaetigung" class="hidden" style="margin-top:14px;padding:14px 16px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px">
+          <div style="font-weight:700;margin-bottom:10px" data-i18n="confirm_booking_title">Bitte Buchung bestätigen</div>
+          <div id="buchen-bestaetigung-inhalt" style="font-size:14px;line-height:1.7"></div>
+          <div style="display:flex;gap:8px;margin-top:14px">
+            <button class="btn btn-g btn-sm" onclick="terminBuchenAbbrechen()" data-i18n="back">Zurück</button>
+            <button class="btn btn-p btn-sm" id="buchen-bestaetigen-btn" onclick="terminBuchenBestaetigen()" data-i18n="confirm_book_btn">Verbindlich buchen</button>
+          </div>
+        </div>
       </div>
     </div>
     <!-- PROFIL -->
@@ -434,6 +467,8 @@ var KUNDE = null;
 var LANG = localStorage.getItem('rp_portal_lang') || 'de';
 var STORNO_FRIST = 24;
 var FIRMA_TEL = '';
+var REG_TIMER = null; // Auto-Redirect nach Registrierung -> merken, damit er einen inzwischen aktiven Nutzer nicht aus der App reisst
+var RESET_TOKEN = null; // Passwort-Reset-Token aus der URL, bis das neue Passwort gesetzt ist
 var artikelListe = [];
 
 // ── ÜBERSETZUNGEN ──
@@ -447,8 +482,11 @@ var I18N = {
     dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
     accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
     accept_saison: 'Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).',
+    accept_bewertung: 'Ich bin einverstanden, nach dem Besuch einmalig per E-Mail um eine Bewertung gebeten zu werden (optional, jederzeit widerrufbar).',
     register_btn: 'Registrieren', have_account: 'Bereits registriert?', to_login: 'Zur Anmeldung',
     reset_sub: 'Passwort zurücksetzen', reset_btn: 'Reset-Link senden', logout: 'Abmelden',
+    set_pw_sub: 'Neues Passwort vergeben', set_pw_btn: 'Passwort speichern', pw_changed_login: 'Passwort geändert. Bitte melden Sie sich mit Ihrem neuen Passwort an.',
+    reset_link_missing: 'Kein gültiger Reset-Link. Bitte fordern Sie über „Passwort vergessen?" einen neuen an.', reset_failed: 'Der Link ist ungültig oder abgelaufen. Bitte fordern Sie einen neuen Reset-Link an.',
     footer_impressum: 'Impressum', footer_datenschutz: 'Datenschutz', footer_agb: 'AGB', footer_faq: 'FAQ',
     delete_account: 'Konto löschen', delete_account_info: 'Sie haben das Recht, Ihr Konto löschen zu lassen (Art. 17 DSGVO). Bei aktiven Einlagerungen ist dies erst nach Abholung möglich.', delete_account_confirm: 'Möchten Sie Ihr Kundenkonto endgültig löschen lassen? Wir bearbeiten Ihren Antrag gemäß DSGVO.', delete_account_active: 'Solange Räder bei uns eingelagert sind, ist eine Löschung nicht möglich. Bitte wenden Sie sich an uns{tel}. Nach Abholung können Sie Ihr Konto löschen.', delete_account_done: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen.',
     nav_vehicles: 'Fahrzeuge', add_vehicle: 'Fahrzeug hinzufügen', edit_vehicle: 'Fahrzeug bearbeiten', edit: 'Bearbeiten', vehicle_type: 'Fahrzeugtyp', brand: 'Marke', model: 'Modell', year: 'Baujahr', hu_date: 'HU fällig (Monat)', no_vehicles: 'Noch keine Fahrzeuge erfasst.', vehicle_saved: 'Fahrzeug gespeichert.', vehicle_deleted: 'Fahrzeug gelöscht.', delete_vehicle_confirm: 'Fahrzeug wirklich löschen?', vehicle: 'Fahrzeug', inch: 'Zollgröße', price: 'Preis', nav_invoices: 'Rechnungen', no_invoices: 'Noch keine Rechnungen.', invoice_paid: 'bezahlt', reschedule: 'Verschieben', reschedule_done: 'Termin verschoben.',
@@ -459,7 +497,12 @@ var I18N = {
     notes: 'Anmerkung (optional)', book_btn: 'Termin buchen', my_data: 'Meine Daten',
     change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
     password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
-    accept_required: 'Bitte Datenschutz und AGB akzeptieren', reg_success: 'Registrierung erfolgreich. Bitte bestätigen Sie Ihre E-Mail.',
+    accept_required: 'Bitte Datenschutz und AGB akzeptieren',
+    reg_success: 'Registrierung erfolgreich. So geht es weiter: 1. Bestätigen Sie Ihre E-Mail über den Link, den wir Ihnen soeben gesendet haben. 2. Danach schalten wir Ihren Zugang frei — in der Regel innerhalb eines Werktags. Anschließend können Sie sich anmelden.',
+    login_pending_confirm: 'Ihre E-Mail-Adresse ist noch nicht bestätigt. Bitte klicken Sie auf den Link in unserer Bestätigungsmail. Nicht erhalten? Lassen Sie sie unten erneut senden.',
+    login_pending_approval: 'Ihre E-Mail ist bestätigt — jetzt schalten wir Ihren Zugang noch frei. Das erledigen wir in der Regel innerhalb eines Werktags und melden uns bei Ihnen.',
+    overview_hello: 'Schön, dass Sie da sind',
+    overview_onboarding: 'Sobald wir Ihr Konto mit Ihren eingelagerten Rädern verknüpft haben, sehen Sie hier Ihre Räder, Lagerplätze und anstehenden Termine. Die Zuordnung erfolgt automatisch anhand Ihrer E-Mail-Adresse. Wenn Räder bei uns liegen, hier aber nichts erscheint, melden Sie sich kurz bei uns — wir gleichen das gern ab.',
     login_failed: 'Anmeldung fehlgeschlagen', reset_sent: 'Falls die E-Mail existiert, wurde ein Link gesendet.',
     no_storage: 'Aktuell sind Ihnen keine eingelagerten Räder zugeordnet.', no_appointments: 'Keine Termine vorhanden.',
     no_storage_hint: 'Sobald Ihr Zugang freigeschaltet ist, ordnen wir Ihre eingelagerten Räder automatisch anhand Ihrer E-Mail-Adresse zu. Wenn Sie sicher sind, dass Räder bei uns liegen, melden Sie sich kurz bei uns — wir gleichen das gern ab.',
@@ -473,6 +516,9 @@ var I18N = {
     booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
+    past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
+    confirm_booking_title: 'Bitte Buchung bestätigen', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -497,8 +543,11 @@ var I18N = {
     dsgvo_link: 'Privacy Policy', accept_read: 'and accept it.',
     accept_agb: 'I accept the', agb_link: 'Terms',
     accept_saison: 'I would like to receive seasonal tire change reminders by email (optional, revocable anytime).',
+    accept_bewertung: 'I agree to be asked once by email for a review after my visit (optional, revocable anytime).',
     register_btn: 'Register', have_account: 'Already registered?', to_login: 'To login',
     reset_sub: 'Reset password', reset_btn: 'Send reset link', logout: 'Sign Out',
+    set_pw_sub: 'Set a new password', set_pw_btn: 'Save password', pw_changed_login: 'Password changed. Please sign in with your new password.',
+    reset_link_missing: 'No valid reset link. Please request a new one via "Forgot password?".', reset_failed: 'The link is invalid or has expired. Please request a new reset link.',
     footer_impressum: 'Legal notice', footer_datenschutz: 'Privacy', footer_agb: 'Terms', footer_faq: 'FAQ',
     delete_account: 'Delete account', delete_account_info: 'You have the right to have your account deleted (Art. 17 GDPR). With active storage this is only possible after collection.', delete_account_confirm: 'Do you really want your customer account permanently deleted? We will process your request in accordance with GDPR.', delete_account_active: 'As long as wheels are stored with us, deletion is not possible. Please contact us{tel}. After collection you can delete your account.', delete_account_done: 'Your deletion request has been received. We will get back to you.',
     nav_vehicles: 'Vehicles', add_vehicle: 'Add vehicle', edit_vehicle: 'Edit vehicle', edit: 'Edit', vehicle_type: 'Vehicle type', brand: 'Make', model: 'Model', year: 'Year', hu_date: 'MOT due (month)', no_vehicles: 'No vehicles yet.', vehicle_saved: 'Vehicle saved.', vehicle_deleted: 'Vehicle deleted.', delete_vehicle_confirm: 'Really delete this vehicle?', vehicle: 'Vehicle', inch: 'Wheel size (inch)', price: 'Price', nav_invoices: 'Invoices', no_invoices: 'No invoices yet.', invoice_paid: 'paid', reschedule: 'Reschedule', reschedule_done: 'Appointment rescheduled.',
@@ -509,7 +558,12 @@ var I18N = {
     notes: 'Note (optional)', book_btn: 'Book appointment', my_data: 'My data',
     change_password: 'Change password', new_password: 'New password', save: 'Save',
     password_mismatch: 'Passwords do not match',
-    accept_required: 'Please accept privacy policy and terms', reg_success: 'Registration successful. Please confirm your email.',
+    accept_required: 'Please accept privacy policy and terms',
+    reg_success: 'Registration successful. What happens next: 1. Confirm your email via the link we just sent you. 2. We then activate your access — usually within one business day. After that you can sign in.',
+    login_pending_confirm: 'Your email address is not confirmed yet. Please click the link in our confirmation email. Did not receive it? Resend it below.',
+    login_pending_approval: 'Your email is confirmed — we just need to activate your access. We usually do this within one business day and will get back to you.',
+    overview_hello: 'Great to have you here',
+    overview_onboarding: 'Once we have linked your account with your stored wheels, you will see your wheels, storage locations and upcoming appointments here. Linking happens automatically using your email address. If wheels are stored with us but nothing shows up here, please get in touch — we are happy to check.',
     login_failed: 'Login failed', reset_sent: 'If the email exists, a link has been sent.',
     no_storage: 'No stored wheels are currently linked to your account.', no_appointments: 'No appointments.',
     no_storage_hint: 'Once your access is activated, we automatically link your stored wheels using your email address. If you are sure wheels are stored with us, please get in touch — we are happy to check.',
@@ -523,6 +577,9 @@ var I18N = {
     booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
+    past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
+    confirm_booking_title: 'Please confirm your booking', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -581,8 +638,17 @@ function notify(msg, typ) {
   setTimeout(function() { el.innerHTML = ''; }, 3500);
 }
 
+// HTML-Escape fuer Werte, die per innerHTML eingebaut werden (Schutz gegen gespeicherte XSS)
+function pEsc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
 function zeigeScreen(s) {
-  ['login', 'register', 'gewerbe', 'reset', 'app'].forEach(function(x) {
+  // Jeder Screen-Wechsel bricht einen ausstehenden Registrierungs-Redirect ab (sonst Rauswurf aus aktiver Session)
+  if (REG_TIMER) { clearTimeout(REG_TIMER); REG_TIMER = null; }
+  ['login', 'register', 'gewerbe', 'reset', 'neues-passwort', 'app'].forEach(function(x) {
     document.getElementById('screen-' + x).classList.add('hidden');
   });
   document.getElementById('screen-' + s).classList.remove('hidden');
@@ -611,14 +677,20 @@ function portalLogin() {
   if (!email || !pass) { errEl.textContent = t('login_failed'); errEl.classList.remove('hidden'); return; }
   // Direkter fetch (NICHT papi()), damit 401 als "Anmeldung fehlgeschlagen" gezeigt und nicht als Logout verschluckt wird
   fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, passwort: pass }) })
-    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) throw new Error(j.error || t('login_failed')); return j; }); })
+    .then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) { if (!r.ok) { var err = new Error(j.error || t('login_failed')); err.code = j.code; throw err; } return j; }); })
     .then(function(r) {
       TOKEN = r.token;
       localStorage.setItem('rp_portal_token', TOKEN);
       KUNDE = r.kunde;
       startPortal();
     })
-    .catch(function(e) { errEl.textContent = e.message; errEl.classList.remove('hidden'); });
+    .catch(function(e) {
+      // Status-Codes vom Backend lokalisiert erklaeren (E-Mail/Freigabe), sonst rohe Meldung
+      var msg = e.message;
+      if (e.code === 'EMAIL_UNBESTAETIGT') msg = t('login_pending_confirm');
+      else if (e.code === 'NICHT_FREIGEGEBEN') msg = t('login_pending_approval');
+      errEl.textContent = msg; errEl.classList.remove('hidden');
+    });
 }
 
 function portalRegister() {
@@ -634,6 +706,7 @@ function portalRegister() {
   var dsgvo = document.getElementById('reg-dsgvo').checked;
   var agb = document.getElementById('reg-agb').checked;
   var saison = document.getElementById('reg-saison').checked;
+  var bewertung = document.getElementById('reg-bewertung').checked;
 
   if (!vorname || !nachname || !email || !pass) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
   if (pass.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
@@ -642,12 +715,17 @@ function portalRegister() {
 
   papi('POST', '/auth/registrieren', {
     vorname: vorname, nachname: nachname, email: email, telefon: telefon,
-    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison
+    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung
   }).then(function() {
     okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
     document.getElementById('reg-pass').value = '';
     document.getElementById('reg-pass2').value = '';
-    setTimeout(function() { zeigeScreen('login'); }, 3000);
+    // Nach 7s zurueck zum Login — aber nur, wenn der Nutzer noch auf dem Register-Screen ist (kein Rauswurf aus aktiver Session)
+    if (REG_TIMER) clearTimeout(REG_TIMER);
+    REG_TIMER = setTimeout(function() {
+      REG_TIMER = null;
+      if (!document.getElementById('screen-register').classList.contains('hidden')) zeigeScreen('login');
+    }, 7000);
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
   });
@@ -708,6 +786,34 @@ function portalPwReset() {
     okEl.textContent = t('reset_sent'); okEl.classList.remove('hidden');
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
+  });
+}
+
+function portalNeuesPasswort() {
+  var errEl = document.getElementById('np-err');
+  var okEl = document.getElementById('np-ok');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+  var p1 = document.getElementById('np-pass').value;
+  var p2 = document.getElementById('np-pass2').value;
+  if (!RESET_TOKEN) { errEl.textContent = t('reset_link_missing'); errEl.classList.remove('hidden'); return; }
+  if (!p1 || p1.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
+  if (p1 !== p2) { errEl.textContent = t('password_mismatch'); errEl.classList.remove('hidden'); return; }
+  // Button waehrend der Anfrage sperren -> kein Doppel-Absenden mit demselben Token
+  var btn = document.querySelector('#screen-neues-passwort .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
+  papi('POST', '/auth/passwort-reset', { token: RESET_TOKEN, passwort: p1 }).then(function() {
+    RESET_TOKEN = null;
+    document.getElementById('np-pass').value = '';
+    document.getElementById('np-pass2').value = '';
+    // Zurueck zur Anmeldung mit Erfolgshinweis (der Nutzer meldet sich mit dem neuen Passwort an)
+    zeigeScreen('login');
+    var lok = document.getElementById('login-ok');
+    lok.textContent = t('pw_changed_login'); lok.classList.remove('hidden');
+  }).catch(function() {
+    // Reset-Fehler (praktisch nur ungueltiger/abgelaufener Token) lokalisiert statt roher DE-Backend-Text
+    errEl.textContent = t('reset_failed'); errEl.classList.remove('hidden');
+  }).then(function() {
+    if (btn) { btn.disabled = false; btn.textContent = t('set_pw_btn'); }
   });
 }
 
@@ -777,20 +883,69 @@ function fmtDatum(d) {
 function ladeUeberblick() {
   var el = document.getElementById('ueberblick-inhalt');
   el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
-  Promise.all([
-    papi('GET', '/daten/einlagerungen').catch(function() { return []; }),
-    papi('GET', '/daten/termine').catch(function() { return []; })
+  // allSettled statt Promise.all + .catch: echte Serverfehler NICHT als "leer" umdeuten,
+  // sonst wuerde ein Bestandskunde bei einem 500 faelschlich den Erststart-Text sehen.
+  Promise.allSettled([
+    papi('GET', '/daten/einlagerungen'),
+    papi('GET', '/daten/termine'),
+    papi('GET', '/daten/fahrzeuge')
   ]).then(function(res) {
-    var einl = (res[0] || []).filter(function(e) { return e.status === 'Eingelagert'; });
-    var termine = (res[1] || []).filter(function(tm) {
-      return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= new Date().toISOString().substring(0,10);
+    var einlOk = res[0].status === 'fulfilled';
+    var termOk = res[1].status === 'fulfilled';
+    var einlAlle = einlOk ? (res[0].value || []) : [];
+    var termineAlle = termOk ? (res[1].value || []) : [];
+    var fahrzeuge = res[2].status === 'fulfilled' ? (res[2].value || []) : [];
+    var einl = einlAlle.filter(function(e) { return e.status === 'Eingelagert'; });
+    // Heute LOKAL bilden (nicht toISOString()=UTC -> in UTC+2 zwischen 00-02 Uhr sonst Vortag; siehe Projekt-Learning)
+    var _hn = new Date();
+    var heuteLokal = _hn.getFullYear() + '-' + String(_hn.getMonth() + 1).padStart(2, '0') + '-' + String(_hn.getDate()).padStart(2, '0');
+    var termine = termineAlle.filter(function(tm) {
+      return tm.status !== 'storniert' && tm.datum && tm.datum.substring(0,10) >= heuteLokal;
     });
     var html = '';
-    html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + KUNDE.vorname + '</strong></div>';
+    html += '<div style="margin-bottom:16px">' + t('welcome') + ', <strong>' + pEsc(KUNDE.vorname) + '</strong></div>';
     html += '<div class="g2">';
     html += '<div class="iz"><div class="iz-l">' + t('active_storage') + '</div><div class="iz-v" style="font-size:24px;color:var(--accent-text)">' + einl.length + '</div></div>';
     html += '<div class="iz"><div class="iz-l">' + t('upcoming') + '</div><div class="iz-v" style="font-size:24px;color:var(--blue)">' + termine.length + '</div></div>';
     html += '</div>';
+    // Anreicherung: naechster Termin, Lagerplatz(e), HU — jeweils nur wenn Daten vorhanden.
+    var details = '';
+    var naechster = termine.slice().sort(function(a,b) {
+      return (a.datum + (a.uhrzeit_von || '')).localeCompare(b.datum + (b.uhrzeit_von || ''));
+    })[0];
+    if (naechster) {
+      var nlabel = pEsc(naechster.artikel_name || naechster.termin_typ || '');
+      // Status anhaengen, wenn noch nicht bestaetigt (z. B. Sammeltermin-Anfrage "angefragt")
+      var nstatus = (naechster.status && naechster.status !== 'bestaetigt') ? ' <span style="color:var(--muted)">· ' + pEsc(terminStatusLabel(naechster.status)) + '</span>' : '';
+      details += '<div class="iz"><div class="iz-l">' + t('next_appointment') + '</div><div class="iz-v">' + fmtDatum(naechster.datum) + ' — ' + (naechster.uhrzeit_von || '').substring(0,5) + (nlabel ? ' · ' + nlabel : '') + nstatus + '</div></div>';
+    }
+    var plaetze = einl.map(function(e) { return e.lagerplatz; }).filter(Boolean);
+    if (plaetze.length) {
+      details += '<div class="iz"><div class="iz-l">' + t('storage_place') + '</div><div class="iz-v">' + plaetze.map(pEsc).join(', ') + '</div></div>';
+    }
+    // HU: dringendste (frueheste) aus den Fahrzeugen des Kunden; Fallback auf kunden.hu_datum.
+    // (kunden.hu_datum wird serverseitig vom zuletzt gespeicherten Fahrzeug ueberschrieben -> waere fuer
+    // Mehrfahrzeug-Kunden ggf. nicht die dringendste HU.)
+    var huKandidaten = fahrzeuge.map(function(f) { return f.hu_datum ? String(f.hu_datum).substring(0,10) : null; }).filter(Boolean).sort();
+    var huDatum = huKandidaten.length ? huKandidaten[0] : (KUNDE.hu_datum ? String(KUNDE.hu_datum).substring(0,10) : null);
+    if (huDatum) {
+      var huDiff = Math.round((new Date(huDatum + 'T12:00:00') - new Date()) / 86400000);
+      var huHint = '';
+      if (huDiff < 0) huHint = ' <span style="color:#c0392b;font-weight:700">· ' + t('hu_overdue') + '</span>';
+      else if (huDiff < 60) huHint = ' <span style="color:#eab308;font-weight:700">· ' + t('hu_soon') + '</span>';
+      details += '<div class="iz"><div class="iz-l">' + t('hu_due') + '</div><div class="iz-v">' + fmtDatum(huDatum) + huHint + '</div></div>';
+    }
+    if (details) html += '<div style="margin-top:12px">' + details + '</div>';
+    // Erststart-Onboarding nur, wenn BEIDE Abfragen erfolgreich waren UND der Kunde ueberhaupt keine
+    // Einlagerung (jeder Status) und keinen Termin (jeder Status, auch vergangene) hat. So sieht weder ein
+    // Bestandskunde mit reiner Abhol-/Termin-Historie noch ein Kunde bei einem API-Fehler den beruhigenden Text.
+    if (einlOk && termOk && !einlAlle.length && !termineAlle.length) {
+      html += '<div style="margin-top:16px;padding:14px 16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;line-height:1.55">';
+      html += '<div style="font-weight:700;margin-bottom:6px">' + t('overview_hello') + '</div>';
+      html += '<div style="font-size:13px;color:var(--muted)">' + t('overview_onboarding') + '</div>';
+      if (FIRMA_TEL) html += '<div style="font-size:13px;margin-top:8px">' + t('phone_req') + ': <strong>' + pEsc(FIRMA_TEL) + '</strong></div>';
+      html += '</div>';
+    }
     html += '<button class="btn btn-p" style="margin-top:16px" onclick="portalNav(\'buchen\')">' + t('book_now') + '</button>';
     el.innerHTML = html;
   });
@@ -804,12 +959,12 @@ function ladeEinlagerungen() {
     el.innerHTML = rows.map(function(e) {
       var html = '<div class="card">';
       html += '<div class="card-titel">';
-      html += '<span class="lager-tag">' + (e.lagerplatz || '-') + '</span>';
-      html += '<span class="badge ' + (e.status === 'Eingelagert' ? 'b-g' : 'b-y') + '">' + (e.status || '') + '</span>';
+      html += '<span class="lager-tag">' + pEsc(e.lagerplatz || '-') + '</span>';
+      html += '<span class="badge ' + (e.status === 'Eingelagert' ? 'b-g' : 'b-y') + '">' + pEsc(e.status || '') + '</span>';
       html += '</div>';
       html += '<div class="g2">';
-      if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + e.kennzeichen + '</div></div>';
-      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).join(' ');
+      if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + pEsc(e.kennzeichen) + '</div></div>';
+      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).map(pEsc).join(' ');
       if (reifen) html += '<div class="iz"><div class="iz-l">' + t('tire') + '</div><div class="iz-v">' + reifen + '</div></div>';
       if (e.saison) html += '<div class="iz"><div class="iz-l">' + t('season') + '</div><div class="iz-v">' + saisonText(e.saison) + '</div></div>';
       if (e.eingelagert_am) html += '<div class="iz"><div class="iz-l">' + t('stored_since') + '</div><div class="iz-v">' + fmtDatum(e.eingelagert_am) + '</div></div>';
@@ -821,7 +976,7 @@ function ladeEinlagerungen() {
       if (e.profil_hr) pt.push('HR ' + e.profil_hr);
       if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pt.join(', ') + ' mm</div></div>';
       html += '</div>';
-      if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + e.bemerkungen + '</div></div>';
+      if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + pEsc(e.bemerkungen) + '</div></div>';
       html += '</div>';
       return html;
     }).join('');
@@ -830,40 +985,72 @@ function ladeEinlagerungen() {
   });
 }
 
+// Rendert eine Terminkarte. mitAktionen=true nur fuer die Sektion "kommende Termine".
+function terminKarte(tm, mitAktionen) {
+  // "vorbei": Termin-Startzeitpunkt (Datum + Uhrzeit, lokale Zeit) liegt in der Vergangenheit.
+  // Mit Uhrzeit gebaut (kein reines 'YYYY-MM-DD' -> keine UTC-Vortag-Falle).
+  var vorbei = false;
+  if (tm.datum) {
+    var dt = new Date(tm.datum.substring(0, 10) + 'T' + (tm.uhrzeit_von || '00:00').substring(0, 5) + ':00');
+    vorbei = !isNaN(dt.getTime()) && dt.getTime() <= Date.now();
+  }
+  var storniert = tm.status === 'storniert';
+  var html = '<div class="card" style="' + (vorbei || storniert ? 'opacity:0.6' : '') + '">';
+  html += '<div class="card-titel">';
+  html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
+  var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
+  html += '<span class="badge ' + badge + '">' + pEsc(terminStatusLabel(tm.status)) + '</span>';
+  html += '</div>';
+  html += '<div class="iz"><div class="iz-v">' + pEsc(tm.artikel_name || tm.termin_typ || '') + '</div></div>';
+  if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + pEsc(tm.kennzeichen) + '</div>';
+  if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + pEsc(tm.beschreibung) + '</div>';
+  // Aktionen nur fuer kommende, noch offene Termine (angefragt/bestaetigt) und nur solange nicht vorbei.
+  // Schliesst abgeschlossen/abgesagt/storniert und bereits verstrichene (auch heutige) Termine aus.
+  if (mitAktionen && !vorbei && (tm.status === 'angefragt' || tm.status === 'bestaetigt')) {
+    html += '<div style="display:flex;gap:8px;margin-top:12px">' +
+      '<button class="btn btn-g btn-sm" onclick="terminVerschiebenStart(\'' + tm.id + '\',\'' + (tm.artikel_id || '') + '\')">' + t('reschedule') + '</button>' +
+      '<button class="btn btn-g btn-sm" style="color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>' +
+      '</div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function ladeTermine() {
   var el = document.getElementById('termine-liste');
   el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
-  papi('GET', '/daten/termine').then(function(rows) {
-    if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>'; return; }
-    var _hn = new Date();
-    var heute = _hn.getFullYear() + '-' + String(_hn.getMonth() + 1).padStart(2, '0') + '-' + String(_hn.getDate()).padStart(2, '0');
-    var stornoHinweis = '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
-    el.innerHTML = stornoHinweis + rows.sort(function(a,b) {
-      return (b.datum||'').localeCompare(a.datum||'');
-    }).map(function(tm) {
-      var vergangen = tm.datum && tm.datum.substring(0,10) < heute;
-      var storniert = tm.status === 'storniert';
-      var html = '<div class="card" style="' + (vergangen || storniert ? 'opacity:0.6' : '') + '">';
-      html += '<div class="card-titel">';
-      html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
-      var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
-      html += '<span class="badge ' + badge + '">' + terminStatusLabel(tm.status) + '</span>';
-      html += '</div>';
-      html += '<div class="iz"><div class="iz-v">' + (tm.artikel_name || tm.termin_typ || '') + '</div></div>';
-      if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + tm.kennzeichen + '</div>';
-      if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + tm.beschreibung + '</div>';
-      // Stornieren wenn zukünftig und nicht storniert
-      if (!vergangen && !storniert) {
-        html += '<div style="display:flex;gap:8px;margin-top:12px">' +
-          '<button class="btn btn-g btn-sm" onclick="terminVerschiebenStart(\'' + tm.id + '\',\'' + (tm.artikel_id || '') + '\')">' + t('reschedule') + '</button>' +
-          '<button class="btn btn-g btn-sm" style="color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>' +
-          '</div>';
-      }
-      html += '</div>';
-      return html;
-    }).join('');
-  }).catch(function(e) {
-    el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
+  // Kommende und vergangene Termine getrennt laden (Historie = eigener Endpoint, bisher ungenutzt).
+  // allSettled: ein Fehler in einer Abfrage soll die andere Sektion nicht verschlucken.
+  Promise.allSettled([
+    papi('GET', '/daten/termine'),
+    papi('GET', '/daten/termine/vergangen')
+  ]).then(function(res) {
+    var kommend = res[0].status === 'fulfilled' ? (res[0].value || []) : [];
+    var vergangen = res[1].status === 'fulfilled' ? (res[1].value || []) : [];
+    if (res[0].status !== 'fulfilled' && res[1].status !== 'fulfilled') {
+      el.innerHTML = '<div class="card"><div class="empty">' + t('error_loading') + '</div></div>';
+      return;
+    }
+    if (!kommend.length && !vergangen.length) {
+      el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>';
+      return;
+    }
+    var html = '';
+    // Kommende Termine (aufsteigend, mit Aktionen) + Storno-Hinweis nur wenn welche vorhanden
+    if (kommend.length) {
+      html += '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
+      html += kommend.sort(function(a,b) { return (a.datum||'').localeCompare(b.datum||''); })
+        .map(function(tm) { return terminKarte(tm, true); }).join('');
+    } else {
+      html += '<div class="card"><div class="empty">' + t('no_upcoming_appointments') + '</div></div>';
+    }
+    // Vergangene Termine (Historie, absteigend, ohne Aktionen)
+    if (vergangen.length) {
+      html += '<div style="margin:22px 0 10px;font-size:13px;font-weight:700;color:var(--muted)">' + t('past_appointments') + '</div>';
+      html += vergangen.sort(function(a,b) { return (b.datum||'').localeCompare(a.datum||''); })
+        .map(function(tm) { return terminKarte(tm, false); }).join('');
+    }
+    el.innerHTML = html;
   });
 }
 
@@ -913,12 +1100,14 @@ function ladeArtikel() {
     artikelListe = rows || [];
     var sel = document.getElementById('buchen-artikel');
     sel.innerHTML = artikelListe.map(function(a) {
-      return '<option value="' + a.id + '">' + a.name + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
+      return '<option value="' + a.id + '">' + pEsc(a.name) + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
     }).join('');
   }).catch(function() {});
 }
 
 function initBuchen() {
+  pendingBuchung = null;
+  terminBuchenAbbrechen(); // frischer Zustand: kein offenes Bestaetigungs-Panel
   var d = document.getElementById('buchen-datum');
   var n = new Date();
   var heute = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
@@ -935,7 +1124,7 @@ function initBuchen() {
     var sel = document.getElementById('buchen-fahrzeug');
     sel.innerHTML = '<option value="">—</option>' + buchenFahrzeuge.map(function(f) {
       var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
-      return '<option value="' + f.id + '" data-typ="' + (f.typ || '') + '" data-kz="' + (f.kennzeichen || '') + '">' + label + '</option>';
+      return '<option value="' + f.id + '" data-typ="' + pEsc(f.typ || '') + '" data-kz="' + pEsc(f.kennzeichen || '') + '">' + pEsc(label) + '</option>';
     }).join('');
     renderSammelFzs();
   }).catch(function() {});
@@ -947,10 +1136,11 @@ function renderSammelFzs() {
   el.innerHTML = '<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px">' + t('select_vehicles') + '</div>' +
     buchenFahrzeuge.map(function(f) {
       var label = ([f.marke, f.modell].filter(Boolean).join(' ') || f.typ) + (f.kennzeichen ? ' (' + f.kennzeichen + ')' : '');
-      return '<label class="check-row" style="margin:0 0 4px"><input type="checkbox" class="sammel-fz" value="' + f.id + '"> ' + label + '</label>';
+      return '<label class="check-row" style="margin:0 0 4px"><input type="checkbox" class="sammel-fz" value="' + f.id + '" onchange="terminBuchenAbbrechen()"> ' + pEsc(label) + '</label>';
     }).join('');
 }
 function buchenSammelToggle() {
+  terminBuchenAbbrechen(); // Umschalten Einzel/Sammel invalidiert eine offene Zusammenfassung
   var on = document.getElementById('buchen-sammel').checked;
   document.getElementById('buchen-sammel-info').style.display = on ? '' : 'none';
   document.getElementById('buchen-sammel-fzs').style.display = on ? '' : 'none';
@@ -998,6 +1188,7 @@ function buchenSlotsLaden() {
   var preisEl = document.getElementById('buchen-preis');
   selectedSlot = null;
   preisEl.textContent = '';
+  terminBuchenAbbrechen(); // evtl. offene Zusammenfassung schliessen (Eingaben geaendert)
   if (!artikelId) { wrap.classList.add('hidden'); return; }
   // Preis + Dauer aus Staffel (Typ + Zoll) anzeigen
   papi('GET', '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(p) {
@@ -1025,8 +1216,12 @@ function slotWaehlen(el) {
   document.querySelectorAll('.slot').forEach(function(s) { s.classList.remove('sel'); });
   el.classList.add('sel');
   selectedSlot = el.getAttribute('data-zeit');
+  terminBuchenAbbrechen(); // evtl. offene Zusammenfassung schliessen (Auswahl geaendert)
 }
 
+var pendingBuchung = null;
+var buchungLaeuft = false; // In-Flight-Sperre: verhindert einen zweiten POST waehrend eine Buchung laeuft
+// Schritt 1: validieren, Zusammenfassung bauen und Bestaetigungs-Panel zeigen (bucht noch NICHT)
 function terminBuchen() {
   var artikelId = document.getElementById('buchen-artikel').value;
   var datum = document.getElementById('buchen-datum').value;
@@ -1035,33 +1230,73 @@ function terminBuchen() {
   if (!selectedSlot) { notify(t('select_slot'), 'err'); return; }
   var sammelCb = document.getElementById('buchen-sammel');
   var istSammel = KUNDE && KUNDE.ist_gewerbe && sammelCb && sammelCb.checked;
+  var artikelSel = document.getElementById('buchen-artikel');
+  var artikelName = artikelSel.options[artikelSel.selectedIndex] ? artikelSel.options[artikelSel.selectedIndex].text : '';
+  var rows = [];
+  rows.push([t('service'), artikelName]);
+  rows.push([t('date'), fmtDatum(datum)]);
+  rows.push([t('time_label'), (selectedSlot || '').substring(0, 5)]);
+  var payload;
   if (istSammel) {
     var ids = Array.prototype.slice.call(document.querySelectorAll('.sammel-fz:checked')).map(function(c) { return c.value; });
     if (!ids.length) { notify(t('select_min_one'), 'err'); return; }
-    papi('POST', '/daten/termine', {
-      datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
-      beschreibung: notiz || null, sammeltermin: true, fahrzeug_ids: ids
-    }).then(function() {
-      notify(t('collective_requested'), 'ok');
-      document.getElementById('buchen-notiz').value = '';
-      sammelCb.checked = false; buchenSammelToggle(); selectedSlot = null;
-      portalNav('termine');
-    }).catch(function(e) { notify(e.message, 'err'); });
-    return;
+    rows.push([t('collective_appt'), String(ids.length)]);
+    payload = { datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId, beschreibung: notiz || null, sammeltermin: true, fahrzeug_ids: ids };
+  } else {
+    var kz = buchenKzAusTeilen();
+    var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
+    var zoll = document.getElementById('buchen-zoll').value || null;
+    var fzSel = document.getElementById('buchen-fahrzeug');
+    var fzText = (fahrzeugId && fzSel.options[fzSel.selectedIndex]) ? fzSel.options[fzSel.selectedIndex].text : '';
+    if (fzText) rows.push([t('vehicle'), fzText]);
+    else if (kz) rows.push([t('license_plate'), kz]);
+    if (zoll) rows.push([t('inch'), zoll]);
+    payload = { datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId, kennzeichen: kz || null, beschreibung: notiz || null, fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll };
   }
-  var kz = buchenKzAusTeilen();
-  var fahrzeugId = document.getElementById('buchen-fahrzeug').value || null;
-  var zoll = document.getElementById('buchen-zoll').value || null;
-  papi('POST', '/daten/termine', {
-    datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId,
-    kennzeichen: kz || null, beschreibung: notiz || null,
-    fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll
-  }).then(function() {
-    notify(t('booked'), 'ok');
+  if (notiz) rows.push([t('notes'), notiz]);
+  pendingBuchung = { payload: payload, sammel: istSammel };
+  var inhalt = rows.map(function(r) {
+    return '<div><span style="color:var(--muted)">' + r[0] + ':</span> <strong>' + pEsc(r[1]) + '</strong></div>';
+  }).join('');
+  var preisTxt = (document.getElementById('buchen-preis').textContent || '').trim();
+  if (preisTxt) inhalt += '<div style="margin-top:6px;color:var(--accent-text);font-weight:700">' + pEsc(preisTxt) + '</div>';
+  document.getElementById('buchen-bestaetigung-inhalt').innerHTML = inhalt;
+  document.getElementById('buchen-btn').classList.add('hidden');
+  document.getElementById('buchen-bestaetigung').classList.remove('hidden');
+  document.getElementById('buchen-bestaetigung').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Schritt 2: verbindlich buchen (POST)
+function terminBuchenBestaetigen() {
+  if (!pendingBuchung || buchungLaeuft) return; // kein zweiter Versand waehrend laufender Buchung
+  buchungLaeuft = true;
+  var btn = document.getElementById('buchen-bestaetigen-btn');
+  if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
+  var sammel = pendingBuchung.sammel;
+  papi('POST', '/daten/termine', pendingBuchung.payload).then(function() {
+    notify(sammel ? t('collective_requested') : t('booked'), 'ok');
     document.getElementById('buchen-notiz').value = '';
+    var sammelCb = document.getElementById('buchen-sammel');
+    if (sammel && sammelCb) { sammelCb.checked = false; buchenSammelToggle(); }
     selectedSlot = null;
+    pendingBuchung = null;
+    terminBuchenAbbrechen();
     portalNav('termine');
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    notify(e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = t('confirm_book_btn'); }
+  }).then(function() { buchungLaeuft = false; });
+}
+
+// Zusammenfassung schliessen, zurueck zum Formular
+function terminBuchenAbbrechen() {
+  pendingBuchung = null;
+  var p = document.getElementById('buchen-bestaetigung');
+  if (p) p.classList.add('hidden');
+  var b = document.getElementById('buchen-btn');
+  if (b) b.classList.remove('hidden');
+  var cb = document.getElementById('buchen-bestaetigen-btn');
+  if (cb) { cb.disabled = false; cb.textContent = t('confirm_book_btn'); }
 }
 
 // Saison-Hinweis: in den Wochen vor dem Wechsel auf fruehe Terminbuchung hinweisen
@@ -1280,13 +1515,14 @@ function checkUrlParams() {
     window.history.replaceState({}, '', window.location.pathname);
   }
   if (reset) {
-    // Reset-Formular zeigen (vereinfacht: Passwort neu setzen)
-    var np = prompt(LANG === 'en' ? 'Enter new password (min. 8 chars):' : 'Neues Passwort eingeben (mind. 8 Zeichen):');
-    if (np && np.length >= 8) {
-      papi('POST', '/auth/passwort-reset', { token: reset, passwort: np }).then(function() {
-        notify(t('pw_changed'), 'ok');
-      }).catch(function(e) { notify(e.message, 'err'); });
-    }
+    // Echtes Formular statt prompt(): Token merken, "Neues Passwort"-Screen zeigen.
+    // Eine evtl. noch aktive Session verwerfen, damit initPortal/startPortal den Screen
+    // nicht ueberschreibt (der Nutzer setzt das Passwort neu und meldet sich danach an).
+    TOKEN = null;
+    localStorage.removeItem('rp_portal_token');
+    RESET_TOKEN = reset;
+    zeigeScreen('neues-passwort');
+    // Token aus der URL entfernen (nicht im Verlauf/History stehen lassen)
     window.history.replaceState({}, '', window.location.pathname);
   }
 }
@@ -1296,6 +1532,8 @@ var ZIEL_NACH_LOGIN = null;
 function initPortal() {
   setLang(LANG);
   checkUrlParams();
+  // Laeuft gerade ein Passwort-Reset, bleibt der "Neues Passwort"-Screen stehen (kein Auto-Login/Login-Screen darueber)
+  if (RESET_TOKEN) return;
   var _p = new URLSearchParams(window.location.search);
   var wantBuchen = _p.has('buchen') || window.location.hash === '#buchen';
   var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';

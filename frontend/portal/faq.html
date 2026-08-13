@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Häufige Fragen — Schröder & Scholz</title>
 <style>
-  :root { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --border:#2a3441; }
+  :root, :root[data-theme="light"] { --bg:#f3f2ef; --panel:#ffffff; --text:#201e1b; --muted:#6f6a61; --accent:#eab308; --accent-text:#87680c; --border:#e2ddd3; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --border:#2a3441; } }
+  :root[data-theme="dark"] { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --border:#2a3441; }
+  .wm-tx { fill: var(--text); } .wm-sub { fill: var(--muted); }
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; font-size:15px; }
   .wrap { max-width:760px; margin:0 auto; padding:32px 22px 60px; }
@@ -13,14 +16,15 @@
   h1 { font-size:24px; margin:24px 0 6px; font-weight:800; }
   .meta { color:var(--muted); font-size:13px; margin-bottom:20px; }
   .box { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:12px; }
-  .q { font-weight:700; color:var(--accent); margin-bottom:6px; font-size:16px; }
-  .a { color:#c9d1d9; }
-  a { color:var(--accent); }
+  .q { font-weight:700; color:var(--accent-text); margin-bottom:6px; font-size:16px; }
+  .a { color:var(--text); }
+  a { color:var(--accent-text); }
   .lang-toggle { position:fixed; top:14px; right:14px; display:flex; gap:4px; }
   .lang-toggle button { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--muted); padding:5px 11px; cursor:pointer; font-weight:700; font-size:12px; }
-  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent); }
-  .back { display:inline-block; margin-top:24px; color:var(--accent); text-decoration:none; font-weight:600; }
+  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent-text); }
+  .back { display:inline-block; margin-top:24px; color:var(--accent-text); text-decoration:none; font-weight:600; }
 </style>
+<script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 </head>
 <body>
 <div class="lang-toggle">
@@ -29,7 +33,7 @@
 </div>
 <div class="wrap">
   <div class="logo">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
   </div>
   <div id="faq-content"></div>
   <a href="./" class="back">← Zurück zum Portal</a>
