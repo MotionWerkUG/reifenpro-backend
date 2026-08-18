@@ -170,3 +170,26 @@ SELECT
   (SELECT regale*reihen*plaetze FROM lager_config LIMIT 1) -
   (SELECT COUNT(*) FROM einlagerungen WHERE status IN ('Eingelagert','Abholbereit')) AS freie_plaetze,
   (SELECT COUNT(*) FROM termine WHERE datum>=CURRENT_DATE AND status!='storniert') AS termine_offen;
+
+-- ── Öffnungszeiten & Feiertage (Phase 2, additiv) ──
+ALTER TABLE einstellungen ADD COLUMN IF NOT EXISTS bundesland text DEFAULT 'BY';
+
+CREATE TABLE IF NOT EXISTS oeffnungszeiten (
+  wochentag   int PRIMARY KEY,          -- 0=Mo .. 6=So
+  geschlossen boolean DEFAULT false,
+  von1 time, bis1 time,                 -- Vormittag / erste Spanne
+  von2 time, bis2 time                  -- Nachmittag / zweite Spanne (optional)
+);
+
+CREATE TABLE IF NOT EXISTS besondere_tage (
+  id          uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  datum       date UNIQUE NOT NULL,
+  bezeichnung text,
+  geschlossen boolean DEFAULT true,
+  von time, bis time,
+  quelle      text DEFAULT 'manuell'    -- 'manuell' | 'feiertag'
+);
+
+-- Eigene Einwilligung fuer Bewertungsanfragen (getrennt von der Saison-Erinnerung; § 7 UWG / BGH VI ZR 225/17).
+ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung boolean DEFAULT false;
+ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung_am timestamp with time zone;

@@ -89,6 +89,33 @@ main { flex: 1; overflow-y: auto; padding: 24px; }
 .page { display: none; }
 .page.active { display: block; animation: fi .2s ease; }
 @keyframes fi { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+/* ── Navigation (einklappbare Icon-Leiste, WERKBANK-Muster) ── */
+aside { transition: width .18s ease; }
+.ni { position: relative; }
+.ni-ic { width: 19px; height: 19px; flex-shrink: 0; }
+.ni-label { margin-left: 11px; white-space: nowrap; }
+.ni.active::before { content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 20px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-text); }
+.navcollapse { display: flex; justify-content: flex-end; padding: 6px 12px 2px; }
+.navcollapse button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 6px; line-height: 0; }
+.navcollapse button:hover { color: var(--text); background: color-mix(in srgb,var(--text) 8%,transparent); }
+.navback { display: none; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap; }
+#app.has-prev .navback { display: inline-flex; }
+.crumb { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crumb strong { color: var(--text); font-weight: 600; }
+/* eingeklappt: nur Icons */
+#app.nav-collapsed aside { width: 64px; }
+#app.nav-collapsed .ni-label, #app.nav-collapsed .nsec { display: none; }
+#app.nav-collapsed .ni { justify-content: center; padding: 9px 0; margin: 1px 10px; }
+/* Modus "ausfahren": bei Hover kurz breit */
+#app.nav-collapsed.nav-expand aside:hover { width: 240px; box-shadow: 6px 0 18px rgba(0,0,0,.32); }
+#app.nav-collapsed.nav-expand aside:hover .ni-label { display: inline; }
+#app.nav-collapsed.nav-expand aside:hover .nsec { display: block; }
+#app.nav-collapsed.nav-expand aside:hover .ni { justify-content: flex-start; padding: 9px 14px; }
+/* Modus "Tooltip": Name kommt im eingeklappten Zustand ueber das native title-Attribut (kein Overflow-Clipping). */
+.navview-opt { text-align: left; cursor: pointer; background: var(--bg); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; color: var(--text); font-family: inherit; }
+.navview-opt.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.navview-opt .nvt { font-size: 13px; font-weight: 600; }
+.navview-opt .nvd { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
 
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 8px; border: none; cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap; text-decoration: none; }
@@ -254,6 +281,14 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
 @media (max-width: 768px) {
   .navtoggle { display: flex; }
   aside { position: fixed; top: 60px; left: 0; bottom: 0; z-index: 200; transform: translateX(-100%); transition: transform .2s ease; }
+  /* Mobil (Off-Canvas, Touch ohne :hover) IMMER volle Leiste — Einklapp-Ansicht nur am Desktop. */
+  #app.nav-collapsed aside { width: 240px; }
+  #app.nav-collapsed .ni-label { display: inline; }
+  #app.nav-collapsed .nsec { display: block; }
+  #app.nav-collapsed .ni { justify-content: flex-start; padding: 9px 14px; margin: 1px 8px; }
+  .navback { display: none !important; }
+  /* Kopfzeile auf Mobil schlank halten (sonst wird 'Abmelden' aus dem Bild gedraengt) */
+  .crumb, .hsearch { display: none !important; }
   #app.nav-open aside { transform: translateX(0); }
   #app.nav-open .nav-backdrop { display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 150; }
   .hstats { display: none; }
@@ -313,6 +348,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
 <script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
 <div id="loader"><div class="ll">Reifen<span>Pro</span></div><div class="lb"><div class="lbf"></div></div></div>
 
+<!-- Inaktivitaets-Warnung (Sicherheits-Timeout) -->
+<div id="idle-warn" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px">
+  <div class="modal" style="max-width:360px;text-align:center">
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">Automatische Abmeldung</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Aus Sicherheitsgründen werden Sie in <strong id="idle-count">60</strong> Sekunden abgemeldet.</div>
+    <button class="btn btn-p" style="width:100%;justify-content:center;padding:10px" onclick="idleReset()">Angemeldet bleiben</button>
+  </div>
+</div>
+
 <div id="login-screen" style="display:none">
   <div class="lbox">
     <div id="ls-login">
@@ -344,16 +388,18 @@ html, body { max-width: 100%; overflow-x: hidden; }
   <header>
     <button class="navtoggle" onclick="toggleNav()" aria-label="Menü"><span class="bar"></span><span class="bar"></span><span class="bar"></span></button>
     <div class="hlogo">Reifen<span>Pro</span></div>
+    <button class="hbtn navback" onclick="navBack()" title="Zurück" aria-label="Zurück"><svg class="ni-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg> Zurück</button>
+    <div id="breadcrumb" class="crumb"></div>
     <div class="hstats">
       <div><div class="hstat-v" id="hs-e">0</div><div class="hstat-l">Eingelagert</div></div>
       <div><div class="hstat-v" style="color:var(--green)" id="hs-f">-</div><div class="hstat-l">Frei</div></div>
     </div>
-    <div id="h-clock" style="font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;min-width:120px;text-align:right"></div><div class="huser"><button class="hbtn theme-btn" id="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button><div class="huser-dot"></div><span id="h-user">-</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
+    <div id="h-clock" style="font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;min-width:120px;text-align:right"></div><div class="huser"><button class="hbtn hsearch" onclick="openSuche()" title="Suche: Kunde, Kennzeichen, Lagerplatz" aria-label="Suche"><svg class="ni-ic" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button><button class="hbtn theme-btn" id="theme-btn" onclick="toggleTheme()" title="Hell/Dunkel umschalten" aria-label="Hell/Dunkel umschalten"></button><div class="huser-dot"></div><span id="h-user">-</span><button class="hbtn" onclick="doLogout()">Abmelden</button></div>
   </header>
   <div class="body">
     <div class="nav-backdrop" onclick="closeNav()"></div>
     <aside>
-      <div style="height:10px"></div>
+      <div class="navcollapse"><button onclick="navToggleCollapse()" title="Leiste ein-/ausklappen" aria-label="Navigation ein- oder ausklappen"><svg class="ni-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button></div>
       <div class="nsec">Verwaltung</div>
       <div class="ni active" data-page="dashboard">Dashboard</div>
       <div class="ni" data-page="kunden">Kunden</div>
@@ -385,16 +431,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div id="dash-kontakt"></div>
         <div id="dash-gewerbe"></div>
         <div class="stats">
-          <div class="sc sc-a clickable" onclick="showPage('einlagerung')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
-          <div class="sc sc-y"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
-          <div class="sc sc-g"><div class="sv" id="st-f">-</div><div class="sl">Freie Plätze</div></div>
+          <div class="sc sc-a clickable" onclick="dashEinl('')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
+          <div class="sc sc-y clickable" onclick="dashEinl('Abholbereit')"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
+          <div class="sc sc-g clickable" onclick="showPage('lagerplan')"><div class="sv" id="st-f">-</div><div class="sl">Freie Plätze</div></div>
           <div class="sc sc-b clickable" onclick="showPage('kunden')"><div class="sv" id="st-k">0</div><div class="sl">Kunden</div></div>
         </div>
         <div class="g2">
           <div class="pnl"><div class="ptitle">Letzte Einlagerungen</div><div id="dash-last"></div></div>
           <div>
             <div class="pnl"><div class="ptitle">Reifentypen</div><div id="dash-typ"></div></div>
-            <div class="pnl"><div class="ptitle">Heutige Termine</div><div id="dash-termine"></div></div>
+            <div class="pnl clickable" onclick="showPage('werkstatt')"><div class="ptitle">Heutige Termine <span style="font-size:11px;color:var(--muted);font-weight:400">→ Werkstattbrett</span></div><div id="dash-termine"></div></div>
           </div>
         </div>
         <div class="pnl"><div class="ptitle">Letzte Aktivität</div><div id="dash-aktivitaet"></div></div>
@@ -485,7 +531,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="sr">
           <input type="text" id="e-search" placeholder="Kunde, Kennzeichen, Lagerplatz..." oninput="renderE()">
           <select id="e-sf" onchange="renderE()"><option value="">Alle Status</option><option>Eingelagert</option><option>Abholbereit</option><option>Abgeholt</option></select>
-          <select id="e-tf" onchange="renderE()"><option value="">Alle Typen</option><option>Winter</option><option>Sommer</option></select>
+          <select id="e-tf" onchange="renderE()"><option value="">Alle Typen</option><option>Winter</option><option>Sommer</option><option>Ganzjahr</option></select>
           <button class="btn btn-g btn-sm" onclick="renderE()">Suchen</button>
         </div>
         <div class="tw">
@@ -536,7 +582,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-werkstatt">
         <div class="ph">
           <div class="pt" id="ws-dat">Werkstatt</div>
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-p btn-sm" onclick="walkIn()">+ Walk-in</button>
             <button class="btn btn-g btn-sm" onclick="wsVorherig()">Vorheriger Tag</button>
             <button class="btn btn-g btn-sm" onclick="wsHeute()">Heute</button>
             <button class="btn btn-g btn-sm" onclick="wsNaechster()">Nächster Tag</button>
@@ -606,93 +653,164 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <!-- EINSTELLUNGEN -->
       <div class="page" id="page-einstellungen">
         <div class="ph"><div class="pt">Einstellungen</div><button class="btn btn-p" onclick="saveEinst()">Speichern</button></div>
-        <div class="ssec"><h3>Firmendaten</h3><div class="fgrid">
-          <div class="fg"><label>Firmenname *</label><input id="s-fn"></div>
-          <div class="fg"><label>Inhaber *</label><input id="s-ih"></div>
-          <div class="fg"><label>Straße *</label><input id="s-str"></div>
-          <div class="fg"><label>PLZ *</label><input id="s-plz"></div>
-          <div class="fg"><label>Ort *</label><input id="s-ort"></div>
-          <div class="fg"><label>Telefon</label><input id="s-tel"></div>
-          <div class="fg"><label>E-Mail *</label><input id="s-mail" type="email"></div>
-          <div class="fg"><label>Website</label><input id="s-web"></div>
-          <div class="fg"><label>Google-Bewertungslink</label><input id="s-google" placeholder="https://g.page/r/... oder Google-Profil"></div>
-          <div class="fg"><label>Facebook-Seite</label><input id="s-fb" placeholder="https://facebook.com/..."></div>
-          <div class="fg"><label>Instagram-Profil</label><input id="s-ig" placeholder="https://instagram.com/..."></div>
-          <div class="fg"><label>Steuernummer</label><input id="s-steu"></div>
-          <div class="fg"><label>USt-ID</label><input id="s-ustid" placeholder="DE123456789"></div>
-          <div class="fg"><label>Rechtsform</label>
-            <select id="s-rf">
-              <option value="UG (haftungsbeschränkt)">UG (haftungsbeschränkt)</option>
-              <option value="GmbH">GmbH</option>
-              <option value="GbR">GbR</option>
-              <option value="Einzelunternehmen">Einzelunternehmen</option>
-            </select>
+        <div class="ssec" style="margin-bottom:18px"><h3>Ansicht der Navigation</h3>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Gilt nur für dieses Gerät und wird gemerkt. Die Leiste lässt sich auch jederzeit über das Symbol oben in der Seitenleiste ein-/ausklappen.</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <button class="navview-opt" data-navview="pinned" onclick="navSetView('pinned')"><div class="nvt">Leiste angepinnt</div><div class="nvd">Immer breit mit Namen — am großen Bildschirm am übersichtlichsten.</div></button>
+            <button class="navview-opt" data-navview="tooltip" onclick="navSetView('tooltip')"><div class="nvt">Nur Namen bei Hover</div><div class="nvd">Schmale Icon-Leiste; der Name erscheint beim Drüberfahren.</div></button>
+            <button class="navview-opt" data-navview="expand" onclick="navSetView('expand')"><div class="nvt">Leiste ausfahren</div><div class="nvd">Schmal; klappt beim Drüberfahren kurz aus und zeigt alle Namen.</div></button>
           </div>
-          <div class="fg"><label>Handelsreg.-Nr.</label><input id="s-hrnr" placeholder="HRB 12345"></div>
-          <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
-          <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
-          <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
-          <div class="fg"><label>Bank</label><input id="s-bank" placeholder="Sparkasse ..."></div>
-          <div class="fg"><label>IBAN</label><input id="s-iban" placeholder="DE00 0000 0000 0000 0000 00"></div>
-          <div class="fg"><label>BIC</label><input id="s-bic" placeholder="XXXXDE00XXX"></div>
-          <div class="fg"><label>Zahlungsziel (Tage)</label><input id="s-zzt" type="number" min="0" placeholder="14"></div>
-          <div class="fg"><label>Portal-URL</label><input id="s-purl" placeholder="https://..."></div>
-          <div class="fg full"><label>Logo (JPG/PNG)</label>
-            <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
-            <div id="s-logo-prev" style="margin-top:8px"></div>
-          </div>
-        </div></div>
-        <div class="ssec"><h3>Öffnungszeiten</h3>
-        <div class="g2" style="margin-bottom:10px">
-          <div class="fg"><label>Mo-Fr von</label><input id="s-mfv" type="time" value="08:00"></div>
-          <div class="fg"><label>Mo-Fr bis</label><input id="s-mfb" type="time" value="18:00"></div>
         </div>
-        <div style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:10px">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:10px">
-            <input type="checkbox" id="s-sao"> <span style="font-weight:600">Samstag geöffnet</span>
-          </label>
+        <!-- Reiter: reine Layout-Gliederung, Feld-IDs unveraendert -->
+        <div id="einst-tabs" style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border2);margin-bottom:18px">
+          <button class="etab" data-etab="firma" onclick="showEinstTab('firma')" style="background:none;border:none;border-bottom:2px solid var(--accent-text);color:var(--accent-text);font-weight:700;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Firma &amp; Recht</button>
+          <button class="etab" data-etab="zeiten" onclick="showEinstTab('zeiten')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Öffnungszeiten &amp; Termine</button>
+          <button class="etab" data-etab="preise" onclick="showEinstTab('preise')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Preise &amp; Vertrag</button>
+          <button class="etab" data-etab="lager" onclick="showEinstTab('lager')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Lager</button>
+          <button class="etab" data-etab="bank" onclick="showEinstTab('bank')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Bank &amp; Buchhaltung</button>
+          <button class="etab" data-etab="mail" onclick="showEinstTab('mail')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">E-Mail-Texte</button>
+          <button class="etab" data-etab="homepage" onclick="showEinstTab('homepage')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Homepage &amp; Kontakt</button>
+        </div>
+
+        <div class="etab-panel" data-epanel="firma">
+          <div class="ssec"><h3>Firmendaten</h3><div class="fgrid">
+            <div class="fg"><label>Firmenname *</label><input id="s-fn"></div>
+            <div class="fg"><label>Inhaber *</label><input id="s-ih"></div>
+            <div class="fg"><label>Straße *</label><input id="s-str"></div>
+            <div class="fg"><label>PLZ *</label><input id="s-plz"></div>
+            <div class="fg"><label>Ort *</label><input id="s-ort"></div>
+            <div class="fg"><label>Telefon</label><input id="s-tel"></div>
+            <div class="fg"><label>E-Mail *</label><input id="s-mail" type="email"></div>
+            <div class="fg"><label>Steuernummer</label><input id="s-steu"></div>
+            <div class="fg"><label>USt-ID</label><input id="s-ustid" placeholder="DE123456789"></div>
+            <div class="fg"><label>Rechtsform</label>
+              <select id="s-rf">
+                <option value="UG (haftungsbeschränkt)">UG (haftungsbeschränkt)</option>
+                <option value="GmbH">GmbH</option>
+                <option value="GbR">GbR</option>
+                <option value="Einzelunternehmen">Einzelunternehmen</option>
+              </select>
+            </div>
+            <div class="fg"><label>Handelsreg.-Nr.</label><input id="s-hrnr" placeholder="HRB 12345"></div>
+            <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
+            <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
+            <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
+            <div class="fg full"><label>Logo (JPG/PNG)</label>
+              <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
+              <div id="s-logo-prev" style="margin-top:8px"></div>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="etab-panel" data-epanel="zeiten" style="display:none">
+          <div class="ssec"><h3>Öffnungszeiten</h3>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+            <button class="btn btn-g btn-sm" onclick="ozAlleWerktage()">Mo-Zeiten auf Di–Fr übernehmen</button>
+          </div>
+          <div id="oz-grid" style="margin-bottom:6px"></div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.5">Zweiter Zeitraum = Nachmittag; die Lücke dazwischen ist die Mittagspause. Beide Nachmittagsfelder leer lassen, wenn durchgehend geöffnet.</div>
           <div class="g2">
-            <div class="fg"><label>Sa von</label><input id="s-sav" type="time" value="08:00"></div>
-            <div class="fg"><label>Sa bis</label><input id="s-sab" type="time" value="13:00"></div>
+            <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
+            <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
+          </div>
+          <div style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="saveOeffnung()">Öffnungszeiten speichern</button></div>
+          </div>
+          <div class="ssec"><h3>Besondere Tage (Feiertage &amp; Sonderöffnung)</h3>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5">Überschreiben die reguläre Woche für einzelne Tage. Feiertage werden aus dem Bundesland automatisch berechnet.</div>
+          <div class="g2" style="margin-bottom:8px;align-items:end">
+            <div class="fg"><label>Bundesland (für Feiertagsberechnung)</label>
+              <select id="s-bland">
+                <option value="BW">Baden-Württemberg</option><option value="BY">Bayern</option>
+                <option value="BE">Berlin</option><option value="BB">Brandenburg</option>
+                <option value="HB">Bremen</option><option value="HH">Hamburg</option>
+                <option value="HE">Hessen</option><option value="MV">Mecklenburg-Vorpommern</option>
+                <option value="NI">Niedersachsen</option><option value="NW">Nordrhein-Westfalen</option>
+                <option value="RP">Rheinland-Pfalz</option><option value="SL">Saarland</option>
+                <option value="SN">Sachsen</option><option value="ST">Sachsen-Anhalt</option>
+                <option value="SH">Schleswig-Holstein</option><option value="TH">Thüringen</option>
+              </select>
+            </div>
+            <div class="fg"><button class="btn btn-g btn-sm" onclick="generiereFeiertage()" style="width:100%">Feiertage eintragen</button></div>
+          </div>
+          <div id="bt-liste" style="margin-bottom:12px"></div>
+          <div class="g3" style="margin-bottom:6px">
+            <div class="fg"><label>Datum</label><input id="bt-datum" type="date"></div>
+            <div class="fg"><label>Bezeichnung</label><input id="bt-bez" placeholder="z.B. Betriebsurlaub"></div>
+            <div class="fg"><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;height:38px;font-size:13px"><input type="checkbox" id="bt-geschlossen" checked onchange="btToggleZeiten()"> geschlossen</label></div>
+          </div>
+          <div class="g2" id="bt-zeiten" style="margin-bottom:8px;display:none">
+            <div class="fg"><label>Geöffnet von</label><input id="bt-von" type="time"></div>
+            <div class="fg"><label>Geöffnet bis</label><input id="bt-bis" type="time"></div>
+          </div>
+          <button class="btn btn-g btn-sm" onclick="addBesondererTag()">Tag hinzufügen</button>
+          </div>
+          <div class="ssec"><h3>Betriebsurlaub</h3>
+          <div id="urlaub-liste" style="margin-bottom:12px"></div>
+          <div class="g2" style="margin-bottom:8px">
+            <div class="fg"><label>Von</label><input id="bu-von" type="date"></div>
+            <div class="fg"><label>Bis</label><input id="bu-bis" type="date"></div>
+          </div>
+          <div class="fg" style="margin-bottom:8px"><label>Beschreibung</label><input id="bu-bez" placeholder="z.B. Sommerurlaub"></div>
+          <button class="btn btn-g btn-sm" onclick="saveUrlaub()">Eintragen</button>
           </div>
         </div>
-        <div class="g3">
-          <div class="fg"><label>Mittagspause von</label><input id="s-mpv" type="time" placeholder="optional"></div>
-          <div class="fg"><label>Mittagspause bis</label><input id="s-mpb" type="time" placeholder="optional"></div>
-          <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
-        </div></div>
-        <div class="ssec"><h3>Betriebsurlaub</h3>
-        <div id="urlaub-liste" style="margin-bottom:12px"></div>
-        <div class="g2" style="margin-bottom:8px">
-          <div class="fg"><label>Von</label><input id="bu-von" type="date"></div>
-          <div class="fg"><label>Bis</label><input id="bu-bis" type="date"></div>
-        </div>
-        <div class="fg" style="margin-bottom:8px"><label>Beschreibung</label><input id="bu-bez" placeholder="z.B. Sommerurlaub"></div>
-        <button class="btn btn-g btn-sm" style="margin-bottom:16px" onclick="saveUrlaub()">Eintragen</button>
-        <div class="ssec"><h3>Vertragseinstellungen</h3><div class="g2">
-          <div class="fg"><label>Vertragsdauer (Monate)</label><input id="s-vd" type="number" value="6"></div>
-          <div class="fg"><label>Abholungsfrist (Wochen)</label><input id="s-af" type="number" value="4"></div>
-          <div class="fg"><label>Lagerungsort</label><input id="s-lo" placeholder="z.B. Firmengelände"></div>
-          <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
-        </div></div>
-        <div class="ssec"><h3>Artikelpreisliste</h3>
-          <div id="artikel-liste" style="margin-bottom:14px"></div>
-          <button class="btn btn-g btn-sm" onclick="openModal('na')">+ Neuer Artikel</button>
-        </div>
-        <div class="ssec"><h3>Lagerstruktur</h3>
-          <div id="lager-einst" style="margin-bottom:12px"></div>
-          <button class="btn btn-g btn-sm" onclick="openModal('nl')">+ Neuer Lagerort</button>
-        </div>
-        <div class="ssec"><h3>E-Mail Texte</h3>
-          <div class="fgrid">
-            <div class="fg"><label>Nach Einlagerung</label><textarea id="s-me" rows="2"></textarea></div>
-            <div class="fg"><label>Nach Abholung</label><textarea id="s-ma" rows="2"></textarea></div>
-            <div class="fg"><label>Räder nachziehen</label><textarea id="s-mn" rows="2" placeholder="Bitte Radschrauben nach 50-100 km nachziehen."></textarea></div>
-            <div class="fg"><label>Bewertungsanfrage</label><textarea id="s-mb" rows="2"></textarea></div>
-            <div class="fg"><label>Terminbestätigung</label><textarea id="s-mt" rows="2"></textarea></div>
-            <div class="fg"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="2"></textarea></div>
+
+        <div class="etab-panel" data-epanel="preise" style="display:none">
+          <div class="ssec"><h3>Vertragseinstellungen</h3><div class="g2">
+            <div class="fg"><label>Vertragsdauer (Monate)</label><input id="s-vd" type="number" value="6"></div>
+            <div class="fg"><label>Abholungsfrist (Wochen)</label><input id="s-af" type="number" value="4"></div>
+            <div class="fg"><label>Lagerungsort</label><input id="s-lo" placeholder="z.B. Firmengelände"></div>
+          </div></div>
+          <div class="ssec"><h3>Artikelpreisliste</h3>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Jeder Artikel hat einen Standardpreis. Über <strong>Staffel</strong> lassen sich abweichende Preise/Dauern je <strong>Fahrzeugtyp und Zollgröße</strong> hinterlegen (z.B. SUV 18–20&quot; teurer). Beim Buchen/Rechnen wird automatisch die passendste Variante genommen, sonst der Standardpreis.</div>
+            <div id="artikel-liste" style="margin-bottom:14px"></div>
+            <button class="btn btn-p btn-sm" onclick="openModal('na')">+ Neuer Artikel</button>
           </div>
         </div>
+
+        <div class="etab-panel" data-epanel="lager" style="display:none">
+          <div class="ssec"><h3>Lagerorte &amp; Regale</h3>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Lagerorte (z.B. Halle, Container) enthalten Regale mit einem Platzbereich. Daraus werden die Platz-Nummern vergeben — Schema <strong>Ort-Regal-Nr.</strong> (z.B. <code>Halle-A-03</code>). Löschen deaktiviert nur (bestehende Einlagerungen bleiben zuordenbar).</div>
+            <div id="lager-einst" style="margin-bottom:12px"></div>
+            <button class="btn btn-p btn-sm" onclick="openModal('nl')">+ Neuer Lagerort</button>
+          </div>
+        </div>
+
+        <div class="etab-panel" data-epanel="bank" style="display:none">
+          <div class="ssec"><h3>Bank &amp; Buchhaltung</h3><div class="fgrid">
+            <div class="fg"><label>Bank</label><input id="s-bank" placeholder="Sparkasse ..."></div>
+            <div class="fg"><label>IBAN</label><input id="s-iban" placeholder="DE00 0000 0000 0000 0000 00"></div>
+            <div class="fg"><label>BIC</label><input id="s-bic" placeholder="XXXXDE00XXX"></div>
+            <div class="fg"><label>Zahlungsziel (Tage)</label><input id="s-zzt" type="number" min="0" placeholder="14"></div>
+          </div></div>
+        </div>
+
+        <div class="etab-panel" data-epanel="mail" style="display:none">
+          <div class="ssec"><h3>E-Mail Texte</h3>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5">Platzhalter werden beim Versand ersetzt: <code>{vorname}</code> <code>{nachname}</code> <code>{kennzeichen}</code> <code>{beleg_nr}</code> <code>{reifen_typ}</code> <code>{reifen_groesse}</code> <code>{lagerplatz}</code> <code>{eingelagert_am}</code> <code>{datum}</code> <code>{uhrzeit}</code> <code>{leistung}</code> <code>{stornofrist}</code> <code>{telefon}</code> <code>{oeffnungszeiten}</code> <code>{portal_url}</code> <code>{bewertungslink}</code>. Anrede und Impressum-Fußzeile werden automatisch ergänzt.</div>
+            <div class="fgrid">
+              <div class="fg full"><label>Einlagerungsbestätigung</label><textarea id="s-me" rows="4"></textarea></div>
+              <div class="fg full"><label>Räder abholbereit</label><textarea id="s-ma" rows="4"></textarea></div>
+              <div class="fg full"><label>Radschrauben nachziehen (Sicherheitshinweis)</label><textarea id="s-mn" rows="4"></textarea></div>
+              <div class="fg full"><label>Terminbestätigung</label><textarea id="s-mt" rows="4"></textarea></div>
+              <div class="fg full"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="4"></textarea></div>
+              <div class="fg full"><label>Terminstornierung</label><textarea id="s-msto" rows="4"></textarea></div>
+              <div class="fg full"><label>Saison-Erinnerung (Werbung — nur mit Einwilligung)</label><textarea id="s-msai" rows="4"></textarea></div>
+              <div class="fg full"><label>Bewertungsanfrage (Werbung — nur mit Einwilligung)</label><textarea id="s-mb" rows="4"></textarea></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="etab-panel" data-epanel="homepage" style="display:none">
+          <div class="ssec"><h3>Homepage &amp; Kontakt</h3><div class="fgrid">
+            <div class="fg"><label>Website</label><input id="s-web"></div>
+            <div class="fg"><label>Google-Bewertungslink</label><input id="s-google" placeholder="https://g.page/r/... oder Google-Profil"></div>
+            <div class="fg"><label>Facebook-Seite</label><input id="s-fb" placeholder="https://facebook.com/..."></div>
+            <div class="fg"><label>Instagram-Profil</label><input id="s-ig" placeholder="https://instagram.com/..."></div>
+            <div class="fg"><label>Portal-URL</label><input id="s-purl" placeholder="https://..."></div>
+          </div></div>
+        </div>
+
         <div style="display:flex;justify-content:flex-end;padding-bottom:40px;margin-top:10px">
           <button class="btn btn-p" style="padding:12px 32px" onclick="saveEinst()">Alle Einstellungen speichern</button>
         </div>
@@ -842,7 +960,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         </div>
       </div>
       <div class="fg"><label>Typ *</label>
-        <select id="ne-typ"><option value="Winter">Winterreifen</option><option value="Sommer">Sommerreifen</option></select>
+        <select id="ne-typ"><option value="Winter">Winterreifen</option><option value="Sommer">Sommerreifen</option><option value="Ganzjahr">Ganzjahresreifen</option></select>
       </div>
       <div class="fg"><label>Hersteller</label>
         <select id="ne-mk" onchange="neLadeModelle()">
@@ -874,7 +992,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="full">
         <label style="font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;display:block;margin-bottom:8px">Profiltiefe (mm) — VL wird auf alle übertragen wenn leer</label>
         <div class="g4">
-          <div class="fg"><label style="color:var(--blue)">VL *</label><input id="ne-vl" type="text" placeholder="z.B. 6,5" oninput="neAutoP(this)" onblur="neAutoPBlur(this)"></div>
+          <div class="fg"><label style="color:var(--blue)">VL</label><input id="ne-vl" type="text" placeholder="z.B. 6,5" oninput="neAutoP(this)" onblur="neAutoPBlur(this)"></div>
           <div class="fg"><label style="color:var(--blue)">VR</label><input id="ne-vr" type="text" placeholder="auto"></div>
           <div class="fg"><label style="color:var(--blue)">HL</label><input id="ne-hl" type="text" placeholder="auto"></div>
           <div class="fg"><label style="color:var(--blue)">HR</label><input id="ne-hr" type="text" placeholder="auto"></div>
@@ -886,6 +1004,22 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="fg full"><label>Lagerplatz (Vorschlag – frei änderbar)</label><input id="ne-lagerplatz" placeholder="z.B. Halle/A/007"><input type="hidden" id="ne-vorgaenger"></div>
     </div>
     <div class="mfoot"><button class="btn btn-g" onclick="closeModal('ne')">Abbrechen</button><button class="btn btn-p" onclick="saveNE()">Einlagern</button></div>
+  </div>
+</div>
+
+<!-- RÄDERWECHSEL (Werkstattbrett): eingelagerten Satz abholen + optional neuen Satz einlagern -->
+<div class="ov" id="m-rwechsel">
+  <div class="modal">
+    <button class="mx" onclick="closeModal('rwechsel')">x</button>
+    <div class="mtitle" id="rw-titel">Räderwechsel</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Der eingelagerte Satz wird abgeholt (aufs Fahrzeug montiert):</div>
+    <div id="rw-satz" style="margin-bottom:14px"></div>
+    <div style="font-size:13px;color:var(--text);font-weight:600;margin-bottom:12px">Wird ein neuer Satz eingelagert?</div>
+    <div class="mfoot" style="flex-wrap:wrap;gap:8px">
+      <button class="btn btn-g" onclick="closeModal('rwechsel')">Abbrechen</button>
+      <button class="btn btn-grn" onclick="rwAbholen(false)">Nur abholen</button>
+      <button class="btn btn-p" onclick="rwAbholen(true)">Ja – neuen Satz einlagern</button>
+    </div>
   </div>
 </div>
 
@@ -935,7 +1069,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <button class="btn btn-g btn-sm" onclick="closeModal('dok')">Fertig</button>
       </div>
     </div>
-    <div id="sig-wrap" style="margin-bottom:14px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
+    <!-- Dokument ZUERST (muss vor der Unterschrift lesbar sein), Unterschriftenfeld darunter -->
+    <div style="background:#fff;border-radius:8px;overflow:auto;max-height:52vh;margin-bottom:14px"><div id="dok-inhalt"></div></div>
+    <div id="sig-wrap" style="margin-bottom:4px;padding:14px;background:var(--bg);border:1px solid var(--border);border-radius:10px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:8px">Digitale Unterschrift des Kunden</div>
       <div style="position:relative">
         <canvas id="sig-canvas" width="900" height="180"></canvas>
@@ -943,7 +1079,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben.</div>
     </div>
-    <div style="background:#fff;border-radius:8px;overflow:auto;max-height:52vh"><div id="dok-inhalt"></div></div>
   </div>
 </div>
 
@@ -1137,6 +1272,41 @@ html, body { max-width: 100%; overflow-x: hidden; }
   </div>
 </div>
 
+<div class="ov" id="m-nrg">
+  <div class="modal" style="max-width:460px">
+    <button class="mx" onclick="closeModal('nrg')">x</button>
+    <div class="mtitle">Neues Regal<span id="nrg-ort-name" style="color:var(--muted);font-weight:400;font-size:14px"></span></div>
+    <div class="fgrid">
+      <div class="fg full"><label>Regalname *</label><input id="nrg-name" placeholder="z.B. Regal B"></div>
+      <div class="fg"><label>Plätze von</label><input id="nrg-von" type="number" value="1" min="1"></div>
+      <div class="fg"><label>Plätze bis</label><input id="nrg-bis" type="number" value="20" min="1"></div>
+    </div>
+    <input type="hidden" id="nrg-ort-id">
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nrg')">Abbrechen</button><button class="btn btn-p" onclick="saveRegal()">Regal anlegen</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-platz">
+  <div class="modal" style="max-width:420px">
+    <button class="mx" onclick="closeModal('platz')">x</button>
+    <div class="mtitle">Lagerplatz ändern</div>
+    <div id="platz-info" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
+    <div class="fg full"><label>Neuer Lagerplatz</label><input id="platz-neu" placeholder="z.B. Halle-A-03" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+    <div id="platz-vorschlag" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+    <input type="hidden" id="platz-id">
+    <div class="mfoot"><button class="btn btn-g" onclick="closeModal('platz')">Abbrechen</button><button class="btn btn-p" onclick="savePlatz()">Speichern</button></div>
+  </div>
+</div>
+
+<div class="ov" id="m-suche">
+  <div class="modal" style="max-width:520px">
+    <button class="mx" onclick="closeModal('suche')">x</button>
+    <div class="mtitle">Schnellsuche</div>
+    <input id="suche-q" placeholder="Name, Kennzeichen, Lagerplatz, Beleg-Nr. …" oninput="sucheGlobal()" onkeydown="if(event.key==='Escape')closeModal('suche')">
+    <div id="suche-res" style="max-height:52vh;overflow:auto;margin-top:12px"></div>
+  </div>
+</div>
+
 
 <div class="ov" id="m-etikett">
   <div class="modal" style="max-width:500px">
@@ -1306,7 +1476,7 @@ function api(method, path, body) {
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (body !== undefined) opts.body = JSON.stringify(body);
   return fetch(API + path, opts).then(function(r) {
-    if (r.status === 401) { doLogout(); return null; }
+    if (r.status === 401) { doLogout('expired'); return null; }
     if (!r.ok) {
       return r.json().catch(function() { return {}; }).then(function(e) {
         var err = new Error(e.error || e.message || ('Fehler ' + r.status));
@@ -1384,21 +1554,80 @@ function pwResetAbschluss(token) {
     .then(function() { alert('Passwort geändert. Bitte melden Sie sich mit dem neuen Passwort an.'); history.replaceState({}, '', location.pathname); })
     .catch(function(e) { alert(e.message); history.replaceState({}, '', location.pathname); });
 }
-function doLogout() {
+function doLogout(grund) {
+  idleStop(); // Inaktivitaets-Timer anhalten
   // Direkter fetch (NICHT api()), sonst loest ein 401 erneut doLogout() aus -> Endlosschleife
   try {
     fetch(API + '/auth/logout', { method: 'POST', headers: TOKEN ? { 'Authorization': 'Bearer ' + TOKEN } : {} }).catch(function() {});
   } catch (e) {}
   TOKEN = null; USER = null;
   localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user');
+  // Offene Fach-Modals schliessen: sonst bleiben sie (hoeherer z-index) ueber dem Login-Screen
+  // sichtbar -> Kundendaten/Unterschrift offen + Login blockiert (Sicherheitszweck des Logouts).
+  Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
+  // Freundlicher Hinweis statt kommentarlosem Rauswurf
+  var le = document.getElementById('lerr');
+  if (le) {
+    if (grund === 'idle') { le.textContent = 'Sie wurden aus Sicherheitsgründen wegen Inaktivität abgemeldet.'; le.style.display = 'block'; }
+    else if (grund === 'expired') { le.textContent = 'Ihre Sitzung ist abgelaufen. Bitte erneut anmelden.'; le.style.display = 'block'; }
+    else { le.style.display = 'none'; }
+  }
 }
+
+// ── IDLE-TIMEOUT (Sicherheit: unbeaufsichtigter Tresen-Rechner meldet sich ab) ──
+// Meldet nach Inaktivitaet ab; JEDE Nutzeraktivitaet (Klick, Taste, Scroll, Maus, Touch) setzt die
+// Zeit zurueck. 60s vorher Vorwarnung mit "Angemeldet bleiben". Nur aktiv wenn eingeloggt.
+var IDLE_MS = 30 * 60 * 1000;   // Inaktivitaets-Grenze (30 Min) – bei Bedarf hier anpassen
+var IDLE_WARN_MS = 60 * 1000;   // Vorwarnzeit (60 s)
+var idleTimer = null, idleWarnTimer = null, idleCountTimer = null, idleLastReset = 0;
+function idleStop() {
+  clearTimeout(idleTimer); clearTimeout(idleWarnTimer); clearInterval(idleCountTimer);
+  idleTimer = idleWarnTimer = idleCountTimer = null;
+  var w = document.getElementById('idle-warn'); if (w) w.style.display = 'none';
+}
+function idleReset() {
+  idleStop();
+  idleLastReset = Date.now();     // Drossel-Stempel auch bei direktem Reset (Button/Login) setzen
+  if (!TOKEN) return;             // nur bei aktiver Sitzung timern
+  idleWarnTimer = setTimeout(idleShowWarn, Math.max(0, IDLE_MS - IDLE_WARN_MS));
+  idleTimer = setTimeout(function() { doLogout('idle'); }, IDLE_MS);
+}
+function idleShowWarn() {
+  var w = document.getElementById('idle-warn'); if (!w) return;
+  var rest = Math.round(IDLE_WARN_MS / 1000);
+  var cEl = document.getElementById('idle-count'); if (cEl) cEl.textContent = rest;
+  w.style.display = 'flex';
+  idleCountTimer = setInterval(function() {
+    rest -= 1;
+    if (cEl) cEl.textContent = Math.max(0, rest);
+    if (rest <= 0) clearInterval(idleCountTimer);
+  }, 1000);
+}
+// Aktivitaet gedrosselt (max 1x/2s) registrieren, damit Mausbewegung nicht dauernd neu timert.
+function idleActivity() {
+  if (!TOKEN) return;
+  var now = Date.now();
+  if (now - idleLastReset < 2000) return;
+  idleLastReset = now;
+  idleReset();
+}
+['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach(function(ev) {
+  document.addEventListener(ev, idleActivity, { passive: true });
+});
 
 // ── APP START ──
 function startApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  // Modals einer evtl. zuvor abgebrochenen/abgelaufenen Sitzung schliessen, damit beim (Neu-)Login
+  // kein Dialog (z.B. "Neue Einlagerung") unaufgefordert offen stehen bleibt.
+  Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
+  navInitIcons();                                              // Sidebar-Icons einsetzen
+  applyNavView(localStorage.getItem('rp_nav_view') || 'pinned'); // gemerkte Ansicht anwenden
+  updateBreadcrumb();                                          // Brotkrumen initialisieren
+  idleReset(); // Inaktivitaets-Timer fuer die neue Sitzung starten
   document.getElementById('h-user').textContent = USER ? USER.vorname + ' ' + USER.nachname : '-';
   loadEinst();
   loadK();
@@ -1421,6 +1650,7 @@ function startApp() {
     if (history.replaceState) { try { history.replaceState({ page: 'dashboard' }, '', '#dashboard'); } catch (x) {} }
   }
 }
+var uhrTimer = null;
 function startUhr() {
   function tick() {
     var el = document.getElementById('h-clock'); if (!el) return;
@@ -1429,8 +1659,9 @@ function startUhr() {
     var zeit = now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     el.textContent = tag + '  ' + zeit;
   }
+  clearInterval(uhrTimer); // altes Interval aufraeumen (startApp/startUhr laeuft bei jedem Re-Login)
   tick();
-  setInterval(tick, 1000);
+  uhrTimer = setInterval(tick, 1000);
 }
 function befuelleJahrDropdown() {
   var sel = document.getElementById('kal-jahr-sel'); if (!sel) return;
@@ -1458,6 +1689,7 @@ function closeNav() { document.getElementById('app').classList.remove('nav-open'
 var currentPage = 'dashboard';
 function showPage(n, fromPop) {
   closeNav();
+  if (currentPage && currentPage !== n) navPrev = currentPage;
   currentPage = n;
   if (!fromPop && window.history && history.pushState) { try { history.pushState({ page: n }, '', '#' + n); } catch (e) {} }
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
@@ -1474,9 +1706,67 @@ function showPage(n, fromPop) {
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
-  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); }
+  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
+  updateBreadcrumb();
+}
+
+// ── Navigation: Icons (Inline-SVG), Ansicht-Modi, Zurück/Brotkrumen ──
+var NAV_LABELS = {};
+var navPrev = null;
+var NAV_ICONS = {
+  dashboard: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/>',
+  kunden: '<circle cx="9" cy="8" r="3"/><path d="M3.5 20c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 6a3 3 0 0 1 0 5.9"/><path d="M20.5 20c0-2-1-3.4-3-4.2"/>',
+  einlagerung: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5"/><path d="M12 12v9"/>',
+  lagerplan: '<path d="M9 4L3 6.5v14L9 18l6 2.5 6-2.5v-14L15 6.5 9 4z"/><path d="M9 4v14M15 6.5v14"/>',
+  kalender: '<rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9h18M8 2.5v4M16 2.5v4"/>',
+  werkstatt: '<path d="M14.6 5.6a3.5 3.5 0 0 0-4.7 4.6l-5.9 5.9 2.1 2.1 5.9-5.9a3.5 3.5 0 0 0 4.6-4.7l-2.3 2.3-1.9-.1-.1-1.9z"/>',
+  statistik: '<path d="M4 20h16"/><rect x="5" y="11" width="3.4" height="6" rx="1"/><rect x="10.3" y="6" width="3.4" height="11" rx="1"/><rect x="15.6" y="13" width="3.4" height="4" rx="1"/>',
+  rechnungen: '<path d="M6 2h8l4 4v16H6z"/><path d="M14 2v4h4"/><path d="M9 12h6M9 16h6M9 8h2"/>',
+  kontakt: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/>',
+  gewerbeanf: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5.5A2 2 0 0 1 10 3.5h4a2 2 0 0 1 2 2V7"/><path d="M3 12.5h18"/>',
+  users: '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="2.5"/><path d="M8 17c0-2 2-3 4-3s4 1 4 3"/>',
+  dsgvo: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  einstellungen: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'
+};
+function navSvg(pg) {
+  var p = NAV_ICONS[pg] || NAV_ICONS.dashboard;
+  return '<svg class="ni-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + p + '</svg>';
+}
+function navInitIcons() {
+  document.querySelectorAll('aside .ni').forEach(function(ni) {
+    var pg = ni.getAttribute('data-page'); if (!pg) return;
+    var label = ni.textContent.trim(); NAV_LABELS[pg] = label;
+    ni.innerHTML = navSvg(pg) + '<span class="ni-label">' + label + '</span>';
+    ni.title = label; // im eingeklappten "Nur Namen"-Modus zeigt der Browser den Namen als Tooltip (kein Clipping)
+  });
+}
+function applyNavView(v) {
+  var app = document.getElementById('app'); if (!app) return;
+  app.classList.remove('nav-collapsed', 'nav-tooltip', 'nav-expand');
+  if (v === 'tooltip') { app.classList.add('nav-collapsed', 'nav-tooltip'); localStorage.setItem('rp_nav_hover', 'tooltip'); }
+  else if (v === 'expand') { app.classList.add('nav-collapsed', 'nav-expand'); localStorage.setItem('rp_nav_hover', 'expand'); }
+  localStorage.setItem('rp_nav_view', v);
+  document.querySelectorAll('.navview-opt').forEach(function(b) { b.classList.toggle('sel', b.getAttribute('data-navview') === v); });
+}
+function navSetView(v) { applyNavView(v); }
+function navToggleCollapse() {
+  var v = localStorage.getItem('rp_nav_view') || 'pinned';
+  applyNavView(v === 'pinned' ? (localStorage.getItem('rp_nav_hover') || 'tooltip') : 'pinned');
+}
+function navBack() { if (navPrev) showPage(navPrev); else if (window.history) history.back(); }
+function updateBreadcrumb() {
+  var el = document.getElementById('breadcrumb'), app = document.getElementById('app');
+  var cur = NAV_LABELS[currentPage] || '';
+  if (el) el.innerHTML = (navPrev && NAV_LABELS[navPrev] ? kEsc(NAV_LABELS[navPrev]) + ' › ' : '') + '<strong>' + kEsc(cur) + '</strong>';
+  if (app) app.classList.toggle('has-prev', !!navPrev);
+}
+// Dashboard-Kachel -> Einlagerungsliste, optional nach Status gefiltert.
+function dashEinl(status) {
+  showPage('einlagerung');
+  var f = document.getElementById('e-sf');
+  if (f) { f.value = status || ''; renderE(); }
 }
 
 // ── KONTAKTANFRAGEN ──
@@ -1545,6 +1835,7 @@ function renderKontakt() {
       '<div style="margin:10px 0;white-space:pre-wrap;background:var(--bg,#f6f7f9);padding:10px 12px;border-radius:8px">' + kEsc(a.nachricht) + '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button class="btn btn-p btn-sm" onclick="kontaktAntwortToggle(\'' + a.id + '\')">Antworten</button>' +
+      '<button class="btn btn-g btn-sm" onclick="kontaktNeuerKunde(\'' + a.id + '\')">Als Kunde anlegen</button>' +
       (a.erledigt
         ? '<button class="btn btn-g btn-sm" onclick="kontaktErledigt(\'' + a.id + '\',false)">Als offen markieren</button>'
         : '<button class="btn btn-g btn-sm" onclick="kontaktErledigt(\'' + a.id + '\',true)">Als erledigt markieren</button>') +
@@ -1563,6 +1854,20 @@ function kontaktSenden(id) {
   api('POST', '/kontakt/' + id + '/antwort', { text: t }).then(function() { notify('Antwort gesendet.'); loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); });
 }
 function kontaktErledigt(id, val) { api('PATCH', '/kontakt/' + id, { erledigt: val }).then(function() { loadKontakt(); }).catch(function(e) { notify(e.message, 'err'); }); }
+// Kontaktanfrage als (Privat-)Kunde übernehmen: Namen/Kontakt ins Neuer-Kunde-Formular vorbefuellen.
+function kontaktNeuerKunde(id) {
+  var a = allKontakt.filter(function(x) { return x.id === id; })[0]; if (!a) return;
+  var parts = (a.name || '').trim().split(/\s+/);
+  var vn = parts.shift() || '';
+  var nn = parts.join(' ') || '';
+  var set = function(fid, v) { var e = document.getElementById(fid); if (e) e.value = v || ''; };
+  ['nk-str', 'nk-plz', 'nk-ort', 'nk-kz1', 'nk-kz2', 'nk-kz3', 'nk-kz4', 'nk-mo-man', 'nk-firmenname', 'nk-ustid'].forEach(function(fid) { set(fid, ''); });
+  set('nk-kundentyp', 'privat'); if (typeof nkKundentypChange === 'function') nkKundentypChange();
+  set('nk-vn', vn); set('nk-nn', nn); set('nk-tel', a.telefon); set('nk-mail', a.email);
+  var gc = document.getElementById('nk-gewerbe'); if (gc) gc.checked = false;
+  NK_FROM_ANFRAGE = null; // Kontaktanfrage hat keine Gewerbe-Verknuepfung
+  openModal('nk', false);
+}
 
 // ── GEWERBE-ANFRAGEN ──
 var allGewerbeAnf = [];
@@ -2190,6 +2495,18 @@ function nkKundentypChange() {
 }
 
 // ── EINSTELLUNGEN ──
+// Einstellungs-Reiter umschalten: aktiven Knopf hervorheben, nur das passende Panel zeigen.
+function showEinstTab(name) {
+  Array.prototype.forEach.call(document.querySelectorAll('#einst-tabs .etab'), function(b) {
+    var on = b.getAttribute('data-etab') === name;
+    b.style.color = on ? 'var(--accent-text)' : 'var(--muted)';
+    b.style.borderBottom = on ? '2px solid var(--accent-text)' : '2px solid transparent';
+    b.style.fontWeight = on ? '700' : '500';
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#page-einstellungen .etab-panel'), function(p) {
+    p.style.display = p.getAttribute('data-epanel') === name ? '' : 'none';
+  });
+}
 function loadEinst() {
   api('GET', '/einstellungen').then(function(r) {
     if (r) EINST = r;
@@ -2210,13 +2527,7 @@ function fillEinst() {
   fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
   fv('s-zzt', EINST.zahlungsziel_tage || 14);
   // Oeffnungszeiten
-  if (EINST.mo_fr_von) fv('s-mfv', String(EINST.mo_fr_von).substring(0, 5));
-  if (EINST.mo_fr_bis) fv('s-mfb', String(EINST.mo_fr_bis).substring(0, 5));
-  if (EINST.sa_von) fv('s-sav', String(EINST.sa_von).substring(0, 5));
-  if (EINST.sa_bis) fv('s-sab', String(EINST.sa_bis).substring(0, 5));
-  fc('s-sao', EINST.sa_offen);
-  if (EINST.mittagspause_von) fv('s-mpv', String(EINST.mittagspause_von).substring(0, 5));
-  if (EINST.mittagspause_bis) fv('s-mpb', String(EINST.mittagspause_bis).substring(0, 5));
+  // Öffnungszeiten (mo_fr/sa/mittagspause) laufen jetzt über das Wochenraster (loadOeffnung), nicht mehr hier.
   fv('s-mpt', EINST.max_parallele_termine || 1);
   fv('s-vd', EINST.vertragsdauer_monate || 6);
   fv('s-af', EINST.abholungsfrist_wochen || 4);
@@ -2225,6 +2536,7 @@ function fillEinst() {
   fv('s-me', EINST.email_einlagerung); fv('s-ma', EINST.email_abholbereit);
   fv('s-mn', EINST.email_raeder_nachziehen); fv('s-mb', EINST.email_bewertung);
   fv('s-mt', EINST.email_termin_bestaetigung); fv('s-mr', EINST.email_termin_erinnerung);
+  fv('s-msto', EINST.email_termin_stornierung); fv('s-msai', EINST.email_erinnerung);
   if (EINST.logo_url) {
     document.getElementById('s-logo-prev').innerHTML = '<img src="' + EINST.logo_url + '" style="max-height:60px;border-radius:6px">';
   }
@@ -2250,22 +2562,132 @@ function saveEinst() {
     bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
     zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
     logo_url: EINST.logo_url || null,
-    mo_fr_von: gv('s-mfv') || null, mo_fr_bis: gv('s-mfb') || null,
-    sa_von: gv('s-sav') || null, sa_bis: gv('s-sab') || null,
-    sa_offen: document.getElementById('s-sao') ? document.getElementById('s-sao').checked : false,
-    mittagspause_von: gv('s-mpv') || null, mittagspause_bis: gv('s-mpb') || null,
+    // Öffnungszeiten (mo_fr/sa/mittagspause) werden über /einstellungen/oeffnungszeiten gepflegt, nicht hier.
     max_parallele_termine: parseInt(gv('s-mpt')) || 1,
     vertragsdauer_monate: parseInt(gv('s-vd')) || 6,
     abholungsfrist_wochen: parseInt(gv('s-af')) || 4,
     lagerungsort: gv('s-lo'), stornierung_frist_h: parseInt(gv('s-sf')) || 24,
     email_einlagerung: gv('s-me'), email_abholbereit: gv('s-ma'),
     email_raeder_nachziehen: gv('s-mn'), email_bewertung: gv('s-mb'),
-    email_termin_bestaetigung: gv('s-mt'), email_termin_erinnerung: gv('s-mr')
+    email_termin_bestaetigung: gv('s-mt'), email_termin_erinnerung: gv('s-mr'),
+    email_termin_stornierung: gv('s-msto'), email_erinnerung: gv('s-msai')
   };
   api('PUT', '/einstellungen', data).then(function(r) {
     if (r) EINST = r;
+    saveOeffnung(true); // Öffnungszeiten-Raster + Bundesland mitspeichern
     notify('Einstellungen gespeichert!');
   }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── ÖFFNUNGSZEITEN (Wochenraster) + BESONDERE TAGE ──
+var OZ_TAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+function loadOeffnung() {
+  api('GET', '/einstellungen/oeffnungszeiten').then(function(r) {
+    if (!r) return;
+    renderOzGrid(r.woche || []);
+    var bl = document.getElementById('s-bland'); if (bl && r.bundesland) bl.value = r.bundesland;
+  }).catch(function(){});
+  loadBesondere();
+}
+function renderOzGrid(woche) {
+  var el = document.getElementById('oz-grid'); if (!el) return;
+  var byWt = {}; (woche || []).forEach(function(d){ byWt[d.wochentag] = d; });
+  var hm = function(t){ return t ? String(t).substring(0, 5) : ''; };
+  var html = '';
+  for (var wt = 0; wt < 7; wt++) {
+    var d = byWt[wt] || { geschlossen: wt === 6 };
+    var offen = !d.geschlossen;
+    html += '<div style="display:grid;grid-template-columns:92px 116px 1fr;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--border2)">' +
+      '<span style="font-size:13px">' + OZ_TAGE[wt] + '</span>' +
+      '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px"><input type="checkbox" id="oz-' + wt + '-offen" ' + (offen ? 'checked' : '') + ' onchange="ozToggle(' + wt + ')"><span id="oz-' + wt + '-lbl" style="color:' + (offen ? 'var(--green)' : 'var(--muted)') + '">' + (offen ? 'Geöffnet' : 'Geschlossen') + '</span></label>' +
+      '<div id="oz-' + wt + '-times" style="display:' + (offen ? 'flex' : 'none') + ';gap:5px;align-items:center;flex-wrap:wrap">' +
+        '<input type="time" id="oz-' + wt + '-von1" value="' + hm(d.von1) + '" style="width:104px"><span style="color:var(--muted)">–</span><input type="time" id="oz-' + wt + '-bis1" value="' + hm(d.bis1) + '" style="width:104px">' +
+        '<span style="color:var(--muted);margin:0 4px;font-size:11px">Nachm.</span>' +
+        '<input type="time" id="oz-' + wt + '-von2" value="' + hm(d.von2) + '" style="width:104px"><span style="color:var(--muted)">–</span><input type="time" id="oz-' + wt + '-bis2" value="' + hm(d.bis2) + '" style="width:104px">' +
+      '</div>' +
+    '</div>';
+  }
+  el.innerHTML = html;
+}
+function ozToggle(wt) {
+  var cb = document.getElementById('oz-' + wt + '-offen'); if (!cb) return;
+  var times = document.getElementById('oz-' + wt + '-times');
+  var lbl = document.getElementById('oz-' + wt + '-lbl');
+  var offen = cb.checked;
+  if (times) times.style.display = offen ? 'flex' : 'none';
+  if (lbl) { lbl.textContent = offen ? 'Geöffnet' : 'Geschlossen'; lbl.style.color = offen ? 'var(--green)' : 'var(--muted)'; }
+}
+function ozAlleWerktage() {
+  ['von1', 'bis1', 'von2', 'bis2'].forEach(function(f){
+    var src = document.getElementById('oz-0-' + f); if (!src) return;
+    for (var wt = 1; wt < 5; wt++) { var t = document.getElementById('oz-' + wt + '-' + f); if (t) t.value = src.value; }
+  });
+  var offen = document.getElementById('oz-0-offen').checked;
+  for (var wt = 1; wt < 5; wt++) { var cb = document.getElementById('oz-' + wt + '-offen'); if (cb) { cb.checked = offen; ozToggle(wt); } }
+  notify('Mo-Zeiten auf Di–Fr übernommen (noch speichern).');
+}
+function saveOeffnung(silent) {
+  var woche = [];
+  for (var wt = 0; wt < 7; wt++) {
+    var cb = document.getElementById('oz-' + wt + '-offen'); if (!cb) continue;
+    woche.push({ wochentag: wt, geschlossen: !cb.checked,
+      von1: gv('oz-' + wt + '-von1'), bis1: gv('oz-' + wt + '-bis1'),
+      von2: gv('oz-' + wt + '-von2'), bis2: gv('oz-' + wt + '-bis2') });
+  }
+  if (!woche.length) return;
+  return api('PUT', '/einstellungen/oeffnungszeiten', { woche: woche, bundesland: gv('s-bland') })
+    .then(function(){ if (!silent) notify('Öffnungszeiten gespeichert.'); })
+    .catch(function(e){ notify(e.message, 'err'); });
+}
+function btToggleZeiten() {
+  var z = document.getElementById('bt-zeiten'), g = document.getElementById('bt-geschlossen');
+  if (z && g) z.style.display = g.checked ? 'none' : 'flex';
+}
+function loadBesondere() {
+  var jahr = new Date().getFullYear();
+  api('GET', '/einstellungen/besondere-tage?jahr=' + jahr).then(function(rows){ renderBt(rows || []); }).catch(function(){});
+}
+function renderBt(rows) {
+  var el = document.getElementById('bt-liste'); if (!el) return;
+  if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:12px">Noch keine besonderen Tage für dieses Jahr.</div>'; return; }
+  el.innerHTML = rows.map(function(t){
+    var status = t.geschlossen ? '<span style="color:var(--muted)">geschlossen</span>' : '<span style="color:var(--green)">' + kEsc((t.von || '') + '–' + (t.bis || '')) + '</span>';
+    var badge = t.quelle === 'feiertag' ? '<span style="font-size:10px;border:1px solid var(--border2);border-radius:4px;padding:1px 5px;color:var(--muted);margin-left:6px">Feiertag</span>' : '';
+    var dsp = t.datum ? t.datum.split('-').reverse().join('.') : '';
+    return '<div style="display:grid;grid-template-columns:88px 1fr auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--border2)">' +
+      '<span style="font-size:12px;color:var(--muted)">' + dsp + '</span>' +
+      '<span style="font-size:13px">' + kEsc(t.bezeichnung || '') + badge + '</span>' +
+      '<span style="font-size:12px">' + status + '</span>' +
+      '<button class="btn btn-danger btn-sm" onclick="delBesondererTag(\'' + t.id + '\')">X</button>' +
+    '</div>';
+  }).join('');
+}
+function addBesondererTag() {
+  var datum = gv('bt-datum');
+  if (!datum) { notify('Bitte ein Datum wählen.', 'err'); var e = document.getElementById('bt-datum'); if (e) e.focus(); return; }
+  var geschlossen = document.getElementById('bt-geschlossen').checked;
+  api('POST', '/einstellungen/besondere-tage', {
+    datum: datum, bezeichnung: gv('bt-bez'), geschlossen: geschlossen,
+    von: geschlossen ? null : gv('bt-von'), bis: geschlossen ? null : gv('bt-bis'), quelle: 'manuell'
+  }).then(function(){
+    notify('Tag gespeichert.');
+    ['bt-datum', 'bt-bez', 'bt-von', 'bt-bis'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+    loadBesondere();
+  }).catch(function(e){ notify(e.message, 'err'); });
+}
+function delBesondererTag(id) {
+  if (!confirm('Diesen Tag entfernen?')) return;
+  api('DELETE', '/einstellungen/besondere-tage/' + id).then(function(){ notify('Entfernt.'); loadBesondere(); }).catch(function(e){ notify(e.message, 'err'); });
+}
+function generiereFeiertage() {
+  var jahr = new Date().getFullYear();
+  var bl = gv('s-bland');
+  var gen = function(j){ return api('POST', '/einstellungen/feiertage-generieren?jahr=' + j, { bundesland: bl }); };
+  gen(jahr).then(function(r1){ return gen(jahr + 1).then(function(r2){
+    var n = (r1 ? r1.angelegt : 0) + (r2 ? r2.angelegt : 0);
+    notify(n + ' Feiertage für ' + jahr + '/' + (jahr + 1) + ' eingetragen (' + bl + ').');
+    loadBesondere();
+  }); }).catch(function(e){ notify(e.message, 'err'); });
 }
 
 // ── BETRIEBSURLAUB ──
@@ -2414,7 +2836,7 @@ function saveNA() {
     closeModal('na'); naEditId = null;
     document.getElementById('na-titel').textContent = 'Neuer Artikel';
     ['na-name','na-bez','na-preis','na-nr'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
-    document.getElementById('na-brutto').textContent = '0.00';
+    document.getElementById('na-brutto').value = '0.00';
     loadArtikel();
   }).catch(function(e) { notify(e.message, 'err'); });
 }
@@ -2433,24 +2855,41 @@ function loadLagerEinst() {
       var frei = o.regale.reduce(function(s, r) { return s + r.plaetze_frei; }, 0);
       return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
-        '<div style="font-weight:700">' + o.name + (o.beschreibung ? '<span style="font-size:12px;color:var(--muted);margin-left:8px">' + o.beschreibung + '</span>' : '') + '</div>' +
+        '<div style="font-weight:700">' + kEsc(o.name) + (o.beschreibung ? '<span style="font-size:12px;color:var(--muted);margin-left:8px">' + kEsc(o.beschreibung) + '</span>' : '') + '</div>' +
         '<div style="font-size:12px"><span style="color:var(--green)">' + frei + ' frei</span> / ' + tot + '</div></div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
-        o.regale.map(function(rg) { return '<span style="background:var(--panel);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;font-size:12px">' + rg.name + ' (' + rg.plaetze_von + '-' + rg.plaetze_bis + ')</span>'; }).join('') +
+        o.regale.map(function(rg) {
+          // Der Pseudo-Ort "Nicht zugeordnet" liefert Regale ohne von/bis -> Platzanzahl statt "undefined-undefined".
+          var span = (rg.plaetze_von != null && rg.plaetze_bis != null) ? ' (' + rg.plaetze_von + '-' + rg.plaetze_bis + ')' : (rg.plaetze_total ? ' (' + rg.plaetze_total + ' Plätze)' : '');
+          return '<span style="background:var(--panel);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;font-size:12px">' + kEsc(rg.name || 'Sonstige') + span + '</span>';
+        }).join('') +
         '</div>' +
-        '<div style="margin-top:10px;display:flex;gap:6px">' +
-        '<button class="btn btn-g btn-sm" onclick="lagerRegalHinzu(\'' + o.id + '\',\'' + o.name + '\')">+ Regal</button>' +
-        '<button class="btn btn-danger btn-sm" onclick="lagerOrtLoeschen(\'' + o.id + '\')">Deaktivieren</button>' +
-        '</div></div>';
+        // Aktionen nur fuer echte Lagerorte; der Pseudo-Ort "Nicht zugeordnet" (id null) hat keine.
+        (o.unzugeordnet ? '' :
+          '<div style="margin-top:10px;display:flex;gap:6px">' +
+          '<button class="btn btn-g btn-sm" onclick="lagerRegalHinzu(\'' + o.id + '\',\'' + o.name + '\')">+ Regal</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="lagerOrtLoeschen(\'' + o.id + '\')">Deaktivieren</button>' +
+          '</div>') +
+        '</div>';
     }).join('');
   }).catch(function() {});
 }
 function lagerRegalHinzu(ortId, ortName) {
-  var rn = prompt('Regalname für ' + ortName + ':'); if (!rn) return;
-  var rv = parseInt(prompt('Plätze von:', '1')) || 1;
-  var rb = parseInt(prompt('Plätze bis:', '20')) || 20;
+  document.getElementById('nrg-ort-id').value = ortId;
+  document.getElementById('nrg-ort-name').textContent = ortName ? ' — ' + ortName : '';
+  document.getElementById('nrg-name').value = '';
+  document.getElementById('nrg-von').value = '1';
+  document.getElementById('nrg-bis').value = '20';
+  openModal('nrg');
+}
+function saveRegal() {
+  var ortId = gv('nrg-ort-id'), rn = gv('nrg-name');
+  if (!rn) { notify('Regalname ist Pflicht.', 'err'); var nf = document.getElementById('nrg-name'); if (nf) nf.focus(); return; }
+  var rv = parseInt(gv('nrg-von')) || 1;
+  var rb = parseInt(gv('nrg-bis')) || 20;
+  if (rb < rv) { notify('„Plätze bis" muss größer/gleich „von" sein.', 'err'); var bf = document.getElementById('nrg-bis'); if (bf) bf.focus(); return; }
   api('POST', '/lager/regale', { ort_id: ortId, name: rn, plaetze_von: rv, plaetze_bis: rb })
-    .then(function() { notify('Regal angelegt!'); loadLager(); loadLagerEinst(); })
+    .then(function() { notify('Regal angelegt!'); closeModal('nrg'); loadLager(); loadLagerEinst(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
 function lagerOrtLoeschen(id) {
@@ -2572,6 +3011,39 @@ function konditionenSpeichern(id) {
     return api('PUT', '/kunden/' + id + '/konditionen', { grosskunden_rabatt: rabatt, preise: preise });
   }).then(function () { notify('Konditionen gespeichert.'); var k = allK.find(function (x) { return x.id === id; }); if (k) k.ist_gewerbe = flag; }).catch(function (e) { notify(e.message, 'err'); });
 }
+// ── Globale Schnellsuche (Header) — client-seitig über allK/allE ──
+function openSuche() {
+  var q = document.getElementById('suche-q'); if (q) q.value = '';
+  var r = document.getElementById('suche-res'); if (r) r.innerHTML = '<div style="color:var(--muted);font-size:13px">Name, Kennzeichen, Lagerplatz oder Beleg-Nr. eingeben.</div>';
+  openModal('suche');
+  setTimeout(function() { var el = document.getElementById('suche-q'); if (el) el.focus(); }, 50);
+}
+function sucheGlobal() {
+  var q = (gv('suche-q') || '').trim().toLowerCase(), res = document.getElementById('suche-res'); if (!res) return;
+  if (q.length < 2) { res.innerHTML = '<div style="color:var(--muted);font-size:13px">Mindestens 2 Zeichen…</div>'; return; }
+  var n = function(s) { return String(s == null ? '' : s).toLowerCase(); };
+  var kunden = (allK || []).filter(function(k) { return n(k.vorname + ' ' + k.nachname).indexOf(q) >= 0 || n(k.kennzeichen).indexOf(q) >= 0 || n(k.kunden_nr).indexOf(q) >= 0 || n(k.telefon).indexOf(q) >= 0; }).slice(0, 8);
+  var einl = (allE || []).filter(function(e) { return n(e.kundenname).indexOf(q) >= 0 || n(e.kennzeichen).indexOf(q) >= 0 || n(e.lagerplatz).indexOf(q) >= 0 || n(e.beleg_nr).indexOf(q) >= 0; }).slice(0, 8);
+  var it = function(inner, onclick) { return '<div onclick="' + onclick + '" style="cursor:pointer;padding:9px 11px;border-radius:8px;border-bottom:1px solid var(--border2)" onmouseover="this.style.background=\'var(--bg)\'" onmouseout="this.style.background=\'\'">' + inner + '</div>'; };
+  var html = '';
+  if (kunden.length) {
+    html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:4px 0">Kunden</div>';
+    html += kunden.map(function(k) { return it('<strong>' + kEsc(k.vorname + ' ' + k.nachname) + '</strong> <span style="color:var(--muted);font-size:12px">' + kEsc(k.kennzeichen || '') + (k.kunden_nr ? ' · ' + kEsc(k.kunden_nr) : '') + '</span>', 'sucheZuKunde(\'' + k.id + '\')'); }).join('');
+  }
+  if (einl.length) {
+    html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:12px 0 4px">Einlagerungen</div>';
+    html += einl.map(function(e) { return it('<strong style="color:var(--accent-text)">' + kEsc(e.lagerplatz || '?') + '</strong> ' + kEsc(e.kundenname || '') + ' <span style="color:var(--muted);font-size:12px">' + kEsc(e.kennzeichen || '') + ' · ' + kEsc(e.reifen_groesse || '') + ' · ' + kEsc(e.status || '') + '</span>', 'sucheZuEinl(\'' + e.id + '\')'); }).join('');
+  }
+  if (!kunden.length && !einl.length) html = '<div style="color:var(--muted);font-size:13px">Nichts gefunden.</div>';
+  res.innerHTML = html;
+}
+function sucheZuKunde(id) { closeModal('suche'); showPage('kunden'); zeigeK(id); }
+function sucheZuEinl(id) {
+  closeModal('suche'); showPage('einlagerung');
+  var e = (allE || []).find(function(x) { return x.id === id; });
+  var f = document.getElementById('e-search');
+  if (f) { f.value = (e && (e.kennzeichen || e.lagerplatz || e.kundenname)) || ''; renderE(); }
+}
 function zeigeK(id) {
   aktK = allK.find(function(k) { return k.id === id; }); if (!aktK) return;
   document.getElementById('kd-name').textContent = (aktK.anrede ? aktK.anrede + ' ' : '') + aktK.vorname + ' ' + aktK.nachname;
@@ -2624,13 +3096,13 @@ function zeigeK(id) {
     : '<div style="color:var(--muted);font-size:13px;padding:10px 0">Keine Termine.</div>';
   ladeDocs(id);
   showPage('kd');
-  // Datenschutz-Warnung
+  // Datenschutz-Hinweis: dezent (kein blockierender confirm) und nur wenn wirklich nichts vorliegt
+  // (portal_verifiziert schliesst die frueher moegliche Falschmeldung aus). Der Status steht ohnehin
+  // sichtbar im Reiter "Datenschutz-Status" samt Aktions-Button.
   api('GET', '/kunden/' + aktK.id + '/dokumente').then(function(docs) {
     var hatDs = docs && docs.some(function(d) { return d.typ === 'datenschutzerklaerung' && d.unterschrieben; });
-    if (!hatDs) {
-      setTimeout(function() {
-        if (confirm('Datenschutzerklärung noch nicht unterzeichnet. Jetzt erstellen?')) oeffneDsgvo();
-      }, 600);
+    if (!hatDs && !aktK.portal_verifiziert) {
+      notify('Datenschutzerklärung für diesen Kunden noch nicht unterzeichnet — siehe „Datenschutz-Status".', 'info');
     }
   }).catch(function() {});
 }
@@ -2847,15 +3319,27 @@ function setS(id, status) {
     if (aktK) ladeDocs(aktK.id);
   }).catch(function(e) { notify(e.message, 'err'); });
 }
-// Lagerplatz einer bestehenden Einlagerung aendern
+// Lagerplatz einer bestehenden Einlagerung aendern (Modal statt prompt).
+var platzVorschlagWert = '';
 function platzAendern(id) {
   var e = allE.find(function(x) { return x.id === id; }); if (!e) return;
-  var neu = prompt('Neuer Lagerplatz für ' + (e.kundenname || '') + ' (' + e.reifen_groesse + '):', e.lagerplatz || '');
-  if (neu === null) return;
-  neu = neu.trim(); if (!neu) { notify('Kein Lagerplatz eingegeben.', 'err'); return; }
+  document.getElementById('platz-id').value = id;
+  document.getElementById('platz-info').textContent = [e.kundenname, e.reifen_groesse].filter(Boolean).join(' · ') + (e.lagerplatz ? '  ·  aktuell: ' + e.lagerplatz : '');
+  document.getElementById('platz-neu').value = e.lagerplatz || '';
+  var vs = document.getElementById('platz-vorschlag'); if (vs) vs.textContent = '';
+  platzVorschlagWert = '';
+  openModal('platz');
+  api('GET', '/lager/naechster-freier').then(function(r) {
+    if (r && r.verfuegbar && vs) { platzVorschlagWert = r.lagerplatz; vs.innerHTML = 'Nächster freier Platz: <strong>' + kEsc(r.lagerplatz) + '</strong> <button class="btn btn-g btn-sm" onclick="platzUebernehmen()">übernehmen</button>'; }
+  }).catch(function() {});
+}
+function platzUebernehmen() { if (platzVorschlagWert) document.getElementById('platz-neu').value = platzVorschlagWert; }
+function savePlatz() {
+  var id = gv('platz-id'), neu = (gv('platz-neu') || '').trim();
+  if (!neu) { notify('Bitte einen Lagerplatz eingeben.', 'err'); var el = document.getElementById('platz-neu'); if (el) el.focus(); return; }
   api('PATCH', '/einlagerungen/' + id + '/lagerplatz', { lagerplatz: neu }).then(function(r) {
     var i = allE.findIndex(function(x) { return x.id === id; }); if (i !== -1) allE[i].lagerplatz = r.lagerplatz;
-    renderE(); renderLager(); notify('Lagerplatz geändert auf ' + r.lagerplatz + '.');
+    closeModal('platz'); renderE(); renderLager(); notify('Lagerplatz geändert auf ' + r.lagerplatz + '.');
   }).catch(function(err) { notify(err.message, 'err'); });
 }
 // Abgeholte Einlagerung erneut einlagern (Folgeeinlagerung desselben Radsatzes):
@@ -2896,10 +3380,12 @@ function wiedereinlagern(id) {
 var neLetzterSatz = null;
 var neFormGen = 0;          // invalidiert veraltete asynchrone Platz-Vorschlaege (Race-Schutz)
 var nePendingFahrzeug = null; // Fahrzeug, das nach dem Laden der Fahrzeugliste vorausgewaehlt werden soll
+var neSuppressPrefill = false; // beim Raederwechsel-Neu-Zweig den "Letzten Satz uebernehmen"-Button unterdruecken
 function neKundeChange(manuell) {
   var kid = gv('ne-k');
   var fzSel = document.getElementById('ne-fahrzeug');
   var btn = document.getElementById('ne-prefill-btn');
+  var suppress = neSuppressPrefill; neSuppressPrefill = false; // einmalig konsumieren
   neLetzterSatz = null;
   if (fzSel) fzSel.innerHTML = '<option value="">— kein Fahrzeug —</option>';
   if (btn) btn.style.display = 'none';
@@ -2919,7 +3405,9 @@ function neKundeChange(manuell) {
   }).catch(function() { nePendingFahrzeug = null; });
   api('GET', '/kunden/' + kid + '/einlagerungen').then(function(rows) {
     rows = rows || [];
-    if (rows.length) { neLetzterSatz = rows[0]; if (btn) btn.style.display = ''; }
+    // Im Raederwechsel-Neu-Zweig NICHT anbieten: der zuletzt erstellte Satz ist meist der gerade
+    // abgeholte -> "uebernehmen" wuerde die bewusst geleerten Reifenfelder wieder befuellen.
+    if (rows.length && !suppress) { neLetzterSatz = rows[0]; if (btn) btn.style.display = ''; }
   }).catch(function() {});
   // Beim manuellen Kundenwechsel den Stammplatz dieses Kunden neu vorschlagen
   if (manuell) {
@@ -3425,7 +3913,7 @@ function zeigeKalDetailFuerTag(dStr) {
           if (kEinl.length) lp = kEinl.map(function(e){return e.lagerplatz;}).join(', ');
         }
         var tid = t.id;
-        var row = '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">';
+        var row = '<div onclick="zeigeTermin(\'' + tid + '\')" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">';
         row += '<div style="font-weight:700;color:' + col + ';min-width:50px">' + (t.uhrzeit_von||'').substring(0,5) + '</div>';
         row += '<div style="flex:1"><span style="font-weight:600">' + kEsc(t.artikel_name || t.termin_typ || '') + '</span>';
         row += ' <span style="color:var(--muted);font-size:12px">' + kEsc(kuerzel) + '</span>';
@@ -3445,6 +3933,12 @@ function ntVorausfuellen(datum, zeit) {
   document.getElementById('nt-datum').value = datum;
   document.getElementById('nt-von').value = zeit;
   openModal('nt');
+}
+// Walk-in: Termin-Dialog fuer HEUTE + aktuelle Uhrzeit (auf 15 Min gerundet) oeffnen -> landet sofort aufs Werkstattbrett.
+function walkIn() {
+  var d = new Date();
+  var zeit = String(d.getHours()).padStart(2, '0') + ':' + String(Math.floor(d.getMinutes() / 15) * 15).padStart(2, '0');
+  ntVorausfuellen(isoLocal(d), zeit);
 }
 function zeigeTermin(id) {
   var t = allTermine.find(function(x) { return x.id === id; }); if (!t) return;
@@ -3639,7 +4133,8 @@ function renderWS() {
     var leistung = t.artikel_name || t.termin_typ || '';
     var lagerplaetze = '';
     if (t.kunden_id) {
-      var kEinl = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status === 'Eingelagert'; });
+      // Aktive Saetze = eingelagert ODER abholbereit (konsistent mit server.js-Tagesmail: status <> 'Abgeholt')
+      var kEinl = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status !== 'Abgeholt'; });
       if (kEinl.length) lagerplaetze = kEinl.map(function(e) { return e.lagerplatz; }).join(', ');
     }
     var istNaechster = !istErledigt && idx === 0;
@@ -3658,7 +4153,7 @@ function renderWS() {
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
           '<span style="font-size:13px;color:var(--muted)">' + kEsc(kuerzel) + '</span>' +
           (t.fahrzeug_marke ? '<span style="font-size:12px;color:var(--muted)">' + kEsc(t.fahrzeug_marke + (t.fahrzeug_modell ? ' ' + t.fahrzeug_modell : '')) + '</span>' : '') +
-          (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent-text);letter-spacing:1px">' + lagerplaetze + '</span>' : '') +
+          (lagerplaetze ? '<span style="font-size:16px;font-weight:900;color:var(--accent-text);letter-spacing:1px">' + kEsc(lagerplaetze) + '</span>' : '') +
         '</div>' +
         (einlInfo ? '<div style="font-size:11px;color:var(--yellow);margin-top:6px;padding:5px 8px;background:var(--ydim);border-radius:5px">' + einlInfo + '</div>' : '') +
         (t.beschreibung ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + kEsc(t.beschreibung) + '</div>' : '') +
@@ -3667,7 +4162,8 @@ function renderWS() {
         (istErledigt
           ? '<button class="btn btn-g btn-sm" data-tid="' + t.id + '" onclick="terminWiederOeffnen(this.getAttribute(\'data-tid\'))">Wieder öffnen</button>' +
             (t.kunden_id ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="rechnungAusTermin(this.getAttribute(\'data-tid\'))">Rechnung</button>' : '')
-          : '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
+          : (lagerplaetze ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="raederwechsel(this.getAttribute(\'data-tid\'))">Räderwechsel</button>' : '') +
+            '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
             '<button class="btn btn-danger btn-sm" data-tid="' + t.id + '" onclick="terminAbsagen(this.getAttribute(\'data-tid\'))">Absagen</button>') +
       '</div>' +
       '</div></div>';
@@ -3689,6 +4185,137 @@ function terminErledigt(id) {
 }
 function terminWiederOeffnen(id) {
   api('PATCH', '/termine/' + id + '/status', { status: 'bestaetigt' }).then(function() { notify('Wieder geöffnet.'); loadTermineWerkstatt(); }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── RÄDERWECHSEL (Werkstattbrett) ──
+// Ein Klick auf der heutigen Termin-Karte: den eingelagerten Satz abholen (aufs Fahrzeug montiert),
+// Termin automatisch erledigen und optional direkt einen frischen neuen Satz einlagern.
+// Der neue Satz ist meist ein komplett anderer Radsatz -> KEINE Reifendaten des abgeholten Satzes uebernehmen.
+var rwCtx = null;
+var rwBusy = false; // sperrt Doppelklick/Doppel-Tap waehrend der PATCH-Kette
+// Busy-Zustand setzen und dabei die Modal-Buttons (auch "Abbrechen") sperren, damit waehrend der
+// laufenden PATCH-Kette nichts dazwischenfunkt (verhindert "Abbrechen tut nichts"-Falle).
+function rwSetBusy(b) {
+  rwBusy = b;
+  // Alle Buttons des Modals sperren: Footer (Abbrechen/Aktionen) UND das obere "x" (.mx),
+  // damit der Dialog waehrend der laufenden Kette nicht weggeklickt werden kann.
+  Array.prototype.forEach.call(document.querySelectorAll('#m-rwechsel .mfoot button, #m-rwechsel .mx'), function(btn) { btn.disabled = b; });
+}
+function raederwechsel(terminId) {
+  var t = allTermine.find(function(x) { return x.id === terminId; });
+  if (!t || !t.kunden_id) { notify('Kein Kunde am Termin – Räderwechsel nicht möglich.', 'err'); return; }
+  // Aktive Saetze des Kunden = eingelagert ODER abholbereit (nicht abgeholt).
+  var saetze = allE.filter(function(e) { return e.kunden_id === t.kunden_id && e.status !== 'Abgeholt'; });
+  if (!saetze.length) { notify('Kein eingelagerter Satz für diesen Kunden.', 'err'); return; }
+  // Wenn der Termin ein konkretes Fahrzeug hat, auf dessen Saetze eingrenzen (verhindert falschen Radsatz
+  // bei Kunden mit mehreren Fahrzeugen). Nur eingrenzen, wenn dadurch Treffer bleiben.
+  if (t.fahrzeug_id) {
+    var fzMatch = saetze.filter(function(e) { return e.fahrzeug_id === t.fahrzeug_id; });
+    if (fzMatch.length) saetze = fzMatch;
+  }
+  rwCtx = { terminId: terminId, kundenId: t.kunden_id, kundenName: t.kundenname || t.kontakt_name || '', fahrzeugId: t.fahrzeug_id || null, saetze: saetze };
+  var name = rwCtx.kundenName;
+  var kuerzel = name ? nameKuerzelFn(name.split(' ')[0], name.split(' ').slice(1).join(' ')) : '-';
+  document.getElementById('rw-titel').textContent = 'Räderwechsel — ' + kuerzel + (t.kennzeichen ? ' · ' + t.kennzeichen : '');
+  var satzZeile = function(e) {
+    var fz = [e.fahrzeug_marke, e.fahrzeug_kennzeichen].filter(Boolean).join(' ');
+    return '<span style="font-size:16px;font-weight:900;color:var(--accent-text);letter-spacing:1px">' + kEsc(e.lagerplatz || '?') + '</span>' +
+      ' <span style="font-size:13px;color:var(--muted)">' + kEsc(e.reifen_groesse || '') + (e.reifen_typ ? ' · ' + kEsc(e.reifen_typ) : '') + '</span>' +
+      (fz ? '<div style="font-size:12px;color:var(--muted);margin-top:3px">' + kEsc(fz) + '</div>' : '');
+  };
+  var box = document.getElementById('rw-satz');
+  if (saetze.length === 1) {
+    // Genau ein Satz: fest angezeigt, keine Auswahl.
+    box.innerHTML = '<div style="padding:12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px">' + satzZeile(saetze[0]) + '</div>';
+  } else {
+    // Mehrere Saetze (selten): welcher wird montiert? Bewusst KEINE Vorauswahl -> Fehlklick-Schutz.
+    box.innerHTML = '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">Mehrere Sätze – bitte wählen, welcher montiert wird:</div>' +
+      saetze.map(function(e) {
+        return '<label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;margin-bottom:6px">' +
+          '<input type="radio" name="rw-satz-sel" value="' + kEsc(e.id) + '"><span>' + satzZeile(e) + '</span></label>';
+      }).join('');
+  }
+  openModal('rwechsel');
+}
+function rwAbholen(mitNeu) {
+  if (!rwCtx || rwBusy) return;
+  var satz;
+  if (rwCtx.saetze.length === 1) { satz = rwCtx.saetze[0]; }
+  else {
+    var sel = document.querySelector('input[name="rw-satz-sel"]:checked');
+    if (!sel) { notify('Bitte wählen, welcher Satz montiert wird.', 'err'); return; }
+    satz = rwCtx.saetze.find(function(e) { return e.id === sel.value; });
+  }
+  if (!satz) { notify('Satz nicht gefunden.', 'err'); return; }
+  rwSetBusy(true);
+  var setId = satz.id;
+  var freedPlatz = satz.lagerplatz || '';
+  var terminId = rwCtx.terminId;
+  var ctx = rwCtx;           // fuer den optionalen Neu-Zweig festhalten
+  var terminOk = true;       // ob der Termin serverseitig wirklich erledigt wurde
+  var sessionWeg = false;    // Sitzung waehrend der Kette abgelaufen (401 -> api() hat abgemeldet)
+  api('PATCH', '/einlagerungen/' + setId + '/status', { status: 'Abgeholt', montiert: true }).then(function(res) {
+    if (!res) throw new Error('__abbruch__'); // 401/Sitzung abgelaufen -> api() hat abgemeldet, nichts vortaeuschen
+    var i = allE.findIndex(function(e) { return e.id === setId; });
+    if (i !== -1) allE[i].status = 'Abgeholt';
+    // Termin automatisch erledigen; ein Fehler hier ist nicht fatal (Satz ist schon abgeholt).
+    return api('PATCH', '/termine/' + terminId + '/status', { status: 'abgeschlossen' })
+      .then(function(tr) { if (tr === null) sessionWeg = true; else if (!tr) terminOk = false; }) // null = 401
+      .catch(function() { terminOk = false; });
+  }).then(function() {
+    rwSetBusy(false);
+    closeModal('rwechsel');
+    // Ist die Sitzung im zweiten Schritt abgelaufen, ist die App bereits abgemeldet: nicht den
+    // Erfolgspfad weiterlaufen lassen (keine unsichtbare Meldung, kein ungewolltes Neu-Modal).
+    if (sessionWeg) return;
+    loadTermineWerkstatt();
+    renderE(); renderDash(); renderLager();
+    if (mitNeu) {
+      rwNeuerSatz(ctx, freedPlatz, terminOk);
+    } else if (terminOk) {
+      notify('Satz abgeholt, Termin erledigt.');
+    } else {
+      notify('Satz abgeholt – Termin bitte noch manuell auf „Erledigt" setzen.', 'err');
+    }
+  }).catch(function(e) {
+    rwSetBusy(false);
+    if (e && e.message === '__abbruch__') return; // stiller Abbruch bei Sitzungsablauf
+    notify(e.message, 'err');
+  });
+}
+// Frisches Einlagern des vom Fahrzeug kommenden Satzes anstossen: nur Kunde/Fahrzeug/frei gewordener
+// Platz vorbefuellen, Reifenfelder leer (anderer Radsatz -> keine Verkettung, keine Daten uebernehmen).
+function rwNeuerSatz(ctx, freedPlatz, terminOk) {
+  aktK = (typeof allK !== 'undefined' && allK) ? allK.find(function(x) { return x.id === ctx.kundenId; }) || null : null;
+  nePendingFahrzeug = ctx.fahrzeugId || null;
+  neSuppressPrefill = true; // "Letzten Satz uebernehmen" hier nicht anbieten (frischer Radsatz)
+  openModal('ne'); // fillNeForm: Kunde + Fahrzeugliste + Platzvorschlag (async)
+  neResetReifendaten();
+  ++neFormGen; // fillNeForms asynchronen Platzvorschlag verwerfen – wir setzen den frei gewordenen Platz
+  var lpIn = document.getElementById('ne-lagerplatz');
+  var lInfo = document.getElementById('ne-lager-info');
+  if (freedPlatz) {
+    if (lpIn) lpIn.value = freedPlatz;
+    if (lInfo) { lInfo.dataset.lagerplatz = freedPlatz; lInfo.innerHTML = '<span style="color:var(--blue)">Frei gewordener Platz: <strong>' + kEsc(freedPlatz) + '</strong> (frei änderbar)</span>'; }
+  }
+  var vg = document.getElementById('ne-vorgaenger'); if (vg) vg.value = '';
+  notify(terminOk
+    ? 'Satz abgeholt, Termin erledigt. Neuen Satz jetzt komplett neu erfassen (Profil messen).'
+    : 'Satz abgeholt. Termin noch manuell erledigen. Neuen Satz jetzt komplett neu erfassen (Profil messen).', terminOk ? undefined : 'err');
+}
+// Reifenfelder des ne-Modals leeren, damit der neue Satz frisch startet (keine Altwerte).
+function neResetReifendaten() {
+  var setV = function(id, v) { var el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); };
+  setV('ne-gr', ''); setV('ne-br', ''); setV('ne-qu', ''); setV('ne-zo', ''); setV('ne-li', '');
+  var typ = document.getElementById('ne-typ'); if (typ) typ.selectedIndex = 0;
+  var mk = document.getElementById('ne-mk'); if (mk) mk.value = '';
+  var mkMan = document.getElementById('ne-mk-man'); if (mkMan) { mkMan.value = ''; mkMan.style.display = 'none'; }
+  var moSel = document.getElementById('ne-mo-sel'); if (moSel) moSel.innerHTML = '<option value="">— erst Hersteller wählen —</option>';
+  var moMan = document.getElementById('ne-mo-man'); if (moMan) { moMan.value = ''; moMan.style.display = 'none'; }
+  var anz = document.getElementById('ne-anz'); if (anz) anz.value = '4';
+  var fel = document.getElementById('ne-fel'); if (fel) fel.selectedIndex = 0;
+  var rnd = document.getElementById('ne-rnd'); if (rnd) rnd.checked = false;
+  setV('ne-dot', ''); setV('ne-vl', ''); setV('ne-vr', ''); setV('ne-hl', ''); setV('ne-hr', ''); setV('ne-bem', '');
 }
 
 function druckListe() {
@@ -3930,12 +4557,12 @@ function druckEtikett(einlId) {
       '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
         '<div style="min-width:0">' +
           '<div style="font-size:7.5pt;color:#777;line-height:1.1">' + kundenNr + ' &nbsp; ' + kuerzel + '</div>' +
-          '<div style="font-size:11pt;font-weight:700;color:#eab308;font-family:monospace;line-height:1.15">' + kennz + '</div>' +
+          '<div style="font-size:11pt;font-weight:700;color:#171717;font-family:monospace;line-height:1.15">' + kennz + '</div>' +
         '</div>' +
         '<div style="font-size:30pt;font-weight:900;color:' + posColor[pos] + ';line-height:.8">' + pos + '</div>' +
       '</div>' +
       // Lagerplatz riesig, fuellt die Mitte
-      '<div style="text-align:center;font-size:25pt;font-weight:900;color:#1a3a6e;letter-spacing:1.5px;line-height:1;border-top:2px solid #1a3a6e;border-bottom:2px solid #1a3a6e;padding:1.2mm 0">' + e.lagerplatz + '</div>' +
+      '<div style="text-align:center;font-size:25pt;font-weight:900;color:#171717;letter-spacing:1.5px;line-height:1;border-top:3px solid #eab308;border-bottom:3px solid #eab308;padding:1.2mm 0">' + e.lagerplatz + '</div>' +
       // Reifen-Info
       '<div>' +
         '<div style="font-size:9.5pt;font-weight:700;line-height:1.15">' + e.reifen_typ + ' &nbsp; ' + e.reifen_groesse + '</div>' +

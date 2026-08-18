@@ -1,6 +1,7 @@
 # Kickoff: Admin / Werkstatt
 
-Projekt `/home/deploy/projekte/reifenpro` öffnen, dann als erste Nachricht:
+Ordner **`/home/deploy/projekte/reifenpro-admin`** in Claude Code öffnen (eigener
+Worktree für diesen Bereich, NICHT den Sammelordner `reifenpro`), dann als erste Nachricht:
 
 > Lies `.claude/bereiche/admin/CLAUDE.md` und den Admin-Abschnitt von
 > `.claude/bereiche/AUDIT-2026-08-06.md`. Wir arbeiten ausschließlich am Bereich

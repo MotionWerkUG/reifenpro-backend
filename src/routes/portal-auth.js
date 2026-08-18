@@ -64,7 +64,7 @@ async function sendMail(to, subject, html) {
 // ── POST /api/portal/auth/registrieren ──
 router.post('/registrieren', registrierLimiter, async (req, res, next) => {
   try {
-    const { vorname, nachname, email, passwort, telefon, agb, dsgvo, saison } = req.body;
+    const { vorname, nachname, email, passwort, telefon, agb, dsgvo, saison, bewertung } = req.body;
     if (!vorname || !nachname || !email || !passwort) return res.status(400).json({ error: 'Pflichtfelder fehlen' });
     if (!agb || !dsgvo) return res.status(400).json({ error: 'AGB und Datenschutz müssen akzeptiert werden' });
     if (passwort.length < 8) return res.status(400).json({ error: 'Passwort muss mind. 8 Zeichen haben' });
@@ -77,14 +77,23 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
     const tel = telefon ? noTag(telefon).slice(0, 60) : null;
     const emailSafe = noTag(email).slice(0, 160);
 
+    // Passwort-Hash VOR der Existenzpruefung berechnen -> beide Zweige haben denselben teuren
+    // CPU-Pfad (bcrypt), damit die Antwortzeit die Konto-Existenz nicht verraet (analog DUMMY_HASH beim Login).
+    const hash = await bcrypt.hash(passwort, 12);
+
     // Prüfe ob E-Mail bereits als Portal-Account existiert (case-insensitiv)
     const existiert = await query('SELECT id FROM kunden WHERE LOWER(portal_email)=$1', [email.toLowerCase()]);
-    if (existiert.rows.length) return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
+    if (existiert.rows.length) {
+      // Anti-Enumeration: KEINE spezifische "bereits registriert"-Meldung. Identische generische
+      // Antwort wie bei Neuanlage; der bcrypt.hash oben lief bereits -> gleiche Antwortzeit.
+      // Bewusst KEINE Mail (der Angreifer sieht das fremde Postfach nicht -> Mail wuerde nur einen
+      // Spam-Vektor an bekannte Adressen eroeffnen). Der Nutzer nutzt bei Bedarf "Passwort vergessen".
+      return res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
+    }
 
     // Prüfe ob Kunde bereits in DB (über normale E-Mail, case-insensitiv) -> verknüpfen statt duplizieren
     const bestandskunde = await query('SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true', [email.toLowerCase()]);
 
-    const hash = await bcrypt.hash(passwort, 12);
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 24 * 3600000);
     const now = new Date();
@@ -102,9 +111,10 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
          portal_bestaetigung_token=$3, portal_token_ablauf=$4,
          portal_registriert_am=$5, portal_agb_akzeptiert=$6, portal_agb_datum=$5,
          portal_dsgvo_akzeptiert=$6, portal_dsgvo_datum=$5,
-         einwilligung_saison_erinnerung=$7, einwilligung_ip=$9, agb_version=$10
+         einwilligung_saison_erinnerung=$7, einwilligung_ip=$9, agb_version=$10,
+         einwilligung_bewertung=$11, einwilligung_bewertung_am=$12
          WHERE id=$8`,
-        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion]
+        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion, bewertung ? true : false, bewertung ? now : null]
       );
     } else {
       // Neuer Kunde anlegen (Kundennummer aus Sequenz wie im Admin -> keine Doppelnummern)
@@ -115,20 +125,22 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
          portal_email_bestaetigt, portal_bestaetigung_token, portal_token_ablauf,
          portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
          portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
-         einwilligung_ip, agb_version, aktiv)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,true)
+         einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,$14,$15,true)
          RETURNING id`,
         [nr, vn, nn, email.toLowerCase(), tel,
-         email.toLowerCase(), hash, token, ablauf, now, saison ? true : false, einwilligungIp, agbVersion]
+         email.toLowerCase(), hash, token, ablauf, now, saison ? true : false, einwilligungIp, agbVersion,
+         bewertung ? true : false, bewertung ? now : null]
       );
       kundeId = neu.rows[0].id;
     }
 
-    // Bestätigungs-E-Mail senden
+    // Bestätigungs-E-Mail senden. Mails NICHT awaiten (fire-and-forget mit .catch) -> die Antwortzeit
+    // haengt nicht an Anzahl/Dauer der Mails und verraet so nicht, ob die Adresse neu war (Timing-Enum).
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
     const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
     const link = portalUrl + '?bestaetigen=' + token;
-    await sendMail(
+    sendMail(
       email,
       'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
       portalMailHtml(einst, {
@@ -143,9 +155,9 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       })
     ).catch(function (e) { console.error('[Registrierung-Mail]', e.message); });
 
-    // Admin informieren
+    // Admin informieren (fire-and-forget)
     if (einst.email) {
-      await sendMail(
+      sendMail(
         einst.email,
         'Neue Portal-Registrierung: ' + vn + ' ' + nn,
         '<p>Ein neuer Kunde hat sich im Portal registriert:</p>' +
@@ -157,10 +169,11 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       ).catch(() => {});
     }
 
-    // Werbe-/Saison-Einwilligung nur per Double-Opt-in wirksam: Bestaetigungsmail senden
+    // Werbe-/Saison-Einwilligung nur per Double-Opt-in wirksam: Bestaetigungsmail (fire-and-forget)
     if (saison) {
-      try { await require('../lib/einwilligung').sendeDoi({ id: kundeId, vorname: vn, nachname: nn, anrede: null, email: email }, einst); }
-      catch (e) { console.error('[DOI-Mail]', e.message); }
+      Promise.resolve()
+        .then(function () { return require('../lib/einwilligung').sendeDoi({ id: kundeId, vorname: vn, nachname: nn, anrede: null, email: email }, einst); })
+        .catch(function (e) { console.error('[DOI-Mail]', e.message); });
     }
 
     res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
@@ -223,8 +236,9 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     const ok = await bcrypt.compare(passwort, k ? k.portal_password : DUMMY_HASH);
     if (!k || !ok) return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     // Status-Hinweise erst NACH korrektem Passwort (verraet sonst Existenz des Kontos)
-    if (!k.portal_email_bestaetigt) return res.status(401).json({ error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });
-    if (!k.portal_freigegeben) return res.status(401).json({ error: 'Ihr Konto wurde noch nicht freigeschaltet. Wir melden uns in Kürze.' });
+    // code: maschinenlesbar, damit das Portal die Meldung lokalisieren kann (DE/EN); error bleibt als Fallback
+    if (!k.portal_email_bestaetigt) return res.status(401).json({ code: 'EMAIL_UNBESTAETIGT', error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });
+    if (!k.portal_freigegeben) return res.status(401).json({ code: 'NICHT_FREIGEGEBEN', error: 'Ihr Konto wurde noch nicht freigeschaltet. Wir melden uns in Kürze.' });
     const token = jwt.sign({ id: k.id, typ: 'kunde' }, process.env.JWT_SECRET, { expiresIn: '8h' });
     res.json({
       token,
@@ -335,11 +349,12 @@ router.post('/einwilligung-widerrufen', authKunde, async (req, res, next) => {
   try {
     await query(
       `UPDATE kunden SET einwilligung_werbung=false, einwilligung_saison_erinnerung=false,
-       einwilligung_saison_bestaetigt=false, einwilligung_token=NULL, einwilligung_token_ablauf=NULL,
+       einwilligung_saison_bestaetigt=false, einwilligung_bewertung=false, einwilligung_bewertung_am=NULL,
+       einwilligung_token=NULL, einwilligung_token_ablauf=NULL,
        widerruf_datum=NOW(), geaendert_am=NOW() WHERE id=$1`,
       [req.kunde.id]
     );
-    res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe- oder Saison-Erinnerungen mehr.' });
+    res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe-, Saison- oder Bewertungs-E-Mails mehr.' });
   } catch (e) { next(e); }
 });
 

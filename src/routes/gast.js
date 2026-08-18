@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
+const oeffnung = require('../lib/oeffnung');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
@@ -17,35 +18,42 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
   const ids = mainIds.concat(zusatzIds);
   const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
   if (!ids.length) return leer;
+  const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false; // Standard: Preise inkl. MwSt (Brutto)
   const arts = (await query('SELECT * FROM artikel WHERE id = ANY($1::uuid[]) AND aktiv IS NOT false', [ids])).rows;
   const vars = (await query('SELECT * FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows;
   const byArt = {}; arts.forEach(function (a) { byArt[a.id] = a; });
   const varsByArt = {}; vars.forEach(function (v) { (varsByArt[v.artikel_id] = varsByArt[v.artikel_id] || []).push(v); });
   const order = mainIds.map(function (id) { return { id: id, rolle: 'haupt' }; })
     .concat(zusatzIds.map(function (id) { return { id: id, rolle: 'zusatz' }; }));
-  const positionen = []; let netto = 0, mwst = 0, dauer = 0; const gewaehlt = [];
+  const positionen = []; let netto = 0, brutto = 0, dauer = 0; const gewaehlt = [];
   order.forEach(function (it) {
     const a = byArt[it.id]; if (!a) return;
     const variants = varsByArt[a.id] || [];
     const basis = resolvePreis(a, variants, null, zoll);          // ohne Fahrzeugtyp-Zuschlag
     const eff = resolvePreis(a, variants, typ || null, zoll);     // mit gewaehltem Typ
     const effPreis = Number(eff.preis) || 0;
-    const grund = round2(Math.min(Number(basis.preis) || 0, effPreis));
-    const zuschlag = round2(effPreis - grund);
+    const grundPreis = Math.min(Number(basis.preis) || 0, effPreis);
     const satz = Number(eff.mwst_satz != null ? eff.mwst_satz : 19);
-    const zeilenNetto = round2(effPreis);
+    const f = 1 + satz / 100;
+    // inkl=true: gespeicherter Preis ist Brutto (Endpreis), Netto abgeleitet. inkl=false: Preis ist Netto.
+    const nettoVon = function (p) { return inkl ? round2(p / f) : round2(p); };
+    const bruttoVon = function (p) { return inkl ? round2(p) : round2(p * f); };
+    const grund = nettoVon(grundPreis);
+    const zuschlag = round2(nettoVon(effPreis) - grund);
+    const zeilenNetto = nettoVon(effPreis);
+    const zeilenBrutto = bruttoVon(effPreis);
     netto = round2(netto + zeilenNetto);
-    mwst = round2(mwst + zeilenNetto * satz / 100);
+    brutto = round2(brutto + zeilenBrutto);
     dauer += (eff.dauer_minuten != null ? eff.dauer_minuten : (a.dauer_minuten || 30));
     gewaehlt.push(a.name);
     positionen.push({
       artikel_id: a.id, bezeichnung: a.name, rolle: it.rolle,
       grundpreis_netto: grund, zuschlag_netto: zuschlag,
       fahrzeugtyp: zuschlag > 0 ? (typ || null) : null,
-      mwst_satz: satz, zeilen_netto: zeilenNetto
+      mwst_satz: satz, zeilen_netto: zeilenNetto, zeilen_brutto: zeilenBrutto
     });
   });
-  return { positionen: positionen, netto: round2(netto), mwst: round2(mwst), brutto: round2(netto + mwst), dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt };
+  return { positionen: positionen, netto: round2(netto), mwst: round2(brutto - netto), brutto: round2(brutto), dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt };
 }
 
 const limiter = rateLimit({ windowMs: 900000, max: 30, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
@@ -54,25 +62,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function zeitZuMin(z) { if (!z) return 0; const s = String(z).substring(0, 5); const p = s.split(':').map(Number); return p[0] * 60 + (p[1] || 0); }
 function minZuZeit(min) { return String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(min % 60).padStart(2, '0'); }
-function getBayernFeiertage(jahr) {
-  const a = jahr % 19, b = Math.floor(jahr / 100), c = jahr % 100;
-  const d2 = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3), h2 = (19 * a + b - d2 - g + 15) % 30;
-  const i = Math.floor(c / 4), k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h2 - k) % 7;
-  const m2 = Math.floor((a + 11 * h2 + 22 * l) / 451);
-  const monat = Math.floor((h2 + l - 7 * m2 + 114) / 31);
-  const tag = ((h2 + l - 7 * m2 + 114) % 31) + 1;
-  const ostern = new Date(jahr, monat - 1, tag);
-  const fmt = (x) => x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
-  const add = (x, t) => { const n = new Date(x); n.setDate(n.getDate() + t); return fmt(n); };
-  return [jahr + '-01-01', jahr + '-01-06', add(ostern, -2), add(ostern, 1), jahr + '-05-01', add(ostern, 39), add(ostern, 50), add(ostern, 60), jahr + '-08-15', jahr + '-10-03', jahr + '-11-01', jahr + '-12-25', jahr + '-12-26'];
-}
-function isFeiertag(datumStr) {
-  const m = String(datumStr).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return false;
-  return getBayernFeiertage(parseInt(m[1])).includes(m[1] + '-' + m[2] + '-' + m[3]);
-}
-function wochentagVon(datumStr) { const m = String(datumStr).match(/^(\d{4})-(\d{2})-(\d{2})/); if (!m) return 1; return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3])).getDay(); }
 
 // Oeffnungszeiten fuer ein Datum (ohne Leistung)
 async function oeffnungFuerTag(datum) {
@@ -80,13 +69,13 @@ async function oeffnungFuerTag(datum) {
   if (!einst) return { fehler: 'Einstellungen fehlen' };
   const urlaub = await query('SELECT id FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
   if (urlaub.rows.length) return { grund: 'Betriebsurlaub', einst };
-  if (isFeiertag(datum)) return { grund: 'Feiertag', einst };
-  const wt = wochentagVon(datum);
-  let vonStr, bisStr;
-  if (wt === 0) { if (!einst.so_offen) return { grund: 'Geschlossen', einst }; vonStr = einst.so_von; bisStr = einst.so_bis; }
-  else if (wt === 6) { if (!einst.sa_offen) return { grund: 'Geschlossen', einst }; vonStr = einst.sa_von; bisStr = einst.sa_bis; }
-  else { vonStr = einst.mo_fr_von || '08:00'; bisStr = einst.mo_fr_bis || '18:00'; }
-  return { einst, vonStr, bisStr };
+  // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die regulaere Woche; 1-2 Spannen/Tag.
+  const off = await oeffnung.oeffnungFuerTag(datum);
+  if (off.geschlossen) {
+    const bt = (await query('SELECT bezeichnung FROM besondere_tage WHERE datum=$1 AND geschlossen=true', [datum])).rows[0];
+    return { grund: (bt && bt.bezeichnung) ? bt.bezeichnung : 'Geschlossen', einst };
+  }
+  return { einst, spannen: off.spannen };
 }
 
 async function freieSlots(datum, dauer) {
@@ -94,16 +83,17 @@ async function freieSlots(datum, dauer) {
   if (o.fehler) return { error: o.fehler };
   if (o.grund) return { slots: [], grund: o.grund };
   const einst = o.einst;
-  const mpVon = einst.mittagspause_von, mpBis = einst.mittagspause_bis;
   const maxParallel = einst.max_parallele_termine || 1;
   const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')", [datum])).rows;
   const slots = [];
-  const vonMin = zeitZuMin(o.vonStr), bisMin = zeitZuMin(o.bisStr);
-  for (let start = vonMin; start + dauer <= bisMin; start += 15) {
-    const ende = start + dauer;
-    if (mpVon && mpBis) { const a = zeitZuMin(mpVon), b = zeitZuMin(mpBis); if (start < b && ende > a) continue; }
-    const ueber = gebuchte.filter(t => start < zeitZuMin(t.uhrzeit_bis) && ende > zeitZuMin(t.uhrzeit_von)).length;
-    if (ueber < maxParallel) slots.push({ von: minZuZeit(start), bis: minZuZeit(ende) });
+  // Ueber jede Oeffnungsspanne (Vormittag/Nachmittag) einzeln -> die Mittagspause zwischen den Spannen bleibt frei.
+  for (const sp of o.spannen) {
+    const vonMin = zeitZuMin(sp[0]), bisMin = zeitZuMin(sp[1]);
+    for (let start = vonMin; start + dauer <= bisMin; start += 15) {
+      const ende = start + dauer;
+      const ueber = gebuchte.filter(t => start < zeitZuMin(t.uhrzeit_bis) && ende > zeitZuMin(t.uhrzeit_von)).length;
+      if (ueber < maxParallel) slots.push({ von: minZuZeit(start), bis: minZuZeit(ende) });
+    }
   }
   return { slots, dauer };
 }
@@ -120,6 +110,7 @@ router.get('/leistungen', limiter, async (req, res, next) => {
     // "ab"-Preis je Leistung = niedrigster moeglicher Nettopreis (Basis bzw. guenstigste Variante)
     const ids = rows.map(r => r.artikel_id);
     const vars = ids.length ? (await query('SELECT artikel_id, preis FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows : [];
+    const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
     const minByArt = {};
     vars.forEach(v => { const p = Number(v.preis); if (minByArt[v.artikel_id] == null || p < minByArt[v.artikel_id]) minByArt[v.artikel_id] = p; });
     rows.forEach(r => {
@@ -127,8 +118,9 @@ router.get('/leistungen', limiter, async (req, res, next) => {
       let ab = basis;
       if (minByArt[r.artikel_id] != null) ab = (ab == null) ? minByArt[r.artikel_id] : Math.min(ab, minByArt[r.artikel_id]);
       const satz = Number(r.mwst_satz != null ? r.mwst_satz : 19);
-      r.ab_netto = ab != null ? round2(ab) : null;
-      r.ab_brutto = ab != null ? round2(ab * (1 + satz / 100)) : null;
+      const f = 1 + satz / 100;
+      r.ab_netto = ab != null ? (inkl ? round2(ab / f) : round2(ab)) : null;
+      r.ab_brutto = ab != null ? (inkl ? round2(ab) : round2(ab * f)) : null;
     });
     res.json({
       haupt: rows.filter(r => r.rolle === 'haupt'),
@@ -153,7 +145,7 @@ router.get('/kalkulation', limiter, async (req, res, next) => {
 router.get('/slots', limiter, async (req, res, next) => {
   try {
     const { datum } = req.query;
-    if (!datum) return res.status(400).json({ error: 'datum erforderlich' });
+    if (!datum || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return res.status(400).json({ error: 'Gültiges datum (YYYY-MM-DD) erforderlich' });
     let dauer = parseInt(req.query.dauer);
     if (!(dauer > 0)) {
       if (req.query.artikel_id) {
@@ -193,6 +185,10 @@ router.get('/einwilligung/abmelden', async (req, res, next) => {
     if (!payload || payload.typ !== 'unsub' || !payload.id) {
       return res.status(400).send(seite('Link ungültig', 'Dieser Abmeldelink ist ungültig oder abgelaufen.'));
     }
+    if (payload.z === 'bewertung') {
+      await query('UPDATE kunden SET einwilligung_bewertung=false, einwilligung_bewertung_am=NULL, widerruf_datum=NOW(), geaendert_am=NOW() WHERE id=$1', [payload.id]);
+      return res.send(seite('Abgemeldet', 'Sie erhalten keine Bewertungsanfragen mehr. Falls Sie das später ändern möchten, können Sie die Einwilligung in Ihrem Kundenportal erneut erteilen.'));
+    }
     await query('UPDATE kunden SET einwilligung_saison_erinnerung=false, einwilligung_saison_bestaetigt=false, einwilligung_token=NULL, einwilligung_token_ablauf=NULL, widerruf_datum=NOW(), geaendert_am=NOW() WHERE id=$1', [payload.id]);
     res.send(seite('Abgemeldet', 'Sie erhalten keine Saison-Erinnerungen mehr. Falls Sie das später ändern möchten, können Sie die Einwilligung in Ihrem Kundenportal erneut erteilen.'));
   } catch (e) { next(e); }
@@ -210,6 +206,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
     if (!vorname || !nachname || !telefon || !email || !kennzeichen || !strasse || !plz || !ort || !datum || !uhrzeit_von || !mainIds.length)
       return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen (inkl. Anschrift und mindestens eine Leistung).' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
     const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
@@ -225,12 +222,9 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const heuteStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
     const startMin = zeitZuMin(uhrzeit_von), endeMin = startMin + dauer;
-    if (startMin < zeitZuMin(o.vonStr) || endeMin > zeitZuMin(o.bisStr))
-      return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
-    if (o.einst.mittagspause_von && o.einst.mittagspause_bis) {
-      const mpA = zeitZuMin(o.einst.mittagspause_von), mpB = zeitZuMin(o.einst.mittagspause_bis);
-      if (startMin < mpB && endeMin > mpA) return res.status(400).json({ error: 'Die gewählte Uhrzeit fällt in die Mittagspause.' });
-    }
+    // Muss vollstaendig in eine Oeffnungsspanne fallen (deckt Oeffnungszeiten UND Mittagspause ab).
+    const imFenster = (o.spannen || []).some(sp => startMin >= zeitZuMin(sp[0]) && endeMin <= zeitZuMin(sp[1]));
+    if (!imFenster) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt außerhalb der Öffnungszeiten.' });
     if (datum === heuteStr) {
       const jetztMin = zeitZuMin(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }));
       if (startMin <= jetztMin) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt in der Vergangenheit.' });
