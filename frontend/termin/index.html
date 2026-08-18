@@ -42,6 +42,9 @@
   .pricebar .pb-lab{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
   .pricebar .pb-total{font-size:26px;font-weight:800;color:#171717;line-height:1.05}
   .pricebar .pb-total .ab{font-size:14px;font-weight:600;color:#888;margin-right:4px}
+  .pricebar .pb-detail{flex-basis:100%;font-size:13px;color:#444;margin-top:4px;padding-top:8px;border-top:1px solid #eef0f3;line-height:1.5;display:none}
+  .pricebar .pb-detail b{color:#171717}
+  .pricebar .pb-detail .pb-sep{color:#c9cdd3;margin:0 7px}
   .pricebar .pb-hint{flex-basis:100%;font-size:11.5px;color:#9a9a95;margin-top:2px;line-height:1.4}
   .field{margin-bottom:16px}
   label.lab{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;margin-bottom:6px}
@@ -103,6 +106,7 @@
       <div class="pb-lab">Gesamt (ca., inkl. MwSt)</div>
       <div class="pb-total" id="pb-total"><span class="ab">ab</span>—</div>
     </div>
+    <div class="pb-detail" id="pb-detail"></div>
     <div class="pb-hint">Der Preis läuft mit und ändert sich je nach Leistung, Zollgröße und Zusatz. Unverbindliche Schätzung – der Endpreis kann je nach Aufwand abweichen.</div>
   </div>
 
@@ -149,25 +153,27 @@
     <h1>Ihre Kontaktdaten</h1>
     <div class="sub">Damit wir Ihren Termin bestätigen und ggf. eine Rechnung erstellen können.</div>
     <div class="sum" id="sum-box"></div>
+    <form id="p4form" autocomplete="on" onsubmit="return false">
     <div class="grid2">
       <div class="field"><label class="lab">Anrede</label>
-        <select id="f-anrede"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
+        <select id="f-anrede" name="anrede" autocomplete="honorific-prefix"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
       </div>
-      <div class="field"><label class="lab">Telefon *</label><input type="tel" id="f-tel"></div>
+      <div class="field"><label class="lab">Telefon *</label><input type="tel" id="f-tel" name="tel" autocomplete="tel"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label class="lab">Vorname *</label><input type="text" id="f-vorname"></div>
-      <div class="field"><label class="lab">Nachname *</label><input type="text" id="f-nachname"></div>
+      <div class="field"><label class="lab">Vorname *</label><input type="text" id="f-vorname" name="vorname" autocomplete="given-name"></div>
+      <div class="field"><label class="lab">Nachname *</label><input type="text" id="f-nachname" name="nachname" autocomplete="family-name"></div>
     </div>
-    <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email"></div>
-    <div class="field"><label class="lab">Straße &amp; Hausnummer *</label><input type="text" id="f-strasse"></div>
+    <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email" name="email" autocomplete="email"></div>
+    <div class="field"><label class="lab">Straße &amp; Hausnummer *</label><input type="text" id="f-strasse" name="strasse" autocomplete="street-address"></div>
     <div class="grid2">
-      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz"></div>
-      <div class="field"><label class="lab">Ort *</label><input type="text" id="f-ort"></div>
+      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz" name="plz" autocomplete="postal-code" inputmode="numeric"></div>
+      <div class="field"><label class="lab">Ort *</label><input type="text" id="f-ort" name="ort" autocomplete="address-level2"></div>
     </div>
     <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
     <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
-    <input type="text" id="f-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    <input type="text" id="f-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+    </form>
   </div>
 
   <!-- Erfolg -->
@@ -248,7 +254,19 @@ function setZoll(v){
   if(b && b.value!==v) b.value=v;
   preisLive();
 }
+// Obere Leiste: gewaehlte Leistungen + Fahrzeug + Termin kompakt anzeigen
+function updateLeiste(){
+  var el=document.getElementById('pb-detail'); if(!el)return;
+  var teile=[];
+  if(state.haupt.length) teile.push('<b>'+state.haupt.map(function(h){return esc(h.titel);}).join(', ')+'</b>');
+  if(state.zusatz.length) teile.push('+ '+state.zusatz.length+' Zusatz'+(state.zusatz.length>1?'leistungen':'leistung'));
+  if(state.fahrzeugtyp) teile.push(esc(state.fahrzeugtyp));
+  if(state.datum){ var d=state.datum.split('-').reverse().join('.'); teile.push('Termin: '+d+(state.slot?' um '+state.slot+' Uhr':'')); }
+  el.innerHTML=teile.join('<span class="pb-sep">·</span>');
+  el.style.display=teile.length?'block':'none';
+}
 function preisLive(){
+  updateLeiste();
   var el=document.getElementById('pb-total'); if(!el)return;
   if(!state.haupt.length){ el.innerHTML='<span class="ab">ab</span>—'; return; }
   clearTimeout(_pvTimer);
@@ -264,7 +282,7 @@ function preisLive(){
   }, 180);
 }
 function ladeSlots(){
-  state.slot=''; state.datum=document.getElementById('datum').value;
+  state.slot=''; state.datum=document.getElementById('datum').value; updateLeiste();
   var w=document.getElementById('slots-wrap'),sl=document.getElementById('slots'),info=document.getElementById('slots-info');
   if(!state.datum){w.style.display='none';return;}
   w.style.display='block'; sl.innerHTML=''; info.textContent='Lädt …';
@@ -279,7 +297,7 @@ document.addEventListener('click', function(ev){
   var t=ev.target;
   if(t&&t.className&&t.className.indexOf('slot')!==-1&&t.getAttribute('data-von')){
     state.slot=t.getAttribute('data-von');
-    document.querySelectorAll('.slot').forEach(function(s){s.classList.remove('on');}); t.classList.add('on');
+    document.querySelectorAll('.slot').forEach(function(s){s.classList.remove('on');}); t.classList.add('on'); updateLeiste();
   }
 });
 function kz(){ var v=function(id){return (document.getElementById(id).value||'').trim();};
