@@ -57,6 +57,7 @@ app.use('/api/homepage',    require('./routes/homepage'));
 app.use('/api/kontakt',     require('./routes/kontakt'));
 app.use('/api/gutscheine',  require('./routes/gutscheine'));
 app.use('/api/gast',        require('./routes/gast'));
+app.use('/api/adresse',     require('./routes/adresse'));
 app.use('/api/gewerbe',     require('./routes/gewerbe'));
 app.use('/api/qr',          require('./routes/qr'));
 app.use('/api/protokolle',  require('./routes/protokolle'));

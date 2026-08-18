@@ -165,11 +165,18 @@
       <div class="field"><label class="lab">Nachname *</label><input type="text" id="f-nachname" name="nachname" autocomplete="family-name"></div>
     </div>
     <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email" name="email" autocomplete="email"></div>
-    <div class="field"><label class="lab">Straße &amp; Hausnummer *</label><input type="text" id="f-strasse" name="strasse" autocomplete="street-address"></div>
-    <div class="grid2">
-      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz" name="plz" autocomplete="postal-code" inputmode="numeric"></div>
-      <div class="field"><label class="lab">Ort *</label><input type="text" id="f-ort" name="ort" autocomplete="address-level2"></div>
+    <div class="field"><label class="lab">Straße &amp; Hausnummer *</label>
+      <input type="text" id="f-strasse" name="strasse" autocomplete="street-address" list="strassen-list" oninput="strassenLookup()" onchange="strasseGewaehlt()">
+      <datalist id="strassen-list"></datalist>
     </div>
+    <div class="grid2">
+      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz" name="plz" autocomplete="postal-code" inputmode="numeric" maxlength="5" oninput="plzOrtLookup()"></div>
+      <div class="field"><label class="lab">Ort *</label>
+        <input type="text" id="f-ort" name="ort" autocomplete="address-level2" list="orte-list">
+        <datalist id="orte-list"></datalist>
+      </div>
+    </div>
+    <div class="info">Tipp: PLZ eingeben – der Ort wird vorgeschlagen. Straße ab 3 Buchstaben. Adressvorschläge über <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten, kein Tracking).</div>
     <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
     <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
     <input type="text" id="f-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
@@ -194,6 +201,7 @@
 <script>
 'use strict';
 var API = '/api/gast';
+var API_ADR = '/api/adresse';
 var LEIST = { haupt: [], zusatz: [] };
 var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datum: '', slot: '' };
 
@@ -368,6 +376,39 @@ function absenden(){
     })
     .catch(function(x){fehler(x.message);})
     .then(function(){b.disabled=false;b.textContent=bt;});
+}
+// ── Adress-Vorschlag (OpenPLZ ueber eigenen Backend-Proxy, fail-soft) ──
+var _adrT = null, _strCache = [];
+function plzOrtLookup(){
+  var plz=(document.getElementById('f-plz').value||'').trim();
+  if(!/^\d{5}$/.test(plz)) return;
+  fetch(API_ADR+'/plz?plz='+encodeURIComponent(plz)).then(function(r){return r.json();}).then(function(d){
+    var orte=(d&&d.orte)||[]; var ort=document.getElementById('f-ort'); var dl=document.getElementById('orte-list');
+    if(dl) dl.innerHTML=orte.map(function(o){return '<option value="'+esc(o)+'">';}).join('');
+    if(orte.length===1 && !ort.value.trim()) ort.value=orte[0];
+  }).catch(function(){});
+}
+function strassenLookup(){
+  var q=(document.getElementById('f-strasse').value||'').trim();
+  var plz=(document.getElementById('f-plz').value||'').trim();
+  clearTimeout(_adrT);
+  if(q.length<3) return;
+  _adrT=setTimeout(function(){
+    fetch(API_ADR+'/strassen?q='+encodeURIComponent(q)+'&plz='+encodeURIComponent(plz)).then(function(r){return r.json();}).then(function(d){
+      _strCache=(d&&d.strassen)||[]; var dl=document.getElementById('strassen-list');
+      if(dl) dl.innerHTML=_strCache.map(function(s){return '<option value="'+esc(s.strasse)+'">'+esc((s.plz?s.plz+' ':'')+(s.ort||''))+'</option>';}).join('');
+    }).catch(function(){});
+  },300);
+}
+function strasseGewaehlt(){
+  var val=(document.getElementById('f-strasse').value||'').trim();
+  var plz=(document.getElementById('f-plz').value||'').trim();
+  var treffer=_strCache.filter(function(s){return s.strasse===val;});
+  if(!treffer.length) return;
+  var t = plz ? (treffer.filter(function(s){return s.plz===plz;})[0]||treffer[0]) : treffer[0];
+  var plzEl=document.getElementById('f-plz'), ortEl=document.getElementById('f-ort');
+  if(t.plz && !plzEl.value.trim()){ plzEl.value=t.plz; }
+  if(t.ort && !ortEl.value.trim()){ ortEl.value=t.ort; }
 }
 (function(){var dt=document.getElementById('datum');var n=new Date();dt.min=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2);})();
 ladeLeistungen();
