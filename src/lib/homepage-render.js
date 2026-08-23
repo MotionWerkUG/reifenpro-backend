@@ -475,14 +475,18 @@ function renderWartung(f) {
     '.ws-foot{position:fixed;bottom:18px;left:0;right:0;font-size:12.5px;color:#6b7280}.ws-foot a{color:#9aa0a6;text-decoration:none;margin:0 9px}.ws-foot a:hover{color:#eab308}' +
     '</style></head><body>' +
     '<div class="ws-glow"></div>' +
-    '<div class="ws-logo">' + logoSvg(560, 100) + '</div>' +
+    '<div class="ws-logo">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 92" width="560" height="92" style="display:block">' +
+        '<text x="280" y="46" text-anchor="middle" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text>' +
+        '<text x="280" y="76" text-anchor="middle" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text>' +
+      '</svg>' +
+    '</div>' +
     '<div class="ws-badge">Neue Website in Arbeit</div>' +
     '<h1>Wir sind bald <span class="akz">für Sie</span> da.</h1>' +
     '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
     '<div class="ws-line"></div>' +
     '<p class="ws-datum">Ab dem <b>31. August 2026</b> können Sie hier online Ihren Termin buchen.</p>' +
     kontaktHtml +
-    '<p class="ws-tag">Reifenservice und Fahrzeugtechnik</p>' +
     '<div class="ws-foot"><a href="/portal/impressum.html">Impressum</a>&middot;<a href="/portal/datenschutz.html">Datenschutz</a></div>' +
     '</body></html>';
 }
