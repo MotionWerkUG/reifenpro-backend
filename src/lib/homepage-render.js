@@ -444,4 +444,47 @@ function script() {
     "</scr" + "ipt>";
 }
 
-module.exports = { renderHomepage };
+// Coming-Soon-/Wartungsseite: grosses Logo, "bald fuer Sie da", Buchungsstart-Datum.
+// Auf Marke (dunkel + Gold), keine Navigation/Buchung, noindex (Platzhalter nicht indexieren).
+function renderWartung(f) {
+  f = f || {};
+  // Kontakt nur zeigen, wenn eine (geschaeftliche) Telefonnummer hinterlegt ist -
+  // keine personenbezogene E-Mail oeffentlich auf der Coming-Soon-Seite.
+  var kontaktHtml = f.telefon ? '<p class="ws-kontakt">Sie erreichen uns schon jetzt telefonisch: <a href="tel:' + esc(f.telefon) + '">' + esc(f.telefon) + '</a></p>' : '';
+  return '<!DOCTYPE html><html lang="de"><head>' +
+    '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+    '<title>Schröder &amp; Scholz &ndash; bald für Sie da</title>' +
+    '<meta name="description" content="Schröder &amp; Scholz – Reifenservice und Fahrzeugtechnik. Unsere neue Website ist bald da. Ab 31. August 2026 online Termine buchen.">' +
+    '<meta name="robots" content="noindex">' +
+    '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' +
+    '<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">' +
+    '<style>' +
+    '*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}' +
+    'body{font-family:-apple-system,\'Segoe UI\',Roboto,Arial,sans-serif;background:#0d1117;color:#e6e6e6;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:48px 20px 72px;position:relative;overflow:hidden}' +
+    '.ws-glow{position:fixed;inset:0;background:radial-gradient(circle at 50% 28%,rgba(234,179,8,.15),transparent 60%);pointer-events:none}' +
+    '.ws-logo{width:min(88vw,520px);margin:0 auto 42px}.ws-logo svg{width:100%;height:auto;display:block}' +
+    '.ws-badge{display:inline-block;background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.5);color:#eab308;font-weight:700;letter-spacing:.6px;font-size:12.5px;text-transform:uppercase;padding:8px 16px;border-radius:999px;margin-bottom:26px}' +
+    'h1{font-size:clamp(30px,6vw,56px);font-weight:800;color:#fafafa;line-height:1.1;letter-spacing:-1px}h1 .akz{color:#eab308}' +
+    '.ws-sub{font-size:clamp(16px,2.4vw,20px);color:#b9c0c9;margin:20px auto 0;max-width:34em;line-height:1.6}' +
+    '.ws-line{width:82px;height:4px;background:#eab308;border-radius:4px;margin:30px auto 0;position:relative;overflow:hidden}' +
+    '.ws-line::after{content:"";position:absolute;top:0;left:-44px;width:44px;height:100%;background:rgba(255,255,255,.65);filter:blur(6px);animation:wssh 2.4s infinite}' +
+    '@keyframes wssh{0%{left:-44px}60%,100%{left:104px}}' +
+    '.ws-datum{margin:34px auto 0;font-size:clamp(18px,2.6vw,23px);color:#fafafa;font-weight:700;line-height:1.4}.ws-datum b{color:#eab308}' +
+    '.ws-kontakt{margin:32px auto 0;font-size:15px;color:#9aa0a6}.ws-kontakt a{color:#eab308;text-decoration:none}.ws-kontakt a:hover{text-decoration:underline}' +
+    '.ws-tag{margin-top:16px;font-size:11.5px;letter-spacing:3px;color:#6b7280;text-transform:uppercase}' +
+    '.ws-foot{position:fixed;bottom:18px;left:0;right:0;font-size:12.5px;color:#6b7280}.ws-foot a{color:#9aa0a6;text-decoration:none;margin:0 9px}.ws-foot a:hover{color:#eab308}' +
+    '</style></head><body>' +
+    '<div class="ws-glow"></div>' +
+    '<div class="ws-logo">' + logoSvg(560, 100) + '</div>' +
+    '<div class="ws-badge">Neue Website in Arbeit</div>' +
+    '<h1>Wir sind bald <span class="akz">für Sie</span> da.</h1>' +
+    '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
+    '<div class="ws-line"></div>' +
+    '<p class="ws-datum">Ab dem <b>31. August 2026</b> können Sie hier online Ihren Termin buchen.</p>' +
+    kontaktHtml +
+    '<p class="ws-tag">Reifenservice und Fahrzeugtechnik</p>' +
+    '<div class="ws-foot"><a href="/portal/impressum.html">Impressum</a>&middot;<a href="/portal/datenschutz.html">Datenschutz</a></div>' +
+    '</body></html>';
+}
+
+module.exports = { renderHomepage, renderWartung };
