@@ -448,9 +448,8 @@ function script() {
 // Auf Marke (dunkel + Gold), keine Navigation/Buchung, noindex (Platzhalter nicht indexieren).
 function renderWartung(f) {
   f = f || {};
-  // Kontakt nur zeigen, wenn eine (geschaeftliche) Telefonnummer hinterlegt ist -
-  // keine personenbezogene E-Mail oeffentlich auf der Coming-Soon-Seite.
-  var kontaktHtml = f.telefon ? '<p class="ws-kontakt">Sie erreichen uns schon jetzt telefonisch: <a href="tel:' + esc(f.telefon) + '">' + esc(f.telefon) + '</a></p>' : '';
+  // Reine Info-Seite: nur Logo, Headline und Buchungsstart-Datum – kein Kontakt,
+  // keine Rechtslinks (bewusst auf Wunsch von David).
   return '<!DOCTYPE html><html lang="de"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
     '<title>Schröder &amp; Scholz &ndash; bald für Sie da</title>' +
@@ -486,8 +485,6 @@ function renderWartung(f) {
     '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
     '<div class="ws-line"></div>' +
     '<p class="ws-datum">Ab dem <b>31. August 2026</b> können Sie hier online Ihren Termin buchen.</p>' +
-    kontaktHtml +
-    '<div class="ws-foot"><a href="/portal/impressum.html">Impressum</a>&middot;<a href="/portal/datenschutz.html">Datenschutz</a></div>' +
     '</body></html>';
 }
 
