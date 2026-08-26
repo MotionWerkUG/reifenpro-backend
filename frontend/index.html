@@ -342,6 +342,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .akt-mehr > summary::-webkit-details-marker { display: none; }
 .akt-mehr > summary::marker { content: ''; }
 .akt-mehr[open] > summary { background: var(--accent); color: #171717; }
+/* Nur-Admin-Elemente ausblenden, wenn der eingeloggte Nutzer kein Admin ist (Backend erzwingt es zusaetzlich per requireAdmin). */
+#app:not(.rolle-admin) .admin-only { display: none !important; }
 </style>
 </head>
 <body>
@@ -632,7 +634,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-rechnungen">
         <div class="ph"><div class="pt">Rechnungen</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-g btn-sm" onclick="rechnungExport()">CSV-Export (GoBD)</button>
+            <button class="btn btn-g btn-sm admin-only" onclick="rechnungExport()">CSV-Export (GoBD)</button>
             <button class="btn btn-g btn-sm" onclick="verfahrensdoku()">Verfahrensdoku</button>
             <button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button>
           </div>
@@ -1621,6 +1623,8 @@ function idleActivity() {
 function startApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  // Nur-Admin-Elemente (Storno, GoBD-/DATEV-Export) je nach Rolle ein-/ausblenden; Backend erzwingt es zusaetzlich.
+  document.getElementById('app').classList.toggle('rolle-admin', !!(USER && USER.rolle === 'admin'));
   // Modals einer evtl. zuvor abgebrochenen/abgelaufenen Sitzung schliessen, damit beim (Neu-)Login
   // kein Dialog (z.B. "Neue Einlagerung") unaufgefordert offen stehen bleibt.
   Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
@@ -1989,7 +1993,7 @@ function renderRechnungen() {
       if (r.status === 'festgeschrieben') {
         akt += '<button class="btn btn-g btn-sm" onclick="toggleBezahlt(\'' + r.id + '\',' + (r.zahlungsstatus === 'bezahlt' ? 'false' : 'true') + ')">' + (r.zahlungsstatus === 'bezahlt' ? 'Als offen' : 'Als bezahlt') + '</button>';
         if (r.zahlungsstatus !== 'bezahlt') akt += '<button class="btn btn-g btn-sm" onclick="mahnen(\'' + r.id + '\')">Mahnen</button>';
-        akt += '<button class="btn btn-danger btn-sm" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
+        akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
     var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
@@ -2737,16 +2741,19 @@ function renderArtikel() {
   if (!allArtikel.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">Noch keine Artikel.</div>'; return; }
   var html = '<div class="tw"><table><thead><tr><th>Artikel</th><th>Nr.</th><th>Netto</th><th>MwSt</th><th>Brutto</th><th>Einheit</th><th>Dauer</th><th>Kat.</th><th></th></tr></thead><tbody>';
   allArtikel.forEach(function(a) {
-    var mwst = parseFloat(a.mwst_satz) || 19;
-    var netto = parseFloat(a.preis) || 0;
-    var brutto = (netto * (1 + mwst / 100)).toFixed(2);
+    var mwst = a.mwst_satz != null ? parseFloat(a.mwst_satz) : 19;
+    var inkl = (EINST.preise_inkl_mwst !== false);
+    var preis = parseFloat(a.preis) || 0;
+    // a.preis ist bei inkl=true der BRUTTO-Endpreis (konsistent mit Bearbeiten-Maske/Buchung/Rechnung).
+    var netto = inkl ? preis / (1 + mwst / 100) : preis;
+    var brutto = inkl ? preis : preis * (1 + mwst / 100);
     var dauer = a.dauer_minuten ? (a.dauer_minuten >= 60 ? Math.floor(a.dauer_minuten/60) + 'h' + (a.dauer_minuten%60 ? (a.dauer_minuten%60)+'m' : '') : a.dauer_minuten + 'min') : '-';
     html += '<tr>';
     html += '<td><strong>' + a.name + '</strong>' + (a.beschreibung ? '<br><span style="font-size:11px;color:var(--muted)">' + a.beschreibung + '</span>' : '') + '</td>';
     html += '<td style="font-size:12px;color:var(--muted)">' + (a.artikelnr || '-') + '</td>';
     html += '<td>' + netto.toFixed(2) + '</td>';
     html += '<td style="color:var(--muted)">' + mwst + '%</td>';
-    html += '<td style="color:var(--green)">' + brutto + '</td>';
+    html += '<td style="color:var(--green)">' + brutto.toFixed(2) + '</td>';
     html += '<td style="color:var(--muted)">' + a.einheit + '</td>';
     html += '<td style="color:var(--blue)">' + dauer + '</td>';
     html += '<td><span class="badge ' + (a.kategorie === 'einlagerung' ? 'b-r' : 'b-b') + '">' + a.kategorie + '</span></td>';
@@ -2766,15 +2773,17 @@ function editArtikel(id) {
   document.getElementById('na-titel').textContent = 'Artikel bearbeiten';
   document.getElementById('na-name').value = a.name || '';
   document.getElementById('na-bez').value = a.beschreibung || '';
-  document.getElementById('na-preis').value = a.preis || '';
-  var mwst = parseFloat(a.mwst_satz||19); var preis = parseFloat(a.preis||0);
-  document.getElementById('na-brutto').value = (preis*(1+mwst/100)).toFixed(2);
+  var mwst = a.mwst_satz != null ? parseFloat(a.mwst_satz) : 19; var preis = parseFloat(a.preis || 0);
+  var inkl = (EINST.preise_inkl_mwst !== false);
+  // Bei inkl=true ist a.preis der BRUTTO-Endpreis (konsistent mit Buchung/Rechnung), sonst Netto.
+  var hatPreis = a.preis != null && a.preis !== '';
+  document.getElementById('na-brutto').value = hatPreis ? (inkl ? preis : preis * (1 + mwst / 100)).toFixed(2) : '';
+  document.getElementById('na-preis').value  = hatPreis ? (inkl ? preis / (1 + mwst / 100) : preis).toFixed(2) : '';
   document.getElementById('na-mwst').value = a.mwst_satz || '19';
   document.getElementById('na-einheit').value = a.einheit || 'Saison';
   document.getElementById('na-dauer').value = a.dauer_minuten || '30';
   document.getElementById('na-kat').value = a.kategorie || 'einlagerung';
   document.getElementById('na-nr').value = a.artikelnr || '';
-  naCalcBrutto();
   openModal('na');
 }
 function artikelLoeschen(id) {
@@ -2832,8 +2841,11 @@ function naCalcNetto() {
 function saveNA() {
   var name = gv('na-name');
   if (!name) { notify('Artikelname ist Pflicht.', 'err'); return; }
+  // Speichern konsistent zum Lesemodell: bei inkl=true ist a.preis der Brutto-Endpreis (na-brutto), sonst Netto (na-preis).
+  var inkl = (EINST.preise_inkl_mwst !== false);
+  var preisStore = (inkl ? (parseFloat(gv('na-brutto')) || 0) : (parseFloat(gv('na-preis')) || 0)).toFixed(2);
   var data = {
-    name: name, beschreibung: gv('na-bez'), preis: (parseFloat(gv('na-brutto')||0) / (1 + (parseInt(gv('na-mwst'))||19)/100)).toFixed(2),
+    name: name, beschreibung: gv('na-bez'), preis: preisStore,
     mwst_satz: gv('na-mwst'), einheit: gv('na-einheit'),
     dauer_minuten: parseInt(gv('na-dauer')) || 30,
     kategorie: gv('na-kat'), artikelnr: gv('na-nr') || null
