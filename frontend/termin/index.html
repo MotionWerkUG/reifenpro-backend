@@ -186,7 +186,7 @@
   <!-- Erfolg -->
   <div id="pdone" class="hidden"><div class="done-box">
     <div class="ok">✓</div>
-    <h1>Termin bestätigt!</h1>
+    <h1 id="done-title">Termin bestätigt!</h1>
     <div id="done-text" class="sub" style="margin-top:10px"></div>
     <a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none;margin-top:10px">Zur Startseite</a>
   </div></div>
@@ -370,7 +370,16 @@ function absenden(){
       document.querySelectorAll('.steps,#navbar').forEach(function(x){x.classList.add('hidden');});
       [1,2,3,4].forEach(function(i){document.getElementById('p'+i).classList.add('hidden');});
       var betrag = (j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '';
-      document.getElementById('done-text').textContent='Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
+      var dat=String(j.datum||'').split('-').reverse().join('.'), zeit=(j.uhrzeit_von||'');
+      // Meldung richtet sich nach der Backend-Antwort -> deploy-reihenfolge-unabhaengig:
+      // 'bestaetigung_noetig' (Double-Opt-in) vs. direkte Bestaetigung.
+      if (j.message==='bestaetigung_noetig') {
+        document.getElementById('done-title').textContent='Fast geschafft – bitte bestätigen';
+        document.getElementById('done-text').textContent='Wir haben Ihnen eine E-Mail geschickt. Bitte bestätigen Sie Ihren Termin am '+dat+' um '+zeit+' Uhr über den Link darin – erst dann ist er verbindlich gebucht.'+betrag;
+      } else {
+        document.getElementById('done-title').textContent='Termin bestätigt!';
+        document.getElementById('done-text').textContent='Ihr Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
+      }
       document.getElementById('pdone').classList.remove('hidden');
       window.scrollTo({top:0,behavior:'smooth'});
     })
