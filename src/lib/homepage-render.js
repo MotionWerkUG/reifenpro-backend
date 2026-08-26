@@ -485,6 +485,7 @@ function renderWartung(f) {
     '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
     '<div class="ws-line"></div>' +
     '<p class="ws-datum">Ab dem <b>31. August 2026</b> können Sie hier online Ihren Termin buchen.</p>' +
+    '<div class="ws-foot"><a href="/portal/impressum.html">Impressum</a>&middot;<a href="/portal/datenschutz.html">Datenschutz</a></div>' +
     '</body></html>';
 }
 
