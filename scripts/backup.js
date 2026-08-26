@@ -1,5 +1,5 @@
 'use strict';
-// Liegt auf dem Server unter /var/www/reifenpro-backend/scripts/backup.js
+// Aktiv (Modell A): /home/deploy/projekte/reifenpro/scripts/backup.js
 // Taeglich 03:00 per Cron. Sichert (1) die Datenbank als .sql.gz und (2) die Dateien
 // (Rechnungs-PDFs, Uploads, Gewerbe-Dokumente) als .tar.gz. 30 Tage Aufbewahrung, Rotation.
 // Montags zusaetzlich beide aktuellen Sicherungen per E-Mail (Offsite-Kopie).
@@ -14,9 +14,9 @@ const KEEP = parseInt(process.env.BACKUP_KEEP_DAYS) || 30;
 
 // Zu sichernde Datei-Verzeichnisse (nur vorhandene werden eingepackt)
 const FILE_DIRS = [
-  '/var/www/reifenpro-backend/rechnungen',        // Rechnungs-PDFs (GoBD)
-  '/var/www/reifenpro-backend/gewerbe-dokumente', // hochgeladene Gewerbeanmeldungen
-  '/var/www/schroeder-homepage/uploads',          // Homepage-/CMS-Bilder
+  '/home/deploy/projekte/reifenpro/rechnungen',        // Rechnungs-PDFs (GoBD) — aktives Projekt (Modell A)
+  '/home/deploy/projekte/reifenpro/gewerbe-dokumente', // hochgeladene Gewerbeanmeldungen
+  '/var/www/schroeder-homepage/uploads',               // Homepage-/CMS-Bilder
 ];
 
 function stamp() { return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); }
