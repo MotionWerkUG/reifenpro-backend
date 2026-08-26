@@ -221,9 +221,13 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
-    // Kein Hard-Limit pro E-Mail: die Adresse ist frei eingebbar -> ein Fremder koennte damit gezielt eine
-    // echte Adresse fuer 24h aussperren (DoS gegen das Opfer). Schutz stattdessen ueber das IP-Limit
-    // (bookLimiter) + Double-Opt-in (unbestaetigte Anfragen blocken keinen Slot und laufen ab).
+    // Sanftes Cool-down gegen Mail-Bombing einer fremden Adresse: max. 2 OFFENE (unbestaetigte) Anfragen
+    // je Ziel-E-Mail. KEIN 24h-Hard-Lock -> bestaetigte Termine zaehlen nicht (nach Bestaetigung sofort
+    // wieder buchbar), unbestaetigte laufen nach 45 Min ab (selbstheilend) -> kein Dauer-Lockout eines
+    // legitimen Nutzers, aber pro Adresse hoechstens ~2 "bitte bestaetigen"-Mails gleichzeitig offen.
+    const emailLc = String(email).toLowerCase().slice(0, 160);
+    const offen = await query("SELECT COUNT(*)::int AS c FROM termine WHERE LOWER(kontakt_email)=$1 AND status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf > NOW()", [emailLc]);
+    if (offen.rows[0].c >= 2) return res.status(429).json({ error: 'Für diese E-Mail-Adresse liegen bereits offene Terminanfragen vor. Bitte bestätigen Sie diese zunächst über den Link in unserer E-Mail.' });
     const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
 
     const kalk = await baueKalkulation(mainIds, zusatzIds, fzt, zoll || null);
