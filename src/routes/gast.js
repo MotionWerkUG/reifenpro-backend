@@ -4,6 +4,7 @@
 const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
@@ -15,6 +16,10 @@ const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 // Baut die Kalkulationspositionen: je Leistung Grundpreis + (getrennt) Fahrzeug-Zuschlag.
 // typ = gewaehlter Fahrzeugtyp (z.B. SUV), zoll = Zollgroesse (optional).
 async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
+  // Nur gueltige UUIDs zulassen + Anzahl begrenzen -> kein 500 durch uuid-Typfehler, kein Ressourcen-DoS.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const nurUuid = (a) => (Array.isArray(a) ? a : []).filter((x) => UUID_RE.test(String(x))).slice(0, 20);
+  mainIds = nurUuid(mainIds); zusatzIds = nurUuid(zusatzIds);
   const ids = mainIds.concat(zusatzIds);
   const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
   if (!ids.length) return leer;
@@ -84,7 +89,7 @@ async function freieSlots(datum, dauer) {
   if (o.grund) return { slots: [], grund: o.grund };
   const einst = o.einst;
   const maxParallel = einst.max_parallele_termine || 1;
-  const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')", [datum])).rows;
+  const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL)", [datum])).rows;
   const slots = [];
   // Ueber jede Oeffnungsspanne (Vormittag/Nachmittag) einzeln -> die Mittagspause zwischen den Spannen bleibt frei.
   for (const sp of o.spannen) {
@@ -199,16 +204,30 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
   try {
     const b = req.body || {};
     if (b.website) return res.json({ message: 'ok' }); // Honeypot
+    // Abgelaufene, unbestaetigte Gast-Buchungen aufraeumen (nur mit Token -> Sammeltermine unberuehrt),
+    // damit befristet gehaltene Slots wieder frei werden.
+    await query("DELETE FROM termine WHERE status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf < NOW()");
     const splitList = (s) => Array.isArray(s) ? s.filter(Boolean) : String(s || '').split(',').map(x => x.trim()).filter(Boolean);
     let mainIds = splitList(b.main_ids);
     if (!mainIds.length && (b.main_artikel_id || b.artikel_id)) mainIds = [b.main_artikel_id || b.artikel_id];
     const zusatzIds = splitList(b.zusatz_ids);
+    // Nur gueltige UUIDs + Anzahl begrenzen (mainIds[0] fliesst als artikel_id in den INSERT -> sonst 500).
+    // Bleibt nichts uebrig, greift unten die Pflichtfeldpruefung (400 statt 500).
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    mainIds = mainIds.filter((x) => UUID_RE.test(String(x))).slice(0, 20);
     const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
     if (!vorname || !nachname || !telefon || !email || !kennzeichen || !strasse || !plz || !ort || !datum || !uhrzeit_von || !mainIds.length)
       return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen (inkl. Anschrift und mindestens eine Leistung).' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
+    // Sanftes Cool-down gegen Mail-Bombing einer fremden Adresse: max. 2 OFFENE (unbestaetigte) Anfragen
+    // je Ziel-E-Mail. KEIN 24h-Hard-Lock -> bestaetigte Termine zaehlen nicht (nach Bestaetigung sofort
+    // wieder buchbar), unbestaetigte laufen nach 45 Min ab (selbstheilend) -> kein Dauer-Lockout eines
+    // legitimen Nutzers, aber pro Adresse hoechstens ~2 "bitte bestaetigen"-Mails gleichzeitig offen.
+    const emailLc = String(email).toLowerCase().slice(0, 160);
+    const offen = await query("SELECT COUNT(*)::int AS c FROM termine WHERE LOWER(kontakt_email)=$1 AND status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf > NOW()", [emailLc]);
+    if (offen.rows[0].c >= 2) return res.status(429).json({ error: 'Für diese E-Mail-Adresse liegen bereits offene Terminanfragen vor. Bitte bestätigen Sie diese zunächst über den Link in unserer E-Mail.' });
     const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
 
     const kalk = await baueKalkulation(mainIds, zusatzIds, fzt, zoll || null);
@@ -236,7 +255,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const noTag = (s) => String(s == null ? '' : s).replace(/[<>]/g, '');
     const vn = noTag(vorname).slice(0, 80), nn = noTag(nachname).slice(0, 80);
     const nm = (vn + ' ' + nn).trim().slice(0, 160);
-    const tel = noTag(telefon).slice(0, 60), em = String(email).slice(0, 160), kz = noTag(kennzeichen).slice(0, 20);
+    const tel = noTag(telefon).slice(0, 60), em = noTag(email).slice(0, 160), kz = noTag(kennzeichen).slice(0, 20);
     const an = ['Herr', 'Frau', 'Divers', 'Firma'].includes(anrede) ? anrede : null;
     const str = noTag(strasse).slice(0, 160), pz = noTag(plz).slice(0, 12), or = noTag(ort).slice(0, 120);
     const mainArtId = mainIds[0];
@@ -245,47 +264,133 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const terminTyp = (hauptNamen.join(' + ') + (zusatzN ? ' +' + zusatzN + ' Zusatz' : '')).slice(0, 160);
     const beschreibung = 'Online gebucht – ' + kalk.gewaehlt.join(', ') + (fzt ? ' · ' + fzt : '') + (zoll ? ' · ' + zoll + ' Zoll' : '');
 
+    const token = crypto.randomBytes(32).toString('hex');
+    const ablauf = new Date(Date.now() + 45 * 60000); // 45-Min-Bestaetigungsfenster (haelt den Slot befristet)
+
     await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
       const konflikt = await client.query(
-        "SELECT COUNT(*) FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND uhrzeit_von < $3 AND uhrzeit_bis > $2",
+        "SELECT COUNT(*) FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL) AND uhrzeit_von < $3 AND uhrzeit_bis > $2",
         [datum, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
+      // Double-Opt-in: erst 'angefragt' + Bestaetigungstoken. Wird erst nach Klick auf den Mail-Link 'bestaetigt'
+      // -> keine "bestaetigt"-Mail an unverifizierte Fremdadressen (Relay/Spam), nur befristeter Slot-Halt.
       await client.query(
         `INSERT INTO termine (kontakt_name, kontakt_anrede, kontakt_vorname, kontakt_nachname, kontakt_telefon, kontakt_email,
            kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
-           kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'bestaetigt',true)`,
-        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true]);
+           kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung,
+           bestaetigung_token, bestaetigung_token_ablauf)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21)`,
+        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf]);
     });
 
+    // Nur EINE Mail an den (noch unverifizierten) Gast: der Bestaetigungslink. Admin-Mail + finale
+    // Bestaetigungsmail erst nach Klick (siehe GET /termin/bestaetigen).
     try {
       const einst = o.einst;
       const nodemailer = require('nodemailer');
       const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
       const dF = datum.split('-').reverse().join('.');
-      const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
-      const posHtml = kalk.positionen.map(p => p.bezeichnung + ': ' + eur(p.grundpreis_netto) + (p.zuschlag_netto > 0 ? ' + Zuschlag ' + (p.fahrzeugtyp || '') + ': ' + eur(p.zuschlag_netto) : '')).join('<br>');
+      const link = 'https://www.schroeder-scholz.de/api/gast/termin/bestaetigen?token=' + token;
       const htmlGast = portalMailHtml(einst, {
-        titel: 'Ihr Termin ist bestätigt', name: vn,
-        absaetze: ['vielen Dank für Ihre Terminbuchung bei Schröder &amp; Scholz.',
+        titel: 'Bitte bestätigen Sie Ihre Terminanfrage', name: vn,
+        absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
           '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : ''),
-          '<strong>Leistungen (Schätzung, netto):</strong><br>' + posHtml + '<br><strong>Gesamt (brutto):</strong> ' + eur(kalk.brutto)],
-        hinweis: 'Die Preise sind eine unverbindliche Schätzung; der Endpreis kann je nach Aufwand abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
+          'Ihr Termin ist noch <strong>nicht verbindlich</strong>. Bitte bestätigen Sie ihn innerhalb von 45 Minuten mit einem Klick auf den Button — erst dann ist er fest gebucht.'],
+        button: { text: 'Termin verbindlich bestätigen', url: link },
+        hinweis: 'Wenn Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail einfach — es wird kein Termin gebucht. Der Link ist 45 Minuten gültig.'
       });
-      await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Terminbestätigung ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
-      if (einst.email) {
-        await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: em,
-          subject: 'Neue Online-Buchung (Gast): ' + terminTyp + ' am ' + dF + ' ' + uhrzeit_von,
-          html: '<p><strong>Neue Gäste-Buchung über die Homepage:</strong></p><p>' + (an ? an + ' ' : '') + nm + '<br>' + str + ', ' + pz + ' ' + or + '<br>Telefon: ' + tel + '<br>E-Mail: ' + em + '<br>Kennzeichen: ' + kz + (fzt ? ' · ' + fzt : '') + (zoll ? ' · ' + zoll + ' Zoll' : '') + '<br>Datum: ' + dF + ' ' + uhrzeit_von + ' Uhr (' + dauer + ' Min)</p><p>Leistungen:<br>' + posHtml + '<br><strong>Gesamt brutto: ' + eur(kalk.brutto) + '</strong></p><p>Werbe-Einwilligung: ' + (werbung === true ? 'ja' : 'nein') + '</p>' });
-      }
+      await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Bitte bestätigen: Terminanfrage ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
     } catch (mailErr) { console.error('[Gast-Buchung-Mail]', mailErr.message); }
 
-    res.status(201).json({ message: 'ok', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt, summe_brutto: kalk.brutto });
+    res.status(201).json({ message: 'bestaetigung_noetig', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt, summe_brutto: kalk.brutto });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
   }
+});
+
+// Wiederverwendbare, einfache HTML-Statusseite fuer die oeffentliche Bestaetigung.
+function gastSeite(titel, textHtml, extraHtml) {
+  return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + titel + ' — Schröder &amp; Scholz</title>' +
+    '<style>body{font-family:-apple-system,Arial,sans-serif;background:#f4f5f7;color:#1a1a1a;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}.box{background:#fff;border-radius:16px;padding:34px 30px;max-width:460px;text-align:center;box-shadow:0 14px 34px rgba(0,0,0,.1);border-top:4px solid #eab308}h1{font-size:20px;color:#171717;margin:0 0 10px}p{color:#555;font-size:15px}a{color:#171717}button{background:#eab308;color:#171717;border:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700;cursor:pointer}</style></head><body><div class="box"><h1>' + titel + '</h1><p>' + textHtml + '</p>' + (extraHtml || '') + '<p style="margin-top:18px"><a href="https://www.schroeder-scholz.de/">Zur Startseite</a></p></div></body></html>';
+}
+const escAttr = (s) => String(s == null ? '' : s).replace(/[<>"'&]/g, function (c) { return ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' })[c]; });
+
+// Double-Opt-in Bestaetigung. GET zeigt NUR eine Seite mit Bestaetigungs-Button (KEIN Zustandswechsel!),
+// damit automatische Mail-Link-Scanner (Safe Links, URL Defense, ...) den Termin nicht per Prefetch bestaetigen.
+// Erst der POST (Klick auf den Button) macht die Buchung nach Slot-Neucheck verbindlich.
+router.get('/termin/bestaetigen', limiter, async (req, res, next) => {
+  try {
+    await query("DELETE FROM termine WHERE status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf < NOW()");
+    const token = req.query.token;
+    if (!token) return res.status(400).send(gastSeite('Link unvollständig', 'Der Bestätigungslink ist nicht vollständig.'));
+    const t = (await query("SELECT to_char(datum,'YYYY-MM-DD') AS datum_str, uhrzeit_von FROM termine WHERE bestaetigung_token=$1 AND status='angefragt' AND bestaetigung_token_ablauf > NOW()", [token])).rows[0];
+    if (!t) return res.status(400).send(gastSeite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig (evtl. bereits bestätigt oder abgelaufen). Bitte buchen Sie bei Bedarf erneut über unsere Terminseite.'));
+    const dF = t.datum_str.split('-').reverse().join('.');
+    const hhmm = String(t.uhrzeit_von).substring(0, 5);
+    const form = '<form method="post" action="https://www.schroeder-scholz.de/api/gast/termin/bestaetigen?token=' + escAttr(token) + '" style="margin-top:8px"><button type="submit">Termin verbindlich bestätigen</button></form>';
+    return res.send(gastSeite('Noch ein Klick: Termin bestätigen', 'Bitte bestätigen Sie Ihren Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> verbindlich.', form));
+  } catch (e) { next(e); }
+});
+
+router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
+  try {
+    await query("DELETE FROM termine WHERE status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf < NOW()");
+    const token = req.query.token || (req.body && req.body.token);
+    if (!token) return res.status(400).send(gastSeite('Link unvollständig', 'Der Bestätigungslink ist nicht vollständig.'));
+    const t = (await query("SELECT *, to_char(datum,'YYYY-MM-DD') AS datum_str FROM termine WHERE bestaetigung_token=$1 AND status='angefragt' AND bestaetigung_token_ablauf > NOW()", [token])).rows[0];
+    if (!t) return res.status(400).send(gastSeite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig (evtl. bereits bestätigt oder abgelaufen). Bitte buchen Sie bei Bedarf erneut über unsere Terminseite.'));
+
+    // Slot unter Advisory-Lock erneut pruefen (koennte inzwischen fest belegt sein), dann verbindlich buchen.
+    let ok = false;
+    await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + t.datum_str]);
+      const einst = (await client.query('SELECT max_parallele_termine FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+      const maxParallel = einst.max_parallele_termine || 1;
+      const konflikt = await client.query(
+        "SELECT COUNT(*) FROM termine WHERE datum=$1 AND id<>$2 AND status IN ('bestaetigt','abgeschlossen') AND uhrzeit_von < $4 AND uhrzeit_bis > $3",
+        [t.datum_str, t.id, t.uhrzeit_von, t.uhrzeit_bis]);
+      if (parseInt(konflikt.rows[0].count) >= maxParallel) return; // Slot inzwischen fest belegt
+      // Status-Guard -> genau EINMAL bestaetigen (kein zweiter Mailversand bei Doppel-POST/Race).
+      const upd = await client.query("UPDATE termine SET status='bestaetigt', bestaetigung_token=NULL, bestaetigung_token_ablauf=NULL, geaendert_am=NOW() WHERE id=$1 AND status='angefragt'", [t.id]);
+      if (upd.rowCount > 0) ok = true;
+    });
+    if (!ok) {
+      // Nur bei echtem Slot-Konflikt (noch 'angefragt') absagen; bei bereits bestaetigt (Race/Doppelklick) nichts aendern.
+      const upd2 = await query("UPDATE termine SET status='abgesagt', bestaetigung_token=NULL, bestaetigung_token_ablauf=NULL WHERE id=$1 AND status='angefragt'", [t.id]);
+      const txt = upd2.rowCount > 0 ? 'Der gewünschte Termin ist inzwischen belegt. Bitte buchen Sie einen neuen Termin über unsere Terminseite.'
+        : 'Dieser Termin wurde bereits bestätigt. Sie haben die Bestätigung per E-Mail erhalten.';
+      return res.status(409).send(gastSeite('Termin nicht bestätigt', txt));
+    }
+
+    // Erst jetzt die Mails: finale Bestaetigung an den (nun verifizierten) Gast + Admin-Benachrichtigung.
+    try {
+      const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+      const dF = t.datum_str.split('-').reverse().join('.');
+      const hhmm = String(t.uhrzeit_von).substring(0, 5);
+      const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
+      const pos = Array.isArray(t.leistungen) ? t.leistungen : (t.leistungen ? JSON.parse(t.leistungen) : []);
+      const posHtml = pos.map(p => p.bezeichnung + ': ' + eur(p.grundpreis_netto) + (p.zuschlag_netto > 0 ? ' + Zuschlag ' + (p.fahrzeugtyp || '') + ': ' + eur(p.zuschlag_netto) : '')).join('<br>');
+      const htmlGast = portalMailHtml(einst, {
+        titel: 'Ihr Termin ist bestätigt', name: t.kontakt_vorname || '',
+        absaetze: ['vielen Dank — Ihr Termin bei Schröder &amp; Scholz ist jetzt verbindlich gebucht.',
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : ''),
+          posHtml ? ('<strong>Leistungen (Schätzung, netto):</strong><br>' + posHtml) : ''],
+        hinweis: 'Die Preise sind eine unverbindliche Schätzung; der Endpreis kann je nach Aufwand abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
+      });
+      await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: t.kontakt_email, replyTo: einst.email || process.env.SMTP_USER, subject: 'Terminbestätigung ' + dF + ' ' + hhmm + ' Uhr — Schröder & Scholz', html: htmlGast });
+      if (einst.email) {
+        await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: t.kontakt_email,
+          subject: 'Neue Online-Buchung (Gast, bestätigt): ' + (t.termin_typ || '') + ' am ' + dF + ' ' + hhmm,
+          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtml + '</p>' });
+      }
+    } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
+
+    res.send(gastSeite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.'));
+  } catch (e) { next(e); }
 });
 
 module.exports = router;

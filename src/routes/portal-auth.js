@@ -91,10 +91,15 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       return res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
     }
 
-    // Prüfe ob Kunde bereits in DB (über normale E-Mail, case-insensitiv) -> verknüpfen statt duplizieren
-    const bestandskunde = await query('SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true', [email.toLowerCase()]);
+    // Prüfe ob Kunde bereits in DB (über normale E-Mail) -> verknüpfen statt duplizieren.
+    // NUR wenn dort noch KEIN aktiver Portal-Zugang besteht (sonst wuerde eine erneute Registrierung
+    // ein bereits aktives Konto zuruecksetzen -> DoS; portal_password IS NULL ODER noch nicht freigegeben).
+    const bestandskunde = await query(
+      'SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true AND (portal_password IS NULL OR portal_freigegeben = false)',
+      [email.toLowerCase()]);
 
     const token = crypto.randomBytes(32).toString('hex');
+    const resetToken = crypto.randomBytes(32).toString('hex'); // fuer Bestandskunden: Passwort-Setz-Link statt vorab gesetztem Passwort
     const ablauf = new Date(Date.now() + 24 * 3600000);
     const now = new Date();
     // Nachweis der Einwilligung: IP (via nginx-Header) + Stand der akzeptierten Dokumente
@@ -103,18 +108,22 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
 
     let kundeId;
     if (bestandskunde.rows.length) {
-      // Bestandskunde: Portal-Daten ergänzen
+      // Bestandskunde-Verknuepfung: KEIN vom Registrierenden gewaehltes Passwort setzen (sonst
+      // Konto-Uebernahme: fremder setzt Passwort -> echter Kunde bestaetigt -> Angreifer haette Zugriff).
+      // Stattdessen Reset-Token: nur der E-Mail-Eigentuemer setzt via Link sein Passwort (setzt dabei
+      // portal_email_bestaetigt=true). portal_password bleibt NULL -> ohne gesetztes Passwort kein Login.
       kundeId = bestandskunde.rows[0].id;
       await query(
-        `UPDATE kunden SET portal_email=$1, portal_password=$2, portal_aktiv=true,
+        `UPDATE kunden SET portal_email=$1, portal_password=NULL, portal_aktiv=true,
          portal_freigegeben=false, portal_email_bestaetigt=false,
-         portal_bestaetigung_token=$3, portal_token_ablauf=$4,
-         portal_registriert_am=$5, portal_agb_akzeptiert=$6, portal_agb_datum=$5,
-         portal_dsgvo_akzeptiert=$6, portal_dsgvo_datum=$5,
-         einwilligung_saison_erinnerung=$7, einwilligung_ip=$9, agb_version=$10,
-         einwilligung_bewertung=$11, einwilligung_bewertung_am=$12
-         WHERE id=$8`,
-        [email.toLowerCase(), hash, token, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion, bewertung ? true : false, bewertung ? now : null]
+         portal_bestaetigung_token=NULL, portal_token_ablauf=NULL,
+         portal_reset_token=$2, portal_reset_ablauf=$3,
+         portal_registriert_am=$4, portal_agb_akzeptiert=$5, portal_agb_datum=$4,
+         portal_dsgvo_akzeptiert=$5, portal_dsgvo_datum=$4,
+         einwilligung_saison_erinnerung=$6, einwilligung_ip=$8, agb_version=$9,
+         einwilligung_bewertung=$10, einwilligung_bewertung_am=$11
+         WHERE id=$7`,
+        [email.toLowerCase(), resetToken, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion, bewertung ? true : false, bewertung ? now : null]
       );
     } else {
       // Neuer Kunde anlegen (Kundennummer aus Sequenz wie im Admin -> keine Doppelnummern)
@@ -135,25 +144,44 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       kundeId = neu.rows[0].id;
     }
 
-    // Bestätigungs-E-Mail senden. Mails NICHT awaiten (fire-and-forget mit .catch) -> die Antwortzeit
-    // haengt nicht an Anzahl/Dauer der Mails und verraet so nicht, ob die Adresse neu war (Timing-Enum).
+    // Mails NICHT awaiten (fire-and-forget mit .catch) -> Antwortzeit haengt nicht am Mailversand (Timing-Enum).
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
     const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
-    const link = portalUrl + '?bestaetigen=' + token;
-    sendMail(
-      email,
-      'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
-      portalMailHtml(einst, {
-        titel: 'Willkommen im Kundenportal',
-        name: vn,
-        absaetze: [
-          'vielen Dank für Ihre Registrierung im Kundenportal von Schröder &amp; Scholz.',
-          'Bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button. Anschließend prüfen wir Ihren Zugang und schalten ihn frei — danach können Sie Ihre eingelagerten Räder einsehen und Termine bequem online buchen.'
-        ],
-        button: { text: 'E-Mail bestätigen', url: link },
-        hinweis: 'Der Bestätigungslink ist 24 Stunden gültig. Falls Sie sich nicht registriert haben, können Sie diese E-Mail ignorieren.'
-      })
-    ).catch(function (e) { console.error('[Registrierung-Mail]', e.message); });
+    if (bestandskunde.rows.length) {
+      // Bestandskunde: Link zum Passwort-Festlegen (bestaetigt zugleich die E-Mail). Kein vorab gesetztes Passwort.
+      const setzLink = portalUrl + '?reset=' + resetToken;
+      sendMail(
+        email,
+        'Portal-Zugang einrichten — Schröder & Scholz',
+        portalMailHtml(einst, {
+          titel: 'Ihren Portal-Zugang einrichten',
+          name: vn,
+          absaetze: [
+            'für Ihre E-Mail-Adresse besteht bei uns bereits ein Kundenkonto. Um den Online-Zugang einzurichten, vergeben Sie bitte über den folgenden Button Ihr Passwort.',
+            'Anschließend prüfen wir Ihren Zugang und schalten ihn frei — danach sehen Sie Ihre eingelagerten Räder und können Termine bequem online buchen.'
+          ],
+          button: { text: 'Passwort festlegen', url: setzLink },
+          hinweis: 'Der Link ist 24 Stunden gültig. Falls Sie das nicht angefordert haben, können Sie diese E-Mail ignorieren — ohne Ihr Zutun wird kein Zugang aktiv.'
+        })
+      ).catch(function (e) { console.error('[Registrierung-Setzlink-Mail]', e.message); });
+    } else {
+      // Neuer Kunde: klassische E-Mail-Bestaetigung (Passwort wurde gesetzt).
+      const link = portalUrl + '?bestaetigen=' + token;
+      sendMail(
+        email,
+        'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
+        portalMailHtml(einst, {
+          titel: 'Willkommen im Kundenportal',
+          name: vn,
+          absaetze: [
+            'vielen Dank für Ihre Registrierung im Kundenportal von Schröder &amp; Scholz.',
+            'Bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button. Anschließend prüfen wir Ihren Zugang und schalten ihn frei — danach können Sie Ihre eingelagerten Räder einsehen und Termine bequem online buchen.'
+          ],
+          button: { text: 'E-Mail bestätigen', url: link },
+          hinweis: 'Der Bestätigungslink ist 24 Stunden gültig. Falls Sie sich nicht registriert haben, können Sie diese E-Mail ignorieren.'
+        })
+      ).catch(function (e) { console.error('[Registrierung-Mail]', e.message); });
+    }
 
     // Admin informieren (fire-and-forget)
     if (einst.email) {
@@ -232,9 +260,11 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     if (!email || !passwort) return res.status(400).json({ error: 'E-Mail und Passwort erforderlich' });
     const { rows } = await query('SELECT * FROM kunden WHERE portal_email=$1 AND portal_aktiv=true', [email.toLowerCase()]);
     const k = rows[0];
-    // Passwort IMMER pruefen (auch bei unbekannter E-Mail gegen Dummy-Hash) -> kein Timing-/Status-Leak
-    const ok = await bcrypt.compare(passwort, k ? k.portal_password : DUMMY_HASH);
-    if (!k || !ok) return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+    // Passwort IMMER pruefen (auch bei unbekannter E-Mail ODER noch nicht gesetztem Passwort gegen
+    // Dummy-Hash) -> kein Timing-/Status-Leak, kein Crash bei portal_password=NULL (Bestandskunde vor
+    // dem Setzen des Passworts). bcrypt.compare(pw, null) wuerde sonst werfen -> 500-Enumeration.
+    const ok = await bcrypt.compare(passwort, (k && k.portal_password) ? k.portal_password : DUMMY_HASH);
+    if (!k || !k.portal_password || !ok) return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     // Status-Hinweise erst NACH korrektem Passwort (verraet sonst Existenz des Kontos)
     // code: maschinenlesbar, damit das Portal die Meldung lokalisieren kann (DE/EN); error bleibt als Fallback
     if (!k.portal_email_bestaetigt) return res.status(401).json({ code: 'EMAIL_UNBESTAETIGT', error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });
@@ -278,7 +308,10 @@ router.post('/passwort-reset', async (req, res, next) => {
     const { rows } = await query('SELECT id FROM kunden WHERE portal_reset_token=$1 AND portal_reset_ablauf > NOW()', [token]);
     if (!rows.length) return res.status(400).json({ error: 'Token ungültig oder abgelaufen' });
     const hash = await bcrypt.hash(passwort, 12);
-    await query('UPDATE kunden SET portal_password=$1, portal_reset_token=null, portal_reset_ablauf=null, passwort_geaendert_am=NOW() WHERE id=$2', [hash, rows[0].id]);
+    // Passwort setzen + E-Mail als bestaetigt markieren: der Klick auf den Link beweist die E-Mail-Kontrolle.
+    // Fuer normale Resets ist portal_email_bestaetigt bereits true (idempotent); fuer die Bestandskunden-
+    // Zugangseinrichtung (P1) ist DAS der Schritt, der die E-Mail bestaetigt.
+    await query('UPDATE kunden SET portal_password=$1, portal_reset_token=null, portal_reset_ablauf=null, portal_email_bestaetigt=true, passwort_geaendert_am=NOW() WHERE id=$2', [hash, rows[0].id]);
     res.json({ message: 'Passwort erfolgreich geändert' });
   } catch (e) { next(e); }
 });

@@ -268,3 +268,9 @@ DROP TRIGGER IF EXISTS trg_rechnung_pos_schutz ON rechnung_positionen;
 CREATE TRIGGER trg_rechnung_pos_schutz
   BEFORE UPDATE OR DELETE ON rechnung_positionen
   FOR EACH ROW EXECUTE FUNCTION rechnung_pos_schutz();
+-- Gast-Buchung Double-Opt-in (/termin/): Termin wird erst 'angefragt' angelegt und erst nach Klick
+-- auf den E-Mail-Bestaetigungslink 'bestaetigt' (verhindert Mail-Relay/Spam + Slot-Blockade durch Fremde).
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS bestaetigung_token text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS bestaetigung_token_ablauf timestamp with time zone;
+-- Lookup beim Bestaetigen + Cleanup laufen ueber bestaetigung_token -> Teil-Index (nur offene Anfragen).
+CREATE INDEX IF NOT EXISTS idx_termine_bestaetigung_token ON termine(bestaetigung_token) WHERE bestaetigung_token IS NOT NULL;
