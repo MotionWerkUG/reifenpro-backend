@@ -198,3 +198,5 @@ ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung_am timestamp 
 -- auf den E-Mail-Bestaetigungslink 'bestaetigt' (verhindert Mail-Relay/Spam + Slot-Blockade durch Fremde).
 ALTER TABLE termine ADD COLUMN IF NOT EXISTS bestaetigung_token text;
 ALTER TABLE termine ADD COLUMN IF NOT EXISTS bestaetigung_token_ablauf timestamp with time zone;
+-- Lookup beim Bestaetigen + Cleanup laufen ueber bestaetigung_token -> Teil-Index (nur offene Anfragen).
+CREATE INDEX IF NOT EXISTS idx_termine_bestaetigung_token ON termine(bestaetigung_token) WHERE bestaetigung_token IS NOT NULL;

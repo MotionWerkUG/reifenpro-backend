@@ -91,8 +91,12 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       return res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
     }
 
-    // Prüfe ob Kunde bereits in DB (über normale E-Mail, case-insensitiv) -> verknüpfen statt duplizieren
-    const bestandskunde = await query('SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true', [email.toLowerCase()]);
+    // Prüfe ob Kunde bereits in DB (über normale E-Mail) -> verknüpfen statt duplizieren.
+    // NUR wenn dort noch KEIN aktiver Portal-Zugang besteht (sonst wuerde eine erneute Registrierung
+    // ein bereits aktives Konto zuruecksetzen -> DoS; portal_password IS NULL ODER noch nicht freigegeben).
+    const bestandskunde = await query(
+      'SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true AND (portal_password IS NULL OR portal_freigegeben = false)',
+      [email.toLowerCase()]);
 
     const token = crypto.randomBytes(32).toString('hex');
     const resetToken = crypto.randomBytes(32).toString('hex'); // fuer Bestandskunden: Passwort-Setz-Link statt vorab gesetztem Passwort
@@ -256,9 +260,11 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     if (!email || !passwort) return res.status(400).json({ error: 'E-Mail und Passwort erforderlich' });
     const { rows } = await query('SELECT * FROM kunden WHERE portal_email=$1 AND portal_aktiv=true', [email.toLowerCase()]);
     const k = rows[0];
-    // Passwort IMMER pruefen (auch bei unbekannter E-Mail gegen Dummy-Hash) -> kein Timing-/Status-Leak
-    const ok = await bcrypt.compare(passwort, k ? k.portal_password : DUMMY_HASH);
-    if (!k || !ok) return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+    // Passwort IMMER pruefen (auch bei unbekannter E-Mail ODER noch nicht gesetztem Passwort gegen
+    // Dummy-Hash) -> kein Timing-/Status-Leak, kein Crash bei portal_password=NULL (Bestandskunde vor
+    // dem Setzen des Passworts). bcrypt.compare(pw, null) wuerde sonst werfen -> 500-Enumeration.
+    const ok = await bcrypt.compare(passwort, (k && k.portal_password) ? k.portal_password : DUMMY_HASH);
+    if (!k || !k.portal_password || !ok) return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     // Status-Hinweise erst NACH korrektem Passwort (verraet sonst Existenz des Kontos)
     // code: maschinenlesbar, damit das Portal die Meldung lokalisieren kann (DE/EN); error bleibt als Fallback
     if (!k.portal_email_bestaetigt) return res.status(401).json({ code: 'EMAIL_UNBESTAETIGT', error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });

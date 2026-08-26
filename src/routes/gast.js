@@ -89,7 +89,7 @@ async function freieSlots(datum, dauer) {
   if (o.grund) return { slots: [], grund: o.grund };
   const einst = o.einst;
   const maxParallel = einst.max_parallele_termine || 1;
-  const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')", [datum])).rows;
+  const gebuchte = (await query("SELECT uhrzeit_von, uhrzeit_bis FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL)", [datum])).rows;
   const slots = [];
   // Ueber jede Oeffnungsspanne (Vormittag/Nachmittag) einzeln -> die Mittagspause zwischen den Spannen bleibt frei.
   for (const sp of o.spannen) {
@@ -221,10 +221,9 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
-    // Mail-Bomb-/Missbrauchsschutz pro Adresse: max. 5 Gast-Buchungen je E-Mail in 24h.
-    const emailLc = String(email).toLowerCase().slice(0, 160);
-    const proMail = await query("SELECT COUNT(*)::int AS c FROM termine WHERE LOWER(kontakt_email)=$1 AND datenschutz_am > NOW() - interval '24 hours'", [emailLc]);
-    if (proMail.rows[0].c >= 5) return res.status(429).json({ error: 'Zu viele Buchungsanfragen mit dieser E-Mail-Adresse. Bitte versuchen Sie es später erneut oder rufen Sie uns an.' });
+    // Kein Hard-Limit pro E-Mail: die Adresse ist frei eingebbar -> ein Fremder koennte damit gezielt eine
+    // echte Adresse fuer 24h aussperren (DoS gegen das Opfer). Schutz stattdessen ueber das IP-Limit
+    // (bookLimiter) + Double-Opt-in (unbestaetigte Anfragen blocken keinen Slot und laufen ab).
     const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
 
     const kalk = await baueKalkulation(mainIds, zusatzIds, fzt, zoll || null);
@@ -252,7 +251,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const noTag = (s) => String(s == null ? '' : s).replace(/[<>]/g, '');
     const vn = noTag(vorname).slice(0, 80), nn = noTag(nachname).slice(0, 80);
     const nm = (vn + ' ' + nn).trim().slice(0, 160);
-    const tel = noTag(telefon).slice(0, 60), em = String(email).slice(0, 160), kz = noTag(kennzeichen).slice(0, 20);
+    const tel = noTag(telefon).slice(0, 60), em = noTag(email).slice(0, 160), kz = noTag(kennzeichen).slice(0, 20);
     const an = ['Herr', 'Frau', 'Divers', 'Firma'].includes(anrede) ? anrede : null;
     const str = noTag(strasse).slice(0, 160), pz = noTag(plz).slice(0, 12), or = noTag(ort).slice(0, 120);
     const mainArtId = mainIds[0];
@@ -267,7 +266,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
       const konflikt = await client.query(
-        "SELECT COUNT(*) FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND uhrzeit_von < $3 AND uhrzeit_bis > $2",
+        "SELECT COUNT(*) FROM termine WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL) AND uhrzeit_von < $3 AND uhrzeit_bis > $2",
         [datum, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
       // Double-Opt-in: erst 'angefragt' + Bestaetigungstoken. Wird erst nach Klick auf den Mail-Link 'bestaetigt'
@@ -307,18 +306,37 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
   }
 });
 
-// Double-Opt-in: Gast bestaetigt seine Buchung per Link aus der Mail -> 'angefragt' wird nach Slot-Neucheck
-// verbindlich 'bestaetigt'; erst JETZT gehen die finale Bestaetigung + die Admin-Benachrichtigung raus.
-router.get('/termin/bestaetigen', async (req, res, next) => {
+// Wiederverwendbare, einfache HTML-Statusseite fuer die oeffentliche Bestaetigung.
+function gastSeite(titel, textHtml, extraHtml) {
+  return '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + titel + ' — Schröder &amp; Scholz</title>' +
+    '<style>body{font-family:-apple-system,Arial,sans-serif;background:#f4f5f7;color:#1a1a1a;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}.box{background:#fff;border-radius:16px;padding:34px 30px;max-width:460px;text-align:center;box-shadow:0 14px 34px rgba(0,0,0,.1);border-top:4px solid #eab308}h1{font-size:20px;color:#171717;margin:0 0 10px}p{color:#555;font-size:15px}a{color:#171717}button{background:#eab308;color:#171717;border:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700;cursor:pointer}</style></head><body><div class="box"><h1>' + titel + '</h1><p>' + textHtml + '</p>' + (extraHtml || '') + '<p style="margin-top:18px"><a href="https://www.schroeder-scholz.de/">Zur Startseite</a></p></div></body></html>';
+}
+const escAttr = (s) => String(s == null ? '' : s).replace(/[<>"'&]/g, function (c) { return ({ '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '&': '&amp;' })[c]; });
+
+// Double-Opt-in Bestaetigung. GET zeigt NUR eine Seite mit Bestaetigungs-Button (KEIN Zustandswechsel!),
+// damit automatische Mail-Link-Scanner (Safe Links, URL Defense, ...) den Termin nicht per Prefetch bestaetigen.
+// Erst der POST (Klick auf den Button) macht die Buchung nach Slot-Neucheck verbindlich.
+router.get('/termin/bestaetigen', limiter, async (req, res, next) => {
   try {
-    const seite = (titel, text) => '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + titel + ' — Schröder &amp; Scholz</title>' +
-      '<style>body{font-family:-apple-system,Arial,sans-serif;background:#f4f5f7;color:#1a1a1a;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center}.box{background:#fff;border-radius:16px;padding:34px 30px;max-width:460px;text-align:center;box-shadow:0 14px 34px rgba(0,0,0,.1);border-top:4px solid #eab308}h1{font-size:20px;color:#171717;margin:0 0 10px}p{color:#555;font-size:15px}a{color:#171717}</style></head><body><div class="box"><h1>' + titel + '</h1><p>' + text + '</p><p style="margin-top:18px"><a href="https://www.schroeder-scholz.de/">Zur Startseite</a></p></div></body></html>';
-    // Abgelaufene, unbestaetigte Anfragen aufraeumen (gibt gehaltene Slots frei)
     await query("DELETE FROM termine WHERE status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf < NOW()");
     const token = req.query.token;
-    if (!token) return res.status(400).send(seite('Link unvollständig', 'Der Bestätigungslink ist nicht vollständig.'));
+    if (!token) return res.status(400).send(gastSeite('Link unvollständig', 'Der Bestätigungslink ist nicht vollständig.'));
+    const t = (await query("SELECT to_char(datum,'YYYY-MM-DD') AS datum_str, uhrzeit_von FROM termine WHERE bestaetigung_token=$1 AND status='angefragt' AND bestaetigung_token_ablauf > NOW()", [token])).rows[0];
+    if (!t) return res.status(400).send(gastSeite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig (evtl. bereits bestätigt oder abgelaufen). Bitte buchen Sie bei Bedarf erneut über unsere Terminseite.'));
+    const dF = t.datum_str.split('-').reverse().join('.');
+    const hhmm = String(t.uhrzeit_von).substring(0, 5);
+    const form = '<form method="post" action="https://www.schroeder-scholz.de/api/gast/termin/bestaetigen?token=' + escAttr(token) + '" style="margin-top:8px"><button type="submit">Termin verbindlich bestätigen</button></form>';
+    return res.send(gastSeite('Noch ein Klick: Termin bestätigen', 'Bitte bestätigen Sie Ihren Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> verbindlich.', form));
+  } catch (e) { next(e); }
+});
+
+router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
+  try {
+    await query("DELETE FROM termine WHERE status='angefragt' AND bestaetigung_token IS NOT NULL AND bestaetigung_token_ablauf < NOW()");
+    const token = req.query.token || (req.body && req.body.token);
+    if (!token) return res.status(400).send(gastSeite('Link unvollständig', 'Der Bestätigungslink ist nicht vollständig.'));
     const t = (await query("SELECT *, to_char(datum,'YYYY-MM-DD') AS datum_str FROM termine WHERE bestaetigung_token=$1 AND status='angefragt' AND bestaetigung_token_ablauf > NOW()", [token])).rows[0];
-    if (!t) return res.status(400).send(seite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig (evtl. bereits bestätigt oder abgelaufen). Bitte buchen Sie bei Bedarf erneut über unsere Terminseite.'));
+    if (!t) return res.status(400).send(gastSeite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig (evtl. bereits bestätigt oder abgelaufen). Bitte buchen Sie bei Bedarf erneut über unsere Terminseite.'));
 
     // Slot unter Advisory-Lock erneut pruefen (koennte inzwischen fest belegt sein), dann verbindlich buchen.
     let ok = false;
@@ -329,13 +347,17 @@ router.get('/termin/bestaetigen', async (req, res, next) => {
       const konflikt = await client.query(
         "SELECT COUNT(*) FROM termine WHERE datum=$1 AND id<>$2 AND status IN ('bestaetigt','abgeschlossen') AND uhrzeit_von < $4 AND uhrzeit_bis > $3",
         [t.datum_str, t.id, t.uhrzeit_von, t.uhrzeit_bis]);
-      if (parseInt(konflikt.rows[0].count) >= maxParallel) return; // ok bleibt false -> Slot inzwischen weg
-      await client.query("UPDATE termine SET status='bestaetigt', bestaetigung_token=NULL, bestaetigung_token_ablauf=NULL, geaendert_am=NOW() WHERE id=$1", [t.id]);
-      ok = true;
+      if (parseInt(konflikt.rows[0].count) >= maxParallel) return; // Slot inzwischen fest belegt
+      // Status-Guard -> genau EINMAL bestaetigen (kein zweiter Mailversand bei Doppel-POST/Race).
+      const upd = await client.query("UPDATE termine SET status='bestaetigt', bestaetigung_token=NULL, bestaetigung_token_ablauf=NULL, geaendert_am=NOW() WHERE id=$1 AND status='angefragt'", [t.id]);
+      if (upd.rowCount > 0) ok = true;
     });
     if (!ok) {
-      await query("UPDATE termine SET status='abgesagt', bestaetigung_token=NULL, bestaetigung_token_ablauf=NULL WHERE id=$1", [t.id]);
-      return res.status(409).send(seite('Termin leider vergeben', 'Der gewünschte Termin ist inzwischen belegt. Bitte buchen Sie einen neuen Termin über unsere Terminseite.'));
+      // Nur bei echtem Slot-Konflikt (noch 'angefragt') absagen; bei bereits bestaetigt (Race/Doppelklick) nichts aendern.
+      const upd2 = await query("UPDATE termine SET status='abgesagt', bestaetigung_token=NULL, bestaetigung_token_ablauf=NULL WHERE id=$1 AND status='angefragt'", [t.id]);
+      const txt = upd2.rowCount > 0 ? 'Der gewünschte Termin ist inzwischen belegt. Bitte buchen Sie einen neuen Termin über unsere Terminseite.'
+        : 'Dieser Termin wurde bereits bestätigt. Sie haben die Bestätigung per E-Mail erhalten.';
+      return res.status(409).send(gastSeite('Termin nicht bestätigt', txt));
     }
 
     // Erst jetzt die Mails: finale Bestaetigung an den (nun verifizierten) Gast + Admin-Benachrichtigung.
@@ -363,7 +385,7 @@ router.get('/termin/bestaetigen', async (req, res, next) => {
       }
     } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
 
-    res.send(seite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.'));
+    res.send(gastSeite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.'));
   } catch (e) { next(e); }
 });
 

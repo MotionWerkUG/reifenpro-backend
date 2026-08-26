@@ -91,7 +91,7 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     // Bestehende Termine an diesem Tag laden
     const gebuchte = await query(
       `SELECT uhrzeit_von, uhrzeit_bis FROM termine
-       WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')`,
+       WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL)`,
       [datum]
     );
 
@@ -204,7 +204,7 @@ router.post('/termine', authKunde, async (req, res, next) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
       const konflikt = await client.query(
         `SELECT COUNT(*) FROM termine
-         WHERE datum=$1 AND status NOT IN ('storniert','abgesagt')
+         WHERE datum=$1 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL)
          AND uhrzeit_von < $3 AND uhrzeit_bis > $2`,
         [datum, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) {
@@ -306,7 +306,7 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
     const updated = await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['termin:' + datum]);
       const konflikt = await client.query(
-        `SELECT COUNT(*) FROM termine WHERE datum=$1 AND id<>$2 AND status NOT IN ('storniert','abgesagt')
+        `SELECT COUNT(*) FROM termine WHERE datum=$1 AND id<>$2 AND status NOT IN ('storniert','abgesagt') AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL)
          AND uhrzeit_von < $4 AND uhrzeit_bis > $3`,
         [datum, t.id, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
