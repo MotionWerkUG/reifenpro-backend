@@ -469,13 +469,18 @@ router.get('/fahrzeuge', authKunde, async (req, res, next) => {
 
 router.post('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
-    const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    const { typ, baujahr, hu_datum } = req.body;
+    // Freitext von HTML-Zeichen befreien (landet unescaped in Werkstatt-/Bestaetigungs-/HU-Mails) + Laengen-Cap.
+    const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
+    const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
+    const kennzeichen = req.body.kennzeichen ? clean(req.body.kennzeichen, 20).toUpperCase() : null;
+    const notiz = clean(req.body.notiz, 500);
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
     const { rows } = await query(
       `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [req.kunde.id, t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null]
+      [req.kunde.id, t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz]
     );
     await syncKundeFz(req.kunde.id, rows[0]);
     res.status(201).json(rows[0]);
@@ -484,13 +489,18 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
 
 router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
   try {
-    const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    const { typ, baujahr, hu_datum } = req.body;
+    // Freitext von HTML-Zeichen befreien (Mails) + Laengen-Cap.
+    const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
+    const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
+    const kennzeichen = req.body.kennzeichen ? clean(req.body.kennzeichen, 20).toUpperCase() : null;
+    const notiz = clean(req.body.notiz, 500);
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
     const { rows } = await query(
       `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, hu_datum=$6, notiz=$7, geaendert_am=NOW()
        WHERE id=$8 AND kunden_id=$9 RETURNING *`,
-      [t, marke || null, modell || null, kennzeichen ? kennzeichen.toUpperCase() : null, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null, req.params.id, req.kunde.id]
+      [t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz, req.params.id, req.kunde.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden' });
     await syncKundeFz(req.kunde.id, rows[0]);

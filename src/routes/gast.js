@@ -15,6 +15,10 @@ const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 // Baut die Kalkulationspositionen: je Leistung Grundpreis + (getrennt) Fahrzeug-Zuschlag.
 // typ = gewaehlter Fahrzeugtyp (z.B. SUV), zoll = Zollgroesse (optional).
 async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
+  // Nur gueltige UUIDs zulassen + Anzahl begrenzen -> kein 500 durch uuid-Typfehler, kein Ressourcen-DoS.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const nurUuid = (a) => (Array.isArray(a) ? a : []).filter((x) => UUID_RE.test(String(x))).slice(0, 20);
+  mainIds = nurUuid(mainIds); zusatzIds = nurUuid(zusatzIds);
   const ids = mainIds.concat(zusatzIds);
   const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
   if (!ids.length) return leer;
@@ -203,6 +207,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     let mainIds = splitList(b.main_ids);
     if (!mainIds.length && (b.main_artikel_id || b.artikel_id)) mainIds = [b.main_artikel_id || b.artikel_id];
     const zusatzIds = splitList(b.zusatz_ids);
+    // Nur gueltige UUIDs + Anzahl begrenzen (mainIds[0] fliesst als artikel_id in den INSERT -> sonst 500).
+    // Bleibt nichts uebrig, greift unten die Pflichtfeldpruefung (400 statt 500).
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    mainIds = mainIds.filter((x) => UUID_RE.test(String(x))).slice(0, 20);
     const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
     if (!vorname || !nachname || !telefon || !email || !kennzeichen || !strasse || !plz || !ort || !datum || !uhrzeit_von || !mainIds.length)
       return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen (inkl. Anschrift und mindestens eine Leistung).' });
