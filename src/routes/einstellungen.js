@@ -53,6 +53,9 @@ const DEFAULT = {
 };
 
 function normalize(col, v) {
+  // Defense-in-Depth: Winkelklammern aus allen Freitext-Firmendaten entfernen (werden u.a. im
+  // Kundenportal/Homepage gerendert). Zahlen-/Zeit-/Bool-Felder sind davon nicht betroffen.
+  if (typeof v === 'string') v = v.replace(/[<>]/g, '');
   if (v === '' && NULL_IF_EMPTY.has(col)) return null;
   return v;
 }
