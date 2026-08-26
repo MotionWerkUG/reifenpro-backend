@@ -2,11 +2,14 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('../db/index');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireStaff } = require('../middleware/auth');
 const { portalMailHtml, anredeGruss } = require('../lib/mail-template');
 
+// Alle Termin-Routen sind rein intern (Admin/Werkstatt) — Personal-Rechte erzwingen.
+router.use(authenticate, requireStaff);
+
 // ── GET /api/termine ── Admin: alle Termine
-router.get('/', authenticate, async (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
     const { von, bis, status } = req.query;
     let sql = `SELECT t.*,
@@ -30,7 +33,7 @@ router.get('/', authenticate, async (req, res, next) => {
 });
 
 // ── GET /api/termine/statistik ── Monatsauslastung
-router.get('/statistik', authenticate, async (req, res, next) => {
+router.get('/statistik', async (req, res, next) => {
   try {
     const { jahr } = req.query;
     const j = parseInt(jahr) || new Date().getFullYear();
@@ -55,7 +58,7 @@ router.get('/statistik', authenticate, async (req, res, next) => {
 });
 
 // ── GET /api/termine/betriebsurlaub ──
-router.get('/betriebsurlaub', authenticate, async (req, res, next) => {
+router.get('/betriebsurlaub', async (req, res, next) => {
   try {
     const { rows } = await query('SELECT * FROM betriebsurlaub ORDER BY von_datum');
     res.json(rows);
@@ -63,7 +66,7 @@ router.get('/betriebsurlaub', authenticate, async (req, res, next) => {
 });
 
 // ── POST /api/termine/betriebsurlaub ──
-router.post('/betriebsurlaub', authenticate, async (req, res, next) => {
+router.post('/betriebsurlaub', async (req, res, next) => {
   try {
     const { von_datum, bis_datum, beschreibung } = req.body;
     if (!von_datum || !bis_datum) return res.status(400).json({ error: 'Von und Bis erforderlich' });
@@ -76,7 +79,7 @@ router.post('/betriebsurlaub', authenticate, async (req, res, next) => {
 });
 
 // ── DELETE /api/termine/betriebsurlaub/:id ──
-router.delete('/betriebsurlaub/:id', authenticate, async (req, res, next) => {
+router.delete('/betriebsurlaub/:id', async (req, res, next) => {
   try {
     await query('DELETE FROM betriebsurlaub WHERE id=$1', [req.params.id]);
     res.json({ message: 'Gelöscht' });
@@ -84,7 +87,7 @@ router.delete('/betriebsurlaub/:id', authenticate, async (req, res, next) => {
 });
 
 // ── GET /api/termine/:id ──
-router.get('/:id', authenticate, async (req, res, next) => {
+router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT t.*, k.vorname || ' ' || k.nachname as kundenname, k.kennzeichen, k.telefon, a.name as artikel_name, a.dauer_minuten
@@ -98,7 +101,7 @@ router.get('/:id', authenticate, async (req, res, next) => {
 });
 
 // ── POST /api/termine ── Admin: Termin anlegen
-router.post('/', authenticate, async (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
     const { kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, fahrzeug_id } = req.body;
     if (!datum || !uhrzeit_von || !uhrzeit_bis) return res.status(400).json({ error: 'Datum und Uhrzeiten erforderlich' });
@@ -112,7 +115,7 @@ router.post('/', authenticate, async (req, res, next) => {
 });
 
 // ── PUT /api/termine/:id ──
-router.put('/:id', authenticate, async (req, res, next) => {
+router.put('/:id', async (req, res, next) => {
   try {
     const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status } = req.body;
     const { rows } = await query(
@@ -127,7 +130,7 @@ router.put('/:id', authenticate, async (req, res, next) => {
 });
 
 // ── PATCH /api/termine/:id/status ── nur Status setzen (z.B. Werkstatt: erledigt)
-router.patch('/:id/status', authenticate, async (req, res, next) => {
+router.patch('/:id/status', async (req, res, next) => {
   try {
     const { status } = req.body;
     const erlaubt = ['angefragt', 'bestaetigt', 'abgeschlossen', 'storniert'];
@@ -145,7 +148,7 @@ router.patch('/:id/status', authenticate, async (req, res, next) => {
 });
 
 // ── DELETE /api/termine/:id ── Admin: Termin absagen
-router.delete('/:id', authenticate, async (req, res, next) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const { grund } = req.body || {};
     const termin = await query('SELECT t.*, k.portal_email, k.vorname FROM termine t LEFT JOIN kunden k ON k.id=t.kunden_id WHERE t.id=$1', [req.params.id]);
@@ -171,7 +174,7 @@ router.delete('/:id', authenticate, async (req, res, next) => {
 });
 
 // ── POST /api/termine/portal-freigabe/:kundenId ── Kunde freigeben
-router.post('/portal-freigabe/:kundenId', authenticate, async (req, res, next) => {
+router.post('/portal-freigabe/:kundenId', async (req, res, next) => {
   try {
     const { rows } = await query(
       'UPDATE kunden SET portal_freigegeben=true, geaendert_am=NOW() WHERE id=$1 RETURNING vorname, nachname, anrede, portal_email',

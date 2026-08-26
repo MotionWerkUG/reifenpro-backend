@@ -1,9 +1,22 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
-const { query } = require('../db/index');
+const { query, withTransaction } = require('../db/index');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const ROUNDS = () => parseInt(process.env.BCRYPT_ROUNDS) || 12;
+const ROLLEN = ['admin', 'mitarbeiter'];
+
+// Sperrt alle aktiven Admin-Zeilen in fester Reihenfolge (FOR UPDATE) und gibt ihre IDs zurueck.
+// Muss innerhalb einer Transaktion laufen: serialisiert parallele "letzter Admin"-Operationen
+// deadlockfrei (konsistente Lock-Reihenfolge), damit der Schutz-Check nicht per Race umgangen wird.
+async function sperreAktiveAdmins(client) {
+  const { rows } = await client.query(
+    "SELECT id FROM users WHERE rolle='admin' AND aktiv=true ORDER BY id FOR UPDATE");
+  return rows.map((r) => r.id);
+}
+
+// Normalisiert einen eingehenden aktiv-Wert strikt zu Boolean (verhindert Umgehung via "0"/"false"/NULL).
+function istAktiv(v) { return v === true || v === 'true' || v === 1 || v === '1'; }
 
 router.get('/', authenticate, requireAdmin, async (req, res, next) => {
   try {
@@ -21,10 +34,13 @@ router.post('/', authenticate, requireAdmin, async (req, res, next) => {
       return res.status(400).json({ error: 'Alle Felder sind Pflicht.' });
     if (passwort.length < 8)
       return res.status(400).json({ error: 'Passwort mind. 8 Zeichen.' });
+    const rolleClean = rolle || 'mitarbeiter';
+    if (!ROLLEN.includes(rolleClean))
+      return res.status(400).json({ error: 'Ungültige Rolle.' });
     const hash = await bcrypt.hash(passwort, ROUNDS());
     const { rows } = await query(
       'INSERT INTO users (email,password,vorname,nachname,rolle) VALUES ($1,$2,$3,$4,$5) RETURNING id,email,vorname,nachname,rolle,aktiv',
-      [email.toLowerCase().trim(), hash, vorname.trim(), nachname.trim(), rolle || 'mitarbeiter']
+      [email.toLowerCase().trim(), hash, vorname.trim(), nachname.trim(), rolleClean]
     );
     await auditLog({ userId: req.user.id, aktion: 'user.erstellt', tabelle: 'users', datensatzId: rows[0].id, req });
     res.status(201).json(rows[0]);
@@ -37,13 +53,33 @@ router.post('/', authenticate, requireAdmin, async (req, res, next) => {
 router.put('/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { vorname, nachname, email, rolle, aktiv } = req.body;
-    const { rows } = await query(
-      'UPDATE users SET vorname=$1,nachname=$2,email=$3,rolle=$4,aktiv=$5 WHERE id=$6 RETURNING id,email,vorname,nachname,rolle,aktiv',
-      [vorname, nachname, email.toLowerCase().trim(), rolle, aktiv, req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'User nicht gefunden.' });
+    if (rolle !== undefined && !ROLLEN.includes(rolle))
+      return res.status(400).json({ error: 'Ungültige Rolle.' });
+    if (!email) return res.status(400).json({ error: 'E-Mail erforderlich.' });
+    // Check + UPDATE in einer Transaktion mit gesperrtem Admin-Set (kein TOCTOU-Race).
+    const out = await withTransaction(async (client) => {
+      const aktiveAdminIds = await sperreAktiveAdmins(client);
+      const ziel = (await client.query('SELECT rolle, aktiv FROM users WHERE id=$1', [req.params.id])).rows[0];
+      if (!ziel) return { code: 404, body: { error: 'User nicht gefunden.' } };
+      // Fehlende Felder = keine Aenderung (Ist-Wert behalten); aktiv strikt zu Boolean normalisieren.
+      const rolleNorm = rolle === undefined ? ziel.rolle : rolle;
+      const aktivNorm = aktiv === undefined ? ziel.aktiv : istAktiv(aktiv);
+      // Letzter-Admin-Schutz: faellt dieser aktive Admin aus dem Pool und bliebe keiner -> blockieren.
+      if (ziel.rolle === 'admin' && ziel.aktiv && !(rolleNorm === 'admin' && aktivNorm === true)) {
+        const andere = aktiveAdminIds.filter((id) => id !== req.params.id).length;
+        if (andere === 0)
+          return { code: 400, body: { error: 'Der letzte aktive Administrator kann nicht degradiert oder deaktiviert werden.' } };
+      }
+      const { rows } = await client.query(
+        'UPDATE users SET vorname=$1,nachname=$2,email=$3,rolle=$4,aktiv=$5 WHERE id=$6 RETURNING id,email,vorname,nachname,rolle,aktiv',
+        [vorname, nachname, email.toLowerCase().trim(), rolleNorm, aktivNorm, req.params.id]
+      );
+      if (!rows.length) return { code: 404, body: { error: 'User nicht gefunden.' } };
+      return { code: 200, body: rows[0] };
+    });
+    if (out.code !== 200) return res.status(out.code).json(out.body);
     await auditLog({ userId: req.user.id, aktion: 'user.geaendert', tabelle: 'users', datensatzId: req.params.id, req });
-    res.json(rows[0]);
+    res.json(out.body);
   } catch (err) { next(err); }
 });
 
@@ -51,11 +87,24 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
     if (req.params.id === req.user.id)
       return res.status(400).json({ error: 'Eigenen Account nicht loeschbar.' });
-    await query('DELETE FROM refresh_tokens WHERE user_id=$1', [req.params.id]);
-    const { rows } = await query('DELETE FROM users WHERE id=$1 RETURNING id,email', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'User nicht gefunden.' });
+    // Check + DELETE in einer Transaktion mit gesperrtem Admin-Set (kein TOCTOU-Race).
+    const out = await withTransaction(async (client) => {
+      const aktiveAdminIds = await sperreAktiveAdmins(client);
+      const ziel = (await client.query('SELECT rolle, aktiv FROM users WHERE id=$1', [req.params.id])).rows[0];
+      if (!ziel) return { code: 404, body: { error: 'User nicht gefunden.' } };
+      if (ziel.rolle === 'admin' && ziel.aktiv) {
+        const andere = aktiveAdminIds.filter((id) => id !== req.params.id).length;
+        if (andere === 0)
+          return { code: 400, body: { error: 'Der letzte aktive Administrator kann nicht gelöscht werden.' } };
+      }
+      await client.query('DELETE FROM refresh_tokens WHERE user_id=$1', [req.params.id]);
+      const { rows } = await client.query('DELETE FROM users WHERE id=$1 RETURNING id,email', [req.params.id]);
+      if (!rows.length) return { code: 404, body: { error: 'User nicht gefunden.' } };
+      return { code: 200, body: { message: rows[0].email + ' geloescht.' } };
+    });
+    if (out.code !== 200) return res.status(out.code).json(out.body);
     await auditLog({ userId: req.user.id, aktion: 'user.geloescht', tabelle: 'users', datensatzId: req.params.id, req });
-    res.json({ message: rows[0].email + ' geloescht.' });
+    res.json(out.body);
   } catch (err) { next(err); }
 });
 

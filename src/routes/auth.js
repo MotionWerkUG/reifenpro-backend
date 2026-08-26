@@ -5,6 +5,9 @@ const { query }    = require('../db/index');
 const { authenticate } = require('../middleware/auth');
 const { auditLog }     = require('../middleware/errorHandler');
 
+// Konstanter, gueltiger bcrypt-Hash fuer Timing-Angleich bei unbekannter E-Mail (verhindert User-Enumeration, analog Portal).
+const DUMMY_HASH = '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW';
+
 const makeToken = (userId) =>
   jwt.sign({ userId }, process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
@@ -22,9 +25,23 @@ router.post('/login', async (req, res, next) => {
       'SELECT * FROM users WHERE email=$1 AND aktiv=true',
       [email.toLowerCase().trim()]
     );
-    if (!rows.length || !(await bcrypt.compare(passwort, rows[0].password)))
+    const user = rows[0];
+    // Immer einen bcrypt-Vergleich ausfuehren (Dummy-Hash bei unbekannter E-Mail),
+    // damit die Antwortzeit die Konto-Existenz nicht verraet.
+    const ok = await bcrypt.compare(passwort, user ? user.password : DUMMY_HASH);
+    if (!user || !ok)
       return res.status(401).json({ error: 'E-Mail oder Passwort falsch.' });
-    const user    = rows[0];
+    // Alt-Hash mit abweichendem bcrypt-Kostenfaktor transparent auf den aktuellen Faktor anheben.
+    // Sonst verraet die kuerzere Vergleichszeit solcher Konten weiterhin deren Existenz (Timing-Enumeration).
+    // passwort_geaendert_am wird bewusst NICHT gesetzt, damit das gerade ausgestellte Token gueltig bleibt.
+    const aktuellerCost = parseInt(process.env.BCRYPT_ROUNDS) || 12;
+    const hashCost = parseInt((user.password.match(/^\$2[aby]\$(\d{2})\$/) || [])[1], 10);
+    if (hashCost && hashCost !== aktuellerCost) {
+      try {
+        const neuerHash = await bcrypt.hash(passwort, aktuellerCost);
+        await query('UPDATE users SET password=$1 WHERE id=$2', [neuerHash, user.id]);
+      } catch (e) { console.error('[Login-Rehash]', e.message); }
+    }
     const token   = makeToken(user.id);
     const refresh = makeRefresh(user.id);
     const ablauf  = new Date(Date.now() + 30 * 86400000);
