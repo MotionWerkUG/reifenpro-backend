@@ -8,7 +8,7 @@
 --
 -- Ausfuehren:  sudo -u postgres psql -d reifenpro -f reset-sandbox.sql
 -- DANACH die erzeugten Rechnungs-PDFs entfernen:
---   rm -f /var/www/reifenpro-backend/rechnungen/*.pdf
+--   rm -f /home/deploy/projekte/reifenpro/rechnungen/*.pdf
 -- ============================================================
 BEGIN;
 

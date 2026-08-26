@@ -2,7 +2,7 @@
 const router = require('express').Router();
 const fs = require('fs');
 const { query, withTransaction } = require('../db/index');
-const { authenticate, requireStaff } = require('../middleware/auth');
+const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { erzeugeRechnungPdf } = require('../lib/rechnung-pdf');
 const { resolvePreis } = require('../lib/preis');
@@ -116,6 +116,20 @@ async function insertPositionen(client, rechnungId, positionen) {
 
 function heute() { return new Date().toISOString().substring(0, 10); }
 
+// R5: Plausibilitaetsgrenze fuer ein im Entwurf angegebenes Datum (Format, Jahr ab 2020,
+// nicht in der Zukunft — 1 Tag Zeitzonen-Toleranz). Das endgueltige Rechnungsdatum wird
+// beim Festschreiben ohnehin serverseitig auf das Serverdatum gesetzt; dies faengt nur
+// grob unsinnige Eingaben (z. B. Jahr 2099) schon beim Anlegen/Aendern ab. Leerer Wert = ok.
+function datumPlausibel(d) {
+  if (d == null || d === '') return true;
+  const s = String(d).substring(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const jahr = parseInt(s.slice(0, 4), 10);
+  if (jahr < 2020 || jahr > new Date().getFullYear() + 1) return false;
+  const morgen = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+  return s <= morgen;
+}
+
 // ── GET / ── Liste
 router.get('/', async (req, res, next) => {
   try {
@@ -154,7 +168,7 @@ router.get('/statistik', async (req, res, next) => {
 });
 
 // ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
-router.get('/export', async (req, res, next) => {
+router.get('/export', requireAdmin, async (req, res, next) => {
   try {
     const jahr = parseInt(req.query.jahr) || new Date().getFullYear();
     const { rows } = await query(
@@ -188,7 +202,7 @@ router.get('/export', async (req, res, next) => {
 // Erloesbuchung je Rechnung und Steuersatz (Debitoren-Sammelkonto gegen Erloes-Automatikkonto).
 // Konten/Berater/Mandant aus den Einstellungen (SKR03-Standardwerte). Vor Produktivnutzung vom
 // Steuerberater einmalig testweise importieren und Kontenrahmen bestaetigen lassen.
-router.get('/export-datev', async (req, res, next) => {
+router.get('/export-datev', requireAdmin, async (req, res, next) => {
   try {
     const jahr = parseInt(req.query.jahr) || new Date().getFullYear();
     const e = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
@@ -366,6 +380,8 @@ router.post('/', async (req, res, next) => {
   try {
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
     if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
+    if (!datumPlausibel(leistungsdatum)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
     const emp = empfaengerAusBody(req.body) || await ladeEmpfaenger(kunden_id || null);
     if (!emp.empfaenger_name && !emp.empfaenger_firma && !kunden_id) {
@@ -433,6 +449,8 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       const f = (await query('SELECT typ FROM fahrzeuge WHERE id=$1', [t.fahrzeug_id])).rows[0];
       if (f) typ = f.typ;
     }
+    // R4: Bei preise_inkl_mwst=true sind artikel.preis/kunden_preise Brutto -> unten zu Netto umrechnen (wie gast.js)
+    const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
     let preis = t.artikel_preis != null ? Number(t.artikel_preis) : 0;
     let mwst = t.artikel_mwst != null ? Number(t.artikel_mwst) : 19;
     if (t.aid) {
@@ -465,7 +483,9 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         artikel_id: p.artikel_id || null
       }));
     } else {
-      positionen = [{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: preis, mwst_satz: mwst, artikel_id: t.aid || null }];
+      // R4: der (ggf. Brutto-)Artikel-/Kundenpreis der Hauptleistung wird bei inkl. auf Netto umgerechnet
+      const einzelNetto = inkl ? round2(preis / (1 + (Number(mwst) || 0) / 100)) : round2(preis);
+      positionen = [{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: einzelNetto, mwst_satz: mwst, artikel_id: t.aid || null }];
     }
     // Optionaler Gutschein/Rabatt (wie bei der manuellen Rechnung) als MwSt-korrekte Position
     const gCode = (req.body && req.body.gutschein_code || '').toString().trim();
@@ -511,6 +531,8 @@ router.put('/:id', async (req, res, next) => {
     if (cur.rows[0].status !== 'entwurf') return res.status(400).json({ error: 'Nur Entwuerfe koennen bearbeitet werden.' });
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
     if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
+    if (!datumPlausibel(leistungsdatum)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     // kunden_id ist explizit setzbar (auch auf null); fehlt das Feld ganz, bleibt die bisherige Verknuepfung
     const kid = (kunden_id !== undefined) ? (kunden_id || null) : cur.rows[0].kunden_id;
     const s = berechneSummen(positionen);
@@ -637,7 +659,7 @@ router.post('/:id/festschreiben', async (req, res, next) => {
 });
 
 // ── POST /:id/storno ── Stornorechnung erzeugen (eigene Nummer, negative Betraege)
-router.post('/:id/storno', async (req, res, next) => {
+router.post('/:id/storno', requireAdmin, async (req, res, next) => {
   try {
     const result = await withTransaction(async (client) => {
       const oRes = await client.query('SELECT * FROM rechnungen WHERE id=$1 FOR UPDATE', [req.params.id]);

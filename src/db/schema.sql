@@ -193,3 +193,77 @@ CREATE TABLE IF NOT EXISTS besondere_tage (
 -- Eigene Einwilligung fuer Bewertungsanfragen (getrennt von der Saison-Erinnerung; § 7 UWG / BGH VI ZR 225/17).
 ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung boolean DEFAULT false;
 ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung_am timestamp with time zone;
+
+-- ── GoBD: Unveraenderbarkeit festgeschriebener/stornierter Rechnungen (Deep-Test R2) ──
+-- Sperrt jedes DELETE sowie das Aendern der eingefrorenen Inhalts-/Pflichtfelder, sobald eine
+-- Rechnung festgeschrieben oder storniert ist. Erlaubt bleiben nur administrative Felder
+-- (zahlungsstatus, bezahlt_am, mahnstufe, mahnung_am, notizen), der Statuswechsel
+-- festgeschrieben->storniert und das EINMALIGE Setzen des PDF-Pfads (NULL->Wert, z. B. beim Storno).
+CREATE OR REPLACE FUNCTION rechnung_schutz() RETURNS trigger AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF OLD.status IN ('festgeschrieben','storniert') THEN
+      RAISE EXCEPTION 'GoBD: Festgeschriebene/stornierte Rechnung % darf nicht geloescht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    RETURN OLD;
+  END IF;
+  IF OLD.status IN ('festgeschrieben','storniert') THEN
+    IF NEW.status IS DISTINCT FROM OLD.status
+       AND NOT (OLD.status = 'festgeschrieben' AND NEW.status = 'storniert') THEN
+      RAISE EXCEPTION 'GoBD: Unzulaessiger Statuswechsel % -> % (Rechnung %).', OLD.status, NEW.status, COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    IF NEW.rechnungsnr          IS DISTINCT FROM OLD.rechnungsnr
+       OR NEW.kunden_id         IS DISTINCT FROM OLD.kunden_id
+       OR NEW.empfaenger_anrede   IS DISTINCT FROM OLD.empfaenger_anrede
+       OR NEW.empfaenger_vorname  IS DISTINCT FROM OLD.empfaenger_vorname
+       OR NEW.empfaenger_nachname IS DISTINCT FROM OLD.empfaenger_nachname
+       OR NEW.empfaenger_name     IS DISTINCT FROM OLD.empfaenger_name
+       OR NEW.empfaenger_firma    IS DISTINCT FROM OLD.empfaenger_firma
+       OR NEW.empfaenger_strasse  IS DISTINCT FROM OLD.empfaenger_strasse
+       OR NEW.empfaenger_plz      IS DISTINCT FROM OLD.empfaenger_plz
+       OR NEW.empfaenger_ort      IS DISTINCT FROM OLD.empfaenger_ort
+       OR NEW.aussteller          IS DISTINCT FROM OLD.aussteller
+       OR NEW.rechnungsdatum      IS DISTINCT FROM OLD.rechnungsdatum
+       OR NEW.leistungsdatum      IS DISTINCT FROM OLD.leistungsdatum
+       OR NEW.faelligkeit         IS DISTINCT FROM OLD.faelligkeit
+       OR NEW.netto_summe         IS DISTINCT FROM OLD.netto_summe
+       OR NEW.mwst_summe          IS DISTINCT FROM OLD.mwst_summe
+       OR NEW.brutto_summe        IS DISTINCT FROM OLD.brutto_summe
+       OR NEW.mwst_aufschluesselung IS DISTINCT FROM OLD.mwst_aufschluesselung
+       OR NEW.storno_von_id       IS DISTINCT FROM OLD.storno_von_id
+       OR NEW.festgeschrieben_am  IS DISTINCT FROM OLD.festgeschrieben_am
+       OR NEW.erstellt_von        IS DISTINCT FROM OLD.erstellt_von
+       OR NEW.erstellt_am         IS DISTINCT FROM OLD.erstellt_am THEN
+      RAISE EXCEPTION 'GoBD/§14: Inhalt der festgeschriebenen Rechnung % ist unveraenderbar.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    IF OLD.pdf_pfad IS NOT NULL AND NEW.pdf_pfad IS DISTINCT FROM OLD.pdf_pfad THEN
+      RAISE EXCEPTION 'GoBD: PDF der festgeschriebenen Rechnung % darf nicht ausgetauscht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_rechnung_schutz ON rechnungen;
+CREATE TRIGGER trg_rechnung_schutz
+  BEFORE UPDATE OR DELETE ON rechnungen
+  FOR EACH ROW EXECUTE FUNCTION rechnung_schutz();
+
+-- Positionen einer festgeschriebenen/stornierten Rechnung sind unveraenderbar (UPDATE/DELETE gesperrt).
+-- INSERT bleibt erlaubt, da der Storno seine Positionen nach dem Festschreiben-Status anlegt.
+CREATE OR REPLACE FUNCTION rechnung_pos_schutz() RETURNS trigger AS $$
+DECLARE st text;
+BEGIN
+  SELECT status INTO st FROM rechnungen WHERE id = OLD.rechnung_id;
+  IF st IN ('festgeschrieben','storniert') THEN
+    RAISE EXCEPTION 'GoBD: Positionen einer festgeschriebenen Rechnung sind unveraenderbar.';
+  END IF;
+  IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_rechnung_pos_schutz ON rechnung_positionen;
+CREATE TRIGGER trg_rechnung_pos_schutz
+  BEFORE UPDATE OR DELETE ON rechnung_positionen
+  FOR EACH ROW EXECUTE FUNCTION rechnung_pos_schutz();
