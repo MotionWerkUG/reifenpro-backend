@@ -10,6 +10,17 @@
 -- DANACH die erzeugten Rechnungs-PDFs entfernen:
 --   rm -f /home/deploy/projekte/reifenpro/rechnungen/*.pdf
 -- ============================================================
+-- SCHUTZ: Dieses Skript loescht per TRUNCATE ALLE Rechnungen (auch festgeschriebene) und
+-- umgeht damit bewusst den GoBD-Loeschschutz-Trigger — TRUNCATE feuert keine Row-Level-
+-- DELETE-Trigger. Deshalb nur zur EINMALIGEN Bereinigung VOR Go-live und nur mit expliziter
+-- Bestaetigung ausfuehren, sonst Abbruch:
+--   sudo -u postgres psql -d reifenpro -v ja=ja -f reset-sandbox.sql
+\if :{?ja}
+\else
+  \echo '!!! ABBRUCH: reset-sandbox.sql loescht ALLE operativen Daten inkl. festgeschriebener Rechnungen.'
+  \echo '!!! Nur VOR Go-live ausfuehren und mit  -v ja=ja  bestaetigen.'
+  \quit
+\endif
 BEGIN;
 
 TRUNCATE

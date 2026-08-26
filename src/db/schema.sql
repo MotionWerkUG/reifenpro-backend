@@ -197,20 +197,20 @@ ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung_am timestamp 
 -- ── GoBD: Unveraenderbarkeit festgeschriebener/stornierter Rechnungen (Deep-Test R2) ──
 -- Sperrt jedes DELETE sowie das Aendern der eingefrorenen Inhalts-/Pflichtfelder, sobald eine
 -- Rechnung festgeschrieben oder storniert ist. Erlaubt bleiben nur administrative Felder
--- (zahlungsstatus, bezahlt_am, mahnstufe, mahnung_am, notizen), der Statuswechsel
+-- (zahlungsstatus, bezahlt_am, mahnstufe, mahnung_am), der Statuswechsel
 -- festgeschrieben->storniert und das EINMALIGE Setzen des PDF-Pfads (NULL->Wert, z. B. beim Storno).
 CREATE OR REPLACE FUNCTION rechnung_schutz() RETURNS trigger AS $$
 BEGIN
   IF TG_OP = 'DELETE' THEN
     IF OLD.status IN ('festgeschrieben','storniert') THEN
-      RAISE EXCEPTION 'GoBD: Festgeschriebene/stornierte Rechnung % darf nicht geloescht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+      RAISE EXCEPTION 'GoBD: Festgeschriebene/stornierte Rechnung % darf nicht gelöscht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
     END IF;
     RETURN OLD;
   END IF;
   IF OLD.status IN ('festgeschrieben','storniert') THEN
     IF NEW.status IS DISTINCT FROM OLD.status
        AND NOT (OLD.status = 'festgeschrieben' AND NEW.status = 'storniert') THEN
-      RAISE EXCEPTION 'GoBD: Unzulaessiger Statuswechsel % -> % (Rechnung %).', OLD.status, NEW.status, COALESCE(OLD.rechnungsnr, OLD.id::text);
+      RAISE EXCEPTION 'GoBD: Unzulässiger Statuswechsel % -> % (Rechnung %).', OLD.status, NEW.status, COALESCE(OLD.rechnungsnr, OLD.id::text);
     END IF;
     IF NEW.rechnungsnr          IS DISTINCT FROM OLD.rechnungsnr
        OR NEW.kunden_id         IS DISTINCT FROM OLD.kunden_id
@@ -233,8 +233,9 @@ BEGIN
        OR NEW.storno_von_id       IS DISTINCT FROM OLD.storno_von_id
        OR NEW.festgeschrieben_am  IS DISTINCT FROM OLD.festgeschrieben_am
        OR NEW.erstellt_von        IS DISTINCT FROM OLD.erstellt_von
-       OR NEW.erstellt_am         IS DISTINCT FROM OLD.erstellt_am THEN
-      RAISE EXCEPTION 'GoBD/§14: Inhalt der festgeschriebenen Rechnung % ist unveraenderbar.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+       OR NEW.erstellt_am         IS DISTINCT FROM OLD.erstellt_am
+       OR NEW.notizen             IS DISTINCT FROM OLD.notizen THEN
+      RAISE EXCEPTION 'GoBD/§14: Inhalt der festgeschriebenen Rechnung % ist unveränderbar.', COALESCE(OLD.rechnungsnr, OLD.id::text);
     END IF;
     IF OLD.pdf_pfad IS NOT NULL AND NEW.pdf_pfad IS DISTINCT FROM OLD.pdf_pfad THEN
       RAISE EXCEPTION 'GoBD: PDF der festgeschriebenen Rechnung % darf nicht ausgetauscht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
@@ -256,7 +257,7 @@ DECLARE st text;
 BEGIN
   SELECT status INTO st FROM rechnungen WHERE id = OLD.rechnung_id;
   IF st IN ('festgeschrieben','storniert') THEN
-    RAISE EXCEPTION 'GoBD: Positionen einer festgeschriebenen Rechnung sind unveraenderbar.';
+    RAISE EXCEPTION 'GoBD: Positionen einer festgeschriebenen Rechnung sind unveränderbar.';
   END IF;
   IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
   RETURN NEW;

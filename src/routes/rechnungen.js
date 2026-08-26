@@ -116,16 +116,18 @@ async function insertPositionen(client, rechnungId, positionen) {
 
 function heute() { return new Date().toISOString().substring(0, 10); }
 
-// R5: Plausibilitaetsgrenze fuer ein im Entwurf angegebenes Datum (Format, Jahr ab 2020,
-// nicht in der Zukunft — 1 Tag Zeitzonen-Toleranz). Das endgueltige Rechnungsdatum wird
-// beim Festschreiben ohnehin serverseitig auf das Serverdatum gesetzt; dies faengt nur
-// grob unsinnige Eingaben (z. B. Jahr 2099) schon beim Anlegen/Aendern ab. Leerer Wert = ok.
-function datumPlausibel(d) {
+// R5: Plausibilitaetsgrenze fuer ein im Entwurf angegebenes Datum (Format, Jahr ab 2020).
+// Fuer das Rechnungsdatum zusaetzlich "nicht in der Zukunft" (1 Tag Zeitzonen-Toleranz) —
+// das endgueltige Rechnungsdatum wird beim Festschreiben ohnehin auf das Serverdatum gesetzt.
+// Das Leistungsdatum DARF in der Zukunft liegen (Vorab-Rechnung, § 14 Abs. 4 Nr. 6 UStG) ->
+// dann zukunftErlaubt=true. Faengt grob unsinnige Eingaben (z. B. Jahr 2099) ab. Leer = ok.
+function datumPlausibel(d, zukunftErlaubt) {
   if (d == null || d === '') return true;
   const s = String(d).substring(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const jahr = parseInt(s.slice(0, 4), 10);
   if (jahr < 2020 || jahr > new Date().getFullYear() + 1) return false;
+  if (zukunftErlaubt) return true;
   const morgen = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   return s <= morgen;
 }
@@ -381,7 +383,7 @@ router.post('/', async (req, res, next) => {
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
     if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
-    if (!datumPlausibel(leistungsdatum)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
+    if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
     const emp = empfaengerAusBody(req.body) || await ladeEmpfaenger(kunden_id || null);
     if (!emp.empfaenger_name && !emp.empfaenger_firma && !kunden_id) {
@@ -532,7 +534,7 @@ router.put('/:id', async (req, res, next) => {
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
     if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
-    if (!datumPlausibel(leistungsdatum)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
+    if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // kunden_id ist explizit setzbar (auch auf null); fehlt das Feld ganz, bleibt die bisherige Verknuepfung
     const kid = (kunden_id !== undefined) ? (kunden_id || null) : cur.rows[0].kunden_id;
     const s = berechneSummen(positionen);
