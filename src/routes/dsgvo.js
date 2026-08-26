@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { query } = require('../db/index');
+const { query, withTransaction } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 
@@ -92,11 +92,16 @@ router.post('/loeschung/:kundenId', authenticate, requireStaff, async (req, res,
     if (parseInt(aktiv[0].cnt) > 0)
       return res.status(400).json({ error: 'Kunde hat noch aktive Einlagerungen.' });
 
-    const { rows: hatEinl } = await query(
-      'SELECT COUNT(*) AS cnt FROM einlagerungen WHERE kunden_id=$1',
+    // Aufbewahrungspflicht: sobald Geschaeftsunterlagen existieren (Einlagerungen, Rechnungen,
+    // Arbeitsprotokolle) wird NICHT hart geloescht, sondern anonymisiert (§ 257 HGB / § 147 AO / GoBD).
+    // Diese Tabellen haben zudem FK RESTRICT/NO ACTION auf kunden und wuerden ein DELETE ohnehin blockieren.
+    const { rows: aufb } = await query(
+      `SELECT (SELECT COUNT(*) FROM einlagerungen WHERE kunden_id=$1)
+            + (SELECT COUNT(*) FROM rechnungen   WHERE kunden_id=$1)
+            + (SELECT COUNT(*) FROM protokolle   WHERE kunden_id=$1) AS cnt`,
       [kid]
     );
-    const aufbewahrungspflicht = parseInt(hatEinl[0].cnt) > 0;
+    const aufbewahrungspflicht = parseInt(aufb[0].cnt) > 0;
 
     // Zuerst archivieren (E-Mail + Datei)
     try {
@@ -127,9 +132,19 @@ router.post('/loeschung/:kundenId', authenticate, requireStaff, async (req, res,
         aufbewahrungspflicht: true,
       });
     } else {
-      await query('DELETE FROM kunden_dokumente WHERE kunden_id=$1', [kid]);
-      await query('DELETE FROM dsgvo_anfragen WHERE kunden_id=$1', [kid]);
-      await query('DELETE FROM kunden WHERE id=$1', [kid]);
+      // Vollstaendige Loeschung transaktional: sonst blieben bei einem Fehler (z.B. FK RESTRICT
+      // auf fahrzeuge) bereits geloeschte Dokumente/Anfragen zurueck -> inkonsistenter Zustand.
+      // fahrzeuge zuerst (FK RESTRICT); kunden_preise/passwort_reset_tokens loescht CASCADE mit.
+      await withTransaction(async (client) => {
+        // termine.fahrzeug_id referenziert fahrzeuge mit NO ACTION -> vor dem Loeschen entkoppeln,
+        // sonst blockiert ein noch vorhandener Termin das DELETE fahrzeuge (Rollback).
+        await client.query(
+          'UPDATE termine SET fahrzeug_id=NULL WHERE fahrzeug_id IN (SELECT id FROM fahrzeuge WHERE kunden_id=$1)', [kid]);
+        await client.query('DELETE FROM fahrzeuge WHERE kunden_id=$1', [kid]);
+        await client.query('DELETE FROM kunden_dokumente WHERE kunden_id=$1', [kid]);
+        await client.query('DELETE FROM dsgvo_anfragen WHERE kunden_id=$1', [kid]);
+        await client.query('DELETE FROM kunden WHERE id=$1', [kid]);
+      });
       await auditLog({ userId: req.user.id, aktion: 'kunde.geloescht',
         tabelle: 'kunden', datensatzId: kid, req });
       res.json({

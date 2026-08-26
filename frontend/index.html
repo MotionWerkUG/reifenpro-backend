@@ -2955,7 +2955,7 @@ function renderK() {
   el.innerHTML = list.map(function(k) {
     var huWarn = '';
     if (k.hu_datum) {
-      var diff = Math.round((new Date(k.hu_datum) - new Date()) / 86400000);
+      var diff = Math.round((new Date(k.hu_datum + 'T12:00:00') - new Date()) / 86400000);
       if (diff < 60) huWarn = '<span style="color:var(--accent-text);font-size:10px;margin-left:4px">HU in ' + diff + 'T!</span>';
     }
     var fz = (k.fahrzeug_marke || '') + (k.fahrzeug_modell ? ' ' + k.fahrzeug_modell : '');

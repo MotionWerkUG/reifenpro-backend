@@ -12,6 +12,8 @@ const { authenticate, requireStaff } = require('../middleware/auth');
 const DOK_DIR = path.join(__dirname, '..', '..', 'gewerbe-dokumente');
 const limiter = rateLimit({ windowMs: 900000, max: 5, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// HTML-Escape fuer Freitext, der in die Benachrichtigungs-Mail interpoliert wird (kein HTML-Injection).
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ── POST /api/gewerbe ── oeffentliche Gewerbe-Zugang-Anfrage ──
 router.post('/', limiter, async (req, res, next) => {
@@ -56,12 +58,12 @@ router.post('/', limiter, async (req, res, next) => {
       const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
       await transporter.sendMail({
         from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: ziel, replyTo: email,
-        subject: 'Neue Gewerbe-Zugang-Anfrage: ' + firma,
+        subject: 'Neue Gewerbe-Zugang-Anfrage: ' + String(firma).replace(/[\r\n]+/g, ' '),
         html: '<p><strong>Neue Gewerbe-Zugang-Anfrage über die Website:</strong></p>' +
-          '<p>Firma: ' + firma + '<br>Ansprechpartner: ' + (anrede ? anrede + ' ' : '') + ansprechpartner +
-          '<br>USt-IdNr.: ' + (ust_id || '–') + '<br>Telefon: ' + telefon + '<br>E-Mail: ' + email +
-          '<br>Anzahl Fahrzeuge: ' + (anzahl_fahrzeuge || '–') + '</p>' +
-          (nachricht ? '<p>Nachricht: ' + String(nachricht).replace(/</g, '&lt;') + '</p>' : '') +
+          '<p>Firma: ' + esc(firma) + '<br>Ansprechpartner: ' + (anrede ? esc(anrede) + ' ' : '') + esc(ansprechpartner) +
+          '<br>USt-IdNr.: ' + (ust_id ? esc(ust_id) : '–') + '<br>Telefon: ' + esc(telefon) + '<br>E-Mail: ' + esc(email) +
+          '<br>Anzahl Fahrzeuge: ' + (anzahl_fahrzeuge ? esc(anzahl_fahrzeuge) : '–') + '</p>' +
+          (nachricht ? '<p>Nachricht: ' + esc(nachricht) + '</p>' : '') +
           '<p>' + (dokPfad ? 'Gewerbeanmeldung wurde hochgeladen.' : 'Kein Dokument hochgeladen.') + '</p>' +
           '<p>Im Admin unter „Gewerbe-Anfragen" ansehen und Kunden anlegen.</p>'
       });

@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query } = require('../db/index');
-const { authenticate, requireAdmin } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 const { regenerate } = require('../lib/homepage-generate');
 const feiertage = require('../lib/feiertage');
 
@@ -60,7 +60,7 @@ function normalize(col, v) {
   return v;
 }
 
-router.get('/', authenticate, async (req, res, next) => {
+router.get('/', authenticate, requireStaff, async (req, res, next) => {
   try {
     const { rows } = await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1');
     res.json(rows.length ? rows[0] : DEFAULT);
