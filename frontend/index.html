@@ -2074,7 +2074,16 @@ function openNeueRechnung() {
   recalcRechnung();
   openModal('nr');
 }
-function addPositionRow(art) {
+// Wandelt einen gespeicherten Artikel-/Kundenpreis (bei preise_inkl_mwst=true = Brutto) in Netto
+// fuer das Netto-Positionsfeld um. Default true (Preise sind Brutto), analog gast.js. satz = MwSt-Satz.
+function nrNetto(preis, satz) {
+  if (preis == null || preis === '') return preis;
+  var s = parseFloat(satz); if (!isFinite(s)) s = 19;
+  return (EINST.preise_inkl_mwst !== false) ? (Number(preis) / (1 + s / 100)) : Number(preis);
+}
+// preisBrutto=true: art.preis ist ein gespeicherter (ggf. Brutto-)Preis -> in Netto umrechnen.
+// Ohne das Flag (Gutschein, freie Position, aus-Termin-Uebernahme) wird der Wert als Netto behandelt.
+function addPositionRow(art, preisBrutto) {
   var c = document.getElementById('nr-positionen');
   var row = document.createElement('div');
   row.className = 'nr-pos-row';
@@ -2090,7 +2099,8 @@ function addPositionRow(art) {
   if (art) {
     row.querySelector('.nr-p-bez').value = art.name || '';
     row.querySelector('.nr-p-einheit').value = art.einheit || '';
-    row.querySelector('.nr-p-preis').value = art.preis != null ? Number(art.preis).toFixed(2) : '';
+    var pInit = preisBrutto ? nrNetto(art.preis, art.mwst_satz) : art.preis;
+    row.querySelector('.nr-p-preis').value = pInit != null ? Number(pInit).toFixed(2) : '';
     row.querySelector('.nr-p-mwst').value = String(parseInt(art.mwst_satz) || 19);
   }
 }
@@ -2113,14 +2123,14 @@ function nrArtikelAdd(sel) {
   var id = sel.value; if (!id) return;
   var a = (allArtikel || []).find(function(x) { return x.id === id; });
   if (a) {
-    addPositionRow(a);
-    // Gewerbe-Konditionen: festen Kundenpreis bzw. Rabatt vorbefuellen
+    addPositionRow(a, true);
+    // Gewerbe-Konditionen: festen Kundenpreis bzw. Rabatt vorbefuellen (ebenfalls Brutto -> Netto)
     var p = NR_KOND.preise[a.id];
     if (p == null && NR_KOND.rabatt > 0 && a.preis != null) p = Math.round(Number(a.preis) * (1 - NR_KOND.rabatt / 100) * 100) / 100;
     if (p != null) {
       var rows = document.querySelectorAll('#nr-positionen .nr-pos-row');
       var row = rows[rows.length - 1];
-      if (row) row.querySelector('.nr-p-preis').value = Number(p).toFixed(2);
+      if (row) row.querySelector('.nr-p-preis').value = Number(nrNetto(p, a.mwst_satz)).toFixed(2);
     }
   }
   sel.value = '';
