@@ -193,3 +193,8 @@ CREATE TABLE IF NOT EXISTS besondere_tage (
 -- Eigene Einwilligung fuer Bewertungsanfragen (getrennt von der Saison-Erinnerung; § 7 UWG / BGH VI ZR 225/17).
 ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung boolean DEFAULT false;
 ALTER TABLE kunden ADD COLUMN IF NOT EXISTS einwilligung_bewertung_am timestamp with time zone;
+
+-- Gast-Buchung Double-Opt-in (/termin/): Termin wird erst 'angefragt' angelegt und erst nach Klick
+-- auf den E-Mail-Bestaetigungslink 'bestaetigt' (verhindert Mail-Relay/Spam + Slot-Blockade durch Fremde).
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS bestaetigung_token text;
+ALTER TABLE termine ADD COLUMN IF NOT EXISTS bestaetigung_token_ablauf timestamp with time zone;
