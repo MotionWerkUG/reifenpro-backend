@@ -587,7 +587,26 @@ router.post('/:id/festschreiben', async (req, res, next) => {
         const e = new Error('Rechnung über 0,00 € kann nicht festgeschrieben werden. Bitte die Positionen prüfen.'); e.status = 400; throw e;
       }
 
-      const jahr = new Date(rech.rechnungsdatum).getFullYear();
+      // ── Rechnungsdatum = Ausstellungsdatum = Serverdatum (Europe/Berlin) ──
+      // GoBD / Audit S3: keine Rueck- oder Vordatierung. Der im Entwurf gespeicherte
+      // Wunsch-Wert wird beim Festschreiben bewusst durch das echte Ausstellungsdatum
+      // ersetzt. Dadurch ist die Reihenfolge Rechnungsnummer <-> Rechnungsdatum immer
+      // monoton (spaetere Nummer nie aelteres Datum). Datumsmathematik in Postgres, um
+      // die Zeitzonen-Verschiebung von new Date()/toISOString() zu vermeiden.
+      const zzt = parseInt(einst.zahlungsziel_tage) || 14;
+      const dq = await client.query(
+        `SELECT to_char((now() AT TIME ZONE 'Europe/Berlin')::date,'YYYY-MM-DD') AS rdatum,
+                EXTRACT(YEAR FROM (now() AT TIME ZONE 'Europe/Berlin')::date)::int AS jahr,
+                to_char(((now() AT TIME ZONE 'Europe/Berlin')::date + ($1 * INTERVAL '1 day'))::date,'YYYY-MM-DD') AS faelligkeit,
+                to_char(leistungsdatum,'YYYY-MM-DD') AS ldatum
+         FROM rechnungen WHERE id=$2`,
+        [zzt, req.params.id]
+      );
+      const fdaten = dq.rows[0];
+      const rechnungsdatum = fdaten.rdatum;
+      const jahr = fdaten.jahr;
+      const faelligkeit = fdaten.faelligkeit;
+
       const cnt = await client.query(
         `INSERT INTO rechnung_counter (jahr, letzte_nr) VALUES ($1, 1)
          ON CONFLICT (jahr) DO UPDATE SET letzte_nr = rechnung_counter.letzte_nr + 1 RETURNING letzte_nr`,
@@ -595,29 +614,17 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       );
       const nr = 'RE-' + jahr + '-' + String(cnt.rows[0].letzte_nr).padStart(4, '0');
 
-      const zzt = parseInt(einst.zahlungsziel_tage) || 14;
-      // Datumsberechnung in Postgres (vermeidet die Zeitzonen-Verschiebung von new Date())
-      const fq = await client.query(
-        `SELECT to_char(rechnungsdatum,'YYYY-MM-DD') AS rdatum,
-                to_char(leistungsdatum,'YYYY-MM-DD') AS ldatum,
-                to_char((rechnungsdatum + ($1 * INTERVAL '1 day'))::date,'YYYY-MM-DD') AS faelligkeit
-         FROM rechnungen WHERE id=$2`,
-        [zzt, req.params.id]
-      );
-      const fdaten = fq.rows[0];
-      const faelligkeit = fdaten.faelligkeit;
-
       const pdfPfad = await erzeugeRechnungPdf(
-        Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: fdaten.rdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller }, emp),
+        Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller }, emp),
         pos
       );
 
       const upd = await client.query(
         `UPDATE rechnungen SET rechnungsnr=$1, status='festgeschrieben', aussteller=$2,
            empfaenger_name=$3, empfaenger_firma=$4, empfaenger_strasse=$5, empfaenger_plz=$6, empfaenger_ort=$7,
-           faelligkeit=$8, pdf_pfad=$9, festgeschrieben_am=NOW() WHERE id=$10 RETURNING *`,
+           rechnungsdatum=$8, faelligkeit=$9, pdf_pfad=$10, festgeschrieben_am=NOW() WHERE id=$11 RETURNING *`,
         [nr, JSON.stringify(aussteller), emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse,
-         emp.empfaenger_plz, emp.empfaenger_ort, faelligkeit, pdfPfad, req.params.id]
+         emp.empfaenger_plz, emp.empfaenger_ort, rechnungsdatum, faelligkeit, pdfPfad, req.params.id]
       );
       return upd.rows[0];
     });
@@ -649,8 +656,13 @@ router.post('/:id/storno', async (req, res, next) => {
 
       const einst = (await client.query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
       const aussteller = ausstellerSnapshot(einst);
-      const rdatum = heute();
-      const jahr = new Date(rdatum).getFullYear();
+      // Storno-Datum = Serverdatum (Europe/Berlin), keine Rueckdatierung; Jahr daraus fuer den Nummernkreis.
+      const dq = await client.query(
+        `SELECT to_char((now() AT TIME ZONE 'Europe/Berlin')::date,'YYYY-MM-DD') AS d,
+                EXTRACT(YEAR FROM (now() AT TIME ZONE 'Europe/Berlin')::date)::int AS jahr`
+      );
+      const rdatum = dq.rows[0].d;
+      const jahr = dq.rows[0].jahr;
       const cnt = await client.query(
         `INSERT INTO rechnung_counter (jahr, letzte_nr) VALUES ($1, 1)
          ON CONFLICT (jahr) DO UPDATE SET letzte_nr = rechnung_counter.letzte_nr + 1 RETURNING letzte_nr`,
@@ -663,10 +675,12 @@ router.post('/:id/storno', async (req, res, next) => {
            (rechnungsnr, status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
             aussteller, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung,
             zahlungsstatus, storno_von_id, festgeschrieben_am, erstellt_von, notizen)
-         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
+         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$20,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
         [nr, orig.kunden_id, orig.empfaenger_anrede, orig.empfaenger_vorname, orig.empfaenger_nachname, orig.empfaenger_name, orig.empfaenger_firma, orig.empfaenger_strasse, orig.empfaenger_plz, orig.empfaenger_ort,
          JSON.stringify(aussteller), rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung),
-         orig.id, req.user.id, 'Storno zu ' + orig.rechnungsnr]
+         orig.id, req.user.id, 'Storno zu ' + orig.rechnungsnr,
+         // Leistungsdatum der Stornorechnung = Leistungszeitraum der Originalrechnung (nicht das Storno-Ausstellungsdatum)
+         orig.leistungsdatum || rdatum]
       );
       const storno = ins.rows[0];
       await insertPositionen(client, storno.id, s.positionen);
