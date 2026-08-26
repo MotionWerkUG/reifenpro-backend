@@ -1178,7 +1178,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="fg"><label>Fahrzeugtyp</label><select id="ap-typ"><option value="">Alle</option><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
         <div class="fg"><label>Zoll von</label><input id="ap-zmin" type="number" min="10" max="30" placeholder="z.B. 16"></div>
         <div class="fg"><label>Zoll bis</label><input id="ap-zmax" type="number" min="10" max="30" placeholder="z.B. 18"></div>
-        <div class="fg"><label>Preis netto (EUR)</label><input id="ap-preis" type="number" step="0.01" min="0"></div>
+        <div class="fg"><label id="ap-preis-label">Preis brutto (EUR)</label><input id="ap-preis" type="number" step="0.01" min="0"></div>
         <div class="fg"><label>MwSt</label><select id="ap-mwst"><option value="19">19%</option><option value="7">7%</option><option value="0">0%</option></select></div>
         <div class="fg"><label>Dauer (Min., optional)</label><input id="ap-dauer" type="number" min="0"></div>
       </div>
@@ -2798,6 +2798,9 @@ function oeffneArtikelPreise(id) {
   document.getElementById('ap-typ').value = '';
   ['ap-zmin', 'ap-zmax', 'ap-preis', 'ap-dauer'].forEach(function(i) { document.getElementById(i).value = ''; });
   document.getElementById('ap-mwst').value = a.mwst_satz || '19';
+  // artikel_preise werden bei preise_inkl_mwst=true als BRUTTO eingetragen (Konsens mit Rechnungswesen),
+  // sonst als Netto. Label + Listen-Spalte richten sich danach.
+  document.getElementById('ap-preis-label').textContent = 'Preis ' + (EINST.preise_inkl_mwst !== false ? 'brutto' : 'netto') + ' (EUR)';
   apLaden();
   openModal('ap');
 }
@@ -2805,7 +2808,7 @@ function apLaden() {
   api('GET', '/artikel/' + apArtikelId + '/preise').then(function(rows) {
     var el = document.getElementById('ap-liste'); rows = rows || [];
     if (!rows.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Varianten — es gilt der Standardpreis.</div>'; return; }
-    el.innerHTML = '<div class="tw"><table><thead><tr><th>Typ</th><th>Zoll</th><th>Netto</th><th>MwSt</th><th>Dauer</th><th></th></tr></thead><tbody>' +
+    el.innerHTML = '<div class="tw"><table><thead><tr><th>Typ</th><th>Zoll</th><th>' + (EINST.preise_inkl_mwst !== false ? 'Brutto' : 'Netto') + '</th><th>MwSt</th><th>Dauer</th><th></th></tr></thead><tbody>' +
       rows.map(function(v) {
         var zoll = (v.zoll_min != null || v.zoll_max != null) ? ((v.zoll_min != null ? v.zoll_min : '') + '–' + (v.zoll_max != null ? v.zoll_max : '') + '"') : 'alle';
         return '<tr><td>' + (v.fahrzeug_typ || 'Alle') + '</td><td>' + zoll + '</td><td>' + parseFloat(v.preis).toFixed(2) + '</td><td>' + v.mwst_satz + '%</td><td>' + (v.dauer_minuten != null ? v.dauer_minuten + ' min' : '–') + '</td>' +
