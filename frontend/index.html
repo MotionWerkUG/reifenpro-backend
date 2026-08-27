@@ -4156,6 +4156,12 @@ function renderWS() {
     var einlInfo = t.notizen_intern || '';
     var kz = t.kennzeichen || '';
     var leistung = t.artikel_name || t.termin_typ || '';
+    // Alle gebuchten Leistungen anzeigen (Haupt + Zusatz), nicht nur die erste — damit die Werkstatt sofort sieht, was zu tun ist.
+    var leist = t.leistungen;
+    if (typeof leist === 'string') { try { leist = JSON.parse(leist); } catch (e) { leist = null; } }
+    if (Array.isArray(leist) && leist.length) {
+      leistung = leist.map(function(p) { return p.bezeichnung; }).filter(Boolean).join(' + ') || leistung;
+    }
     var lagerplaetze = '';
     if (t.kunden_id) {
       // Aktive Saetze = eingelagert ODER abholbereit (konsistent mit server.js-Tagesmail: status <> 'Abgeholt')
