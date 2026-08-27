@@ -404,6 +404,7 @@ router.post('/', async (req, res, next) => {
       rabattProzent = Math.min(Number(req.body.rabatt_prozent), 100);
       rabattLabel = 'Rabatt';
     }
+    rabattProzent = Math.min(Math.max(rabattProzent, 0), 100);
     if (rabattProzent > 0) {
       const basis = berechneSummen(positionen);
       const rabattPos = basis.mwst_aufschluesselung
@@ -489,19 +490,34 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       const einzelNetto = inkl ? round2(preis / (1 + (Number(mwst) || 0) / 100)) : round2(preis);
       positionen = [{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: einzelNetto, mwst_satz: mwst, artikel_id: t.aid || null }];
     }
-    // Optionaler Gutschein/Rabatt (wie bei der manuellen Rechnung) als MwSt-korrekte Position
+    // Gutschein/Rabatt als MwSt-korrekte Position (je Steuersatz gemindert -> korrekter Steuerausweis).
+    // Vorrang: 1) manueller Staff-Override im Body (Live-Validierung gegen gutscheine),
+    //          2) sonst der auf dem Termin gespeicherte Rabatt (termine.gutschein_rabatt,
+    //             dokumentiert mit termine.gutschein_code). Diesen Wert setzt der Buchungs-Flow
+    //             (Portal, Branch portal/gutschein-pruef — noch NICHT in main); bis zu dessen Merge
+    //             ist dieser Zweig inaktiv (NULL/0 -> kein Rabatt). Bewusst KEINE erneute
+    //             Live-Validierung, damit der beim Buchen zugesagte Rabatt erhalten bleibt (analog
+    //             Aussteller-Snapshot), auch wenn der Gutschein spaeter ablaeuft/geaendert wird.
     const gCode = (req.body && req.body.gutschein_code || '').toString().trim();
+    let rabattProzent = 0, rabattLabel = null, rabattQuelle = null;
     if (gCode) {
       const g = (await query("SELECT code, rabatt_prozent FROM gutscheine WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)", [gCode])).rows[0];
       if (!g) return res.status(400).json({ error: 'Gutschein ungültig oder abgelaufen.' });
-      const rp = Number(g.rabatt_prozent) || 0;
-      if (rp > 0) {
-        const basis = berechneSummen(positionen);
-        positionen = positionen.concat(basis.mwst_aufschluesselung.filter((r) => r.netto > 0).map((r) => ({
-          bezeichnung: 'Gutschein ' + g.code + ' (-' + rp + ' %)', menge: 1, einheit: null,
-          einzelpreis_netto: -round2(r.netto * rp / 100), mwst_satz: r.satz
-        })));
-      }
+      rabattProzent = Number(g.rabatt_prozent) || 0;
+      rabattLabel = 'Gutschein ' + g.code;
+      rabattQuelle = 'body';
+    } else if (Number(t.gutschein_rabatt) > 0) {
+      rabattProzent = Number(t.gutschein_rabatt) || 0;
+      rabattLabel = t.gutschein_code ? 'Gutschein ' + t.gutschein_code : 'Rabatt';
+      rabattQuelle = 'termin';
+    }
+    rabattProzent = Math.min(Math.max(rabattProzent, 0), 100);
+    if (rabattProzent > 0) {
+      const basis = berechneSummen(positionen);
+      positionen = positionen.concat(basis.mwst_aufschluesselung.filter((r) => r.netto > 0).map((r) => ({
+        bezeichnung: rabattLabel + ' (-' + rabattProzent + ' %)', menge: 1, einheit: null,
+        einzelpreis_netto: -round2(r.netto * rabattProzent / 100), mwst_satz: r.satz
+      })));
     }
     const s = berechneSummen(positionen);
     const emp = await ladeEmpfaenger(t.kunden_id);
@@ -520,7 +536,7 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       await client.query('UPDATE termine SET rechnung_id=$1 WHERE id=$2', [ins.rows[0].id, t.id]);
       return ins.rows[0];
     });
-    await auditLog({ userId: req.user.id, aktion: 'rechnung.aus_termin', tabelle: 'rechnungen', datensatzId: result.id, req });
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.aus_termin', tabelle: 'rechnungen', datensatzId: result.id, neueWerte: { termin_id: t.id, rabatt_quelle: rabattQuelle, rabatt_prozent: rabattProzent, rabatt_label: rabattLabel }, req });
     res.status(201).json(result);
   } catch (e) { next(e); }
 });
