@@ -163,7 +163,7 @@
     <div class="sum" id="sum-box"></div>
     <div class="field"><label class="lab">Gutschein-Code (optional)</label>
       <div class="gs-field">
-        <input type="text" id="gs-code" autocomplete="off" placeholder="z. B. WINTER2026" onkeydown="if(event.key==='Enter'){event.preventDefault();gutscheinAnwenden();}">
+        <input type="text" id="gs-code" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();gutscheinAnwenden();}">
         <button type="button" class="btn btn-g" onclick="gutscheinAnwenden()">Anwenden</button>
       </div>
       <div class="gs-msg" id="gs-msg"></div>
@@ -250,8 +250,12 @@ function ladeLeistungen(){
 }
 // Vorauswahl aus ?leistung=<artikel_id> (von der Startseite verlinkt)
 function vorauswahlAusUrl(){
-  try{ var p=new URLSearchParams(location.search); var id=p.get('leistung'); if(!id)return;
-    var l=LEIST.haupt.find(function(x){return x.artikel_id===id;}); if(l && !state.haupt.some(function(h){return h.artikel_id===id;})){ state.haupt.push(l); markSel(); }
+  try{ var p=new URLSearchParams(location.search);
+    var id=p.get('leistung');
+    if(id){ var l=LEIST.haupt.find(function(x){return x.artikel_id===id;}); if(l && !state.haupt.some(function(h){return h.artikel_id===id;})){ state.haupt.push(l); markSel(); } }
+    // Gutscheincode aus der URL (z.B. vom Aktionsbanner) automatisch eintragen + anwenden
+    var gc=(p.get('gutschein')||p.get('code')||'').trim();
+    if(gc){ var el=document.getElementById('gs-code'); if(el){ el.value=gc.toUpperCase(); gutscheinAnwenden(); } }
   }catch(e){}
 }
 function bild(l){ return l.bild_url ? ('background-image:url(\''+esc(l.bild_url)+'\')') : ''; }

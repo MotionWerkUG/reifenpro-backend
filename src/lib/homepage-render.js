@@ -119,6 +119,8 @@ function bannerHtml(f) {
   var pos = f.aktion_position || 'leiste';
   var code = f.aktion_code ? '<span class="akt-code">' + esc(f.aktion_code) + '</span>' : '';
   var link = f.aktion_link || '/termin/';
+  // Gutscheincode an die Buchung mitgeben -> im Assistenten automatisch vorausgewaehlt
+  if (f.aktion_code) link += (link.indexOf('?') === -1 ? '?' : '&') + 'gutschein=' + encodeURIComponent(f.aktion_code);
   var cta = '<a class="akt-cta" href="' + esc(link) + '">Jetzt Termin buchen</a>';
   var inner = '<span class="akt-text">' + esc(f.aktion_text) + '</span>' + code + cta;
   if (pos === 'leiste') return '<div class="akt-leiste">' + inner + '</div>';
