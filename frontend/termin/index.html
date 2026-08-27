@@ -50,9 +50,10 @@
   label.lab{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;margin-bottom:6px}
   input[type=date],input[type=text],input[type=tel],input[type=email],select{width:100%;border:1px solid #d5d9e0;border-radius:10px;padding:13px 14px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}
   input:focus,select:focus{outline:none;border-color:#eab308}
-  .slots{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
-  .slot{border:1px solid #d5d9e0;background:#fff;border-radius:9px;padding:10px 15px;font-size:14px;font-weight:600;cursor:pointer}
+  .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px;margin-top:6px}
+  .slot{border:1px solid #d5d9e0;background:#fff;border-radius:9px;padding:10px 8px;font-size:14px;font-weight:600;cursor:pointer;text-align:center}
   .slot:hover{border-color:#eab308}.slot.on{background:#eab308;border-color:#eab308;color:#171717}
+  .slot-group{margin-top:2px}.slot-h{font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.4px;margin:12px 0 6px}
   .info{font-size:13px;color:#888;margin-top:8px}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .kz{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -95,13 +96,7 @@
 
   <!-- Mitlaufender Preis -->
   <div class="pricebar" id="pricebar">
-    <div class="pb-z">
-      <label for="pb-zoll">Zollgröße</label>
-      <select id="pb-zoll" onchange="setZoll(this.value)">
-        <option value="">— wählen —</option>
-        <option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option>
-      </select>
-    </div>
+    <div class="pb-z" id="pb-zoll-anz"></div>
     <div class="pb-sum">
       <div class="pb-lab">Gesamt (ca., inkl. MwSt)</div>
       <div class="pb-total" id="pb-total"><span class="ab">ab</span>—</div>
@@ -145,7 +140,7 @@
       </div>
     </div>
     <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Ihr gewünschtes Termindatum (nicht das Datum der Erstzulassung).</div></div>
-    <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div class="slots" id="slots"></div><div class="info" id="slots-info"></div></div>
+    <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div id="slots"></div><div class="info" id="slots-info"></div></div>
   </div>
 
   <!-- Schritt 4: Daten & Bestätigung -->
@@ -257,13 +252,14 @@ function pick(rolle, id){
 var _pvTimer=null, _pvSeq=0;
 function setZoll(v){
   state.zoll=v;
-  var a=document.getElementById('fz-zoll'), b=document.getElementById('pb-zoll');
-  if(a && a.value!==v) a.value=v;
-  if(b && b.value!==v) b.value=v;
+  var a=document.getElementById('fz-zoll');
+  if(a && a.value!==v) a.value=v;   // einzige Eingabestelle (Schritt 3); obere Leiste nur Anzeige
   preisLive();
+  if(state.schritt===4) renderSum(); // Bugfix: bei Zoll-Aenderung die Aufstellung/Gesamt in Schritt 4 neu rechnen
 }
 // Obere Leiste: gewaehlte Leistungen + Fahrzeug + Termin kompakt anzeigen
 function updateLeiste(){
+  var za=document.getElementById('pb-zoll-anz'); if(za) za.textContent = state.zoll ? ('Zollgröße '+state.zoll) : '';
   var el=document.getElementById('pb-detail'); if(!el)return;
   var teile=[];
   if(state.haupt.length) teile.push('<b>'+state.haupt.map(function(h){return esc(h.titel);}).join(', ')+'</b>');
@@ -298,7 +294,12 @@ function ladeSlots(){
     info.textContent='';
     if(d.grund){info.textContent='An diesem Tag ist keine Buchung möglich ('+d.grund+'). Bitte anderen Tag wählen.';return;}
     if(!d.slots||!d.slots.length){info.textContent='Keine freien Zeiten an diesem Tag.';return;}
-    sl.innerHTML=d.slots.map(function(s){return '<button type="button" class="slot" data-von="'+s.von+'">'+s.von+'</button>';}).join('');
+    var vor=[], nach=[];
+    d.slots.forEach(function(s){ (String(s.von) < '12:00' ? vor : nach).push(s); });
+    var btns=function(arr){ return arr.map(function(s){return '<button type="button" class="slot" data-von="'+s.von+'">'+s.von+'</button>';}).join(''); };
+    var grp=function(titel,arr){ return arr.length ? '<div class="slot-group"><div class="slot-h">'+titel+'</div><div class="slots">'+btns(arr)+'</div></div>' : ''; };
+    // Bei nur einer Tageshälfte keine Überschrift nötig
+    sl.innerHTML=(vor.length && nach.length) ? grp('Vormittag',vor)+grp('Nachmittag',nach) : '<div class="slots">'+btns(d.slots)+'</div>';
   }).catch(function(){info.textContent='Zeiten konnten nicht geladen werden.';});
 }
 document.addEventListener('click', function(ev){
