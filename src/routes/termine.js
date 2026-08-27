@@ -205,4 +205,16 @@ router.post('/portal-freigabe/:kundenId', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PATCH /api/termine/:id/kunde ── Termin nachtraeglich mit einem Kunden verknuepfen
+// (z.B. wenn aus einer Online-Buchung ohne Konto im Admin ein Kunde angelegt wurde).
+router.patch('/:id/kunde', async (req, res, next) => {
+  try {
+    const { kunden_id } = req.body || {};
+    if (!kunden_id) return res.status(400).json({ error: 'kunden_id erforderlich.' });
+    const { rows } = await query('UPDATE termine SET kunden_id=$1, geaendert_am=NOW() WHERE id=$2 RETURNING id', [kunden_id, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    res.json({ message: 'ok' });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
