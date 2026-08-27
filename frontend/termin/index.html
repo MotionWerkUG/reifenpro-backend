@@ -182,7 +182,7 @@
         </div>
       </div>
     </div>
-    <div class="info">Tipp: PLZ eingeben – der Ort wird vorgeschlagen. Straße ab 3 Buchstaben. Adressvorschläge über <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten, kein Tracking).</div>
+    <div class="info">Tipp: Straße tippen (Hausnummer kann direkt dahinter stehen), Vorschlag anklicken – PLZ &amp; Ort füllen sich; die Hausnummer bleibt erhalten. Adressvorschläge über <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten, kein Tracking).</div>
     <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
     <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
     <input type="text" id="f-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
@@ -401,8 +401,12 @@ function absenden(){
 // ── Adress-Vorschlag (OpenPLZ ueber eigenen Backend-Proxy, fail-soft) — sichtbares Dropdown ──
 var _adrT = null, _strCache = [], _orteCache = [];
 function adrHide(){ ['strassen-drop','orte-drop'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('on'); }); }
+// Trennt eine evtl. getippte Hausnummer am Ende ab (OpenPLZ kennt nur Strassennamen).
+function _hausnr(v){ var m=String(v||'').match(/\s*(\d+\s*[a-zA-Z]?)\s*$/); return m?m[1].replace(/\s+/g,''):''; }
+function _strassenTeil(v){ return String(v||'').replace(/\s*\d+\s*[a-zA-Z]?\s*$/,'').trim(); }
 function strassenLookup(){
-  var q=(document.getElementById('f-strasse').value||'').trim();
+  var raw=(document.getElementById('f-strasse').value||'').trim();
+  var q=_strassenTeil(raw); // Hausnummer fuer die Suche ignorieren -> Vorschlaege bleiben da
   var plz=(document.getElementById('f-plz').value||'').trim();
   var drop=document.getElementById('strassen-drop');
   clearTimeout(_adrT);
@@ -419,10 +423,13 @@ function strassenLookup(){
 }
 function strassePick(i){
   var s=_strCache[i]; if(!s) return;
-  document.getElementById('f-strasse').value=s.strasse||'';
+  var el=document.getElementById('f-strasse');
+  var hn=_hausnr(el.value); // vom Nutzer getippte Hausnummer erhalten
+  el.value=(s.strasse||'')+(hn?' '+hn:'');
   if(s.plz) document.getElementById('f-plz').value=s.plz;
   if(s.ort) document.getElementById('f-ort').value=s.ort;
   adrHide();
+  if(!hn){ el.focus(); } // ohne Hausnummer: Cursor bleibt, damit man sie direkt anhaengt
 }
 function plzOrtLookup(){
   var plz=(document.getElementById('f-plz').value||'').trim();
