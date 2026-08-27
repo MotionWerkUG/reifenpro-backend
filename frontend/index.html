@@ -1248,6 +1248,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
     </div>
     <div id="nr-positionen"></div>
     <div style="text-align:right;margin-top:12px;line-height:1.6">
+      <div id="nr-gutschein-info" style="font-size:14px;margin-bottom:6px"></div>
       <div>Netto: <strong id="nr-sum-netto">0,00 €</strong></div>
       <div>MwSt: <strong id="nr-sum-mwst">0,00 €</strong></div>
       <div style="font-size:16px;color:var(--green)">Brutto: <strong id="nr-sum-brutto">0,00 €</strong></div>
@@ -2207,6 +2208,23 @@ function recalcRechnung() {
   document.getElementById('nr-sum-netto').textContent = rEur(netto);
   document.getElementById('nr-sum-mwst').textContent = rEur(Math.round((brutto - netto) * 100) / 100);
   document.getElementById('nr-sum-brutto').textContent = rEur(brutto);
+  // Gutschein prominent: Original-Brutto rot durchgestrichen -> reduzierter Brutto (schwarz).
+  var gi = document.getElementById('nr-gutschein-info');
+  if (gi) {
+    var rabattBrutto = 0, gcode = '';
+    pos.forEach(function(p) {
+      if (/^Gutschein/i.test(p.bezeichnung || '')) {
+        var zn = Math.round(p.menge * p.einzelpreis_netto * 100) / 100;
+        rabattBrutto += Math.round(zn * (1 + p.mwst_satz / 100) * 100) / 100;
+        gcode = (p.bezeichnung || '').replace(/\s*\(-.*$/, '').trim();
+      }
+    });
+    if (rabattBrutto < 0) {
+      var original = Math.round((brutto - rabattBrutto) * 100) / 100;
+      gi.innerHTML = '<span style="color:#c0392b;text-decoration:line-through">' + rEur(original) + '</span> &rarr; <strong>' + rEur(brutto) + '</strong>' +
+        '<div style="color:#c0392b;font-size:12px">' + kEsc(gcode) + ': ' + rEur(rabattBrutto) + '</div>';
+    } else { gi.innerHTML = ''; }
+  }
 }
 function saveRechnung() {
   var kunde = gv('nr-kunde') || null;
