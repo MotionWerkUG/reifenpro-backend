@@ -358,6 +358,7 @@ function gutscheinAnwenden(){
   if(!code){ state.gutschein=null; msg.className='gs-msg'; msg.textContent=''; renderSum(); preisLive(); return; }
   msg.className='gs-msg'; msg.textContent='Prüfe …';
   fetch(API+'/gutschein/'+encodeURIComponent(code)).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(gd){
+    if(gd && gd.gueltig===false) throw 0;
     var rab=Number(gd&&gd.rabatt_prozent)||0;
     if(!(rab>0)) throw 0;
     state.gutschein={ code:(gd.code||code), rabatt:rab };
