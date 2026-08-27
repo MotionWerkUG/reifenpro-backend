@@ -50,6 +50,13 @@
   label.lab{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#555;margin-bottom:6px}
   input[type=date],input[type=text],input[type=tel],input[type=email],select{width:100%;border:1px solid #d5d9e0;border-radius:10px;padding:13px 14px;font-size:15px;font-family:inherit;background:#fff;color:#1a1a1a}
   input:focus,select:focus{outline:none;border-color:#eab308}
+  .adr-wrap{position:relative}
+  .adr-drop{position:absolute;left:0;right:0;top:100%;z-index:40;background:#fff;border:1px solid #d5d9e0;border-top:none;border-radius:0 0 10px 10px;box-shadow:0 10px 24px rgba(0,0,0,.14);max-height:260px;overflow:auto;display:none}
+  .adr-drop.on{display:block}
+  .adr-opt{padding:11px 14px;font-size:15px;cursor:pointer;border-bottom:1px solid #f0f1f3;display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .adr-opt:last-child{border-bottom:none}
+  .adr-opt:hover,.adr-opt.hl{background:#fff8e1}
+  .adr-opt .adr-meta{color:#8a8f97;font-size:12.5px;white-space:nowrap}
   .slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:8px;margin-top:6px}
   .slot{border:1px solid #d5d9e0;background:#fff;border-radius:9px;padding:10px 8px;font-size:14px;font-weight:600;cursor:pointer;text-align:center}
   .slot:hover{border-color:#eab308}.slot.on{background:#eab308;border-color:#eab308;color:#171717}
@@ -161,14 +168,18 @@
     </div>
     <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email" name="email" autocomplete="email"></div>
     <div class="field"><label class="lab">Straße &amp; Hausnummer *</label>
-      <input type="text" id="f-strasse" name="strasse" autocomplete="street-address" list="strassen-list" oninput="strassenLookup()" onchange="strasseGewaehlt()">
-      <datalist id="strassen-list"></datalist>
+      <div class="adr-wrap">
+        <input type="text" id="f-strasse" name="strasse" autocomplete="off" oninput="strassenLookup()">
+        <div class="adr-drop" id="strassen-drop"></div>
+      </div>
     </div>
     <div class="grid2">
-      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz" name="plz" autocomplete="postal-code" inputmode="numeric" maxlength="5" oninput="plzOrtLookup()"></div>
+      <div class="field"><label class="lab">PLZ *</label><input type="text" id="f-plz" name="plz" autocomplete="off" inputmode="numeric" maxlength="5" oninput="plzOrtLookup()"></div>
       <div class="field"><label class="lab">Ort *</label>
-        <input type="text" id="f-ort" name="ort" autocomplete="address-level2" list="orte-list">
-        <datalist id="orte-list"></datalist>
+        <div class="adr-wrap">
+          <input type="text" id="f-ort" name="ort" autocomplete="off">
+          <div class="adr-drop" id="orte-drop"></div>
+        </div>
       </div>
     </div>
     <div class="info">Tipp: PLZ eingeben – der Ort wird vorgeschlagen. Straße ab 3 Buchstaben. Adressvorschläge über <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten, kein Tracking).</div>
@@ -387,39 +398,46 @@ function absenden(){
     .catch(function(x){fehler(x.message);})
     .then(function(){b.disabled=false;b.textContent=bt;});
 }
-// ── Adress-Vorschlag (OpenPLZ ueber eigenen Backend-Proxy, fail-soft) ──
-var _adrT = null, _strCache = [];
-function plzOrtLookup(){
-  var plz=(document.getElementById('f-plz').value||'').trim();
-  if(!/^\d{5}$/.test(plz)) return;
-  fetch(API_ADR+'/plz?plz='+encodeURIComponent(plz)).then(function(r){return r.json();}).then(function(d){
-    var orte=(d&&d.orte)||[]; var ort=document.getElementById('f-ort'); var dl=document.getElementById('orte-list');
-    if(dl) dl.innerHTML=orte.map(function(o){return '<option value="'+esc(o)+'">';}).join('');
-    if(orte.length===1 && !ort.value.trim()) ort.value=orte[0];
-  }).catch(function(){});
-}
+// ── Adress-Vorschlag (OpenPLZ ueber eigenen Backend-Proxy, fail-soft) — sichtbares Dropdown ──
+var _adrT = null, _strCache = [], _orteCache = [];
+function adrHide(){ ['strassen-drop','orte-drop'].forEach(function(id){ var e=document.getElementById(id); if(e) e.classList.remove('on'); }); }
 function strassenLookup(){
   var q=(document.getElementById('f-strasse').value||'').trim();
   var plz=(document.getElementById('f-plz').value||'').trim();
+  var drop=document.getElementById('strassen-drop');
   clearTimeout(_adrT);
-  if(q.length<3) return;
+  if(q.length<3){ if(drop){ drop.classList.remove('on'); drop.innerHTML=''; } return; }
   _adrT=setTimeout(function(){
     fetch(API_ADR+'/strassen?q='+encodeURIComponent(q)+'&plz='+encodeURIComponent(plz)).then(function(r){return r.json();}).then(function(d){
-      _strCache=(d&&d.strassen)||[]; var dl=document.getElementById('strassen-list');
-      if(dl) dl.innerHTML=_strCache.map(function(s){return '<option value="'+esc(s.strasse)+'">'+esc((s.plz?s.plz+' ':'')+(s.ort||''))+'</option>';}).join('');
-    }).catch(function(){});
-  },300);
+      _strCache=(d&&d.strassen)||[];
+      if(!drop) return;
+      if(!_strCache.length){ drop.classList.remove('on'); drop.innerHTML=''; return; }
+      drop.innerHTML=_strCache.map(function(s,i){ return '<div class="adr-opt" onclick="strassePick('+i+')"><span>'+esc(s.strasse)+'</span><span class="adr-meta">'+esc((s.plz?s.plz+' ':'')+(s.ort||''))+'</span></div>'; }).join('');
+      drop.classList.add('on');
+    }).catch(function(){ if(drop) drop.classList.remove('on'); });
+  },250);
 }
-function strasseGewaehlt(){
-  var val=(document.getElementById('f-strasse').value||'').trim();
+function strassePick(i){
+  var s=_strCache[i]; if(!s) return;
+  document.getElementById('f-strasse').value=s.strasse||'';
+  if(s.plz) document.getElementById('f-plz').value=s.plz;
+  if(s.ort) document.getElementById('f-ort').value=s.ort;
+  adrHide();
+}
+function plzOrtLookup(){
   var plz=(document.getElementById('f-plz').value||'').trim();
-  var treffer=_strCache.filter(function(s){return s.strasse===val;});
-  if(!treffer.length) return;
-  var t = plz ? (treffer.filter(function(s){return s.plz===plz;})[0]||treffer[0]) : treffer[0];
-  var plzEl=document.getElementById('f-plz'), ortEl=document.getElementById('f-ort');
-  if(t.plz && !plzEl.value.trim()){ plzEl.value=t.plz; }
-  if(t.ort && !ortEl.value.trim()){ ortEl.value=t.ort; }
+  var drop=document.getElementById('orte-drop');
+  if(!/^\d{5}$/.test(plz)){ if(drop) drop.classList.remove('on'); return; }
+  fetch(API_ADR+'/plz?plz='+encodeURIComponent(plz)).then(function(r){return r.json();}).then(function(d){
+    _orteCache=(d&&d.orte)||[]; var ort=document.getElementById('f-ort');
+    if(_orteCache.length===1){ if(!ort.value.trim()) ort.value=_orteCache[0]; if(drop) drop.classList.remove('on'); return; }
+    if(_orteCache.length>1 && drop){ drop.innerHTML=_orteCache.map(function(o,i){ return '<div class="adr-opt" onclick="ortPick('+i+')">'+esc(o)+'</div>'; }).join(''); drop.classList.add('on'); }
+    else if(drop){ drop.classList.remove('on'); }
+  }).catch(function(){ if(drop) drop.classList.remove('on'); });
 }
+function ortPick(i){ var o=_orteCache[i]; if(o==null) return; document.getElementById('f-ort').value=o; adrHide(); }
+// Dropdown schliessen bei Klick ausserhalb eines Adressfeldes
+document.addEventListener('click', function(ev){ if(!(ev.target.closest && ev.target.closest('.adr-wrap'))) adrHide(); });
 (function(){var dt=document.getElementById('datum');var n=new Date();dt.min=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2);})();
 ladeLeistungen();
 </script>
