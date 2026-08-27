@@ -228,4 +228,14 @@ router.patch('/:id/einlagern', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PATCH /api/termine/:id/fakturiert ── Termin als abgerechnet markieren (verschwindet aus 'Abzurechnen').
+router.patch('/:id/fakturiert', async (req, res, next) => {
+  try {
+    const fakturiert = !(req.body && (req.body.fakturiert === false || req.body.fakturiert === 'false'));
+    const { rows } = await query('UPDATE termine SET fakturiert=$1 WHERE id=$2 RETURNING id, fakturiert', [fakturiert, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    res.json({ message: 'ok', fakturiert: rows[0].fakturiert });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
