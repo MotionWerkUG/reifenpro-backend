@@ -1899,6 +1899,16 @@ function terminNeuerKunde(id) {
   closeModal('td');
   openModal('nk', false);
 }
+// Buero markiert einen Termin fuer Einlagerung -> Werkstatt sieht sofort das EINLAGERN-Signal.
+function terminEinlagern(id, on) {
+  api('PATCH', '/termine/' + id + '/einlagern', { einlagern: on }).then(function() {
+    notify(on ? 'Für Einlagerung vorgemerkt — die Werkstatt sieht es.' : 'Einlager-Vormerkung aufgehoben.');
+    var t = allTermine.find(function(x) { return x.id === id; }); if (t) t.einlagern = on;
+    closeModal('td');
+    if (typeof loadTermineWerkstatt === 'function') loadTermineWerkstatt();
+    if (typeof renderDash === 'function') renderDash();
+  }).catch(function(e) { notify((e && e.message) || 'Fehler beim Speichern.', 'err'); });
+}
 
 // ── GEWERBE-ANFRAGEN ──
 var allGewerbeAnf = [];
@@ -3657,7 +3667,9 @@ function loadAktivitaet() {
       var z = new Date(e.zeit);
       var zt = String(z.getDate()).padStart(2, '0') + '.' + String(z.getMonth() + 1).padStart(2, '0') + '. ' + String(z.getHours()).padStart(2, '0') + ':' + String(z.getMinutes()).padStart(2, '0');
       var c = farbe[e.typ] || '#888';
-      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)' + (e.kunden_id ? ';cursor:pointer' : '') + '"' + (e.kunden_id ? ' onclick="zeigeK(\'' + e.kunden_id + '\')"' : '') + '>' +
+      // Buchungen oeffnen den Termin (auch ohne verknuepften Kunden), sonst den Kunden.
+      var klick = e.termin_id ? 'zeigeTermin(\'' + e.termin_id + '\')' : (e.kunden_id ? 'zeigeK(\'' + e.kunden_id + '\')' : '');
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)' + (klick ? ';cursor:pointer' : '') + '"' + (klick ? ' onclick="' + klick + '"' : '') + '>' +
         '<span style="font-size:10px;font-weight:700;color:#fff;background:' + c + ';padding:2px 7px;border-radius:10px;white-space:nowrap">' + (label[e.typ] || e.typ) + '</span>' +
         '<span style="font-size:13px;flex:1">' + e.text + '</span>' +
         '<span style="font-size:11px;color:var(--muted);white-space:nowrap">' + zt + '</span></div>';
@@ -3999,7 +4011,8 @@ function walkIn() {
   ntVorausfuellen(isoLocal(d), zeit);
 }
 function zeigeTermin(id) {
-  var t = allTermine.find(function(x) { return x.id === id; }); if (!t) return;
+  var t = allTermine.find(function(x) { return x.id === id; });
+  if (!t) { api('GET', '/termine/' + id).then(function(r) { if (r && r.id) { allTermine.push(r); zeigeTermin(id); } else notify('Termin nicht gefunden.', 'err'); }).catch(function() { notify('Termin nicht gefunden.', 'err'); }); return; }
   var el = document.getElementById('td-inhalt');
   var col = t.portal_buchung ? '#3ecf8e' : '#4a9eff';
   el.innerHTML = '<div class="mtitle" style="color:' + col + '">' + fd(t.datum) + ' ' + (t.uhrzeit_von||'').substring(0,5) + '</div>' +
@@ -4014,6 +4027,7 @@ function zeigeTermin(id) {
     '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
     '<button class="btn btn-g btn-sm" onclick="closeModal(\'td\');ntBearbeiten(\'' + t.id + '\')">Bearbeiten</button>' +
     (!t.kunden_id ? '<button class="btn btn-grn btn-sm" onclick="terminNeuerKunde(\'' + t.id + '\')">Kunde anlegen</button>' : '') +
+    '<button class="btn ' + (t.einlagern ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="terminEinlagern(\'' + t.id + '\',' + (t.einlagern ? 'false' : 'true') + ')">' + (t.einlagern ? 'Einlager-Vormerkung aufheben' : 'Für Einlagerung vormerken') + '</button>' +
     (t.status !== 'storniert' && t.status !== 'abgesagt'
       ? '<button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button>'
       : '<span style="color:var(--muted);font-size:12px">Abgesagt/Storniert</span>') +
@@ -4213,6 +4227,7 @@ function renderWS() {
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">' +
           '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
+          (t.einlagern ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
