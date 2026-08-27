@@ -146,6 +146,7 @@ function renderLeistungen(group) {
     return '<a class="card-link" href="' + href + '" style="display:block;text-decoration:none;color:inherit">' +
       '<div class="card" data-sektion-id="' + esc(s.id) + '">' + img +
       '<div class="card-body">' +
+      '<div class="card-icon">' + iconFor(s.headline) + '</div>' +
       '<div class="card-nr">' + nr + '</div>' +
       '<h3>' + esc(s.headline || '') + '</h3>' +
       '<div class="rt">' + richHtml(s.inhalt || '') + '</div>' +
@@ -154,6 +155,63 @@ function renderLeistungen(group) {
   }).join('');
   return '<section class="sec" id="leistungen"><div class="inner">' +
     '<h2>Unsere Leistungen</h2><div class="cards">' + cards + '</div></div></section>';
+}
+
+// ── Icons (schlichte Linien-SVGs, erben Farbe via currentColor) ──
+var ICON_CLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+var ICON_BOX = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>';
+var ICON_EURO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 6.5A7 7 0 1017 18M4 10.5h10M4 13.5h10"/></svg>';
+var ICON_CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>';
+var ICON_WHEEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>';
+var ICON_DISC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>';
+var ICON_SUSP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v4M7 17v4M4 8l3-1 3 1M4 16l3 1 3-1M7 7v10M17 3v4M17 17v4M14 8l3-1 3 1M14 16l3 1 3-1M17 7v10"/></svg>';
+var ICON_WRENCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5a4 4 0 00-5 5L4 16l4 4 6-6a4 4 0 005-5l-3 3-2-2 2-3z"/></svg>';
+function iconFor(h) {
+  h = String(h || '').toLowerCase();
+  if (/brems/.test(h)) return ICON_DISC;
+  if (/fahrwerk|achs|spur/.test(h)) return ICON_SUSP;
+  if (/einlager|lager/.test(h)) return ICON_BOX;
+  if (/rad|reifen|räder|felge|wucht/.test(h)) return ICON_WHEEL;
+  return ICON_WRENCH;
+}
+
+// Vollflaechiges Vorteile-/Vertrauens-Band (Icons) — wie bei den grossen Ketten
+function renderVorteile() {
+  var items = [
+    [ICON_CLOCK, 'Schneller Räderwechsel', 'Kurze Wartezeit, sauber ausgeführt.'],
+    [ICON_BOX, 'Sichere Reifeneinlagerung', 'Trocken & fachgerecht gelagert.'],
+    [ICON_EURO, 'Faire, klare Preise', 'Online einsehbar, inkl. MwSt.'],
+    [ICON_CAL, 'Termin in 2 Minuten', 'Jederzeit online buchbar.']
+  ];
+  return '<section class="vorteile"><div class="inner"><div class="vgrid">' +
+    items.map(function (it) { return '<div class="vitem"><div class="vicon">' + it[0] + '</div><div><h4>' + it[1] + '</h4><p>' + it[2] + '</p></div></div>'; }).join('') +
+    '</div></div></section>';
+}
+
+// Vollflaechiges Marken-Band (montieren alle Fabrikate) — Vertrauens-Element
+function renderMarken() {
+  var marken = ['Continental', 'Michelin', 'Goodyear', 'Bridgestone', 'Pirelli', 'Dunlop', 'Hankook', 'Vredestein'];
+  return '<section class="marken"><div class="inner"><div class="mk-t">Wir montieren alle gängigen Reifenmarken</div>' +
+    '<div class="mk-list">' + marken.map(function (m) { return '<span>' + esc(m) + '</span>'; }).join('') + '</div></div></section>';
+}
+
+// Zusatz-CSS fuer die neuen Baender + Kachel-Icons (nutzt die :root-Tokens aus css())
+function extraCss() {
+  return '.vorteile{background:#f6f7f9;border-top:1px solid #e6e8ec;border-bottom:1px solid #e6e8ec}' +
+    '.vorteile .inner{padding-top:34px;padding-bottom:34px}' +
+    '.vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:22px}' +
+    '.vitem{display:flex;gap:14px;align-items:flex-start}' +
+    '.vicon{flex:none;width:46px;height:46px;border-radius:12px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center}' +
+    '.vicon svg{width:24px;height:24px}' +
+    '.vitem h4{font-size:calc(16px*var(--sc));margin:0 0 3px;color:#171717}' +
+    '.vitem p{font-size:calc(13.5px*var(--sc));color:#666;margin:0;line-height:1.5}' +
+    '.marken{background:var(--dark);color:#cfcfcf}' +
+    '.marken .inner{padding-top:30px;padding-bottom:30px;text-align:center}' +
+    '.marken .mk-t{font-size:calc(13px*var(--sc));text-transform:uppercase;letter-spacing:2px;color:#9aa0a6;margin-bottom:16px}' +
+    '.mk-list{display:flex;flex-wrap:wrap;gap:14px 26px;justify-content:center;align-items:center}' +
+    '.mk-list span{font-weight:800;font-size:calc(17px*var(--sc));color:#e6e6e6;letter-spacing:.5px;opacity:.9}' +
+    '.card-icon{color:var(--accent);margin-bottom:10px}.card-icon svg{width:34px;height:34px;display:block}' +
+    '@media(max-width:600px){.vgrid{gap:16px}}';
 }
 
 function renderSektion(s, f) {
@@ -242,6 +300,10 @@ function renderHomepage(sektionen, f, fonts) {
       body += renderLeistungen(group);
     } else { body += renderSektion(aktiv[i], f); i++; }
   }
+  // Vorteile-Band direkt nach dem Hero, Marken-Band am Ende der Inhalte
+  if (aktiv[0] && aktiv[0].typ === 'hero') body = body.replace('</section>', '</section>' + renderVorteile());
+  else body = renderVorteile() + body;
+  body += renderMarken();
   // Online-Terminbuchung fuer Gaeste (standardmaessig an, im CMS steuerbar)
   if (f.buchung_aktiv !== false) {
     var bh = buchungHtml(f);
@@ -273,7 +335,7 @@ function renderHomepage(sektionen, f, fonts) {
     '<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">' +
     '<link rel="apple-touch-icon" href="/apple-touch-icon.png">' +
     '<script type="application/ld+json">' + jsonLd(f) + '</scr' + 'ipt>' +
-    '<style>' + css(f, fonts) + '</style></head><body>' +
+    '<style>' + css(f, fonts) + extraCss() + '</style></head><body>' +
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
