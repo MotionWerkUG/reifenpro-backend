@@ -432,6 +432,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div id="dash-dokumente"></div>
         <div id="dash-kontakt"></div>
         <div id="dash-gewerbe"></div>
+        <div id="dash-abzurechnen"></div>
         <div class="stats">
           <div class="sc sc-a clickable" onclick="dashEinl('')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
           <div class="sc sc-y clickable" onclick="dashEinl('Abholbereit')"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
@@ -1640,6 +1641,7 @@ function startApp() {
   loadArtikel();
   loadRechnungen();
   loadAktivitaet();
+  loadAbzurechnen();
   loadKontakt();
   startUhr();
   befuelleJahrDropdown();
@@ -1706,7 +1708,7 @@ function showPage(n, fromPop) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
-  if (n === 'dashboard') { loadAktivitaet(); loadKontakt(); loadGewerbeAnf(); loadDokFaellig(); }
+  if (n === 'dashboard') { loadAktivitaet(); loadAbzurechnen(); loadKontakt(); loadGewerbeAnf(); loadDokFaellig(); }
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
@@ -2005,7 +2007,11 @@ function mahnen(id) {
 }
 function rechnungAusTermin(terminId) {
   api('POST', '/rechnungen/aus-termin/' + terminId).then(function(r) {
-    if (r && r.id) { notify('Rechnungsentwurf erstellt.'); showPage('rechnungen'); setTimeout(function() { editRechnung(r.id); }, 300); }
+    if (r && r.id) {
+      notify('Rechnungsentwurf erstellt.');
+      api('PATCH', '/termine/' + terminId + '/fakturiert', { fakturiert: true }).then(function() { loadAbzurechnen(); }).catch(function() {});
+      showPage('rechnungen'); setTimeout(function() { editRechnung(r.id); }, 300);
+    }
   }).catch(function(e) { notify(e.message, 'err'); });
 }
 function renderRechnungen() {
@@ -3674,6 +3680,27 @@ function loadAktivitaet() {
         '<span style="font-size:13px;flex:1">' + e.text + '</span>' +
         '<span style="font-size:11px;color:var(--muted);white-space:nowrap">' + zt + '</span></div>';
     }).join('');
+  }).catch(function() {});
+}
+// Erledigte, noch nicht abgerechnete Termine -> "Abzurechnen"-Liste im Dashboard (Buero rechnet ab).
+function loadAbzurechnen() {
+  api('GET', '/termine?status=abgeschlossen').then(function(rows) {
+    var el = document.getElementById('dash-abzurechnen'); if (!el) return;
+    var offen = (rows || []).filter(function(t) { return !t.fakturiert; });
+    if (!offen.length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div style="background:#eef6ff;border:1px solid #4a9eff;border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
+      '<div style="font-weight:700;color:#1a4b7a;margin-bottom:6px">' + offen.length + ' erledigte(r) Termin(e) — abzurechnen</div>' +
+      offen.map(function(t) {
+        var name = t.kundenname || t.kontakt_name || 'Laufkundschaft';
+        var leist = t.artikel_name || t.termin_typ || 'Leistung';
+        var d = t.datum ? fd(t.datum) : '';
+        return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(74,158,255,.3)">' +
+          '<div><span style="font-weight:600">' + kEsc(name) + '</span> <span style="color:#666;font-size:12px">' + kEsc(leist) + (d ? ' · ' + d : '') + '</span></div>' +
+          (t.kunden_id
+            ? '<button class="btn btn-p btn-sm" onclick="rechnungAusTermin(\'' + t.id + '\')">Rechnung</button>'
+            : '<button class="btn btn-g btn-sm" onclick="zeigeTermin(\'' + t.id + '\')">Öffnen</button>') +
+          '</div>';
+      }).join('') + '</div>';
   }).catch(function() {});
 }
 function renderDash() {
