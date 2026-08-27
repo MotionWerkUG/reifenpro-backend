@@ -20,7 +20,7 @@ const ALLOWED = [
   'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
   'max_parallele_termine', 'termine_pro_stunde', 'stornierung_frist_h', 'portal_url',
   'bank', 'iban', 'bic', 'zahlungsziel_tage',
-  'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland'
+  'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland', 'buchbar_ab'
 ];
 
 // Spalten vom Typ time/integer/numeric: leerer String wird zu NULL,
@@ -31,7 +31,7 @@ const NULL_IF_EMPTY = new Set([
   'einlagerung_preis_komplett', 'einlagerung_preis_ohne_felgen', 'kofferraum_preis',
   'reifenwechsel_preis', 'mahngebuehr', 'vertragsdauer_monate', 'abholungsfrist_wochen',
   'saison_erinnerung_wochen', 'max_parallele_termine', 'termine_pro_stunde',
-  'stornierung_frist_h', 'zahlungsziel_tage'
+  'stornierung_frist_h', 'zahlungsziel_tage', 'buchbar_ab'
 ]);
 
 const DEFAULT = {
