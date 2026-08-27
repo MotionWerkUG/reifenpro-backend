@@ -20,13 +20,15 @@ router.get('/', authenticate, async (req, res, next) => {
 
     const bk = await query(
       `SELECT t.id, to_char(t.datum,'DD.MM.YYYY') AS datum, t.uhrzeit_von, t.erstellt_am AS zeit,
-              t.termin_typ, k.vorname, k.nachname, t.kunden_id
+              t.termin_typ,
+              COALESCE(k.vorname, t.kontakt_vorname) AS vorname,
+              COALESCE(k.nachname, t.kontakt_nachname) AS nachname, t.kunden_id
        FROM termine t LEFT JOIN kunden k ON k.id = t.kunden_id
        WHERE t.portal_buchung = true ORDER BY t.erstellt_am DESC LIMIT 10`
     );
     bk.rows.forEach(function (r) {
       const name = ((r.vorname || '') + ' ' + (r.nachname || '')).trim() || 'Kunde';
-      ev.push({ zeit: r.zeit, typ: 'buchung', kunden_id: r.kunden_id,
+      ev.push({ zeit: r.zeit, typ: 'buchung', kunden_id: r.kunden_id, termin_id: r.id,
         text: 'Online-Buchung: ' + name + ' — ' + (r.termin_typ || 'Termin') + ' am ' + r.datum + ' ' + String(r.uhrzeit_von || '').substring(0, 5) });
     });
 

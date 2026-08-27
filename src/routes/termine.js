@@ -217,4 +217,15 @@ router.patch('/:id/kunde', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── PATCH /api/termine/:id/einlagern ── Buero markiert einen Termin fuer Einlagerung,
+// damit die Werkstatt es sofort sieht (Buero entscheidet -> Werkstatt wird informiert).
+router.patch('/:id/einlagern', async (req, res, next) => {
+  try {
+    const einlagern = req.body && (req.body.einlagern === true || req.body.einlagern === 'true');
+    const { rows } = await query('UPDATE termine SET einlagern=$1, geaendert_am=NOW() WHERE id=$2 RETURNING id, einlagern', [einlagern, req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Termin nicht gefunden.' });
+    res.json({ message: 'ok', einlagern: rows[0].einlagern });
+  } catch (e) { next(e); }
+});
+
 module.exports = router;
