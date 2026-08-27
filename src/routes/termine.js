@@ -14,7 +14,7 @@ router.get('/', async (req, res, next) => {
     const { von, bis, status } = req.query;
     let sql = `SELECT t.*,
       k.vorname || ' ' || k.nachname as kundenname,
-      k.kennzeichen, k.telefon,
+      COALESCE(t.kennzeichen, k.kennzeichen) AS kennzeichen, k.telefon,
       a.name as artikel_name, a.dauer_minuten,
       f.marke as fahrzeug_marke, f.modell as fahrzeug_modell
       FROM termine t
@@ -90,7 +90,7 @@ router.delete('/betriebsurlaub/:id', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT t.*, k.vorname || ' ' || k.nachname as kundenname, k.kennzeichen, k.telefon, a.name as artikel_name, a.dauer_minuten
+      `SELECT t.*, k.vorname || ' ' || k.nachname as kundenname, COALESCE(t.kennzeichen, k.kennzeichen) AS kennzeichen, k.telefon, a.name as artikel_name, a.dauer_minuten
        FROM termine t LEFT JOIN kunden k ON k.id=t.kunden_id LEFT JOIN artikel a ON a.id=t.artikel_id
        WHERE t.id=$1`,
       [req.params.id]
