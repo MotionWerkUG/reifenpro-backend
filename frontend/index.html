@@ -1895,6 +1895,7 @@ function terminNeuerKunde(id) {
   set('nk-kundentyp', 'privat'); if (typeof nkKundentypChange === 'function') nkKundentypChange();
   set('nk-anrede', t.kontakt_anrede || '');
   set('nk-vn', vn); set('nk-nn', nn); set('nk-tel', t.kontakt_telefon); set('nk-mail', t.kontakt_email);
+  set('nk-str', t.kontakt_strasse); set('nk-plz', t.kontakt_plz); set('nk-ort', t.kontakt_ort);
   setKzFelder('nk-', t.kennzeichen);
   var gc = document.getElementById('nk-gewerbe'); if (gc) gc.checked = false;
   NK_FROM_ANFRAGE = null; NK_FROM_TERMIN = id;
