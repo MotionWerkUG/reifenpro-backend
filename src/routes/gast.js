@@ -12,6 +12,9 @@ const oeffnung = require('../lib/oeffnung');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
+// Gutschein-Code normalisieren: Steuerzeichen (inkl. NUL -> sonst Postgres-500) UND Leerzeichen raus
+// (konsistent zur Admin-Pruefung), auf 40 Zeichen begrenzt. Vergleich in der Query ist ohnehin UPPER().
+const normGutschein = (s) => String(s == null ? '' : s).replace(/[\s\x00-\x1F]/g, '').slice(0, 40);
 
 // Baut die Kalkulationspositionen: je Leistung Grundpreis + (getrennt) Fahrzeug-Zuschlag.
 // typ = gewaehlter Fahrzeugtyp (z.B. SUV), zoll = Zollgroesse (optional).
@@ -135,6 +138,22 @@ router.get('/leistungen', limiter, async (req, res, next) => {
 });
 
 // Live-Kalkulation: gewaehlte Leistungen + Fahrzeugtyp/Zoll -> itemisierte Positionen (Grundpreis + Zuschlag)
+// Oeffentliche Gutschein-Pruefung fuer die /termin/-Buchung (ohne Login). 200 AUCH bei ungueltig
+// (gueltig:false), damit das Frontend die Feld-Validierung sauber als "ungueltig" anzeigen kann.
+// Gueltig nur bei aktiv + nicht abgelaufen + rabatt_prozent > 0.
+router.get('/gutschein/:code', limiter, async (req, res, next) => {
+  try {
+    const code = normGutschein(req.params.code);
+    if (!code) return res.json({ gueltig: false });
+    const g = (await query(
+      `SELECT code, beschreibung, rabatt_prozent FROM gutscheine
+       WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE) AND rabatt_prozent > 0 AND rabatt_prozent <= 100`,
+      [code])).rows[0];
+    if (!g) return res.json({ gueltig: false });
+    res.json({ gueltig: true, code: g.code, rabatt_prozent: g.rabatt_prozent, beschreibung: g.beschreibung || null });
+  } catch (e) { next(e); }
+});
+
 router.get('/kalkulation', limiter, async (req, res, next) => {
   try {
     const split = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -264,6 +283,19 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const terminTyp = (hauptNamen.join(' + ') + (zusatzN ? ' +' + zusatzN + ' Zusatz' : '')).slice(0, 160);
     const beschreibung = 'Online gebucht – ' + kalk.gewaehlt.join(', ') + (fzt ? ' · ' + fzt : '') + (zoll ? ' · ' + zoll + ' Zoll' : '');
 
+    // Gutschein serverseitig pruefen (nur aktiver, nicht abgelaufener Code mit Rabatt > 0). Der zum
+    // Buchungszeitpunkt validierte Prozentsatz wird am Termin EINGEFROREN (verbindliche Zusage; das
+    // Rechnungswesen zieht genau diesen Wert in "Rechnung aus Termin"). Ungueltig -> kein Rabatt, kein Fehler.
+    let gutscheinCode = null, gutscheinRabatt = null;
+    const gcRaw = normGutschein(b.gutschein_code);
+    if (gcRaw) {
+      const gc = (await query(
+        `SELECT code, rabatt_prozent FROM gutscheine
+         WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE) AND rabatt_prozent > 0 AND rabatt_prozent <= 100`,
+        [gcRaw])).rows[0];
+      if (gc) { gutscheinCode = gc.code; gutscheinRabatt = gc.rabatt_prozent; }
+    }
+
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 45 * 60000); // 45-Min-Bestaetigungsfenster (haelt den Slot befristet)
 
@@ -279,9 +311,9 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
         `INSERT INTO termine (kontakt_name, kontakt_anrede, kontakt_vorname, kontakt_nachname, kontakt_telefon, kontakt_email,
            kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
            kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung,
-           bestaetigung_token, bestaetigung_token_ablauf)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21)`,
-        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf]);
+           bestaetigung_token, bestaetigung_token_ablauf, gutschein_code, gutschein_rabatt)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23)`,
+        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt]);
     });
 
     // Nur EINE Mail an den (noch unverifizierten) Gast: der Bestaetigungslink. Admin-Mail + finale
@@ -295,7 +327,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       const htmlGast = portalMailHtml(einst, {
         titel: 'Bitte bestätigen Sie Ihre Terminanfrage', name: vn,
         absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : ''),
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + gutscheinCode + ' (−' + gutscheinRabatt + ' %)' : ''),
           'Ihr Termin ist noch <strong>nicht verbindlich</strong>. Bitte bestätigen Sie ihn innerhalb von 45 Minuten mit einem Klick auf den Button — erst dann ist er fest gebucht.'],
         button: { text: 'Termin verbindlich bestätigen', url: link },
         hinweis: 'Wenn Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail einfach — es wird kein Termin gebucht. Der Link ist 45 Minuten gültig.'
@@ -303,7 +335,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Bitte bestätigen: Terminanfrage ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
     } catch (mailErr) { console.error('[Gast-Buchung-Mail]', mailErr.message); }
 
-    res.status(201).json({ message: 'bestaetigung_noetig', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt, summe_brutto: kalk.brutto });
+    res.status(201).json({ message: 'bestaetigung_noetig', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt, summe_brutto: kalk.brutto, gutschein_code: gutscheinCode, gutschein_rabatt: gutscheinRabatt });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
@@ -377,7 +409,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       const htmlGast = portalMailHtml(einst, {
         titel: 'Ihr Termin ist bestätigt', name: t.kontakt_vorname || '',
         absaetze: ['vielen Dank — Ihr Termin bei Schröder &amp; Scholz ist jetzt verbindlich gebucht.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : ''),
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : '') + (t.gutschein_code ? '<br><strong>Gutschein:</strong> ' + t.gutschein_code + ' (−' + t.gutschein_rabatt + ' %)' : ''),
           posHtml ? ('<strong>Leistungen (Schätzung, netto):</strong><br>' + posHtml) : ''],
         hinweis: 'Die Preise sind eine unverbindliche Schätzung; der Endpreis kann je nach Aufwand abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
       });
