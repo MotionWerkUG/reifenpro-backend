@@ -512,12 +512,21 @@ function script() {
 // Auf Marke (dunkel + Gold), keine Navigation/Buchung, noindex (Platzhalter nicht indexieren).
 function renderWartung(f) {
   f = f || {};
+  // Buchungsstart-Datum dynamisch aus einstellungen.buchbar_ab (Single Source of Truth) —
+  // damit die Coming-Soon-Seite nie vom echten Buchungsstart (/termin/) abweicht.
+  var _MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  var _ba = (f.buchbar_ab && /^\d{4}-\d{2}-\d{2}$/.test(String(f.buchbar_ab))) ? String(f.buchbar_ab).split('-') : null;
+  var startDatum = _ba ? (parseInt(_ba[2], 10) + '. ' + _MON[parseInt(_ba[1], 10) - 1] + ' ' + _ba[0]) : null;
+  var datumSatz = startDatum
+    ? 'Ab dem <b>' + startDatum + '</b> können Sie hier online Ihren Termin buchen.'
+    : 'Die Online-Terminbuchung startet <b>in Kürze</b>.';
+  var metaDesc = 'Schröder & Scholz – Reifenservice und Fahrzeugtechnik. Unsere neue Website ist bald da.' + (startDatum ? ' Ab ' + startDatum + ' online Termine buchen.' : '');
   // Reine Info-Seite: nur Logo, Headline und Buchungsstart-Datum – kein Kontakt,
   // keine Rechtslinks (bewusst auf Wunsch von David).
   return '<!DOCTYPE html><html lang="de"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
     '<title>Schröder &amp; Scholz &ndash; bald für Sie da</title>' +
-    '<meta name="description" content="Schröder &amp; Scholz – Reifenservice und Fahrzeugtechnik. Unsere neue Website ist bald da. Ab 31. August 2026 online Termine buchen.">' +
+    '<meta name="description" content="' + esc(metaDesc) + '">' +
     '<meta name="robots" content="noindex">' +
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' +
     '<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">' +
@@ -548,7 +557,7 @@ function renderWartung(f) {
     '<h1>Wir sind bald <span class="akz">für Sie</span> da.</h1>' +
     '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
     '<div class="ws-line"></div>' +
-    '<p class="ws-datum">Ab dem <b>31. August 2026</b> können Sie hier online Ihren Termin buchen.</p>' +
+    '<p class="ws-datum">' + datumSatz + '</p>' +
     '<div class="ws-foot"><a href="/portal/impressum.html">Impressum</a>&middot;<a href="/portal/datenschutz.html">Datenschutz</a></div>' +
     '</body></html>';
 }
