@@ -152,7 +152,7 @@
         <input id="f-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">
       </div>
     </div>
-    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Ihr gewünschtes Termindatum (nicht das Datum der Erstzulassung).</div></div>
+    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Ihr gewünschtes Termindatum (nicht das Datum der Erstzulassung). <span id="buchbar-hint"></span></div></div>
     <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div id="slots"></div><div class="info" id="slots-info"></div></div>
   </div>
 
@@ -221,6 +221,13 @@
 'use strict';
 var API = '/api/gast';
 var API_ADR = '/api/adresse';
+// Frueheste buchbare Datum (Neueroeffnung). Backend ist autoritativ; /leistungen darf es via buchbar_ab ueberschreiben.
+var BUCHBAR_AB = '2026-10-01';
+function heuteStr(){ var n=new Date(); return n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2); }
+function minDatum(){ var h=heuteStr(); return BUCHBAR_AB>h?BUCHBAR_AB:h; }
+function fmtDe(d){ return String(d||'').split('-').reverse().join('.'); }
+function setDatumMin(){ var dt=document.getElementById('datum'); if(dt) dt.min=minDatum(); }
+function setBuchbarHinweis(){ var e=document.getElementById('buchbar-hint'); if(e) e.innerHTML=(BUCHBAR_AB>heuteStr())?'<strong>Termine buchbar ab '+fmtDe(BUCHBAR_AB)+' (Neueröffnung).</strong>':''; }
 var LEIST = { haupt: [], zusatz: [] };
 var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datum: '', slot: '', gutschein: null };
 
@@ -233,6 +240,8 @@ function gesamtDauer(){var d=0;alleGewaehlt().forEach(function(a){d+=dauerVon(a)
 function ladeLeistungen(){
   fetch(API+'/leistungen').then(function(r){return r.json();}).then(function(d){
     LEIST=d||{haupt:[],zusatz:[]};
+    if(d && d.buchbar_ab && /^\d{4}-\d{2}-\d{2}$/.test(d.buchbar_ab)) BUCHBAR_AB=d.buchbar_ab; // konfigurierbar aus einstellungen (Portal)
+    setDatumMin(); setBuchbarHinweis();
     renderCards('haupt-cards', LEIST.haupt, 'haupt');
     renderCards('zusatz-cards', LEIST.zusatz, 'zusatz');
     if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Bitte rufen Sie uns an.</p>';
@@ -314,6 +323,7 @@ function ladeSlots(){
   state.slot=''; state.datum=document.getElementById('datum').value; updateLeiste();
   var w=document.getElementById('slots-wrap'),sl=document.getElementById('slots'),info=document.getElementById('slots-info');
   if(!state.datum){w.style.display='none';return;}
+  if(state.datum < BUCHBAR_AB){ w.style.display='block'; sl.innerHTML=''; info.textContent='Termine sind erst ab '+fmtDe(BUCHBAR_AB)+' buchbar (Neueröffnung). Bitte ein späteres Datum wählen.'; return; }
   w.style.display='block'; sl.innerHTML=''; info.textContent='Lädt …';
   fetch(API+'/slots?datum='+encodeURIComponent(state.datum)+'&dauer='+gesamtDauer()).then(function(r){return r.json();}).then(function(d){
     info.textContent='';
@@ -485,7 +495,7 @@ function plzOrtLookup(){
 function ortPick(i){ var o=_orteCache[i]; if(o==null) return; document.getElementById('f-ort').value=o; adrHide(); }
 // Dropdown schliessen bei Klick ausserhalb eines Adressfeldes
 document.addEventListener('click', function(ev){ if(!(ev.target.closest && ev.target.closest('.adr-wrap'))) adrHide(); });
-(function(){var dt=document.getElementById('datum');var n=new Date();dt.min=n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2);})();
+(function(){ setDatumMin(); setBuchbarHinweis(); })();
 ladeLeistungen();
 </script>
 </body>
