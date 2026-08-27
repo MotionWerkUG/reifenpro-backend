@@ -3717,7 +3717,8 @@ function loadAbzurechnen() {
         var leist = t.artikel_name || t.termin_typ || 'Leistung';
         var d = t.datum ? fd(t.datum) : '';
         return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(74,158,255,.3)">' +
-          '<div><span style="font-weight:600">' + kEsc(name) + '</span> <span style="color:#666;font-size:12px">' + kEsc(leist) + (d ? ' · ' + d : '') + '</span></div>' +
+          '<div><span style="font-weight:600">' + kEsc(name) + '</span> <span style="color:#666;font-size:12px">' + kEsc(leist) + (d ? ' · ' + d : '') + '</span>' +
+            (t.gutschein_code ? ' <span style="color:#c0392b;font-size:11px;font-weight:600">Gutschein ' + kEsc(t.gutschein_code) + ' −' + (t.gutschein_rabatt || 0) + '%</span>' : '') + '</div>' +
           (t.kunden_id
             ? '<button class="btn btn-p btn-sm" onclick="rechnungAusTermin(\'' + t.id + '\')">Rechnung</button>'
             : '<button class="btn btn-g btn-sm" onclick="zeigeTermin(\'' + t.id + '\')">Öffnen</button>') +
@@ -4070,6 +4071,7 @@ function zeigeTermin(id) {
     '<div>' + iz('Leistung', t.artikel_name || t.termin_typ || '-') + '</div>' +
     '<div>' + iz('Kennzeichen', t.kennzeichen || '-') + '</div>' +
     '<div>' + iz('Telefon', t.kontakt_telefon || '-') + '</div>' +
+    (t.gutschein_code ? '<div>' + iz('Gutschein', t.gutschein_code + (t.gutschein_rabatt ? ' (−' + t.gutschein_rabatt + ' %)' : '')) + '</div>' : '') +
     (t.beschreibung ? '<div>' + iz('Beschreibung', t.beschreibung) + '</div>' : '') +
     (t.notizen_intern ? '<div>' + iz('Interne Notizen', t.notizen_intern) + '</div>' : '') +
     '</div>' +
@@ -4277,6 +4279,7 @@ function renderWS() {
           '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
           (t.einlagern ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
+          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:#c0392b">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
