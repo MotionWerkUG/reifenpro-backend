@@ -85,6 +85,12 @@
   .done-box{text-align:center;padding:40px 16px}
   .done-box .ok{width:72px;height:72px;border-radius:50%;background:#e7f7ee;color:#1a7f37;font-size:38px;display:flex;align-items:center;justify-content:center;margin:0 auto 18px}
   .muted{color:#888;font-size:13px}
+  .preis-alt{color:#c8402a;text-decoration:line-through;font-weight:600;margin-right:8px}
+  .gs-field{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .gs-field input{flex:1;min-width:150px;text-transform:uppercase}
+  .gs-field .btn{white-space:nowrap}
+  .gs-msg{font-size:13px;margin-top:6px}.gs-msg.gs-ok{color:#1a7f37;font-weight:700}.gs-msg.gs-bad{color:#c8402a}
+  .sum .gs-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;color:#1a7f37;font-weight:700;border-bottom:1px solid #f0f1f3}
   @media(max-width:600px){.grid2{grid-template-columns:1fr}.step{min-width:0;font-size:0;padding-top:6px}.step::first-letter{font-size:12px}}
 </style>
 </head>
@@ -155,6 +161,13 @@
     <h1>Ihre Kontaktdaten</h1>
     <div class="sub">Damit wir Ihren Termin bestätigen und ggf. eine Rechnung erstellen können.</div>
     <div class="sum" id="sum-box"></div>
+    <div class="field"><label class="lab">Gutschein-Code (optional)</label>
+      <div class="gs-field">
+        <input type="text" id="gs-code" autocomplete="off" placeholder="z. B. WINTER2026" onkeydown="if(event.key==='Enter'){event.preventDefault();gutscheinAnwenden();}">
+        <button type="button" class="btn btn-g" onclick="gutscheinAnwenden()">Anwenden</button>
+      </div>
+      <div class="gs-msg" id="gs-msg"></div>
+    </div>
     <form id="p4form" autocomplete="on" onsubmit="return false">
     <div class="grid2">
       <div class="field"><label class="lab">Anrede</label>
@@ -209,7 +222,7 @@
 var API = '/api/gast';
 var API_ADR = '/api/adresse';
 var LEIST = { haupt: [], zusatz: [] };
-var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datum: '', slot: '' };
+var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datum: '', slot: '', gutschein: null };
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function eur(n){return (Number(n)||0).toFixed(2).replace('.',',')+' €';}
@@ -292,7 +305,8 @@ function preisLive(){
     fetch(url).then(function(r){return r.json();}).then(function(k){
       if(seq!==_pvSeq) return; // veraltete Antwort -> ignorieren
       var pre = zollReq ? '' : '<span class="ab">ab</span>';
-      el.innerHTML = pre + eur(k.brutto);
+      var g=gsBrutto(k.brutto);
+      el.innerHTML = g ? (pre+'<span class="preis-alt">'+eur(g.alt)+'</span>'+eur(g.neu)) : (pre + eur(k.brutto));
     }).catch(function(){ if(seq===_pvSeq) el.textContent='—'; });
   }, 180);
 }
@@ -323,6 +337,26 @@ document.addEventListener('click', function(ev){
 function kz(){ var v=function(id){return (document.getElementById(id).value||'').trim();};
   var k=[v('f-kz1'),v('f-kz2'),v('f-kz3')].filter(Boolean).join('-'); var k4=v('f-kz4'); if(k4)k+=' '+k4; return k.trim(); }
 function idsCsv(arr){ return arr.map(function(a){return a.artikel_id;}).join(','); }
+// ── Gutschein: Live-Validierung ueber oeffentlichen Endpunkt (Portal), 404 -> ungueltig ──
+function gutscheinAnwenden(){
+  var code=(document.getElementById('gs-code').value||'').trim().toUpperCase();
+  var msg=document.getElementById('gs-msg');
+  if(!code){ state.gutschein=null; msg.className='gs-msg'; msg.textContent=''; renderSum(); preisLive(); return; }
+  msg.className='gs-msg'; msg.textContent='Prüfe …';
+  fetch(API+'/gutschein/'+encodeURIComponent(code)).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(gd){
+    var rab=Number(gd&&gd.rabatt_prozent)||0;
+    if(!(rab>0)) throw 0;
+    state.gutschein={ code:(gd.code||code), rabatt:rab };
+    msg.className='gs-msg gs-ok'; msg.textContent='Gutschein '+state.gutschein.code+' aktiv: −'+rab+' % (endgültige Anrechnung bei der Rechnung).';
+    renderSum(); preisLive();
+  }).catch(function(){ state.gutschein=null; msg.className='gs-msg gs-bad'; msg.textContent='Code ungültig oder abgelaufen.'; renderSum(); preisLive(); });
+}
+// Wendet den aktiven Gutschein-Rabatt auf einen Bruttobetrag an (nur Anzeige/Schaetzung).
+function gsBrutto(brutto){
+  if(!state.gutschein) return null;
+  var neu=Math.round(brutto*(1-state.gutschein.rabatt/100)*100)/100;
+  return { alt:brutto, neu:neu, rabatt:Math.round((brutto-neu)*100)/100 };
+}
 function renderSum(){
   var box=document.getElementById('sum-box');
   box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
@@ -336,7 +370,13 @@ function renderSum(){
     rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
     rows+='<div class="row"><span>Nettobetrag</span><span>'+eur(k.netto)+'</span></div>';
     rows+='<div class="row"><span>zzgl. MwSt</span><span>'+eur(k.mwst)+'</span></div>';
-    rows+='<div class="row total"><span>Gesamt (brutto)</span><span>'+eur(k.brutto)+'</span></div>';
+    var g=gsBrutto(k.brutto);
+    if(g){
+      rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+' (−'+state.gutschein.rabatt+'%)</span><span>−'+eur(g.rabatt)+'</span></div>';
+      rows+='<div class="row total"><span>Gesamt (brutto)</span><span><span class="preis-alt">'+eur(k.brutto)+'</span>'+eur(g.neu)+'</span></div>';
+    } else {
+      rows+='<div class="row total"><span>Gesamt (brutto)</span><span>'+eur(k.brutto)+'</span></div>';
+    }
     box.innerHTML='<h3>Ihre Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis Ihrer Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
   }).catch(function(){ box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
 }
@@ -371,7 +411,7 @@ function absenden(){
     anrede:v('f-anrede'), vorname:v('f-vorname'), nachname:v('f-nachname'), telefon:v('f-tel'), email:v('f-email'),
     strasse:v('f-strasse'), plz:v('f-plz'), ort:v('f-ort'),
     fahrzeugtyp:state.fahrzeugtyp, zoll:state.zoll, kennzeichen:kz(),
-    datum:state.datum, uhrzeit_von:state.slot,
+    datum:state.datum, uhrzeit_von:state.slot, gutschein_code: state.gutschein ? state.gutschein.code : '',
     datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
   if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
   if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
