@@ -78,6 +78,16 @@ cron.schedule('0 2 * * *', async function() {
   } catch (err) { console.error('[Cron]', err.message); }
 }, { timezone: 'Europe/Berlin' });
 
+// Taeglich 03:15 — Website neu erzeugen. Die Seite ist statisch; ohne diesen Lauf
+// bliebe ein bereits vergangener Feiertag im Block „Feiertage & besondere Tage“ stehen,
+// bis zufaellig jemand im CMS etwas aendert.
+cron.schedule('15 3 * * *', async function() {
+  try {
+    await require('./lib/homepage-generate').regenerate();
+    console.log('[Cron 03:15] Website neu erzeugt');
+  } catch (err) { console.error('[Cron]', err.message); }
+}, { timezone: 'Europe/Berlin' });
+
 // Taeglich 16:00 — Tagesliste fuer morgen per E-Mail
 cron.schedule('0 16 * * *', async function() {
   try {

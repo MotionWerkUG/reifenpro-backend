@@ -180,19 +180,15 @@
       <label>Instagram-Profil</label><input type="url" id="fd-instagram" maxlength="300" placeholder="https://instagram.com/...">
 
       <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Öffnungszeiten</h3>
-      <div class="imghint" style="margin-top:0;margin-bottom:10px">Leere Zeiten oder ausgeschaltete Tage erscheinen nicht auf der Website. Für „geschlossen" den Tag einfach ohne Zeit lassen.</div>
-      <label>Montag – Freitag</label>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="time" id="fd-mofr-von" style="width:130px"> <span style="color:var(--muted)">bis</span> <input type="time" id="fd-mofr-bis" style="width:130px">
-      </div>
-      <label style="display:flex;align-items:center;gap:9px;margin:14px 0 6px"><span class="sw"><input type="checkbox" id="fd-sa-offen"></span> Samstag geöffnet</label>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="time" id="fd-sa-von" style="width:130px"> <span style="color:var(--muted)">bis</span> <input type="time" id="fd-sa-bis" style="width:130px">
-      </div>
-      <label style="display:flex;align-items:center;gap:9px;margin:14px 0 6px"><span class="sw"><input type="checkbox" id="fd-so-offen"></span> Sonntag geöffnet</label>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="time" id="fd-so-von" style="width:130px"> <span style="color:var(--muted)">bis</span> <input type="time" id="fd-so-bis" style="width:130px">
-      </div>
+      <div class="imghint" style="margin-top:0;margin-bottom:10px">Für jeden Wochentag eigene Zeiten – mit <b>Mittagspause</b>, wenn nötig. Ausgeschaltete Tage erscheinen als „geschlossen". Diese Zeiten gelten auch für die <b>Online-Terminbuchung</b>.</div>
+      <div id="fd-woche"></div>
+      <div class="row" style="margin-top:4px"><button class="btn btn-g" onclick="ozMoUebernehmen()">Zeiten von Montag auf Di – Fr übernehmen</button></div>
+      <label style="margin-top:14px">Hinweis unter den Öffnungszeiten (optional)</label>
+      <input type="text" id="fd-oz-hinweis" maxlength="300" placeholder="z. B. Termine auch nach Vereinbarung">
+      <div class="imghint" style="margin-top:6px">Erscheint auf der Website direkt unter der Zeiten-Tabelle.</div>
+
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Feiertage &amp; besondere Tage</h3>
+      <div id="fd-besondere" class="imghint" style="margin-top:0"></div>
 
       <div class="row"><button class="btn btn-p" onclick="firmendatenSpeichern()">Kontaktdaten &amp; Zeiten speichern</button></div>
     </div></div>
@@ -733,9 +729,8 @@ function firmendatenLaden() {
     txt('fd-telefon', f.telefon); txt('fd-email', f.email);
     txt('fd-geo-breite', f.geo_breite); txt('fd-geo-laenge', f.geo_laenge);
     txt('fd-google', f.google_bewertung_url); txt('fd-facebook', f.facebook_url); txt('fd-instagram', f.instagram_url);
-    zeit('fd-mofr-von', f.mo_fr_von); zeit('fd-mofr-bis', f.mo_fr_bis);
-    document.getElementById('fd-sa-offen').checked = !!f.sa_offen; zeit('fd-sa-von', f.sa_von); zeit('fd-sa-bis', f.sa_bis);
-    document.getElementById('fd-so-offen').checked = !!f.so_offen; zeit('fd-so-von', f.so_von); zeit('fd-so-bis', f.so_bis);
+    txt('fd-oz-hinweis', f.oeffnungszeiten_hinweis);
+    ozSetzen(f.woche); ozBesondereRender(f.besondere);
     // Firmenname/Adresse sind Rechnungsangaben: nur fuer Admins editierbar, sonst nur lesbar
     var stamm = f.darf_stammdaten === true;
     ['fd-firmenname', 'fd-strasse', 'fd-plz', 'fd-ort'].forEach(function(id){
@@ -746,15 +741,103 @@ function firmendatenLaden() {
 }
 function firmendatenSpeichern() {
   var val = function(id){ var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  // Sicherheitsnetz: Eine Woche ganz ohne offene Tage schaltet auch die Online-Buchung ab.
+  if (OZ_VERFUEGBAR && OZ_WOCHE.every(function(d){ return d.geschlossen; })
+      && !confirm('Alle Wochentage sind auf „geschlossen“ gestellt. Damit zeigt die Website keine Öffnungszeiten mehr und es kann online kein Termin gebucht werden.\n\nWirklich so speichern?')) return;
   api('PUT', '/homepage/firmendaten', {
     firmenname: val('fd-firmenname'), strasse: val('fd-strasse'), plz: val('fd-plz'), ort: val('fd-ort'),
     telefon: val('fd-telefon'), email: val('fd-email'),
     geo_breite: val('fd-geo-breite'), geo_laenge: val('fd-geo-laenge'),
     google_bewertung_url: val('fd-google'), facebook_url: val('fd-facebook'), instagram_url: val('fd-instagram'),
-    mo_fr_von: val('fd-mofr-von'), mo_fr_bis: val('fd-mofr-bis'),
-    sa_offen: document.getElementById('fd-sa-offen').checked, sa_von: val('fd-sa-von'), sa_bis: val('fd-sa-bis'),
-    so_offen: document.getElementById('fd-so-offen').checked, so_von: val('fd-so-von'), so_bis: val('fd-so-bis')
+    oeffnungszeiten_hinweis: val('fd-oz-hinweis'),
+    woche: OZ_VERFUEGBAR ? OZ_WOCHE : undefined
   }).then(function(){ notify('Kontaktdaten gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
+}
+
+// ── Öffnungszeiten: Wochenraster (Mo=0 … So=6, bis zu 2 Spannen je Tag) ──
+var OZ_TAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+var OZ_WOCHE = [];
+// false = Zeiten konnten nicht geladen werden -> Raster nicht bedienbar und beim Speichern
+// NICHT mitsenden (sonst wuerde eine leere Woche alle Tage schliessen).
+var OZ_VERFUEGBAR = false;
+function ozSetzen(woche) {
+  OZ_WOCHE = [];
+  OZ_VERFUEGBAR = !!(woche && woche.length === 7);
+  if (!OZ_VERFUEGBAR) {
+    var w = document.getElementById('fd-woche');
+    if (w) w.innerHTML = '<div class="imghint" style="margin:0">Die Öffnungszeiten konnten nicht geladen werden. Bitte die Seite neu laden – beim Speichern bleiben die bisherigen Zeiten unverändert.</div>';
+    return;
+  }
+  for (var wt = 0; wt < 7; wt++) {
+    var t = (woche && woche[wt]) || { geschlossen: true, spannen: [] };
+    var sp = t.spannen || [];
+    OZ_WOCHE.push({
+      wochentag: wt, geschlossen: t.geschlossen !== false && !sp.length,
+      von1: sp[0] ? sp[0][0] : '', bis1: sp[0] ? sp[0][1] : '',
+      von2: sp[1] ? sp[1][0] : '', bis2: sp[1] ? sp[1][1] : ''
+    });
+  }
+  ozRender();
+}
+function ozRender() {
+  var el = document.getElementById('fd-woche'); if (!el) return;
+  el.innerHTML = OZ_WOCHE.map(function(d, i) {
+    var offen = !d.geschlossen;
+    var pause = !!(d.von2 || d.bis2);
+    var zeiten = offen
+      ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">' +
+          '<input type="time" value="' + esc(d.von1) + '" style="width:120px" onchange="ozFeld(' + i + ',\'von1\',this.value)">' +
+          '<span style="color:var(--muted)">bis</span>' +
+          '<input type="time" value="' + esc(d.bis1) + '" style="width:120px" onchange="ozFeld(' + i + ',\'bis1\',this.value)">' +
+          '<label style="display:flex;align-items:center;gap:7px;margin:0 0 0 6px;font-size:12px;color:var(--muted)">' +
+            '<input type="checkbox"' + (pause ? ' checked' : '') + ' onchange="ozPause(' + i + ',this.checked)"> Mittagspause</label>' +
+        '</div>' +
+        (pause ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">' +
+          '<span style="font-size:12px;color:var(--muted);width:76px">nachmittags</span>' +
+          '<input type="time" value="' + esc(d.von2) + '" style="width:120px" onchange="ozFeld(' + i + ',\'von2\',this.value)">' +
+          '<span style="color:var(--muted)">bis</span>' +
+          '<input type="time" value="' + esc(d.bis2) + '" style="width:120px" onchange="ozFeld(' + i + ',\'bis2\',this.value)">' +
+        '</div>' : '')
+      : '';
+    return '<div style="padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px">' +
+      '<label style="display:flex;align-items:center;gap:9px;margin:0"><span class="sw"><input type="checkbox"' + (offen ? ' checked' : '') +
+        ' onchange="ozOffen(' + i + ',this.checked)"></span> <b>' + OZ_TAGE[i] + '</b>' +
+        (offen ? '' : ' <span style="color:var(--muted);font-size:12px">geschlossen</span>') + '</label>' +
+      zeiten + '</div>';
+  }).join('');
+}
+function ozOffen(i, an) {
+  OZ_WOCHE[i].geschlossen = !an;
+  if (an && !OZ_WOCHE[i].von1) { OZ_WOCHE[i].von1 = '08:00'; OZ_WOCHE[i].bis1 = '18:00'; }
+  if (!an) { OZ_WOCHE[i].von1 = ''; OZ_WOCHE[i].bis1 = ''; OZ_WOCHE[i].von2 = ''; OZ_WOCHE[i].bis2 = ''; }
+  ozRender();
+}
+function ozFeld(i, feld, wert) { OZ_WOCHE[i][feld] = wert || ''; }
+function ozPause(i, an) {
+  if (an) { OZ_WOCHE[i].von2 = OZ_WOCHE[i].von2 || '13:00'; OZ_WOCHE[i].bis2 = OZ_WOCHE[i].bis2 || (OZ_WOCHE[i].bis1 || '18:00'); if (OZ_WOCHE[i].bis1 === OZ_WOCHE[i].bis2) OZ_WOCHE[i].bis1 = '12:00'; }
+  else { OZ_WOCHE[i].von2 = ''; OZ_WOCHE[i].bis2 = ''; }
+  ozRender();
+}
+// Häufigster Fall: Mo–Fr gleiche Zeiten — einmal eintragen, dann übernehmen.
+function ozMoUebernehmen() {
+  var mo = OZ_WOCHE[0];
+  for (var i = 1; i <= 4; i++) {
+    OZ_WOCHE[i] = { wochentag: i, geschlossen: mo.geschlossen, von1: mo.von1, bis1: mo.bis1, von2: mo.von2, bis2: mo.bis2 };
+  }
+  ozRender();
+  notify('Zeiten von Montag übernommen – noch nicht gespeichert.');
+}
+// Feiertage/Betriebsurlaub kommen aus der Verwaltung (Einstellungen) — hier nur zur Info.
+function ozBesondereRender(liste) {
+  var el = document.getElementById('fd-besondere'); if (!el) return;
+  var hin = 'Gepflegt in der Verwaltung unter <b>Einstellungen → Öffnungszeiten</b>. Geschlossene Tage erscheinen automatisch auf der Website und sind nicht online buchbar.';
+  if (!liste || !liste.length) { el.innerHTML = 'Keine kommenden Feiertage oder Schließtage hinterlegt.<br>' + hin; return; }
+  el.innerHTML = liste.slice(0, 10).map(function(b) {
+    var d = new Date(b.datum + 'T12:00:00');
+    var datum = ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear();
+    var zeit = b.geschlossen ? 'geschlossen' : (b.von || '') + ' – ' + (b.bis || '');
+    return '<div>' + datum + ' – ' + esc(b.bezeichnung || '') + ': <b>' + esc(zeit) + '</b></div>';
+  }).join('') + '<div style="margin-top:6px">' + hin + '</div>';
 }
 
 // ── Navigationsbuttons ──
