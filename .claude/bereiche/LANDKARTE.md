@@ -11,10 +11,10 @@ eigenen Arbeitsordner** (git worktree) neben dem Hauptordner. Der Hauptordner
 
 | Bereich | Arbeitsordner | Branch |
 |---|---|---|
-| Homepage/CMS | `reifenpro-homepage` | `homepage/*` |
-| Kundenportal | `reifenpro-portal` | `portal/*` |
-| Admin/Werkstatt | `reifenpro-admin` | `admin/*` |
-| Rechnungswesen | `reifenpro-rechnungen` | `rechnungen/*` |
+| Homepage/CMS | `reifenpro/homepage` | `homepage/*` |
+| Kundenportal | `reifenpro/portal` | `portal/*` |
+| Admin/Werkstatt | `reifenpro/admin` | `admin/*` |
+| Rechnungswesen | `reifenpro/rechnungswesen` | `rechnungen/*` |
 | Deploy/Integration | `reifenpro` | `main` (nicht direkt drin entwickeln) |
 
 - **Pro Session im passenden Bereichs-Ordner arbeiten**, nicht mehrere Sessions im selben Ordner
