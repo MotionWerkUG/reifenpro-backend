@@ -440,6 +440,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div id="dash-dokumente"></div>
         <div id="dash-kontakt"></div>
         <div id="dash-gewerbe"></div>
+        <div id="dash-heute"></div>
         <div id="dash-abzurechnen"></div>
         <div class="stats">
           <div class="sc sc-a clickable" onclick="dashEinl('')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
@@ -1654,6 +1655,7 @@ function startApp() {
   loadArtikel();
   loadRechnungen();
   loadAktivitaet();
+  loadHeute();
   loadAbzurechnen();
   loadKontakt();
   startUhr();
@@ -1721,7 +1723,7 @@ function showPage(n, fromPop) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
-  if (n === 'dashboard') { loadAktivitaet(); loadAbzurechnen(); loadKontakt(); loadGewerbeAnf(); loadDokFaellig(); }
+  if (n === 'dashboard') { loadAktivitaet(); loadHeute(); loadAbzurechnen(); loadKontakt(); loadGewerbeAnf(); loadDokFaellig(); }
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
@@ -1934,6 +1936,15 @@ function terminEinlagernJetzt(id) {
   NE_FROM_TERMIN = id;
   openModal('ne');
   if (!aktK) notify('Kein Kunde am Termin — bitte im Formular Kunde wählen oder anlegen.');
+}
+// No-Show: Termin als 'nicht erschienen' markieren (ehrlicher als Absagen; eigener Status fuer Statistik).
+function terminNichtErschienen(id) {
+  if (!confirm('Diesen Termin als „nicht erschienen" markieren?')) return;
+  api('PATCH', '/termine/' + id + '/status', { status: 'nicht_erschienen' }).then(function() {
+    notify('Als „nicht erschienen" markiert.');
+    var tt = (typeof allTermine !== 'undefined' && allTermine ? allTermine : []).find(function(x) { return x.id === id; }); if (tt) tt.status = 'nicht_erschienen';
+    closeModal('td'); renderDash(); if (typeof loadTermineWerkstatt === 'function') loadTermineWerkstatt();
+  }).catch(function(e) { notify((e && e.message) || 'Fehler beim Speichern.', 'err'); });
 }
 
 // ── GEWERBE-ANFRAGEN ──
@@ -2426,7 +2437,13 @@ function tbadge(t) {
   return '<span style="padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;color:' + (c[t] || '#aaa') + '">' + (t || '') + '</span>';
 }
 function tStatusLabel(s) {
-  return ({ angefragt: 'Angefragt', bestaetigt: 'Bestätigt', abgeschlossen: 'Abgeschlossen', storniert: 'Storniert', abgesagt: 'Storniert' })[s] || s || '';
+  return ({ angefragt: 'Angefragt', bestaetigt: 'Bestätigt', abgeschlossen: 'Abgeschlossen', storniert: 'Storniert', abgesagt: 'Storniert', nicht_erschienen: 'Nicht erschienen' })[s] || s || '';
+}
+// Badge-Farbe je Status: gruen=aktiv/erledigt, rot=beendet (storniert/abgesagt/no-show), gelb=angefragt.
+function tStatusBadgeClass(s) {
+  if (s === 'abgeschlossen' || s === 'bestaetigt') return 'b-g';
+  if (s === 'storniert' || s === 'abgesagt' || s === 'nicht_erschienen') return 'b-r';
+  return 'b-y';
 }
 function dsgvoStatusLabel(s) {
   return ({ offen: 'Offen', bearbeitet: 'Erledigt', abgelehnt: 'Abgelehnt' })[s] || s || '';
@@ -3198,8 +3215,8 @@ function zeigeK(id) {
       kTermine.map(function(t) {
         return '<tr><td>' + fd(t.datum) + '</td><td>' + (t.uhrzeit_von || '').substring(0,5) + '</td>' +
           '<td>' + (t.artikel_name || t.termin_typ || '-') + '</td>' +
-          '<td><span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + tStatusLabel(t.status) + '</span></td>' +
-          '<td><button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button></td></tr>';
+          '<td><span class="badge ' + tStatusBadgeClass(t.status) + '">' + tStatusLabel(t.status) + '</span></td>' +
+          '<td>' + (t.status !== 'storniert' && t.status !== 'abgesagt' && t.status !== 'nicht_erschienen' && t.status !== 'abgeschlossen' ? '<button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>'
     : '<div style="color:var(--muted);font-size:13px;padding:10px 0">Keine Termine.</div>';
   ladeDocs(id);
@@ -3735,6 +3752,37 @@ function loadAktivitaet() {
     }).join('');
   }).catch(function() {});
 }
+// Heutige Termine als Uebersicht im Dashboard (wer kommt heute) -> anklickbar zum Termin.
+function loadHeute() {
+  var d = isoLocal(new Date());
+  api('GET', '/termine?von=' + d + '&bis=' + d).then(function(rows) {
+    var el = document.getElementById('dash-heute'); if (!el) return;
+    rows = rows || [];
+    // frisch geladene heutige Termine in allTermine mergen, damit zeigeTermin sie kennt
+    if (typeof allTermine !== 'undefined' && allTermine) {
+      allTermine = allTermine.filter(function(t) { return !t.datum || t.datum.substring(0, 10) !== d; }).concat(rows);
+    }
+    var list = rows.slice().sort(function(a, b) { return (a.uhrzeit_von || '').localeCompare(b.uhrzeit_von || ''); });
+    if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;margin-bottom:18px">Heute keine Termine.</div>'; return; }
+    var badge = function(s) {
+      if (s === 'abgeschlossen') return '<span style="font-size:10px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>';
+      if (s === 'storniert' || s === 'abgesagt') return '<span style="font-size:10px;color:#c0392b">Abgesagt</span>';
+      if (s === 'nicht_erschienen') return '<span style="font-size:10px;color:var(--muted)">Nicht erschienen</span>';
+      return '<span style="font-size:10px;font-weight:700;color:var(--blue);background:rgba(74,158,255,.15);padding:2px 8px;border-radius:10px">Offen</span>';
+    };
+    el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
+      '<div style="font-weight:700;margin-bottom:4px">Heute — ' + list.length + ' Termin(e)</div>' +
+      list.map(function(t) {
+        var name = t.kundenname || t.kontakt_name || 'Laufkundschaft';
+        var leist = t.artikel_name || t.termin_typ || 'Termin';
+        return '<div onclick="zeigeTermin(\'' + t.id + '\')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border);cursor:pointer">' +
+          '<span style="font-family:monospace;font-weight:600;color:var(--blue);min-width:44px">' + (t.uhrzeit_von || '').substring(0, 5) + '</span>' +
+          '<span style="flex:1;min-width:0"><span style="font-weight:600;font-size:14px">' + kEsc(leist) + '</span> <span style="color:var(--muted);font-size:12px">' + kEsc(name) + (t.kennzeichen ? ' · ' + kEsc(t.kennzeichen) : '') + '</span>' +
+          (t.einlagern ? ' <span style="font-size:10px;font-weight:800;color:var(--accent-text)">EINLAGERN</span>' : '') + '</span>' +
+          badge(t.status) + '</div>';
+      }).join('') + '</div>';
+  }).catch(function() {});
+}
 // Erledigte, noch nicht abgerechnete Termine -> "Abzurechnen"-Liste im Dashboard (Buero rechnet ab).
 function loadAbzurechnen() {
   api('GET', '/termine?status=abgeschlossen').then(function(rows) {
@@ -4071,7 +4119,7 @@ function zeigeKalDetailFuerTag(dStr) {
         if (t.kennzeichen) row += ' <span class="kz-tag">' + kEsc(t.kennzeichen) + '</span>';
         row += '</div>';
         if (lp) row += '<span style="font-weight:800;color:var(--accent-text);margin-right:6px">' + lp + '</span>';
-        row += '<span class="badge ' + (t.status === 'bestaetigt' ? 'b-g' : t.status === 'storniert' ? 'b-r' : 'b-y') + '">' + tStatusLabel(t.status) + '</span>';
+        row += '<span class="badge ' + tStatusBadgeClass(t.status) + '">' + tStatusLabel(t.status) + '</span>';
         row += '</div>';
         return row;
       }).join('');
@@ -4099,6 +4147,24 @@ function zeigeTermin(id) {
   var _lz = t.leistungen; if (typeof _lz === 'string') { try { _lz = JSON.parse(_lz); } catch (e) { _lz = null; } }
   if (Array.isArray(_lz) && _lz.length) leistAlle = _lz.map(function(p) { return p.bezeichnung; }).filter(Boolean).join(' + ') || leistAlle;
   var col = t.portal_buchung ? '#3ecf8e' : '#4a9eff';
+  // Aktionen richten sich nach dem Status: offen -> planen/absagen; erledigt -> abrechnen/einlagern; beendet -> nur Ansicht.
+  var _erl = t.status === 'abgeschlossen';
+  var _beendet = t.status === 'storniert' || t.status === 'abgesagt' || t.status === 'nicht_erschienen';
+  var btns;
+  if (_beendet) {
+    btns = '<span style="color:var(--muted);font-size:12px">' + (t.status === 'nicht_erschienen' ? 'Kunde nicht erschienen' : 'Abgesagt / Storniert') + '</span>';
+  } else if (_erl) {
+    btns = '<button class="btn btn-p btn-sm" onclick="closeModal(\'td\');rechnungAusTermin(\'' + t.id + '\')">Rechnung erstellen</button>' +
+      (!t.kunden_id ? '<button class="btn btn-grn btn-sm" onclick="terminNeuerKunde(\'' + t.id + '\')">Kunde anlegen</button>' : '') +
+      '<button class="btn btn-g btn-sm" onclick="closeModal(\'td\');terminEinlagernJetzt(\'' + t.id + '\')">Einlagerung erfassen</button>';
+  } else {
+    btns = '<button class="btn btn-grn btn-sm" onclick="terminErledigt(\'' + t.id + '\')">Erledigt</button>' +
+      '<button class="btn btn-g btn-sm" onclick="closeModal(\'td\');ntBearbeiten(\'' + t.id + '\')">Bearbeiten</button>' +
+      (!t.kunden_id ? '<button class="btn btn-grn btn-sm" onclick="terminNeuerKunde(\'' + t.id + '\')">Kunde anlegen</button>' : '') +
+      '<button class="btn ' + (t.einlagern ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="terminEinlagern(\'' + t.id + '\',' + (t.einlagern ? 'false' : 'true') + ')">' + (t.einlagern ? 'Einlager-Vormerkung aufheben' : 'Für Einlagerung vormerken') + '</button>' +
+      '<button class="btn btn-danger btn-sm" onclick="terminNichtErschienen(\'' + t.id + '\')">Nicht erschienen</button>' +
+      '<button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button>';
+  }
   el.innerHTML = '<div class="mtitle" style="color:' + col + '">' + fd(t.datum) + ' ' + (t.uhrzeit_von||'').substring(0,5) + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px">' +
     '<div>' + iz('Kunde', t.kundenname || t.kontakt_name || '-') + '</div>' +
@@ -4109,15 +4175,7 @@ function zeigeTermin(id) {
     (t.beschreibung ? '<div>' + iz('Beschreibung', t.beschreibung) + '</div>' : '') +
     (t.notizen_intern ? '<div>' + iz('Interne Notizen', t.notizen_intern) + '</div>' : '') +
     '</div>' +
-    '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
-    '<button class="btn btn-p btn-sm" onclick="closeModal(\'td\');rechnungAusTermin(\'' + t.id + '\')">Rechnung erstellen</button>' +
-    '<button class="btn btn-g btn-sm" onclick="closeModal(\'td\');ntBearbeiten(\'' + t.id + '\')">Bearbeiten</button>' +
-    (!t.kunden_id ? '<button class="btn btn-grn btn-sm" onclick="terminNeuerKunde(\'' + t.id + '\')">Kunde anlegen</button>' : '') +
-    '<button class="btn ' + (t.einlagern ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="terminEinlagern(\'' + t.id + '\',' + (t.einlagern ? 'false' : 'true') + ')">' + (t.einlagern ? 'Einlager-Vormerkung aufheben' : 'Für Einlagerung vormerken') + '</button>' +
-    (t.status !== 'storniert' && t.status !== 'abgesagt'
-      ? '<button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button>'
-      : '<span style="color:var(--muted);font-size:12px">Abgesagt/Storniert</span>') +
-    '</div>';
+    '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' + btns + '</div>';
   openModal('td');
 }
 function fillNtForm() {
@@ -4274,7 +4332,7 @@ function renderWS() {
   var heute = wsTagDatum.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   document.getElementById('ws-dat').textContent = 'Werkstatt — ' + heute;
   var tTermine = allTermine.filter(function(t) {
-    return t.datum && t.datum.substring(0,10) === dStr && t.status !== 'storniert' && t.status !== 'abgesagt';
+    return t.datum && t.datum.substring(0,10) === dStr && t.status !== 'storniert' && t.status !== 'abgesagt' && t.status !== 'nicht_erschienen';
   }).sort(function(a, b) { return (a.uhrzeit_von||'').localeCompare(b.uhrzeit_von||''); });
   var el = document.getElementById('ws-liste');
   if (!tTermine.length) {
@@ -4349,7 +4407,15 @@ function renderWS() {
   el.innerHTML = html;
 }
 function terminErledigt(id) {
-  api('PATCH', '/termine/' + id + '/status', { status: 'abgeschlossen' }).then(function() { notify('Als erledigt markiert.'); loadTermineWerkstatt(); }).catch(function(e) { notify(e.message, 'err'); });
+  api('PATCH', '/termine/' + id + '/status', { status: 'abgeschlossen' }).then(function() {
+    notify('Als erledigt markiert.');
+    var tt = (typeof allTermine !== 'undefined' && allTermine ? allTermine : []).find(function(x) { return x.id === id; }); if (tt) tt.status = 'abgeschlossen';
+    closeModal('td');
+    if (typeof loadTermineWerkstatt === 'function') loadTermineWerkstatt();
+    if (typeof renderDash === 'function') renderDash();
+    if (typeof loadHeute === 'function') loadHeute();
+    if (typeof loadAbzurechnen === 'function') loadAbzurechnen();
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function terminWiederOeffnen(id) {
   api('PATCH', '/termine/' + id + '/status', { status: 'bestaetigt' }).then(function() { notify('Wieder geöffnet.'); loadTermineWerkstatt(); }).catch(function(e) { notify(e.message, 'err'); });
@@ -4490,7 +4556,7 @@ function druckListe() {
   var dStr = isoLocal(wsTagDatum);
   var heute = wsTagDatum.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   var tTermine = allTermine.filter(function(t) {
-    return t.datum && t.datum.substring(0,10) === dStr && t.status !== 'storniert' && t.status !== 'abgesagt';
+    return t.datum && t.datum.substring(0,10) === dStr && t.status !== 'storniert' && t.status !== 'abgesagt' && t.status !== 'nicht_erschienen';
   }).sort(function(a, b) { return (a.uhrzeit_von||'').localeCompare(b.uhrzeit_von||''); });
   // Nur die eingelagerten Raeder der Kunden, die HEUTE einen Termin haben (nicht das ganze Lager).
   var terminKundenIds = {};
