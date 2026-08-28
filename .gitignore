@@ -2,6 +2,9 @@
 .env
 # Persoenliche/lokale Claude-Code-Einstellungen (Permissions pro Maschine)
 .claude/settings.local.json
+# Laufzeit-Zustand der Session-Registry (Bereich->aktuelle Session), kein Code
+.claude/session-registry.json
+.claude/session-registry.json.lock
 # Abhaengigkeiten
 node_modules/
 # Geschaeftsdaten / PII — gehoeren NIE nach GitHub
