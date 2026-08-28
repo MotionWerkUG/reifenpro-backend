@@ -1,3 +1,14 @@
+> ## STECKBRIEF — ZUERST LESEN (Stand 2026-08-28)
+>
+> - **Bereich:** Admin/Werkstatt. **Feste Session-Adresse:** `reifenpro-admin`.
+> - **Arbeite im Worktree** `/home/deploy/projekte/reifenpro-admin` — NIE im Hauptordner `/home/deploy/projekte/reifenpro` (sonst instabile Session-Namen; der Hauptordner ist nur Deploy/Integration).
+> - **Deine Zuständigkeit:** Admin/Werkstatt-App (frontend/index.html): Dashboard/Kunden/Einlagerung/Lager/Kalender/Werkstatt, Artikel-CRUD + Preise + online-buchbar/rolle, Einstellungen/Firmendaten, DSGVO, Mitarbeiter, termine.js.
+> - **Was in eine andere Session gehört + Routing bei Überschneidungen:** `.claude/bereiche/SESSIONS.md` (verbindlich).
+> - **Andere Sessions erreichen:** SendMessage an `reifenpro-homepage` / `reifenpro-portal` / `reifenpro-admin` / `reifenpro-rechnungen`; vorher ggf. `ListAgents` prüfen.
+> - **Landkarte/Worktree-Modell:** `.claude/bereiche/LANDKARTE.md`. **Projektkontext:** `CLAUDE.md` (Hauptordner) + `.claude/bereiche/admin/CLAUDE.md`. **Dauerfakten:** Memory.
+> - **Deploy:** Bereichs-Branch → `main` mergen → `sudo pm2 restart reifenpro` (Backend läuft aus main). Frontend: nach `/var/www/schroeder-homepage/` kopieren.
+> - **Vor Freigabe:** Qualitäts-Gate (code-auditor/breaker/reviewer, ggf. gobd-pruefer/produkt-kritiker) + `/release-gate`.
+
 # Kickoff: Admin / Werkstatt
 
 Ordner **`/home/deploy/projekte/reifenpro-admin`** in Claude Code öffnen (eigener

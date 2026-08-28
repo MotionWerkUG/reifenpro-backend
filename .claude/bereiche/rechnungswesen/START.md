@@ -1,3 +1,14 @@
+> ## STECKBRIEF — ZUERST LESEN (Stand 2026-08-28)
+>
+> - **Bereich:** Rechnungswesen (= Rechnungen). **Feste Session-Adresse:** `reifenpro-rechnungen`.
+> - **Arbeite im Worktree** `/home/deploy/projekte/reifenpro-rechnungen` — NIE im Hauptordner `/home/deploy/projekte/reifenpro` (sonst instabile Session-Namen; der Hauptordner ist nur Deploy/Integration).
+> - **Deine Zuständigkeit:** Rechnungswesen = Rechnungen (EIN Bereich): rechnungen.js, Rechnung aus Termin, GoBD/§14, Nummernkreis, PDF, Storno, Export/DATEV, Belege-Aufbewahrung/Backup.
+> - **Was in eine andere Session gehört + Routing bei Überschneidungen:** `.claude/bereiche/SESSIONS.md` (verbindlich).
+> - **Andere Sessions erreichen:** SendMessage an `reifenpro-homepage` / `reifenpro-portal` / `reifenpro-admin` / `reifenpro-rechnungen`; vorher ggf. `ListAgents` prüfen.
+> - **Landkarte/Worktree-Modell:** `.claude/bereiche/LANDKARTE.md`. **Projektkontext:** `CLAUDE.md` (Hauptordner) + `.claude/bereiche/rechnungswesen/CLAUDE.md`. **Dauerfakten:** Memory.
+> - **Deploy:** Bereichs-Branch → `main` mergen → `sudo pm2 restart reifenpro` (Backend läuft aus main). Frontend: nach `/var/www/schroeder-homepage/` kopieren.
+> - **Vor Freigabe:** Qualitäts-Gate (code-auditor/breaker/reviewer, ggf. gobd-pruefer/produkt-kritiker) + `/release-gate`.
+
 # Kickoff: Rechnungswesen
 
 Ordner **`/home/deploy/projekte/reifenpro-rechnungen`** in Claude Code öffnen (eigener
