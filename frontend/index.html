@@ -778,7 +778,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div class="ssec"><h3>Artikelpreisliste</h3>
             <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Jeder Artikel hat einen Standardpreis. Über <strong>Staffel</strong> lassen sich abweichende Preise/Dauern je <strong>Fahrzeugtyp und Zollgröße</strong> hinterlegen (z.B. SUV 18–20&quot; teurer). Beim Buchen/Rechnen wird automatisch die passendste Variante genommen, sonst der Standardpreis.</div>
             <div id="artikel-liste" style="margin-bottom:14px"></div>
-            <button class="btn btn-p btn-sm" onclick="openModal('na')">+ Neuer Artikel</button>
+            <button class="btn btn-p btn-sm" onclick="neuerArtikel()">+ Neuer Artikel</button>
           </div>
         </div>
 
@@ -1164,15 +1164,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
       </div>
       <div class="fg"><label>Dauer (Minuten) *</label>
         <select id="na-dauer">
-          <option value="15">15 Minuten</option><option value="30">30 Minuten</option>
-          <option value="45">45 Minuten</option><option value="60">1 Stunde</option>
-          <option value="75">1 Stunde 15 Min</option><option value="90">1 Stunde 30 Min</option>
-          <option value="120">2 Stunden</option><option value="180">3 Stunden</option>
-          <option value="240">4 Stunden</option><option value="480">Ganzer Tag</option>
+          <option value="10">10 Minuten</option><option value="20">20 Minuten</option>
+          <option value="30">30 Minuten</option><option value="40">40 Minuten</option>
+          <option value="50">50 Minuten</option><option value="60">1 Stunde</option>
+          <option value="90">1 Stunde 30 Min</option><option value="120">2 Stunden</option>
+          <option value="180">3 Stunden</option><option value="240">4 Stunden</option>
+          <option value="480">Ganzer Tag</option>
         </select>
       </div>
       <div class="fg"><label>Kategorie</label>
         <select id="na-kat"><option value="einlagerung">Einlagerung</option><option value="werkstatt">Werkstatt</option><option value="sonstiges">Sonstiges</option></select>
+      </div>
+      <div class="fg"><label>Im Buchungsassistenten</label>
+        <select id="na-buchung">
+          <option value="">Nicht anzeigen</option>
+          <option value="haupt">Hauptleistung</option>
+          <option value="zusatz">Zusatzleistung</option>
+        </select>
       </div>
       <div class="fg"><label>Artikelnummer (optional)</label><input id="na-nr" placeholder="z.B. 1001"></div>
     </div>
@@ -2839,7 +2847,7 @@ function loadArtikel() {
 function renderArtikel() {
   var el = document.getElementById('artikel-liste'); if (!el) return;
   if (!allArtikel.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;margin-bottom:8px">Noch keine Artikel.</div>'; return; }
-  var html = '<div class="tw"><table><thead><tr><th>Artikel</th><th>Nr.</th><th>Netto</th><th>MwSt</th><th>Brutto</th><th>Einheit</th><th>Dauer</th><th>Kat.</th><th></th></tr></thead><tbody>';
+  var html = '<div class="tw"><table><thead><tr><th>Artikel</th><th>Nr.</th><th>Netto</th><th>MwSt</th><th>Brutto</th><th>Einheit</th><th>Dauer</th><th>Kat.</th><th>Buchung</th><th></th></tr></thead><tbody>';
   allArtikel.forEach(function(a) {
     var mwst = a.mwst_satz != null ? parseFloat(a.mwst_satz) : 19;
     var inkl = (EINST.preise_inkl_mwst !== false);
@@ -2857,6 +2865,7 @@ function renderArtikel() {
     html += '<td style="color:var(--muted)">' + a.einheit + '</td>';
     html += '<td style="color:var(--blue)">' + dauer + '</td>';
     html += '<td><span class="badge ' + (a.kategorie === 'einlagerung' ? 'b-r' : 'b-b') + '">' + a.kategorie + '</span></td>';
+    html += '<td>' + (a.buchung_rolle === 'haupt' ? '<span class="badge b-g">Haupt</span>' : a.buchung_rolle === 'zusatz' ? '<span class="badge b-y">Zusatz</span>' : '<span style="color:var(--muted);font-size:12px">–</span>') + '</td>';
     html += '<td><div style="display:flex;gap:4px">' +
       '<button class="btn btn-g btn-sm" onclick="editArtikel(\'' + a.id + '\')">Bearb.</button>' +
       '<button class="btn btn-g btn-sm" onclick="oeffneArtikelPreise(\'' + a.id + '\')">Staffel</button>' +
@@ -2866,6 +2875,18 @@ function renderArtikel() {
   });
   html += '</tbody></table></div>';
   el.innerHTML = html;
+}
+function neuerArtikel() {
+  naEditId = null;
+  document.getElementById('na-titel').textContent = 'Neuer Artikel';
+  ['na-name','na-bez','na-preis','na-nr'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
+  document.getElementById('na-brutto').value = '0.00';
+  document.getElementById('na-mwst').value = '19';
+  document.getElementById('na-einheit').value = 'Saison';
+  document.getElementById('na-dauer').value = '30';
+  document.getElementById('na-kat').value = 'einlagerung';
+  document.getElementById('na-buchung').value = '';
+  openModal('na');
 }
 function editArtikel(id) {
   var a = allArtikel.find(function(x) { return x.id === id; }); if (!a) return;
@@ -2883,6 +2904,7 @@ function editArtikel(id) {
   document.getElementById('na-einheit').value = a.einheit || 'Saison';
   document.getElementById('na-dauer').value = a.dauer_minuten || '30';
   document.getElementById('na-kat').value = a.kategorie || 'einlagerung';
+  document.getElementById('na-buchung').value = a.buchung_rolle || '';
   document.getElementById('na-nr').value = a.artikelnr || '';
   openModal('na');
 }
@@ -2951,7 +2973,8 @@ function saveNA() {
     name: name, beschreibung: gv('na-bez'), preis: preisStore,
     mwst_satz: gv('na-mwst'), einheit: gv('na-einheit'),
     dauer_minuten: parseInt(gv('na-dauer')) || 30,
-    kategorie: gv('na-kat'), artikelnr: gv('na-nr') || null
+    kategorie: gv('na-kat'), artikelnr: gv('na-nr') || null,
+    buchung_rolle: gv('na-buchung') || null
   };
   var prom = naEditId
     ? api('PUT', '/artikel/' + naEditId, data)
@@ -2962,6 +2985,7 @@ function saveNA() {
     document.getElementById('na-titel').textContent = 'Neuer Artikel';
     ['na-name','na-bez','na-preis','na-nr'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
     document.getElementById('na-brutto').value = '0.00';
+    document.getElementById('na-buchung').value = '';
     loadArtikel();
   }).catch(function(e) { notify(e.message, 'err'); });
 }
