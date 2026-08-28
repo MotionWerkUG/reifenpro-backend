@@ -207,7 +207,11 @@
     <div class="ok">✓</div>
     <h1 id="done-title">Termin bestätigt!</h1>
     <div id="done-text" class="sub" style="margin-top:10px"></div>
-    <a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none;margin-top:10px">Zur Startseite</a>
+    <div id="done-konto" class="hidden" style="margin:24px auto 0;max-width:440px;padding:18px 20px;border:1px solid #e5e7eb;border-radius:12px;background:#faf9f6;text-align:center">
+      <div style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</div>
+      <a id="done-konto-link" href="#" style="display:inline-block;text-decoration:none;background:#eab308;color:#171717;font-weight:700;padding:11px 20px;border-radius:9px;font-size:15px">Kundenkonto erstellen</a>
+    </div>
+    <div style="margin-top:16px"><a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none">Zur Startseite</a></div>
   </div></div>
 
   <div class="err" id="err"></div>
@@ -447,6 +451,9 @@ function absenden(){
         document.getElementById('done-title').textContent='Termin bestätigt!';
         document.getElementById('done-text').textContent='Ihr Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
       }
+      // Optionaler Konto-CTA (sekundaer): Kundenkonto mit vorbefuellter E-Mail anlegen.
+      var kl=document.getElementById('done-konto-link');
+      if(kl && d.email){ kl.href='/portal/?registrieren&email='+encodeURIComponent(d.email); document.getElementById('done-konto').classList.remove('hidden'); }
       document.getElementById('pdone').classList.remove('hidden');
       window.scrollTo({top:0,behavior:'smooth'});
     })
