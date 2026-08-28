@@ -5,6 +5,24 @@ git-Worktree). Der **Peer-Name** einer Session (z. B. `reifenpro-92`) wird vom S
 vergeben und **ändert sich bei Neustart/Resume** — deshalb zeigt eine veraltete Namens-
 Zuordnung schnell auf eine tote Session. Diese Datei löst das über zwei Hebel.
 
+## Zuständigkeiten — was gehört in welche Session (verbindlich)
+
+Eine Sparte pro Session. Was nicht dein Bereich ist, gib an die zuständige Session weiter.
+
+| Bereich (Session-Name) | Zuständig für |
+|---|---|
+| `reifenpro-homepage` | Öffentliche Website + CMS: homepage-render/generate, cms.html, Coming-Soon, Buchungs-Frontend `/termin/`, Preisseite `/preise/`, Bild-Pipeline (sharp) + Darstellung der Bilder auf der Website |
+| `reifenpro-portal` | Kundenportal + Gast-Buchung (Backend): portal.html, gast.js, portal-auth/-daten, Registrierung/Login/Reset, Gast-Termin, Bestätigungs-/Kundenmails, öffentliche Gutschein-Prüfung, buchbar_ab-Ausgabe |
+| `reifenpro-admin` | Admin/Werkstatt-App: frontend/index.html, Dashboard/Kunden/Einlagerung/Lager/Kalender/Werkstatt, Artikel-CRUD + Preise + online-buchbar/rolle, Einstellungen/Firmendaten, DSGVO, Mitarbeiter, termine.js |
+| `reifenpro-rechnungen` | **Rechnungswesen = „Rechnungen" (EIN Bereich):** rechnungen.js, Rechnung aus Termin, GoBD/§14, Nummernkreis, PDF, Storno, Export/DATEV, Belege-Aufbewahrung/Backup |
+| `reifenpro-main` | Nur Integration/Deploy: main mergen, `sudo pm2 restart reifenpro`. Kein Entwickeln. |
+
+### Routing bei Überschneidungen (Beispiele)
+- **Gutschein:** Feld/Anzeige im `/termin/` = homepage · Prüf-Endpunkt + Speichern am Termin = portal · Anzeige im Admin = admin · Rabatt auf der Rechnung = rechnungen.
+- **Leistung online schalten:** online-buchbar/rolle/aktiv = admin (Quelle) · Bild/Titel/Sortierung + Website-Darstellung = homepage.
+- **Bild-Upload:** Endpunkt + sharp-Pipeline = homepage (homepage.js) · die Admin-UI, die ihn aufruft = admin.
+- **Backend-Deploy:** Bereichs-Branch → main mergen → `sudo pm2 restart reifenpro` (läuft aus dem Hauptordner).
+
 ## 1. Feste Namen pro Bereich (Hauptlösung)
 
 Jede Session soll beim Start einen **festen, sprechenden Namen** bekommen — dann ändert
