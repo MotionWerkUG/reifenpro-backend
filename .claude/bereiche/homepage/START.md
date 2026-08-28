@@ -1,17 +1,17 @@
 > ## STECKBRIEF — ZUERST LESEN (Stand 2026-08-28)
 >
-> - **Bereich:** Homepage/CMS. **Feste Session-Adresse:** `reifenpro-homepage`.
-> - **Arbeite im Worktree** `/home/deploy/projekte/reifenpro-homepage` — NIE im Hauptordner `/home/deploy/projekte/reifenpro` (sonst instabile Session-Namen; der Hauptordner ist nur Deploy/Integration).
+> - **Bereich:** Homepage/CMS. **Feste Session-Adresse:** `homepage`.
+> - **Arbeite im Worktree** `/home/deploy/projekte/reifenpro/homepage` — NIE im Hauptordner `/home/deploy/projekte/reifenpro` (sonst instabile Session-Namen; der Hauptordner ist nur Deploy/Integration).
 > - **Deine Zuständigkeit:** Öffentliche Website + CMS (homepage-render/generate, cms.html), Coming-Soon, Buchungs-Frontend /termin/, Preisseite /preise/, Bild-Pipeline (sharp) + Darstellung der Bilder auf der Website.
 > - **Was in eine andere Session gehört + Routing bei Überschneidungen:** `.claude/bereiche/SESSIONS.md` (verbindlich).
-> - **Andere Sessions erreichen:** SendMessage an `reifenpro-homepage` / `reifenpro-portal` / `reifenpro-admin` / `reifenpro-rechnungen`; vorher ggf. `ListAgents` prüfen.
+> - **Andere Sessions erreichen:** SendMessage an `homepage` / `portal` / `admin` / `rechnungswesen`; vorher ggf. `ListAgents` prüfen.
 > - **Landkarte/Worktree-Modell:** `.claude/bereiche/LANDKARTE.md`. **Projektkontext:** `CLAUDE.md` (Hauptordner) + `.claude/bereiche/homepage/CLAUDE.md`. **Dauerfakten:** Memory.
 > - **Deploy:** Bereichs-Branch → `main` mergen → `sudo pm2 restart reifenpro` (Backend läuft aus main). Frontend: nach `/var/www/schroeder-homepage/` kopieren.
 > - **Vor Freigabe:** Qualitäts-Gate (code-auditor/breaker/reviewer, ggf. gobd-pruefer/produkt-kritiker) + `/release-gate`.
 
 # Kickoff: Homepage / CMS
 
-Ordner **`/home/deploy/projekte/reifenpro-homepage`** in Claude Code öffnen (eigener
+Ordner **`/home/deploy/projekte/reifenpro/homepage`** in Claude Code öffnen (eigener
 Worktree für diesen Bereich, NICHT den Sammelordner `reifenpro`), dann als erste Nachricht:
 
 > Lies `.claude/bereiche/homepage/CLAUDE.md` und den Homepage-Abschnitt von

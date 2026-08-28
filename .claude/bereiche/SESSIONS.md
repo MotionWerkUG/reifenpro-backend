@@ -11,10 +11,10 @@ Eine Sparte pro Session. Was nicht dein Bereich ist, gib an die zuständige Sess
 
 | Bereich (Session-Name) | Zuständig für |
 |---|---|
-| `reifenpro-homepage` | Öffentliche Website + CMS: homepage-render/generate, cms.html, Coming-Soon, Buchungs-Frontend `/termin/`, Preisseite `/preise/`, Bild-Pipeline (sharp) + Darstellung der Bilder auf der Website |
-| `reifenpro-portal` | Kundenportal + Gast-Buchung (Backend): portal.html, gast.js, portal-auth/-daten, Registrierung/Login/Reset, Gast-Termin, Bestätigungs-/Kundenmails, öffentliche Gutschein-Prüfung, buchbar_ab-Ausgabe |
-| `reifenpro-admin` | Admin/Werkstatt-App: frontend/index.html, Dashboard/Kunden/Einlagerung/Lager/Kalender/Werkstatt, Artikel-CRUD + Preise + online-buchbar/rolle, Einstellungen/Firmendaten, DSGVO, Mitarbeiter, termine.js |
-| `reifenpro-rechnungen` | **Rechnungswesen = „Rechnungen" (EIN Bereich):** rechnungen.js, Rechnung aus Termin, GoBD/§14, Nummernkreis, PDF, Storno, Export/DATEV, Belege-Aufbewahrung/Backup |
+| `homepage` | Öffentliche Website + CMS: homepage-render/generate, cms.html, Coming-Soon, Buchungs-Frontend `/termin/`, Preisseite `/preise/`, Bild-Pipeline (sharp) + Darstellung der Bilder auf der Website |
+| `portal` | Kundenportal + Gast-Buchung (Backend): portal.html, gast.js, portal-auth/-daten, Registrierung/Login/Reset, Gast-Termin, Bestätigungs-/Kundenmails, öffentliche Gutschein-Prüfung, buchbar_ab-Ausgabe |
+| `admin` | Admin/Werkstatt-App: frontend/index.html, Dashboard/Kunden/Einlagerung/Lager/Kalender/Werkstatt, Artikel-CRUD + Preise + online-buchbar/rolle, Einstellungen/Firmendaten, DSGVO, Mitarbeiter, termine.js |
+| `rechnungswesen` | **Rechnungswesen = „Rechnungen" (EIN Bereich):** rechnungen.js, Rechnung aus Termin, GoBD/§14, Nummernkreis, PDF, Storno, Export/DATEV, Belege-Aufbewahrung/Backup |
 | `reifenpro-main` | Nur Integration/Deploy: main mergen, `sudo pm2 restart reifenpro`. Kein Entwickeln. |
 
 ### Routing bei Überschneidungen (Beispiele)
@@ -31,15 +31,15 @@ Code eine Variante wie `-92`).
 
 | Bereich | Worktree | Fester Name (Konvention) |
 |---|---|---|
-| Homepage/CMS | `reifenpro-homepage` | `reifenpro-homepage` |
-| Kundenportal/Gast | `reifenpro-portal` | `reifenpro-portal` |
-| Admin/Werkstatt | `reifenpro-admin` | `reifenpro-admin` |
-| Rechnungswesen | `reifenpro-rechnungen` | `reifenpro-rechnungen` |
+| Homepage/CMS | `homepage` | `homepage` |
+| Kundenportal/Gast | `portal` | `portal` |
+| Admin/Werkstatt | `admin` | `admin` |
+| Rechnungswesen | `rechnungswesen` | `rechnungswesen` |
 | Integration/Deploy | `reifenpro` (main) | `reifenpro-main` |
 
 Namen setzen — eine der beiden Varianten:
-- Beim Start: `claude --name reifenpro-homepage` (im jeweiligen Worktree).
-- In einer laufenden Session: `/rename reifenpro-homepage`.
+- Beim Start: `claude --name homepage` (im jeweiligen Worktree).
+- In einer laufenden Session: `/rename homepage`.
 
 Hinweis: Ein fester Name wird nach einem Neustart NICHT automatisch wiederhergestellt —
 beim (Neu-)Start erneut `--name` angeben bzw. `/rename` ausführen.
