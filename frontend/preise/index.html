@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preise – Schröder &amp; Scholz Reifenservice</title>
+<meta name="description" content="Transparente Preise für Räderwechsel, Reifeneinlagerung und Fahrzeugtechnik bei Schröder &amp; Scholz. Alle Preise inkl. MwSt.">
+<style>
+  :root{--accent:#eab308;--accent-ink:#171717;--dark:#171717;--fg:#1a1a1a;--muted:#6b7280;--line:#e5e7eb;--bg:#fff;--soft:#f7f7f5}
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:var(--fg);background:var(--bg);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+  a{color:inherit}
+  .inner{max-width:1240px;margin:0 auto;padding:0 24px}
+  /* Nav */
+  .nav{background:var(--dark)}
+  .nav-in{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  .wm svg{display:block;height:38px;width:auto}
+  .nav-cta{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);font-weight:700;text-decoration:none;padding:11px 20px;border-radius:9px;font-size:15px}
+  .nav-cta:hover{filter:brightness(.95)}
+  /* Hero */
+  .hero{background:var(--dark);color:#fafafa;padding:52px 0 60px;position:relative;overflow:hidden}
+  .hero::after{content:"";position:absolute;right:-80px;top:-60px;width:320px;height:320px;background:radial-gradient(circle,rgba(234,179,8,.16),transparent 70%);pointer-events:none}
+  .hero h1{font-size:clamp(30px,5vw,50px);font-weight:800;letter-spacing:-1px;line-height:1.08;margin:0}
+  .hero h1 .akz{color:var(--accent)}
+  .hero p{margin:16px 0 0;font-size:clamp(16px,2vw,19px);color:#c9cdd3;max-width:640px}
+  .hero .bar{width:78px;height:4px;background:var(--accent);border-radius:4px;margin:22px 0 0}
+  /* Sektionen */
+  main{padding:52px 0 20px}
+  .sec-title{font-size:22px;font-weight:800;letter-spacing:-.3px;margin:0 0 4px}
+  .sec-sub{color:var(--muted);margin:0 0 22px;font-size:14.5px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;margin-bottom:44px}
+  .card{border:1px solid var(--line);border-radius:14px;padding:22px 22px 20px;background:var(--bg);display:flex;flex-direction:column;transition:box-shadow .15s,border-color .15s}
+  .card:hover{box-shadow:0 8px 26px rgba(0,0,0,.07);border-color:#d6dae0}
+  .card h3{margin:0;font-size:18px;font-weight:750;letter-spacing:-.2px}
+  .card .desc{color:var(--muted);font-size:14px;margin:8px 0 0}
+  .card .meta{color:var(--muted);font-size:13px;margin:10px 0 0;display:flex;align-items:center;gap:6px}
+  .price{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .price .ab{font-size:13px;color:var(--muted);font-weight:600}
+  .price .val{font-size:26px;font-weight:800;letter-spacing:-.5px}
+  .price .mwst{font-size:12.5px;color:var(--muted)}
+  .staffel{margin-top:14px;border-top:1px dashed var(--line);padding-top:12px}
+  .staffel table{width:100%;border-collapse:collapse;font-size:13.5px}
+  .staffel td{padding:5px 0;border-bottom:1px solid var(--soft);color:#374151}
+  .staffel td:last-child{text-align:right;font-weight:700;color:var(--fg);white-space:nowrap}
+  .staffel tr:last-child td{border-bottom:none}
+  .noprice{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
+  .hinweis{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:16px 18px;color:#374151;font-size:13.5px;margin:8px 0 40px}
+  .hinweis b{color:var(--fg)}
+  .cta-band{background:var(--dark);color:#fafafa;border-radius:16px;padding:30px 26px;text-align:center;margin:0 0 50px}
+  .cta-band h2{margin:0 0 8px;font-size:24px;font-weight:800;letter-spacing:-.4px}
+  .cta-band p{margin:0 0 18px;color:#c9cdd3;font-size:15px}
+  .btn-lg{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);font-weight:800;text-decoration:none;padding:14px 26px;border-radius:11px;font-size:16px}
+  .btn-lg:hover{filter:brightness(.95)}
+  .state{text-align:center;color:var(--muted);padding:40px 0;font-size:15px}
+  /* Footer */
+  .foot{background:var(--dark);color:#cfcfcf;padding:40px 0;text-align:center;margin-top:20px}
+  .foot-logo{display:flex;justify-content:center;margin-bottom:16px}
+  .foot-logo svg{max-width:90%;height:auto}
+  .foot-links{font-size:13.5px}
+  .foot-links a{color:#cfcfcf;text-decoration:none;margin:0 4px}
+  .foot-links a:hover{color:var(--accent)}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}.nav-cta{padding:9px 14px;font-size:14px}}
+</style>
+</head>
+<body>
+<header class="nav"><div class="nav-in">
+  <a href="/" class="wm" aria-label="Schröder &amp; Scholz">
+    <svg viewBox="0 0 300 44" xmlns="http://www.w3.org/2000/svg" role="img">
+      <text x="0" y="30" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-.9" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text>
+      <text x="1" y="42" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="8" font-weight="600" letter-spacing="2.4" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text>
+    </svg>
+  </a>
+  <a class="nav-cta" href="/termin/">Termin buchen</a>
+</div></header>
+
+<section class="hero"><div class="inner">
+  <h1>Unsere <span class="akz">Preise</span></h1>
+  <div class="bar"></div>
+  <p>Transparent und fair – vom Räderwechsel bis zur Einlagerung. Alle Preise verstehen sich inkl. MwSt.</p>
+</div></section>
+
+<main class="inner">
+  <div id="content"><div class="state">Preise werden geladen …</div></div>
+
+  <div class="hinweis">
+    <b>Hinweis:</b> „ab"-Preise beziehen sich auf die günstigste Variante. Der Endpreis richtet sich nach
+    Zollgröße und Fahrzeugart (PKW, SUV, Transporter) und kann vor Ort abweichen. Gerne erstellen wir Ihnen ein
+    verbindliches Angebot.
+  </div>
+
+  <div class="cta-band">
+    <h2>Termin online buchen</h2>
+    <p>Wählen Sie Ihre Leistung, Fahrzeug und Wunschtermin – in wenigen Schritten.</p>
+    <a class="btn-lg" href="/termin/">Jetzt Termin buchen</a>
+  </div>
+</main>
+
+<footer class="foot"><div class="inner">
+  <div class="foot-logo">
+    <svg viewBox="0 0 300 52" xmlns="http://www.w3.org/2000/svg" width="252" role="img" aria-label="Schröder & Scholz">
+      <text x="0" y="34" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="27" font-weight="800" letter-spacing="-1" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text>
+      <text x="1" y="48" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="8.5" font-weight="600" letter-spacing="2.6" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text>
+    </svg>
+  </div>
+  <div class="foot-links">
+    <a href="/">Startseite</a> · <a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a>
+  </div>
+</div></footer>
+
+<script>
+(function(){
+  var C = document.getElementById('content');
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function eur(n){ return (Number(n)).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+  function dauer(m){ if(!m) return ''; if(m>=60){ var h=Math.floor(m/60), r=m%60; return 'ca. '+h+' Std'+(r?' '+r+' Min':''); } return 'ca. '+m+' Min'; }
+  function zollTxt(v){
+    var mn=v.zoll_min, mx=v.zoll_max;
+    if(mn!=null && mx!=null) return mn+'–'+mx+' Zoll';
+    if(mn!=null) return 'ab '+mn+' Zoll';
+    if(mx!=null) return 'bis '+mx+' Zoll';
+    return null;
+  }
+  function typTxt(t){ return t ? esc(t) : 'Standard'; }
+  function staffelHtml(vs){
+    if(!vs || !vs.length) return '';
+    var rows = vs.map(function(v){
+      var parts=[]; var z=zollTxt(v); if(v.fahrzeug_typ) parts.push(typTxt(v.fahrzeug_typ)); if(z) parts.push(z);
+      var label = parts.length ? parts.join(' · ') : 'Grundpreis';
+      return '<tr><td>'+esc(label)+'</td><td>'+eur(v.brutto)+'</td></tr>';
+    }).join('');
+    return '<div class="staffel"><table>'+rows+'</table></div>';
+  }
+  function card(l){
+    var h = '<div class="card"><h3>'+esc(l.titel)+'</h3>';
+    if(l.beschreibung) h += '<div class="desc">'+esc(l.beschreibung)+'</div>';
+    if(l.dauer_minuten) h += '<div class="meta">Dauer: '+esc(dauer(l.dauer_minuten))+'</div>';
+    if(l.ab_brutto!=null){
+      var istAb = l.gestaffelt;
+      h += '<div class="price">'+(istAb?'<span class="ab">ab</span>':'')+'<span class="val">'+eur(l.ab_brutto)+'</span><span class="mwst">inkl. MwSt</span></div>';
+      if(l.gestaffelt) h += staffelHtml(l.varianten);
+    } else {
+      h += '<div class="noprice">Preis auf Anfrage</div>';
+    }
+    h += '</div>';
+    return h;
+  }
+  function render(d){
+    var list = (d && d.leistungen) || [];
+    if(!list.length){ C.innerHTML='<div class="state">Aktuell sind keine Preise hinterlegt. Sprechen Sie uns gerne direkt an.</div>'; return; }
+    var haupt = list.filter(function(l){return l.rolle==='haupt';});
+    var zusatz = list.filter(function(l){return l.rolle==='zusatz';});
+    var html='';
+    if(haupt.length){
+      html += '<h2 class="sec-title">Leistungen</h2><p class="sec-sub">Unsere Kernleistungen rund um Ihre Räder und Ihr Fahrzeug.</p>';
+      html += '<div class="grid">'+haupt.map(card).join('')+'</div>';
+    }
+    if(zusatz.length){
+      html += '<h2 class="sec-title">Zusatzleistungen</h2><p class="sec-sub">Praktisch kombinierbar mit Ihrem Termin.</p>';
+      html += '<div class="grid">'+zusatz.map(card).join('')+'</div>';
+    }
+    C.innerHTML = html;
+  }
+  fetch('/api/preise').then(function(r){ if(!r.ok) throw 0; return r.json(); })
+    .then(render)
+    .catch(function(){ C.innerHTML='<div class="state">Die Preise konnten gerade nicht geladen werden. Bitte versuchen Sie es später erneut oder kontaktieren Sie uns direkt.</div>'; });
+})();
+</script>
+</body>
+</html>
