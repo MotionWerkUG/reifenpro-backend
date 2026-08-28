@@ -277,6 +277,7 @@ function renderSektion(s, f) {
 // Standard-Navigation (Fallback, wenn im CMS nichts hinterlegt ist)
 var DEFAULT_NAV = [
   { label: 'Leistungen', url: '#leistungen', sichtbar: true, btn: false },
+  { label: 'Preise', url: '/preise/', sichtbar: true, btn: false },
   { label: 'Termin buchen', url: '/termin/', sichtbar: true, btn: false },
   { label: 'Öffnungszeiten', url: '#oeffnungszeiten', sichtbar: true, btn: false },
   { label: 'Kontakt', url: '#kontakt', sichtbar: true, btn: false },
