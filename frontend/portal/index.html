@@ -1537,6 +1537,11 @@ function initPortal() {
   var _p = new URLSearchParams(window.location.search);
   var wantBuchen = _p.has('buchen') || window.location.hash === '#buchen';
   var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
+  // E-Mail-Vorbelegung aus dem "Konto erstellen"-Link der Terminbestaetigungs-Mail (?email=...).
+  // Nur ein simpler Feldwert (kein innerHTML -> keine XSS), aber auf Laenge/Plausibilitaet begrenzt.
+  var hatEmailParam = _p.has('email');
+  var emailPrefill = (_p.get('email') || '').trim().slice(0, 160);
+  if (emailPrefill && emailPrefill.indexOf('@') < 1) emailPrefill = '';
   // Wer ueber "Termin buchen" kommt, soll nach Login/Registrierung direkt zur Buchung
   if (wantBuchen || wantReg) ZIEL_NACH_LOGIN = 'buchen';
   if (TOKEN) {
@@ -1549,7 +1554,14 @@ function initPortal() {
   } else {
     // Stammkunden zuerst zur Login-Maske (Registrierung nur bei ausdruecklichem ?registrieren)
     zeigeScreen(wantReg ? 'register' : 'login');
+    // E-Mail vorbelegen und aus der URL entfernen (nicht in Verlauf/Referrer/Lesezeichen hinterlassen)
+    if (wantReg && emailPrefill) {
+      var _re = document.getElementById('reg-email');
+      if (_re) _re.value = emailPrefill;
+    }
   }
+  // URL immer bereinigen, sobald ein email=-Param da war (auch bei ungueltigem Wert) -> keine E-Mail in Verlauf/Referrer.
+  if (hatEmailParam) window.history.replaceState({}, '', window.location.pathname + (wantReg ? '?registrieren' : ''));
 }
 initPortal();
 </script>

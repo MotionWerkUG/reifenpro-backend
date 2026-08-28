@@ -118,7 +118,10 @@ router.get('/leistungen', limiter, async (req, res, next) => {
     // "ab"-Preis je Leistung = niedrigster moeglicher Nettopreis (Basis bzw. guenstigste Variante)
     const ids = rows.map(r => r.artikel_id);
     const vars = ids.length ? (await query('SELECT artikel_id, preis FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows : [];
-    const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
+    // preise_inkl_mwst + buchbar_ab gemeinsam laden. buchbar_ab per to_char als YYYY-MM-DD (kein
+    // Date-Objekt -> kein UTC-Vortag-Bug), damit das /termin/-Frontend sein Mindestdatum dynamisch zieht.
+    const einst0 = (await query("SELECT preise_inkl_mwst, to_char(buchbar_ab,'YYYY-MM-DD') AS buchbar_ab FROM einstellungen ORDER BY id LIMIT 1")).rows[0] || {};
+    const inkl = einst0.preise_inkl_mwst !== false;
     const minByArt = {};
     vars.forEach(v => { const p = Number(v.preis); if (minByArt[v.artikel_id] == null || p < minByArt[v.artikel_id]) minByArt[v.artikel_id] = p; });
     rows.forEach(r => {
@@ -132,7 +135,8 @@ router.get('/leistungen', limiter, async (req, res, next) => {
     });
     res.json({
       haupt: rows.filter(r => r.rolle === 'haupt'),
-      zusatz: rows.filter(r => r.rolle === 'zusatz')
+      zusatz: rows.filter(r => r.rolle === 'zusatz'),
+      buchbar_ab: einst0.buchbar_ab || null
     });
   } catch (e) { next(e); }
 });
@@ -259,6 +263,17 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     // Datum/Uhrzeit serverseitig validieren (sonst per direktem Request umgehbar)
     const heuteStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
+    // Buchungsstart serverseitig durchsetzen (Frontend allein ist per direktem Request umgehbar): vor
+    // einstellungen.buchbar_ab keine Online-Buchung. src/db/index.js parst 'date' (OID 1082) global als
+    // rohen 'YYYY-MM-DD'-String -> hier greift der String-Zweig (deckungsgleich mit to_char in /leistungen).
+    // Der Date-Zweig ist nur defensive Absicherung, falls der Typ-Parser je entfernt wird (kein UTC-Vortag-Bug).
+    if (o.einst.buchbar_ab) {
+      const b = o.einst.buchbar_ab;
+      const bStr = (b instanceof Date)
+        ? b.getFullYear() + '-' + String(b.getMonth() + 1).padStart(2, '0') + '-' + String(b.getDate()).padStart(2, '0')
+        : String(b).slice(0, 10);
+      if (datum < bStr) return res.status(409).json({ error: 'Online-Buchungen sind erst ab dem ' + bStr.split('-').reverse().join('.') + ' möglich.' });
+    }
     const startMin = zeitZuMin(uhrzeit_von), endeMin = startMin + dauer;
     // Muss vollstaendig in eine Oeffnungsspanne fallen (deckt Oeffnungszeiten UND Mittagspause ab).
     const imFenster = (o.spannen || []).some(sp => startMin >= zeitZuMin(sp[0]) && endeMin <= zeitZuMin(sp[1]));
@@ -405,23 +420,53 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       const hhmm = String(t.uhrzeit_von).substring(0, 5);
       const eur = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
       const pos = Array.isArray(t.leistungen) ? t.leistungen : (t.leistungen ? JSON.parse(t.leistungen) : []);
-      const posHtml = pos.map(p => p.bezeichnung + ': ' + eur(p.grundpreis_netto) + (p.zuschlag_netto > 0 ? ' + Zuschlag ' + (p.fahrzeugtyp || '') + ': ' + eur(p.zuschlag_netto) : '')).join('<br>');
+      // Kundenseitig NUR Brutto ausweisen (PAngV). Bei preise_inkl_mwst=true ist zeilen_brutto bereits der
+      // Endpreis inkl. MwSt -> NICHT erneut mit dem Satz multiplizieren. Fallback fuer aeltere Datensaetze.
+      const posBrutto = (p) => {
+        if (p.zeilen_brutto != null) return Number(p.zeilen_brutto);
+        const satz = Number(p.mwst_satz != null ? p.mwst_satz : 19);
+        return round2((Number(p.grundpreis_netto || 0) + Number(p.zuschlag_netto || 0)) * (1 + satz / 100));
+      };
+      const posHtml = pos.map(p => p.bezeichnung + ': ab ' + eur(posBrutto(p))).join('<br>');
+      const summeBrutto = round2(pos.reduce((s, p) => s + posBrutto(p), 0));
+      // Interne Admin-Mail: Netto-Detail (Grundpreis + Zuschlag) statt der kundenseitigen Brutto-"ab"-Zeile
+      // -> der Betrieb kalkuliert intern netto. Kundenmail bleibt reine Brutto-Schaetzung (PAngV).
+      const posHtmlAdmin = pos.map(p => p.bezeichnung + ': ' + eur(p.grundpreis_netto)
+        + (p.zuschlag_netto > 0 ? ' + Zuschlag ' + (p.fahrzeugtyp || '') + ': ' + eur(p.zuschlag_netto) : '') + ' (netto)').join('<br>');
+      const preisBlock = posHtml
+        ? ('<strong>Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtml
+           + '<br><strong>Summe (Schätzung): ab ' + eur(summeBrutto) + '</strong>'
+           + (t.gutschein_code ? '<br>Gutschein ' + t.gutschein_code + ': −' + t.gutschein_rabatt + ' % (Anrechnung auf der Rechnung)' : '')
+           + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
+        : '';
+      // #6 Konto-CTA (sekundaer) unter dem Bestaetigungstext. E-Mail des Gastes vorbelegt; Backend behandelt
+      // Bestandskunden sauber (Passwort-festlegen statt Doppelkonto). encodeURIComponent -> URL-sicher.
+      const kontoUrlMail = 'https://www.schroeder-scholz.de/portal/?registrieren&email=' + encodeURIComponent(t.kontakt_email || '');
+      // Nur Inline-Elemente (a/br/span) -> gueltig, da portalMailHtml jedes absaetze-Element in ein <p> wrappt
+      // (eine <table> darin waere ungueltiges HTML und bricht in Outlook). Konsistent mit der gastSeite-CTA.
+      const kontoCtaMail = '<a href="' + escAttr(kontoUrlMail) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:13px 30px;font-size:15px;font-weight:700">Kundenkonto erstellen</a>'
+        + '<br><span style="display:inline-block;margin-top:10px;font-size:13px;color:#777">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</span>';
       const htmlGast = portalMailHtml(einst, {
         titel: 'Ihr Termin ist bestätigt', name: t.kontakt_vorname || '',
         absaetze: ['vielen Dank — Ihr Termin bei Schröder &amp; Scholz ist jetzt verbindlich gebucht.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : '') + (t.gutschein_code ? '<br><strong>Gutschein:</strong> ' + t.gutschein_code + ' (−' + t.gutschein_rabatt + ' %)' : ''),
-          posHtml ? ('<strong>Leistungen (Schätzung, netto):</strong><br>' + posHtml) : ''],
-        hinweis: 'Die Preise sind eine unverbindliche Schätzung; der Endpreis kann je nach Aufwand abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : ''),
+          preisBlock,
+          kontoCtaMail],
+        hinweis: 'Der Endpreis ist abhängig von Zollgröße und Fahrzeugart und kann vor Ort ggf. abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
       });
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: t.kontakt_email, replyTo: einst.email || process.env.SMTP_USER, subject: 'Terminbestätigung ' + dF + ' ' + hhmm + ' Uhr — Schröder & Scholz', html: htmlGast });
       if (einst.email) {
         await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: t.kontakt_email,
           subject: 'Neue Online-Buchung (Gast, bestätigt): ' + (t.termin_typ || '') + ' am ' + dF + ' ' + hhmm,
-          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtml + '</p>' });
+          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code ? '<br>Gutschein ' + t.gutschein_code + ': −' + t.gutschein_rabatt + ' %' : '') + '</p>' });
       }
     } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
 
-    res.send(gastSeite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.'));
+    // "Konto erstellen"-CTA: E-Mail des bestaetigten Gastes vorbelegen. Backend behandelt Bestandskunden
+    // ohnehin sauber (Passwort-festlegen-Link statt Doppelkonto). encodeURIComponent -> URL-sicher.
+    const kontoUrl = 'https://www.schroeder-scholz.de/portal/?registrieren&email=' + encodeURIComponent(t.kontakt_email || '');
+    const kontoCta = '<div style="margin-top:20px;padding-top:18px;border-top:1px solid #eee"><a href="' + escAttr(kontoUrl) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700">Kundenkonto erstellen</a><p style="margin:12px 0 0;color:#777;font-size:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</p></div>';
+    res.send(gastSeite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.', kontoCta));
   } catch (e) { next(e); }
 });
 
