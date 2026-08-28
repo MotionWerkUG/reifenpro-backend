@@ -444,7 +444,8 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       [req.params.terminId]
     )).rows[0];
     if (!t) return res.status(404).json({ error: 'Termin nicht gefunden.' });
-    if (!t.kunden_id) return res.status(400).json({ error: 'Termin ohne Kundenkonto — Rechnung bitte manuell anlegen.' });
+    // Gast-Termine ohne Kundenkonto sind erlaubt: der Empfaenger wird unten als Snapshot aus den
+    // Termin-Kontaktdaten gebaut (kein Kundenstamm). Fehlt jeglicher Name, kommt dort ein klarer Fehler.
     if (t.rechnung_id) return res.status(409).json({ error: 'Für diesen Termin wurde bereits eine Rechnung erstellt.' });
 
     let typ = null;
@@ -520,7 +521,23 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       })));
     }
     const s = berechneSummen(positionen);
-    const emp = await ladeEmpfaenger(t.kunden_id);
+    // Empfaenger: bei Kundenkonto aus dem Stamm; sonst (Gast-Termin) Snapshot aus den Termin-Kontaktdaten,
+    // OHNE einen Kundenstamm anzulegen ("nur Rechnungsempfaenger"). Die §14-Vollstaendigkeit (ab 250 EUR
+    // volle Anschrift) wird wie gehabt erst beim Festschreiben geprueft; hier ist der Name das Minimum.
+    let emp;
+    if (t.kunden_id) {
+      emp = await ladeEmpfaenger(t.kunden_id);
+    } else {
+      const s2 = (v) => (v == null ? null : String(v).trim() || null);
+      const vorname = s2(t.kontakt_vorname), nachname = s2(t.kontakt_nachname);
+      const name = ((vorname || '') + ' ' + (nachname || '')).trim() || s2(t.kontakt_name) || null;
+      if (!name) return res.status(400).json({ error: 'Termin ohne Kundenkonto und ohne Empfängername — Rechnung bitte manuell anlegen.' });
+      emp = {
+        empfaenger_anrede: s2(t.kontakt_anrede), empfaenger_vorname: vorname, empfaenger_nachname: nachname,
+        empfaenger_name: name, empfaenger_firma: null,
+        empfaenger_strasse: s2(t.kontakt_strasse), empfaenger_plz: s2(t.kontakt_plz), empfaenger_ort: s2(t.kontakt_ort)
+      };
+    }
     const rdatum = heute();
     const result = await withTransaction(async (client) => {
       const ins = await client.query(
@@ -554,8 +571,22 @@ router.put('/:id', async (req, res, next) => {
     // kunden_id ist explizit setzbar (auch auf null); fehlt das Feld ganz, bleibt die bisherige Verknuepfung
     const kid = (kunden_id !== undefined) ? (kunden_id || null) : cur.rows[0].kunden_id;
     const s = berechneSummen(positionen);
-    // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
-    const emp = empfaengerAusBody(req.body) || await ladeEmpfaenger(kid);
+    // Empfaenger: explizite Eingabe (Snapshot) bevorzugen; sonst bei Kundenkonto aus dem Stamm laden.
+    // Bei einem Gast-Entwurf (kein Kundenkonto) und ohne Empfaenger im Body den bereits gespeicherten
+    // Snapshot der Zeile BEIBEHALTEN (nicht mit Leerwerten aus ladeEmpfaenger(null) ueberschreiben).
+    let emp = empfaengerAusBody(req.body);
+    if (!emp) {
+      if (kid) {
+        emp = await ladeEmpfaenger(kid);
+      } else {
+        const c = cur.rows[0];
+        emp = {
+          empfaenger_anrede: c.empfaenger_anrede, empfaenger_vorname: c.empfaenger_vorname, empfaenger_nachname: c.empfaenger_nachname,
+          empfaenger_name: c.empfaenger_name, empfaenger_firma: c.empfaenger_firma,
+          empfaenger_strasse: c.empfaenger_strasse, empfaenger_plz: c.empfaenger_plz, empfaenger_ort: c.empfaenger_ort
+        };
+      }
+    }
     if (!emp.empfaenger_name && !emp.empfaenger_firma && !kid) {
       return res.status(400).json({ error: 'Bitte einen Kunden wählen oder einen Empfänger (Name oder Firma) eintragen.' });
     }
