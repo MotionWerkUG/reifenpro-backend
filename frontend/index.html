@@ -4084,6 +4084,7 @@ function zeigeTermin(id) {
     (t.notizen_intern ? '<div>' + iz('Interne Notizen', t.notizen_intern) + '</div>' : '') +
     '</div>' +
     '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+    '<button class="btn btn-p btn-sm" onclick="closeModal(\'td\');rechnungAusTermin(\'' + t.id + '\')">Rechnung erstellen</button>' +
     '<button class="btn btn-g btn-sm" onclick="closeModal(\'td\');ntBearbeiten(\'' + t.id + '\')">Bearbeiten</button>' +
     (!t.kunden_id ? '<button class="btn btn-grn btn-sm" onclick="terminNeuerKunde(\'' + t.id + '\')">Kunde anlegen</button>' : '') +
     '<button class="btn ' + (t.einlagern ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="terminEinlagern(\'' + t.id + '\',' + (t.einlagern ? 'false' : 'true') + ')">' + (t.einlagern ? 'Einlager-Vormerkung aufheben' : 'Für Einlagerung vormerken') + '</button>' +
