@@ -40,9 +40,9 @@ router.get('/statistik', async (req, res, next) => {
     const { rows } = await query(
       `SELECT
         EXTRACT(MONTH FROM datum) as monat,
-        COUNT(CASE WHEN status != 'storniert' THEN 1 END) as anzahl,
-        COUNT(CASE WHEN status='storniert' THEN 1 END) as storniert,
-        COUNT(CASE WHEN portal_buchung=true AND status != 'storniert' THEN 1 END) as online
+        COUNT(CASE WHEN status NOT IN ('storniert','abgesagt','nicht_erschienen') THEN 1 END) as anzahl,
+        COUNT(CASE WHEN status IN ('storniert','abgesagt','nicht_erschienen') THEN 1 END) as storniert,
+        COUNT(CASE WHEN portal_buchung=true AND status NOT IN ('storniert','abgesagt','nicht_erschienen') THEN 1 END) as online
        FROM termine
        WHERE EXTRACT(YEAR FROM datum) = $1
        GROUP BY monat ORDER BY monat`,
@@ -135,7 +135,7 @@ router.put('/:id', async (req, res, next) => {
 router.patch('/:id/status', async (req, res, next) => {
   try {
     const { status } = req.body;
-    const erlaubt = ['angefragt', 'bestaetigt', 'abgeschlossen', 'storniert'];
+    const erlaubt = ['angefragt', 'bestaetigt', 'abgeschlossen', 'storniert', 'nicht_erschienen'];
     if (!erlaubt.includes(status)) return res.status(400).json({ error: 'Ungültiger Status.' });
     // Storno-Metadaten konsistent setzen (wie im DELETE-Pfad); Reaktivierung raeumt sie wieder ab
     const { rows } = await query(
