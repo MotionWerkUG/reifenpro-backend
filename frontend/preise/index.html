@@ -116,7 +116,7 @@
   function dauer(m){ if(!m) return ''; if(m>=60){ var h=Math.floor(m/60), r=m%60; return 'ca. '+h+' Std'+(r?' '+r+' Min':''); } return 'ca. '+m+' Min'; }
   function zollTxt(v){
     var mn=v.zoll_min, mx=v.zoll_max;
-    if(mn!=null && mx!=null) return mn+'–'+mx+' Zoll';
+    if(mn!=null && mx!=null) return (mn===mx) ? (mn+' Zoll') : (mn+'–'+mx+' Zoll');
     if(mn!=null) return 'ab '+mn+' Zoll';
     if(mx!=null) return 'bis '+mx+' Zoll';
     return null;
