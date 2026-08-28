@@ -1,3 +1,14 @@
+> ## STECKBRIEF — ZUERST LESEN (Stand 2026-08-28)
+>
+> - **Bereich:** Kundenportal. **Feste Session-Adresse:** `reifenpro-portal`.
+> - **Arbeite im Worktree** `/home/deploy/projekte/reifenpro-portal` — NIE im Hauptordner `/home/deploy/projekte/reifenpro` (sonst instabile Session-Namen; der Hauptordner ist nur Deploy/Integration).
+> - **Deine Zuständigkeit:** Kundenportal + Gast-Buchung (Backend): portal.html, gast.js, portal-auth/-daten, Registrierung/Login/Reset, Gast-Termin, Bestätigungs-/Kundenmails, öffentliche Gutschein-Prüfung, buchbar_ab-Ausgabe/-Durchsetzung.
+> - **Was in eine andere Session gehört + Routing bei Überschneidungen:** `.claude/bereiche/SESSIONS.md` (verbindlich).
+> - **Andere Sessions erreichen:** SendMessage an `reifenpro-homepage` / `reifenpro-portal` / `reifenpro-admin` / `reifenpro-rechnungen`; vorher ggf. `ListAgents` prüfen.
+> - **Landkarte/Worktree-Modell:** `.claude/bereiche/LANDKARTE.md`. **Projektkontext:** `CLAUDE.md` (Hauptordner) + `.claude/bereiche/kundenportal/CLAUDE.md`. **Dauerfakten:** Memory.
+> - **Deploy:** Bereichs-Branch → `main` mergen → `sudo pm2 restart reifenpro` (Backend läuft aus main). Frontend: nach `/var/www/schroeder-homepage/` kopieren.
+> - **Vor Freigabe:** Qualitäts-Gate (code-auditor/breaker/reviewer, ggf. gobd-pruefer/produkt-kritiker) + `/release-gate`.
+
 # Kickoff: Kundenportal
 
 Ordner **`/home/deploy/projekte/reifenpro-portal`** in Claude Code öffnen (eigener
