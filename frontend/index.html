@@ -1925,6 +1925,16 @@ function terminEinlagern(id, on) {
     if (typeof renderDash === 'function') renderDash();
   }).catch(function(e) { notify((e && e.message) || 'Fehler beim Speichern.', 'err'); });
 }
+// Aus einem vorgemerkten Termin die tatsaechliche Einlagerung starten (Kunde/Fahrzeug vorbefuellt) -> schliesst die Sackgasse.
+var NE_FROM_TERMIN = null;
+function terminEinlagernJetzt(id) {
+  var t = allTermine.find(function(x) { return x.id === id; }); if (!t) return;
+  aktK = (t.kunden_id && typeof allK !== 'undefined' && allK) ? (allK.find(function(x) { return x.id === t.kunden_id; }) || null) : null;
+  if (typeof nePendingFahrzeug !== 'undefined') nePendingFahrzeug = t.fahrzeug_id || null;
+  NE_FROM_TERMIN = id;
+  openModal('ne');
+  if (!aktK) notify('Kein Kunde am Termin — bitte im Formular Kunde wählen oder anlegen.');
+}
 
 // ── GEWERBE-ANFRAGEN ──
 var allGewerbeAnf = [];
@@ -3352,9 +3362,14 @@ function sendeNeuerKunde(data, force) {
       NK_FROM_ANFRAGE = null;
     }
     if (NK_FROM_TERMIN) {
-      api('PATCH', '/termine/' + NK_FROM_TERMIN + '/kunde', { kunden_id: k.id })
-        .then(function() { notify('Termin mit Kunde verknüpft.'); renderDash(); if (typeof loadTermineWerkstatt === 'function') loadTermineWerkstatt(); })
-        .catch(function() {});
+      var _tid = NK_FROM_TERMIN;
+      api('PATCH', '/termine/' + _tid + '/kunde', { kunden_id: k.id })
+        .then(function() {
+          notify('Termin mit Kunde verknüpft.');
+          var tt = (typeof allTermine !== 'undefined' && allTermine ? allTermine : []).find(function(x) { return x.id === _tid; });
+          if (tt) { tt.kunden_id = k.id; tt.kundenname = ((k.vorname || '') + ' ' + (k.nachname || '')).trim(); }
+          renderDash(); if (typeof loadTermineWerkstatt === 'function') loadTermineWerkstatt();
+        }).catch(function() {});
       NK_FROM_TERMIN = null;
     }
     if (document.getElementById('nk-dsgvo').checked) {
@@ -3650,6 +3665,14 @@ function saveNE() {
     var k = allK.find(function(x) { return x.id === kid; });
     allE.unshift(Object.assign({}, e, { kundenname: k ? k.vorname + ' ' + k.nachname : '', kennzeichen: k ? k.kennzeichen : '' }));
     closeModal('ne'); notify('Eingelagert!'); renderE(); renderDash(); renderLager();
+    // Falls aus einem 'Für Einlagerung vorgemerkten' Termin gestartet: Vormerkung quittieren, damit die Karteileiche verschwindet.
+    if (typeof NE_FROM_TERMIN !== 'undefined' && NE_FROM_TERMIN) {
+      var _etid = NE_FROM_TERMIN; NE_FROM_TERMIN = null;
+      api('PATCH', '/termine/' + _etid + '/einlagern', { einlagern: false }).then(function() {
+        var tt = (typeof allTermine !== 'undefined' && allTermine ? allTermine : []).find(function(x) { return x.id === _etid; }); if (tt) tt.einlagern = false;
+        if (typeof loadTermineWerkstatt === 'function') loadTermineWerkstatt();
+      }).catch(function() {});
+    }
     setTimeout(function() { aktK = k || aktK; zeigeSchein(e.id, 'ein'); }, 400);
   }).catch(function(e) { notify(e.message, 'err'); });
 }
@@ -4072,11 +4095,14 @@ function zeigeTermin(id) {
   var t = allTermine.find(function(x) { return x.id === id; });
   if (!t) { api('GET', '/termine/' + id).then(function(r) { if (r && r.id) { allTermine.push(r); zeigeTermin(id); } else notify('Termin nicht gefunden.', 'err'); }).catch(function() { notify('Termin nicht gefunden.', 'err'); }); return; }
   var el = document.getElementById('td-inhalt');
+  var leistAlle = t.artikel_name || t.termin_typ || '-';
+  var _lz = t.leistungen; if (typeof _lz === 'string') { try { _lz = JSON.parse(_lz); } catch (e) { _lz = null; } }
+  if (Array.isArray(_lz) && _lz.length) leistAlle = _lz.map(function(p) { return p.bezeichnung; }).filter(Boolean).join(' + ') || leistAlle;
   var col = t.portal_buchung ? '#3ecf8e' : '#4a9eff';
   el.innerHTML = '<div class="mtitle" style="color:' + col + '">' + fd(t.datum) + ' ' + (t.uhrzeit_von||'').substring(0,5) + '</div>' +
     '<div style="display:flex;flex-direction:column;gap:8px">' +
     '<div>' + iz('Kunde', t.kundenname || t.kontakt_name || '-') + '</div>' +
-    '<div>' + iz('Leistung', t.artikel_name || t.termin_typ || '-') + '</div>' +
+    '<div>' + iz('Leistung', leistAlle) + '</div>' +
     '<div>' + iz('Kennzeichen', t.kennzeichen || '-') + '</div>' +
     '<div>' + iz('Telefon', t.kontakt_telefon || '-') + '</div>' +
     (t.gutschein_code ? '<div>' + iz('Gutschein', t.gutschein_code + (t.gutschein_rabatt ? ' (−' + t.gutschein_rabatt + ' %)' : '')) + '</div>' : '') +
@@ -4303,7 +4329,8 @@ function renderWS() {
         (istErledigt
           ? '<button class="btn btn-g btn-sm" data-tid="' + t.id + '" onclick="terminWiederOeffnen(this.getAttribute(\'data-tid\'))">Wieder öffnen</button>' +
             (t.kunden_id ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="rechnungAusTermin(this.getAttribute(\'data-tid\'))">Rechnung</button>' : '')
-          : (lagerplaetze ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="raederwechsel(this.getAttribute(\'data-tid\'))">Räderwechsel</button>' : '') +
+          : (t.einlagern ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="terminEinlagernJetzt(this.getAttribute(\'data-tid\'))">Jetzt einlagern</button>' : '') +
+            (lagerplaetze ? '<button class="btn btn-p btn-sm" data-tid="' + t.id + '" onclick="raederwechsel(this.getAttribute(\'data-tid\'))">Räderwechsel</button>' : '') +
             '<button class="btn btn-grn btn-sm" data-tid="' + t.id + '" onclick="terminErledigt(this.getAttribute(\'data-tid\'))">Erledigt</button>' +
             '<button class="btn btn-danger btn-sm" data-tid="' + t.id + '" onclick="terminAbsagen(this.getAttribute(\'data-tid\'))">Absagen</button>') +
       '</div>' +
