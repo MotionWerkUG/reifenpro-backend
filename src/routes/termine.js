@@ -117,12 +117,14 @@ router.post('/', async (req, res, next) => {
 // ── PUT /api/termine/:id ──
 router.put('/:id', async (req, res, next) => {
   try {
-    const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status } = req.body;
+    const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status, kunden_id, kontakt_name, kontakt_telefon } = req.body;
     const { rows } = await query(
       `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, termin_typ=$4, artikel_id=$5,
-       kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=COALESCE($9, status), geaendert_am=NOW()
+       kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=COALESCE($9, status),
+       kunden_id=$11, kontakt_name=$12, kontakt_telefon=$13, geaendert_am=NOW()
        WHERE id=$10 RETURNING *`,
-      [datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id || null, kennzeichen, beschreibung, notizen_intern, status || null, req.params.id]
+      [datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id || null, kennzeichen, beschreibung, notizen_intern, status || null, req.params.id,
+       kunden_id || null, kontakt_name || null, kontakt_telefon || null]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
     res.json(rows[0]);
