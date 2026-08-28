@@ -344,6 +344,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .akt-mehr[open] > summary { background: var(--accent); color: #171717; }
 /* Nur-Admin-Elemente ausblenden, wenn der eingeloggte Nutzer kein Admin ist (Backend erzwingt es zusaetzlich per requireAdmin). */
 #app:not(.rolle-admin) .admin-only { display: none !important; }
+/* Einstellungen: Kategorien links (Rail), Inhalt rechts (Master-Detail) */
+.einst-split { display: grid; grid-template-columns: 220px 1fr; gap: 22px; align-items: start; }
+.einst-rail { display: flex; flex-direction: column; gap: 3px; position: sticky; top: 12px; }
+.einst-rail .etab { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 9px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: var(--muted); font-weight: 500; cursor: pointer; transition: background .12s, color .12s; }
+.einst-rail .etab:hover { background: var(--panel); }
+.einst-rail .etab.on { background: var(--panel); color: var(--accent-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent-text); }
+.einst-content { min-width: 0; }
+@media (max-width: 720px) { .einst-split { grid-template-columns: 1fr; gap: 10px; } .einst-rail { flex-direction: row; flex-wrap: wrap; position: static; } .einst-rail .etab { width: auto; } .einst-rail .etab.on { box-shadow: none; border-bottom: 2px solid var(--accent-text); } }
 </style>
 </head>
 <body>
@@ -665,16 +673,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </div>
         </div>
         <!-- Reiter: reine Layout-Gliederung, Feld-IDs unveraendert -->
-        <div id="einst-tabs" style="display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--border2);margin-bottom:18px">
-          <button class="etab" data-etab="firma" onclick="showEinstTab('firma')" style="background:none;border:none;border-bottom:2px solid var(--accent-text);color:var(--accent-text);font-weight:700;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Firma &amp; Recht</button>
-          <button class="etab" data-etab="zeiten" onclick="showEinstTab('zeiten')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Öffnungszeiten &amp; Termine</button>
-          <button class="etab" data-etab="preise" onclick="showEinstTab('preise')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Preise &amp; Vertrag</button>
-          <button class="etab" data-etab="lager" onclick="showEinstTab('lager')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Lager</button>
-          <button class="etab" data-etab="bank" onclick="showEinstTab('bank')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Bank &amp; Buchhaltung</button>
-          <button class="etab" data-etab="mail" onclick="showEinstTab('mail')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">E-Mail-Texte</button>
-          <button class="etab" data-etab="homepage" onclick="showEinstTab('homepage')" style="background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;cursor:pointer">Homepage &amp; Kontakt</button>
-        </div>
-
+        <div class="einst-split">
+          <nav id="einst-tabs" class="einst-rail">
+            <button class="etab on" data-etab="firma" onclick="showEinstTab('firma')">Firma &amp; Recht</button>
+            <button class="etab" data-etab="zeiten" onclick="showEinstTab('zeiten')">Öffnungszeiten &amp; Termine</button>
+            <button class="etab" data-etab="preise" onclick="showEinstTab('preise')">Preise &amp; Vertrag</button>
+            <button class="etab" data-etab="lager" onclick="showEinstTab('lager')">Lager</button>
+            <button class="etab" data-etab="bank" onclick="showEinstTab('bank')">Bank &amp; Buchhaltung</button>
+            <button class="etab" data-etab="mail" onclick="showEinstTab('mail')">E-Mail-Texte</button>
+            <button class="etab" data-etab="homepage" onclick="showEinstTab('homepage')">Homepage &amp; Kontakt</button>
+          </nav>
+          <div class="einst-content">
         <div class="etab-panel" data-epanel="firma">
           <div class="ssec"><h3>Firmendaten</h3><div class="fgrid">
             <div class="fg"><label>Firmenname *</label><input id="s-fn"></div>
@@ -818,6 +827,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div style="display:flex;justify-content:flex-end;padding-bottom:40px;margin-top:10px">
           <button class="btn btn-p" style="padding:12px 32px" onclick="saveEinst()">Alle Einstellungen speichern</button>
         </div>
+          </div><!-- /einst-content -->
+        </div><!-- /einst-split -->
       </div>
 
     </main>
@@ -2575,10 +2586,7 @@ function nkKundentypChange() {
 // Einstellungs-Reiter umschalten: aktiven Knopf hervorheben, nur das passende Panel zeigen.
 function showEinstTab(name) {
   Array.prototype.forEach.call(document.querySelectorAll('#einst-tabs .etab'), function(b) {
-    var on = b.getAttribute('data-etab') === name;
-    b.style.color = on ? 'var(--accent-text)' : 'var(--muted)';
-    b.style.borderBottom = on ? '2px solid var(--accent-text)' : '2px solid transparent';
-    b.style.fontWeight = on ? '700' : '500';
+    b.classList.toggle('on', b.getAttribute('data-etab') === name);
   });
   Array.prototype.forEach.call(document.querySelectorAll('#page-einstellungen .etab-panel'), function(p) {
     p.style.display = p.getAttribute('data-epanel') === name ? '' : 'none';
