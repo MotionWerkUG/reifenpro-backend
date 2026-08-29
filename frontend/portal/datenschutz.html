@@ -90,10 +90,15 @@ function render() {
       '<li>Reifendaten: Dimension, Marke, Profiltiefe, Lagerplatz, Zustand und Bemerkungen</li>' +
       '<li>Termindaten: gebuchte Leistungen, Datum, Uhrzeit</li>' +
       '<li>Zugangsdaten: E-Mail und verschlüsseltes Passwort für das Kundenportal</li></ul>' +
+      '<h3>Terminbuchung ohne Kundenkonto</h3>' +
+      '<p>Buchen Sie einen Termin über unsere Terminseite, ohne ein Kundenkonto zu haben, verarbeiten wir: Anrede, Vor- und Nachname (bei Firmenkunden zusätzlich den Firmennamen), Telefonnummer, E-Mail-Adresse, Anschrift, Kennzeichen, Fahrzeugart und Zollgröße, die gewünschten Leistungen sowie einen etwaigen Gutscheincode. Anschrift und Name benötigen wir, um die Leistung abrechnen zu können; die Fahrzeugangaben, um die passenden Arbeiten und Zeiten einzuplanen.</p>' +
+      '<p>Wir versenden Ihnen zunächst eine E-Mail mit einem Bestätigungslink; erst nach Ihrer Bestätigung wird der Termin verbindlich. Bestätigen Sie nicht, wird die Anfrage nach 45 Minuten automatisch gelöscht. Dieses Verfahren schützt davor, dass Dritte Termine unter fremden E-Mail-Adressen buchen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung vorvertraglicher Maßnahmen und des Vertrages).</p>' +
+      '<p>Bei der Adresseingabe schlagen wir Ihnen passende Straßen, Postleitzahlen und Orte vor. Die Abfrage läuft über unseren eigenen Server an den amtlichen Datenbestand von openplzapi.org; dabei wird nur der von Ihnen eingegebene Adressbestandteil übermittelt, nicht Ihre IP-Adresse und keine weiteren Angaben.</p>' +
+      '<p>Erteilen Sie uns eine Einwilligung (z. B. für Saison-Erinnerungen oder eine einmalige Bewertungsanfrage), speichern wir zum Nachweis zusätzlich den Zeitpunkt und Ihre IP-Adresse. Jede dieser E-Mails enthält einen Abmeldelink, mit dem Sie die Einwilligung mit einem Klick widerrufen können.</p>' +
       '<h2>3. Zweck und Rechtsgrundlage</h2>' +
       '<p>Die Verarbeitung erfolgt zur Erfüllung des Vertrages (Art. 6 Abs. 1 lit. b DSGVO), zur Erfüllung gesetzlicher Aufbewahrungspflichten (Art. 6 Abs. 1 lit. c DSGVO) sowie – bei Saison-Erinnerungen – auf Grundlage Ihrer Einwilligung (Art. 6 Abs. 1 lit. a DSGVO), die Sie jederzeit widerrufen können.</p>' +
       '<h2>4. Speicherdauer</h2>' +
-      '<p>Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach deren Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Rechnungen und steuerlich relevante Belege 10 Jahre, Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 147 AO, § 14b UStG, § 257 HGB). Danach werden die Daten gelöscht.</p>' +
+      '<p>Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach deren Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Rechnungen und Buchungsbelege 8 Jahre (§ 147 Abs. 3 AO, § 14b Abs. 1 UStG in der Fassung des Vierten Bürokratieentlastungsgesetzes), Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 257 HGB). Danach werden die Daten gelöscht.</p>' +
       '<h2>5. Auftragsverarbeiter</h2>' +
       '<p>Wir setzen sorgfältig ausgewählte Dienstleister ein, mit denen Verträge zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Server-Hosting (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe an Dritte zu anderen Zwecken erfolgt nicht.</p>' +
       '<h2>6. Ihre Rechte</h2>' +
@@ -119,10 +124,15 @@ function render() {
       '<li>Tire data: dimensions, brand, tread depth, storage location, condition and notes</li>' +
       '<li>Appointment data: booked services, date, time</li>' +
       '<li>Login data: email and encrypted password for the customer portal</li></ul>' +
+      '<h3>Booking an appointment without a customer account</h3>' +
+      '<p>If you book an appointment via our booking page without holding an account, we process: form of address, first and last name (for business customers also the company name), phone number, email address, postal address, licence plate, vehicle type and wheel size, the selected services and any voucher code. Name and address are required to invoice the service; the vehicle details to schedule the right work and duration.</p>' +
+      '<p>We first send you an email containing a confirmation link; the appointment only becomes binding once you confirm it. Without confirmation the request is deleted automatically after 45 minutes. This protects against third parties booking appointments under someone else&rsquo;s email address. The legal basis is Art. 6(1)(b) GDPR (pre-contractual measures and performance of the contract).</p>' +
+      '<p>While you enter your address we suggest matching streets, postcodes and towns. The lookup runs through our own server against the official records of openplzapi.org; only the address fragment you typed is transmitted &ndash; not your IP address and no other details.</p>' +
+      '<p>If you give us consent (for example for seasonal reminders or a one-off review request), we additionally store the time and your IP address as evidence. Every such email contains an unsubscribe link that withdraws the consent with a single click.</p>' +
       '<h2>3. Purpose and legal basis</h2>' +
       '<p>Processing is carried out to fulfill the contract (Art. 6(1)(b) GDPR), to comply with legal retention obligations (Art. 6(1)(c) GDPR) and – for seasonal reminders – based on your consent (Art. 6(1)(a) GDPR), which you can withdraw at any time.</p>' +
       '<h2>4. Retention period</h2>' +
-      '<p>Contract data is processed for the duration of the business relationship. After termination, statutory retention periods apply: accounting documents and invoices 8 years, contract documents 8 years from end of contract, other business correspondence 6 years (§ 147 AO, § 257 HGB). The data is then deleted.</p>' +
+      '<p>Contract data is processed for the duration of the business relationship. After termination, statutory retention periods apply: invoices and accounting documents 8 years (§ 147 (3) AO, § 14b (1) UStG as amended by the Fourth Bureaucracy Relief Act), contract documents 8 years from end of contract, other business correspondence 6 years (§ 257 HGB). The data is then deleted.</p>' +
       '<h2>5. Processors</h2>' +
       '<p>We use carefully selected service providers with whom data processing agreements pursuant to Art. 28 GDPR exist: server hosting (Contabo GmbH, Munich) and email delivery (IONOS SE, Montabaur). No data is shared with third parties for other purposes.</p>' +
       '<h2>6. Your rights</h2>' +
