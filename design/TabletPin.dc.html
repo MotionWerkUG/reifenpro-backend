@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+    a { color: #87680c; } a:hover { color: #201e1b; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #f3f2ef; color: #201e1b; padding: 32px 36px; overflow: hidden;">
+
+  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c;">Vorschlag 1</div>
+  <div style="font-size: 26px; font-weight: 800; margin: 6px 0 4px;">Das gemeinsame Tablet in der Werkstatt</div>
+  <div style="font-size: 14px; color: #6f6a61; max-width: 900px; line-height: 1.55;">Drei Leute, ein Gerät. Davon hängt ab, ob die Rechtevergabe überhaupt etwas bewirkt.</div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 26px;">
+
+    <div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61;">Heute</div>
+        <div style="flex-grow: 1; height: 1px; background: #e9e6df;"></div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px; margin-bottom: 12px;">
+        <div style="font-size: 13px; color: #6f6a61; margin-bottom: 14px;">07:10 Uhr — Marek meldet sich an, das Tablet bleibt offen.</div>
+        <div style="border: 1px solid #dbd6cc; border-radius: 10px; padding: 18px; background: #f3f2ef;">
+          <div style="font-size: 17px; font-weight: 800; letter-spacing: 2.4px; margin-bottom: 14px;">REIFEN<span style="color: #87680c;">PRO</span></div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="background: #ffffff; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px; color: #6f6a61;">marek.sowa@schroeder-scholz.de</div>
+            <div style="background: #ffffff; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px; letter-spacing: 2px; color: #6f6a61;">••••••••••</div>
+            <div style="padding: 10px 18px; border-radius: 8px; background: #eab308; color: #1c1608; font-size: 13px; font-weight: 700; text-align: center;">Einloggen</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c; padding-bottom: 8px; border-bottom: 1px solid #e9e6df; margin-bottom: 12px;">Was im Protokoll steht</div>
+        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Einlagerung E-0247 angelegt</span><span style="color: #6f6a61;">Marek Sowa</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Lagerplatz A-03-07 geändert</span><span style="color: #6f6a61;">Marek Sowa</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Kunde Gabriel gelöscht</span><span style="color: #6f6a61;">Marek Sowa</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Termin 14:30 abgesagt</span><span style="color: #6f6a61;">Marek Sowa</span></div>
+        </div>
+        <div style="margin-top: 14px; padding: 11px 13px; background: rgba(179,120,26,.14); border: 1px solid rgba(179,120,26,.25); border-radius: 8px; font-size: 12px; color: #b3781a; line-height: 1.5;">
+          Marek hatte um 14:30 frei. Die Spur zeigt trotzdem ihn — und damit gilt für alle drei sein Rechteumfang.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #87680c;">Vorschlag</div>
+        <div style="flex-grow: 1; height: 1px; background: #eab308;"></div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #eab308; border-radius: 12px; padding: 20px; margin-bottom: 12px;">
+        <div style="font-size: 13px; color: #6f6a61; margin-bottom: 14px;">Das Tablet zeigt dauerhaft die Werkstatt. Wer etwas ändert, tippt vier Ziffern.</div>
+        <div style="border: 1px solid #dbd6cc; border-radius: 10px; padding: 18px; background: #f3f2ef;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Wer arbeitet gerade?</div>
+          <div style="font-size: 12px; color: #6f6a61; margin-bottom: 14px;">Räderwechsel WOR-QA-1234 abschließen</div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px;">
+            <div style="padding: 12px 6px; border: 1px solid #eab308; background: #fdf6e0; border-radius: 9px; text-align: center; font-size: 13px; font-weight: 700; color: #87680c;">M.Sw</div>
+            <div style="padding: 12px 6px; border: 1px solid #dbd6cc; background: #ffffff; border-radius: 9px; text-align: center; font-size: 13px; font-weight: 600;">P.Rth</div>
+            <div style="padding: 12px 6px; border: 1px solid #dbd6cc; background: #ffffff; border-radius: 9px; text-align: center; font-size: 13px; font-weight: 600;">J.Ort</div>
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 6px;">
+            <div style="width: 44px; height: 52px; border: 1px solid #dbd6cc; background: #ffffff; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 800;">•</div>
+            <div style="width: 44px; height: 52px; border: 1px solid #dbd6cc; background: #ffffff; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 800;">•</div>
+            <div style="width: 44px; height: 52px; border: 1px solid #eab308; background: #ffffff; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 21px; font-weight: 800; color: #87680c;">|</div>
+            <div style="width: 44px; height: 52px; border: 1px solid #dbd6cc; background: #ffffff; border-radius: 9px;"></div>
+          </div>
+          <div style="text-align: center; font-size: 12px; color: #6f6a61;">Vier Ziffern, kein Passwort mit Handschuhen</div>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px;">
+        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c; padding-bottom: 8px; border-bottom: 1px solid #e9e6df; margin-bottom: 12px;">Was im Protokoll steht</div>
+        <div style="display: flex; flex-direction: column; gap: 9px; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Einlagerung E-0247 angelegt</span><span style="color: #6f6a61;">Marek Sowa</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Lagerplatz A-03-07 geändert</span><span style="color: #6f6a61;">Pascal Ruth</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Kunde Gabriel gelöscht</span><span style="color: #6f6a61;">— nicht erlaubt, abgewiesen</span></div>
+          <div style="display: flex; justify-content: space-between; gap: 12px;"><span>Termin 14:30 abgesagt</span><span style="color: #6f6a61;">Jana Ort</span></div>
+        </div>
+        <div style="margin-top: 14px; padding: 11px 13px; background: rgba(26,143,82,.12); border: 1px solid rgba(26,143,82,.25); border-radius: 8px; font-size: 12px; color: #1a8f52; line-height: 1.5;">
+          Jede Zeile gehört zu einer Person. Erst dadurch wirken die Rechte überhaupt — und die Aushilfe kommt an das Kundenkonto nicht heran.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

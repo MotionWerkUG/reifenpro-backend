@@ -1,0 +1,334 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+    a { color: #87680c; } a:hover { color: #201e1b; }
+    .rp-scroll::-webkit-scrollbar { width: 8px; }
+    .rp-scroll::-webkit-scrollbar-thumb { background: #dbd6cc; border-radius: 4px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; background: #f3f2ef; color: #201e1b; overflow: hidden;">
+
+  <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e9e6df; display: flex; flex-direction: column; padding: 14px 0;">
+    <div style="padding: 0 14px 16px; font-size: 17px; font-weight: 800; letter-spacing: 2.4px;">REIFEN<span style="color: #87680c;">PRO</span></div>
+    <div style="padding: 10px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">VERWALTUNG</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span style="margin-left: 11px;">Dashboard</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11.5a3 3 0 100-6"/></svg><span style="margin-left: 11px;">Kunden</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg><span style="margin-left: 11px;">Einlagerung</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span style="margin-left: 11px;">Lagerplan</span></div>
+    </div>
+    <div style="padding: 16px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">BETRIEB</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg><span style="margin-left: 11px;">Kalender</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 01-5 5L4 17l3 3 5.7-5.7a4 4 0 015-5l2-2-3-3z"/></svg><span style="margin-left: 11px;">Werkstatt</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span style="margin-left: 11px;">Statistik</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 13h6M9 17h6"/></svg><span style="margin-left: 11px;">Rechnungen</span></div>
+    </div>
+    <div style="padding: 16px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">TEAM</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="position: relative; display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; background: #fdf6e0; color: #87680c; font-weight: 700;">
+        <div style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 20px; width: 3px; border-radius: 0 3px 3px 0; background: #87680c;"></div>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="10" r="2.6"/><path d="M7.5 18c.7-2.2 2.4-3.3 4.5-3.3s3.8 1.1 4.5 3.3"/></svg><span style="margin-left: 11px;">Mitarbeiter</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.4 8.3-8 9-4.6-.7-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span style="margin-left: 11px;">DSGVO-Anfragen</span></div>
+    </div>
+    <div style="padding: 16px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">SYSTEM</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span style="margin-left: 11px;">Einstellungen</span></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <div style="height: 58px; flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; padding: 0 22px;">
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: #6f6a61;">
+        <span>Dashboard</span><span>›</span><strong style="color: #201e1b; font-weight: 600;">Mitarbeiter</strong>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px; font-size: 13px; color: #6f6a61;">
+        <span>Sa., 29.08. 08:12</span>
+        <div style="width: 7px; height: 7px; border-radius: 50%; background: #1a8f52;"></div>
+        <span style="color: #201e1b;">David Gebray</span>
+        <div style="padding: 7px 14px; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; font-weight: 600; color: #201e1b;">Abmelden</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; padding: 22px; display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; min-height: 0;">
+
+      <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
+        <div style="padding: 16px 18px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #87680c;">Zugänge</div>
+            <div style="font-size: 12px; color: #6f6a61; margin-top: 3px;">7 aktiv · 1 gesperrt</div>
+          </div>
+          <div style="width: 34px; height: 34px; border-radius: 8px; background: #eab308; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" title="Neuen Zugang anlegen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1c1608" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+        </div>
+        <div style="padding: 0 18px 12px;">
+          <div style="display: flex; align-items: center; gap: 8px; background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; padding: 8px 11px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6f6a61" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+            <span style="font-size: 13px; color: #6f6a61;">Name oder E-Mail</span>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; padding: 0 18px 7px; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: #6f6a61; border-bottom: 1px solid #e9e6df;">
+          <div>Name</div><div>Rolle</div><div style="text-align: right;">Aktiv</div>
+        </div>
+        <div class="rp-scroll" style="flex-grow: 1; overflow-y: auto; min-height: 0;">
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">David Gebray</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">inhaber@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Inhaber</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df; background: #fdf6e0; box-shadow: inset 3px 0 0 #87680c;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 700; color: #87680c;">Marek Sowa</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">marek.sowa@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #87680c; font-weight: 600;">Werkstatt</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">Lena Brandt</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">lena.brandt@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Empfang</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">Anja Kern</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">anja.kern@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Buchhaltung</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">Timo Fels</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">timo.fels@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Aushilfe</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">Pascal Ruth</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">pascal.ruth@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Werkstatt</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df; opacity: .55;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">Jana Ort</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">jana.ort@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Werkstatt</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #dbd6cc; position: relative;"><div style="position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 74px 46px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #e9e6df;">
+            <div style="min-width: 0;"><div style="font-size: 13px; font-weight: 600;">Nils Krause</div><div style="font-size: 12px; color: #6f6a61; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">nils.krause@schroeder-scholz.de</div></div>
+            <div style="font-size: 12px; color: #6f6a61;">Aushilfe</div>
+            <div style="text-align: right;"><div style="display: inline-block; width: 30px; height: 17px; border-radius: 9px; background: #1a8f52; position: relative;"><div style="position: absolute; top: 2px; right: 2px; width: 13px; height: 13px; border-radius: 50%; background: #ffffff;"></div></div></div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="rp-scroll" style="overflow-y: auto; min-height: 0; padding-right: 4px;">
+
+        <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px; margin-bottom: 16px; display: flex; align-items: center; gap: 18px;">
+          <div style="width: 62px; height: 62px; border-radius: 12px; background: #f3f2ef; border: 1px solid #dbd6cc; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <span style="font-size: 21px; font-weight: 800; color: #87680c; letter-spacing: .5px;">MS</span>
+          </div>
+          <div style="flex-grow: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="font-size: 21px; font-weight: 800;">Marek Sowa</div>
+              <div style="display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(26,143,82,.12); color: #1a8f52; border: 1px solid rgba(26,143,82,.25);">aktiv</div>
+            </div>
+            <div style="font-size: 13px; color: #6f6a61; margin-top: 4px;">Werkstatt · zuletzt angemeldet heute, 07:40 · angelegt 14.03.2026</div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-shrink: 0;">
+            <div style="padding: 9px 18px; border-radius: 8px; border: 1px solid #dbd6cc; font-size: 13px; font-weight: 600;">Zugang sperren</div>
+            <div style="padding: 9px 18px; border-radius: 8px; background: #eab308; color: #1c1608; font-size: 13px; font-weight: 700;">Speichern</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+
+          <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c; padding-bottom: 8px; border-bottom: 1px solid #e9e6df; margin-bottom: 14px;">Grundlagen</div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Vorname</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px;">Marek</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Nachname</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px;">Sowa</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 5px; grid-column: 1 / -1;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">E-Mail</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px;">marek.sowa@schroeder-scholz.de</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Telefon</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px;">08031 2094571</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Kürzel für Etikett</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px;">M.Sw</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c; padding-bottom: 8px; border-bottom: 1px solid #e9e6df; margin-bottom: 14px;">Anmeldung</div>
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Passwort</div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; padding: 8px 8px 8px 12px;">
+                  <span style="font-size: 13px; color: #6f6a61;">zuletzt geändert am 02.06.2026</span>
+                  <div style="padding: 6px 12px; border-radius: 6px; border: 1px solid #dbd6cc; background: #ffffff; font-size: 12px; font-weight: 600;">Neu setzen</div>
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; background: #f3f2ef; border: 1px solid #e9e6df; border-radius: 8px;">
+                <div>
+                  <div style="font-size: 13px; font-weight: 600;">Abmeldung bei Untätigkeit</div>
+                  <div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Werkstatt-Tablet: längere Frist sinnvoll</div>
+                </div>
+                <div style="background: #ffffff; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 7px 11px; flex-shrink: 0;">30 Min.</div>
+              </div>
+              <div style="font-size: 12px; color: #6f6a61; line-height: 1.5;">Letzte Anmeldung heute, 07:40 Uhr, Werkstatt-Tablet.</div>
+            </div>
+          </div>
+
+          <div style="grid-column: 1 / -1; background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #e9e6df; margin-bottom: 14px;">
+              <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c;">Zugeordnete Rolle</div>
+              <div style="display: flex; align-items: center; gap: 5px; padding: 5px 11px; border: 1px solid #dbd6cc; border-radius: 7px; font-size: 12px; color: #87680c; font-weight: 600;">Rollen verwalten<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></div>
+            </div>
+            <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start;">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #eab308; background: #fdf6e0; border-radius: 9px;">
+                  <div style="width: 15px; height: 15px; border-radius: 50%; border: 4px solid #87680c; flex-shrink: 0;"></div>
+                  <div><div style="font-size: 13px; font-weight: 700;">Werkstatt</div><div style="font-size: 12px; color: #6f6a61;">Kunden, Einlagerung, Lager, Termine ändern</div></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #dbd6cc; border-radius: 9px;">
+                  <div style="width: 15px; height: 15px; border-radius: 50%; border: 1px solid #dbd6cc; flex-shrink: 0;"></div>
+                  <div><div style="font-size: 13px; font-weight: 600;">Empfang</div><div style="font-size: 12px; color: #6f6a61;">wie Werkstatt, zusätzlich Rechnungen</div></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #dbd6cc; border-radius: 9px;">
+                  <div style="width: 15px; height: 15px; border-radius: 50%; border: 1px solid #dbd6cc; flex-shrink: 0;"></div>
+                  <div><div style="font-size: 13px; font-weight: 600;">Buchhaltung</div><div style="font-size: 12px; color: #6f6a61;">Rechnungen, Export, Preise</div></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; border: 1px solid #dbd6cc; border-radius: 9px;">
+                  <div style="width: 15px; height: 15px; border-radius: 50%; border: 1px solid #dbd6cc; flex-shrink: 0;"></div>
+                  <div><div style="font-size: 13px; font-weight: 600;">Aushilfe</div><div style="font-size: 12px; color: #6f6a61;">Termine ändern, sonst nur lesen</div></div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size: 12px; color: #6f6a61; margin-bottom: 10px;">Was die Rolle „Werkstatt“ erlaubt — hier abweichend einstellbar, nur für Marek Sowa.</div>
+                <div style="border: 1px solid #e9e6df; border-radius: 10px; overflow: hidden;">
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; background: #ffffff; border-bottom: 1px solid #e9e6df; padding: 9px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61;">
+                    <div>Bereich</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); text-align: center;"><div>kein</div><div>lesen</div><div>ändern</div></div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Kunden</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; color: #6f6a61;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; background: #eab308; color: #1c1608; font-weight: 700;">ändern</div>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Einlagerung und Lager</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; color: #6f6a61;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; background: #eab308; color: #1c1608; font-weight: 700;">ändern</div>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Kalender und Werkstatt</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; color: #6f6a61;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; background: #eab308; color: #1c1608; font-weight: 700;">ändern</div>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px; background: #fdf6e0;">
+                    <div>Artikel und Preise <span style="font-size: 11px; color: #87680c; font-weight: 600;">· abweichend</span></div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #eab308; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center; background: #ffffff;">
+                      <div style="padding: 6px 4px; color: #6f6a61;">kein</div>
+                      <div style="padding: 6px 4px; background: #eab308; color: #1c1608; font-weight: 700;">lesen</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc;">ändern</div>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Rechnungen</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; color: #6f6a61;">ändern</div>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Website und CMS</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; color: #6f6a61;">ändern</div>
+                    </div>
+                  </div>
+
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Einstellungen, Bank, Firma</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; color: #6f6a61;">ändern</div>
+                    </div>
+                  </div>
+
+                                    <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #e9e6df; font-size: 13px;">
+                    <div>Mitarbeiter und Rollen</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; color: #6f6a61;">ändern</div>
+                    </div>
+                  </div>
+
+                  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 222px; align-items: center; padding: 8px 14px; font-size: 13px;">
+                    <div>DSGVO-Löschungen</div>
+                    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+                      <div style="padding: 6px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+                      <div style="padding: 6px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+                      <div style="padding: 6px 4px; color: #6f6a61;">ändern</div>
+                    </div>
+                  </div>
+                </div>
+                <div style="margin-top: 12px; padding: 11px 13px; background: rgba(179,120,26,.14); border: 1px solid rgba(179,120,26,.25); border-radius: 8px; font-size: 12px; color: #b3781a; line-height: 1.5;">
+                  Marek darf Artikelpreise sehen, aber nicht ändern. Das weicht von der Rolle „Werkstatt“ ab und gilt nur für ihn.
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
