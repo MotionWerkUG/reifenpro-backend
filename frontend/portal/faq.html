@@ -53,21 +53,45 @@ function hm(t) { return t ? String(t).substring(0, 5) : ''; }
 function lade() {
   fetch(API + '/daten/firmendaten').then(function(r) { return r.json(); }).then(function(f) { FIRMA = f || {}; render(); }).catch(function() { render(); });
 }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
+// Ein Tag aus dem Wochenraster als Text. Zwei Spannen = Mittagspause dazwischen.
+function tagZeiten(tag, de) {
+  if (!tag || tag.geschlossen || !tag.spannen || !tag.spannen.length) return de ? 'geschlossen' : 'closed';
+  return tag.spannen.map(function(sp) { return hm(sp[0]) + '–' + hm(sp[1]); }).join(de ? ' und ' : ' and ');
+}
+// Anzeige aus dem Wochenraster (`woche`, Index 0 = Montag). Gleich lange Tage werden zu
+// Spannen zusammengefasst („Mo–Fr“). Die Alt-Felder (mo_fr_*/sa_*/so_*) sind nur noch
+// Rueckfallebene: sie kennen nur EINEN Mo–Fr-Block und keine Sa/So-Mittagspause.
 function oeffnungszeiten(de) {
   var f = FIRMA, z = [];
-  if (f.mo_fr_von && f.mo_fr_bis) z.push((de ? 'Mo–Fr: ' : 'Mon–Fri: ') + hm(f.mo_fr_von) + '–' + hm(f.mo_fr_bis));
-  if (f.sa_offen && f.sa_von && f.sa_bis) z.push((de ? 'Sa: ' : 'Sat: ') + hm(f.sa_von) + '–' + hm(f.sa_bis));
-  if (f.so_offen && f.so_von && f.so_bis) z.push((de ? 'So: ' : 'Sun: ') + hm(f.so_von) + '–' + hm(f.so_bis));
-  return z.length ? z.join('<br>') : (de ? 'Bitte erfragen Sie unsere aktuellen Öffnungszeiten.' : 'Please ask for our current opening hours.');
+  var w = (Object.prototype.toString.call(f.woche) === '[object Array]' && f.woche.length === 7) ? f.woche : null;
+  if (w) {
+    var namen = de ? ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    var i = 0;
+    while (i < 7) {
+      var txt = tagZeiten(w[i], de), j = i;
+      while (j + 1 < 7 && tagZeiten(w[j + 1], de) === txt) j++;
+      z.push((j > i ? namen[i] + '–' + namen[j] : namen[i]) + ': ' + txt);
+      i = j + 1;
+    }
+  } else {
+    if (f.mo_fr_von && f.mo_fr_bis) z.push((de ? 'Mo–Fr: ' : 'Mon–Fri: ') + hm(f.mo_fr_von) + '–' + hm(f.mo_fr_bis));
+    if (f.sa_offen && f.sa_von && f.sa_bis) z.push((de ? 'Sa: ' : 'Sat: ') + hm(f.sa_von) + '–' + hm(f.sa_bis));
+    if (f.so_offen && f.so_von && f.so_bis) z.push((de ? 'So: ' : 'Sun: ') + hm(f.so_von) + '–' + hm(f.so_bis));
+  }
+  if (!z.length) return de ? 'Bitte erfragen Sie unsere aktuellen Öffnungszeiten.' : 'Please ask for our current opening hours.';
+  var out = z.join('<br>');
+  if (f.oeffnungszeiten_hinweis) out += '<br><span style="color:var(--muted);font-size:14px">' + esc(f.oeffnungszeiten_hinweis) + '</span>';
+  return out;
 }
 function render() {
   var f = FIRMA, de = FAQLANG === 'de';
-  var frist = f.stornierung_frist_h || 24;
+  var frist = f.stornierung_frist_h != null ? f.stornierung_frist_h : 24;
   var tel = f.telefon || '';
   var mail = f.email || '';
   var faqs = de ? [
     ['Wie buche ich online einen Termin?', 'Melden Sie sich im Kundenportal an und wählen Sie „Termin buchen". Wählen Sie Leistung, Fahrzeug und Zollgröße – Preis und Dauer werden automatisch angezeigt – danach einen freien Zeitpunkt.'],
-    ['Kann ich einen Termin verschieben oder stornieren?', 'Ja, im Portal unter „Termine". Eine kostenfreie Stornierung oder Verschiebung ist bis ' + frist + ' Stunden vor dem Termin möglich. Danach wenden Sie sich bitte telefonisch an uns.'],
+    ['Kann ich einen Termin verschieben oder stornieren?', 'Ja, im Portal unter „Termine". Eine kostenfreie Stornierung oder Verschiebung ist bis ' + frist + ' Stunden vor dem Termin möglich. Ohne Kundenkonto gebucht? Dann sagen Sie über den Link „Termin online absagen" in Ihrer Bestätigungsmail ab. Danach wenden Sie sich bitte telefonisch an uns' + (tel ? ' (' + tel + ')' : '') + '.'],
     ['Was bedeutet Reifeneinlagerung?', 'Wir lagern Ihre Winter- bzw. Sommerräder fachgerecht und trocken bei uns ein, bis zur nächsten Saison. Beim Räderwechsel holen wir den passenden Satz aus dem Lager.'],
     ['Wo sehe ich meine eingelagerten Räder?', 'Im Kundenportal unter „Einlagerungen" sehen Sie alle bei uns eingelagerten Radsätze mit Status.'],
     ['Wie verwalte ich meine Fahrzeuge?', 'Unter „Fahrzeuge" können Sie Ihre Fahrzeuge mit Kennzeichen anlegen und bearbeiten. So ist beim Buchen alles vorausgefüllt.'],
@@ -76,7 +100,7 @@ function render() {
     ['Kontakt', (tel ? 'Telefon: ' + tel + '<br>' : '') + (mail ? 'E-Mail: <a href="mailto:' + mail + '">' + mail + '</a>' : '')]
   ] : [
     ['How do I book an appointment online?', 'Log in to the customer portal and choose “Book appointment”. Select service, vehicle and wheel size – price and duration are shown automatically – then pick an available time.'],
-    ['Can I reschedule or cancel an appointment?', 'Yes, in the portal under “Appointments”. Free cancellation or rescheduling is possible up to ' + frist + ' hours before the appointment. After that, please call us.'],
+    ['Can I reschedule or cancel an appointment?', 'Yes, in the portal under “Appointments”. Free cancellation or rescheduling is possible up to ' + frist + ' hours before the appointment. Booked without an account? Then use the “cancel appointment” link in your confirmation email. After that, please call us' + (tel ? ' (' + tel + ')' : '') + '.'],
     ['What does tire storage mean?', 'We store your winter or summer wheels properly and dry until the next season and fit the right set at your wheel change.'],
     ['Where can I see my stored wheels?', 'In the portal under “Storage” you can see all wheel sets stored with us and their status.'],
     ['How do I manage my vehicles?', 'Under “Vehicles” you can add and edit your vehicles with their plate, so booking is pre-filled.'],
