@@ -86,6 +86,38 @@ test('DATEV-Export bucht das Storno gegen die Originalrechnung', async () => {
   assert.equal(original.split(';')[0], storno.split(';')[0], 'gleicher Betrag, umgekehrtes Vorzeichen');
 });
 
+test('Formeln aus Kundendaten werden im Export als Text markiert', async () => {
+  // Empfaengernamen koennen aus der oeffentlichen Terminbuchung stammen. Eine Zelle, die mit
+  // = + @ oder - beginnt, wuerde Excel/LibreOffice beim Steuerberater als Formel ausfuehren.
+  const e = await h.api(token, 'POST', '/api/rechnungen', {
+    empfaenger: { vorname: '=SUM(1,2)', nachname: 'Mustermann', firma: '@CMD', strasse: 'Weg 1', plz: '12345', ort: '+Ort' },
+    positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 100, mwst_satz: 19 }]
+  });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.body.id + '/festschreiben');
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+
+  const csv = String((await h.api(token, 'GET', '/api/rechnungen/export?jahr=' + jahr)).body);
+  assert.ok(!/(^|;|")=SUM\(1,2\)/m.test(csv), 'keine ausfuehrbare Formel im Journal');
+  assert.ok(csv.includes("'=SUM(1,2)"), 'Formel ist als Text markiert');
+  assert.ok(csv.includes("'@CMD") && csv.includes("'+Ort"), 'auch @ und + werden entschaerft');
+
+  const datev = String((await h.api(token, 'GET', '/api/rechnungen/export-datev?jahr=' + jahr)).body);
+  // Der DATEV-Buchungstext nimmt die Firma (sonst den Namen) — auch die wird entschaerft.
+  assert.ok(datev.includes("'@CMD"), 'auch im DATEV-Buchungstext');
+
+  // Zahlen duerfen dabei nicht beschaedigt werden — sonst waere der Export unbrauchbar.
+  assert.ok(/;119,00;/.test(csv) || csv.includes(';119,00'), 'Betraege bleiben unveraendert');
+});
+
+test('Negative Betraege im Journal bleiben Zahlen', async () => {
+  const r = await festgeschriebeneRechnung();
+  const s = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/storno');
+  assert.equal(s.status, 201);
+  const csv = String((await h.api(token, 'GET', '/api/rechnungen/export?jahr=' + jahr)).body);
+  assert.ok(csv.includes('-119,00'), 'Storno-Betrag steht als Zahl da');
+  assert.ok(!csv.includes("'-119,00"), 'und wird nicht als Text markiert');
+});
+
 test('Funktionstrennung: Mitarbeiter darf weder stornieren noch exportieren', async () => {
   const r = await festgeschriebeneRechnung();
   const ma = await h.seedNutzer('mitarbeiter');

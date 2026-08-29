@@ -57,5 +57,25 @@ test('Der GiroCode ist im erzeugten PDF tatsaechlich enthalten', async () => {
     assert.ok(text.includes('DE02120300000000202051'), 'IBAN steht auch als Text auf der Rechnung');
     assert.ok(text.includes('GiroCode'), 'Hinweis zum Scannen vorhanden');
   }
-  await h.stoppeApp();
+
+  // Den QR-Code aus dem gerenderten PDF wirklich zurueckdecodieren. Ohne -Sbinary deutet
+  // zbarimg den Byte-Modus als Shift-JIS und macht aus "Schröder" ein "Schr..." — das waere
+  // ein Fehlalarm des Decoders, nicht ein Fehler im Code.
+  const os = require('node:os'), fs = require('node:fs'), path = require('node:path');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'girocode-'));
+  try {
+    execFileSync('pdftoppm', ['-r', '300', '-png', '-singlefile', f.body.pdf_pfad, path.join(tmp, 'seite')]);
+    const roh = execFileSync('zbarimg', ['--raw', '-q', '-Sbinary', path.join(tmp, 'seite.png')]);
+    const gelesen = roh.toString('utf8').replace(/\n$/, '');
+    const erwartet = epcPayload(
+      { firmenname: 'Testbetrieb Rechnungswesen', iban: 'DE02120300000000202051', bic: 'BYLADEM1001' },
+      { brutto_summe: 44, rechnungsnr: f.body.rechnungsnr });
+    assert.equal(gelesen, erwartet, 'aus dem PDF gelesener GiroCode stimmt Byte fuer Byte mit dem Datensatz ueberein');
+  } catch (x) {
+    if (x.code === 'ENOENT') { console.log('Hinweis: zbarimg nicht vorhanden - QR nicht zurueckgelesen.'); }
+    else { throw x; }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    await h.stoppeApp();
+  }
 });

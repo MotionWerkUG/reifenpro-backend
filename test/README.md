@@ -19,8 +19,14 @@ Nach Schemaänderungen (neue Spalte, neuer Trigger) den Befehl erneut ausführen
 
 ## Tests ausführen
 
-Optional: `pdftotext` (Paket `poppler-utils`) — wird für die Prüfung des Storno-PDF-Inhalts
-genutzt. Fehlt es, wird nur dieser Teilcheck übersprungen, die Tests laufen trotzdem durch.
+Optional, aber empfohlen: `poppler-utils` (`pdftotext`, `pdftoppm`, `pdfimages`) und
+`zbar-tools` (`zbarimg`). Damit werden der PDF-Inhalt geprüft und der GiroCode aus dem
+gerenderten PDF zurückgelesen. Fehlen die Werkzeuge, werden nur diese Teilchecks
+übersprungen, die Tests laufen trotzdem durch.
+
+Hinweis zu `zbarimg`: immer mit `-Sbinary` aufrufen. Ohne diese Option deutet der Decoder
+den QR-Byte-Modus als Shift-JIS und macht aus „Schröder" ein „Schr繹der" — ein Fehlalarm
+des Decoders, kein Fehler im Datensatz.
 
 ```bash
 npm test
@@ -54,4 +60,4 @@ TEST_DB_NAME=reifenpro_test2 npm run test:db && TEST_DB_NAME=reifenpro_test2 npm
 - `export.test.js` — Rechnungsjournal-CSV, DATEV-EXTF-Buchungsstapel, Funktionstrennung (Admin/Mitarbeiter)
 - `aus-termin.test.js` — Rechnung aus Termin: Endpreis-Logik, Doppelabrechnung, Gast-Termin
 - `haertung.test.js` — Nebenläufigkeit, Pflichtfeld- und Zahlenprüfung, Positionsgrenze, Mahnabstand
-- `girocode.test.js` — GiroCode nach EPC069-12: Inhalt, Grenzfälle, Einbettung ins PDF
+- `girocode.test.js` — GiroCode nach EPC069-12: Inhalt, Grenzfälle, und der QR wird aus dem gerenderten PDF zurückgelesen

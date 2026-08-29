@@ -24,6 +24,17 @@ const MAX_POSITIONEN = 200;
 // Mindestabstand zwischen zwei Mahnstufen (Tage).
 const MAHN_ABSTAND_TAGE = 7;
 
+// Tabellenkalkulationen werten Zellen, die mit = + @ oder einem Steuerzeichen beginnen, als
+// FORMEL aus. Empfaengernamen stammen teils aus der oeffentlichen Terminbuchung, landen im
+// Journal- und DATEV-Export und werden dort vom Steuerberater geoeffnet — deshalb wird ein
+// solcher Zellinhalt mit einem Apostroph als Text markiert. Zahlen (auch negative Storno-
+// Betraege) bleiben unangetastet, sonst waere der Export unbrauchbar.
+function csvEntschaerft(v) {
+  const s = (v == null ? '' : String(v));
+  const istZahl = /^-?\d+(?:[.,]\d+)?$/.test(s);
+  return (/^[=+@\t\r]/.test(s) || (s.startsWith('-') && !istZahl)) ? "'" + s : s;
+}
+
 // Zahl aus dem Client pruefen: endlich und in einem kaufmaennisch sinnvollen Rahmen.
 function zahlOk(v, min, max) {
   const n = Number(v);
@@ -40,9 +51,18 @@ function pruefePositionen(positionen) {
     const p = positionen[i] || {};
     const nr = 'Position ' + (i + 1) + ': ';
     if (!String(p.bezeichnung == null ? '' : p.bezeichnung).trim()) return nr + 'Bezeichnung fehlt (Art der Leistung ist Pflichtangabe).';
+    if (String(p.bezeichnung).length > 200) return nr + 'Bezeichnung ist zu lang (maximal 200 Zeichen).';
+    // Steuerzeichen (inklusive NUL) kann PostgreSQL nicht speichern — sonst endet die Anfrage
+    // in einem Serverfehler statt in einer verstaendlichen Meldung.
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(String(p.bezeichnung) + String(p.einheit == null ? '' : p.einheit))) {
+      return nr + 'Bezeichnung oder Einheit enthält unerlaubte Steuerzeichen.';
+    }
+    if (p.einheit != null && String(p.einheit).length > 30) return nr + 'Einheit ist zu lang (maximal 30 Zeichen).';
     if (!zahlOk(p.menge, 0, 100000)) return nr + 'Menge ist keine gültige Zahl.';
     const preis = (p.einzelpreis_netto != null) ? p.einzelpreis_netto : p.einzelpreis_brutto;
     if (!zahlOk(preis, -1000000, 1000000)) return nr + 'Einzelpreis ist keine gültige Zahl.';
+    // Die Betragsspalten sind numeric(10,2): das Produkt muss ebenfalls hineinpassen.
+    if (!zahlOk(Number(p.menge) * Number(preis), -99999999.99, 99999999.99)) return nr + 'Zeilenbetrag ist zu groß.';
     if (p.mwst_satz != null && !zahlOk(p.mwst_satz, 0, 100)) return nr + 'Steuersatz ist keine gültige Zahl.';
   }
   return null;
@@ -233,7 +253,7 @@ router.get('/export', requireAdmin, async (req, res, next) => {
     );
     const sep = ';';
     const num = (n) => (Number(n) || 0).toFixed(2).replace('.', ',');
-    const cell = (v) => { const s = (v == null ? '' : String(v)); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const cell = (v) => { const s = csvEntschaerft(v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const kopf = ['Rechnungsnr', 'Status', 'Rechnungsdatum', 'Leistungsdatum', 'Faelligkeit', 'Empfaenger', 'Firma', 'PLZ', 'Ort', 'Netto', 'MwSt', 'Brutto', 'Zahlungsstatus', 'Bezahlt am', 'Storno', 'Festgeschrieben am'];
     const zeilen = rows.map((r) => [r.rechnungsnr, r.status, r.rechnungsdatum, r.leistungsdatum, r.faelligkeit,
       r.empfaenger_name, r.empfaenger_firma, r.empfaenger_plz, r.empfaenger_ort,
@@ -268,7 +288,7 @@ router.get('/export-datev', requireAdmin, async (req, res, next) => {
        FROM rechnungen WHERE status IN ('festgeschrieben','storniert') AND EXTRACT(YEAR FROM rechnungsdatum)=$1 ORDER BY rechnungsnr`,
       [jahr]);
     const dec = (n) => (Math.abs(Number(n) || 0)).toFixed(2).replace('.', ',');
-    const q = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    const q = (s) => '"' + csvEntschaerft(s).replace(/"/g, '""') + '"';
     const p = (n, l) => String(n).padStart(l, '0');
     const d = new Date();
     const created = '' + d.getFullYear() + p(d.getMonth() + 1, 2) + p(d.getDate(), 2) + p(d.getHours(), 2) + p(d.getMinutes(), 2) + p(d.getSeconds(), 2) + '000';
@@ -571,6 +591,11 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         einzelpreis_netto: -round2(r.netto * rabattProzent / 100), mwst_satz: r.satz
       })));
     }
+    // Auch die serverseitig gebauten Positionen laufen durch die Pruefung. Sie stammen aus
+    // termine.leistungen bzw. dem Artikelstamm — sollte dort je etwas Unsinniges stehen, soll
+    // daraus keine Rechnung entstehen (Sicherheitsnetz, kein erwarteter Fall).
+    const terminPosFehler = pruefePositionen(positionen);
+    if (terminPosFehler) return res.status(400).json({ error: 'Termin lässt sich nicht abrechnen — ' + terminPosFehler });
     const s = berechneSummen(positionen);
     // Empfaenger: bei Kundenkonto aus dem Stamm; sonst (Gast-Termin) Snapshot aus den Termin-Kontaktdaten,
     // OHNE einen Kundenstamm anzulegen ("nur Rechnungsempfaenger"). Die §14-Vollstaendigkeit (ab 250 EUR
