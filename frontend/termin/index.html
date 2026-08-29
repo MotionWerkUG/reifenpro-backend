@@ -487,7 +487,7 @@ function absenden(){
       var kl=document.getElementById('done-konto-link'), kh=document.getElementById('done-konto-hinweis');
       var wartetAufBestaetigung = (j.message==='bestaetigung_noetig');
       if(kh) kh.textContent = wartetAufBestaetigung
-        ? 'Danach können Sie Ihr Kundenkonto mit einem Klick anlegen – der Link dazu steht in derselben E-Mail. Damit sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.'
+        ? 'Danach können Sie Ihr Kundenkonto direkt aus derselben E-Mail heraus anlegen – Ihre Daten sind dann schon eingetragen, Sie vergeben nur noch ein Passwort. Damit sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.'
         : 'Mit einem Kundenkonto sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.';
       // Vor der Bestaetigung KEIN Knopf: der schnelle Weg (ein Klick, ohne zweite Mail) haengt am
       // Token aus der Bestaetigungsmail. Ein Knopf hier wuerde in den langsameren Weg fuehren und
