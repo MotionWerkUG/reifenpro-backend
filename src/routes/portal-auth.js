@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { query } = require('../db/index');
+const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
 const { authenticate, requireStaff } = require('../middleware/auth');
 
@@ -62,6 +62,38 @@ async function sendMail(to, subject, html) {
   });
 }
 
+// Leerstring wie NULL behandeln -> COALESCE(NULLIF(...)) greift sauber
+function kontaktWert(v) { const x = String(v == null ? '' : v).trim(); return x === '' ? null : x; }
+
+// ── GET /api/portal/auth/konto-start ──
+// Vorbefuellung des Registrierungsformulars aus einem bestaetigten Gast-Termin. Adressiert ueber den
+// signierten Token aus der Terminbestaetigung, damit in der URL des CTA keine personenbezogenen Daten
+// stehen. Gibt bewusst nur zurueck, was ins Formular gehoert -- keine Termin-, Preis- oder Fahrzeugdaten.
+router.get('/konto-start', async (req, res, next) => {
+  try {
+    const t = await gastKontoTermin(req.query.token);
+    if (!t) return res.status(400).json({ error: 'Dieser Link ist ungültig oder abgelaufen. Bitte legen Sie Ihr Konto normal an.' });
+    res.json({
+      vorname: t.kontakt_vorname || '', nachname: t.kontakt_nachname || '',
+      email: t.kontakt_email || '', telefon: t.kontakt_telefon || '',
+      kundentyp: t.kontakt_kundentyp || 'privat', firma: t.kontakt_firma || ''
+    });
+  } catch (e) { next(e); }
+});
+
+// Prueft den Token aus der Terminbestaetigung und liefert den zugehoerigen Gast-Termin.
+// Bedingungen: gueltige Signatur, richtiger Typ, Termin existiert, gehoert noch KEINEM Konto
+// (kunden_id IS NULL) und ist bestaetigt -- unbestaetigte Anfragen beweisen nichts.
+async function gastKontoTermin(token) {
+  let p = null;
+  try { p = jwt.verify(token || '', process.env.JWT_SECRET); } catch (e) { p = null; }
+  if (!p || p.typ !== 'gast-konto' || !p.tid || !p.email) return null;
+  const t = (await query(
+    "SELECT * FROM termine WHERE id=$1 AND kunden_id IS NULL AND LOWER(kontakt_email)=$2 AND status IN ('bestaetigt','abgeschlossen')",
+    [p.tid, String(p.email).toLowerCase()])).rows[0];
+  return t || null;
+}
+
 // ── POST /api/portal/auth/registrieren ──
 router.post('/registrieren', registrierLimiter, async (req, res, next) => {
   try {
@@ -90,6 +122,83 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       // Bewusst KEINE Mail (der Angreifer sieht das fremde Postfach nicht -> Mail wuerde nur einen
       // Spam-Vektor an bekannte Adressen eroeffnen). Der Nutzer nutzt bei Bedarf "Passwort vergessen".
       return res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
+    }
+
+    // ── Weg aus einer bestaetigten Gast-Buchung: keine zweite Bestaetigung, keine Freischaltung ──
+    // Wer den Bestaetigungslink seines Termins angeklickt hat, hat den Besitz des Postfachs bereits
+    // bewiesen. Ihn dafuer ein zweites Mal per Mail bestaetigen zu lassen (und dann noch auf die
+    // Freischaltung warten zu lassen) ist reine Schikane -- Entscheidung David.
+    // Bedingungen, damit das sicher bleibt:
+    //  - Nachweis NUR ueber den signierten Token, NIE ueber blosse Uebereinstimmung der Adresse,
+    //  - die angegebene E-Mail muss der Adresse im Token entsprechen,
+    //  - es darf noch KEIN Portal-Konto auf diese Adresse geben (sonst waere das ein Weg, sich an
+    //    ein fremdes bestehendes Konto zu haengen; dann greift unten der normale Ablauf).
+    const kontoTermin = req.body.konto_token ? await gastKontoTermin(req.body.konto_token) : null;
+    if (kontoTermin && !existiert.rows.length
+        && String(kontoTermin.kontakt_email || '').toLowerCase() === email.toLowerCase()) {
+      const now2 = new Date();
+      const ip2 = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+      const agbV2 = 'Stand ' + now2.toISOString().substring(0, 10);
+      // Anschrift und Kennzeichen aus der Buchung uebernehmen -- genau die Daten, die spaeter fuer
+      // die Rechnung gebraucht werden und die der Kunde sonst ein zweites Mal eintippen muesste.
+      const kid = await withTransaction(async (client) => {
+        // Bestandskunde ohne Portal-Zugang? Dann daran anknuepfen statt einen zweiten Datensatz anzulegen.
+        const best = (await client.query(
+          'SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true AND portal_password IS NULL LIMIT 1',
+          [email.toLowerCase()])).rows[0];
+        let id;
+        if (best) {
+          id = best.id;
+          await client.query(
+            `UPDATE kunden SET portal_email=$1, portal_password=$2, portal_aktiv=true,
+             portal_freigegeben=true, portal_email_bestaetigt=true,
+             portal_bestaetigung_token=NULL, portal_token_ablauf=NULL,
+             portal_registriert_am=$3, portal_agb_akzeptiert=true, portal_agb_datum=$3,
+             portal_dsgvo_akzeptiert=true, portal_dsgvo_datum=$3,
+             einwilligung_saison_erinnerung=$4, einwilligung_ip=$5, agb_version=$6,
+             einwilligung_bewertung=$7, einwilligung_bewertung_am=$8,
+             telefon=COALESCE(NULLIF(telefon,''), $9), geaendert_am=NOW()
+             WHERE id=$10`,
+            [email.toLowerCase(), hash, now2, saison ? true : false, ip2, agbV2,
+             bewertung ? true : false, bewertung ? now2 : null, tel, id]);
+        } else {
+          const nr2 = 'K-' + String((await client.query("SELECT nextval('seq_kunden_nr') AS n")).rows[0].n).padStart(4, '0');
+          id = (await client.query(
+            `INSERT INTO kunden (kunden_nr, vorname, nachname, email, telefon,
+             portal_email, portal_password, portal_aktiv, portal_freigegeben,
+             portal_email_bestaetigt, portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
+             portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
+             einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,true,true,$8,true,$8,true,$8,$9,$10,$11,$12,$13,true)
+             RETURNING id`,
+            [nr2, vn, nn, email.toLowerCase(), tel, email.toLowerCase(), hash, now2,
+             saison ? true : false, ip2, agbV2, bewertung ? true : false, bewertung ? now2 : null])).rows[0].id;
+        }
+        // Anschrift/Kennzeichen aus der Buchung nur fuellen, wo im Stamm noch nichts steht --
+        // gepflegte Daten des Betriebs duerfen dadurch nicht ueberschrieben werden.
+        await client.query(
+          `UPDATE kunden SET strasse=COALESCE(NULLIF(strasse,''), $1), plz=COALESCE(NULLIF(plz,''), $2),
+           ort=COALESCE(NULLIF(ort,''), $3), kennzeichen=COALESCE(NULLIF(kennzeichen,''), $4), geaendert_am=NOW()
+           WHERE id=$5`,
+          [kontaktWert(kontoTermin.kontakt_strasse), kontaktWert(kontoTermin.kontakt_plz),
+           kontaktWert(kontoTermin.kontakt_ort), kontaktWert(kontoTermin.kennzeichen), id]);
+        // Alle noch kontenlosen Termine dieser Adresse ans Konto haengen -- sonst sieht der Kunde
+        // seinen gerade gebuchten Termin im Portal ueberhaupt nicht (das Portal liest ueber kunden_id).
+        await client.query(
+          "UPDATE termine SET kunden_id=$1, geaendert_am=NOW() WHERE kunden_id IS NULL AND LOWER(kontakt_email)=$2",
+          [id, email.toLowerCase()]);
+        return id;
+      });
+      // Betrieb informieren (wie beim normalen Weg) -- aber KEINE Bestaetigungsmail an den Kunden.
+      const einstK = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+      if (einstK.email) {
+        sendMail(einstK.email, 'Neues Kundenkonto (aus Online-Buchung): ' + vn + ' ' + nn,
+          '<p>Ein Gast hat nach seiner bestätigten Terminbuchung ein Kundenkonto erstellt:</p><p>' +
+          vn + ' ' + nn + '<br>' + email.toLowerCase() + (tel ? '<br>' + tel : '') +
+          '</p><p>Die E-Mail-Adresse war durch die Terminbestätigung bereits nachgewiesen, das Konto ist deshalb sofort nutzbar. Vorhandene Termine dieser Adresse wurden dem Konto zugeordnet.</p>'
+        ).catch(function (e) { console.error('[Konto-aus-Buchung-Mail]', e.message); });
+      }
+      return res.json({ message: 'Konto erstellt. Sie können sich sofort anmelden.', sofort_anmelden: true });
     }
 
     // Prüfe ob Kunde bereits in DB (über normale E-Mail) -> verknüpfen statt duplizieren.

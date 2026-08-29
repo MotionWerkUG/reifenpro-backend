@@ -164,6 +164,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="auth-sub" data-i18n="register_sub">Neues Kundenkonto erstellen</div>
     <div id="reg-err" class="auth-err hidden"></div>
     <div id="reg-ok" class="auth-ok hidden"></div>
+    <div id="reg-konto-hinweis" class="auth-ok hidden" data-i18n="reg_from_booking">Wir haben Ihre Daten aus der Terminbuchung übernommen. Vergeben Sie nur noch ein Passwort — Ihr Konto ist dann sofort nutzbar.</div>
     <!-- Nach erfolgreicher Registrierung wird dieser Block ausgeblendet: die ausgefuellten Felder
          sind dann erledigt und der Nutzer soll nur noch lesen, wie es weitergeht. -->
     <div id="reg-form">
@@ -505,6 +506,8 @@ var I18N = {
     change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
     password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
     accept_required: 'Bitte Datenschutz und AGB akzeptieren',
+    reg_success_sofort: 'Konto erstellt. Ihre E-Mail ist durch die Terminbestätigung bereits bestätigt — Sie können sich sofort anmelden.',
+    reg_from_booking: 'Wir haben Ihre Daten aus der Terminbuchung übernommen. Vergeben Sie nur noch ein Passwort — Ihr Konto ist dann sofort nutzbar.',
     reg_success: 'Registrierung erfolgreich. So geht es weiter: 1. Bestätigen Sie Ihre E-Mail über den Link, den wir Ihnen soeben gesendet haben. 2. Danach schalten wir Ihren Zugang frei — in der Regel innerhalb eines Werktags. Anschließend können Sie sich anmelden.',
     login_pending_confirm: 'Ihre E-Mail-Adresse ist noch nicht bestätigt. Bitte klicken Sie auf den Link in unserer Bestätigungsmail. Nicht erhalten? Lassen Sie sie unten erneut senden.',
     login_pending_approval: 'Ihre E-Mail ist bestätigt — jetzt schalten wir Ihren Zugang noch frei. Das erledigen wir in der Regel innerhalb eines Werktags und melden uns bei Ihnen.',
@@ -566,6 +569,8 @@ var I18N = {
     change_password: 'Change password', new_password: 'New password', save: 'Save',
     password_mismatch: 'Passwords do not match',
     accept_required: 'Please accept privacy policy and terms',
+    reg_success_sofort: 'Account created. Your email is already confirmed through the appointment confirmation — you can sign in right away.',
+    reg_from_booking: 'We have taken your details from your booking. Just choose a password — your account is ready immediately.',
     reg_success: 'Registration successful. What happens next: 1. Confirm your email via the link we just sent you. 2. We then activate your access — usually within one business day. After that you can sign in.',
     login_pending_confirm: 'Your email address is not confirmed yet. Please click the link in our confirmation email. Did not receive it? Resend it below.',
     login_pending_approval: 'Your email is confirmed — we just need to activate your access. We usually do this within one business day and will get back to you.',
@@ -664,6 +669,25 @@ function zeigeScreen(s) {
   var ls = document.querySelector('.lang-switch');
   if (ls) ls.style.display = (s === 'app') ? 'none' : 'flex';
 }
+// Token aus dem "Kundenkonto erstellen"-Link der Terminbestaetigung (?konto=...)
+var KONTO_TOKEN = '';
+
+// Formular aus dem gebuchten Termin vorbefuellen. Schlaegt es fehl (Link abgelaufen, Termin schon
+// einem Konto zugeordnet), bleibt der normale Registrierungsweg -- ohne Fehlermeldung, denn der
+// Nutzer kann sich hier ganz regulaer anmelden.
+function kontoStartLaden() {
+  papi('GET', '/auth/konto-start?token=' + encodeURIComponent(KONTO_TOKEN)).then(function(d) {
+    if (!d) return;
+    var setz = function(id, wert) { var e = document.getElementById(id); if (e && wert) e.value = wert; };
+    setz('reg-vorname', d.vorname); setz('reg-nachname', d.nachname);
+    setz('reg-email', d.email); setz('reg-telefon', d.telefon);
+    var mail = document.getElementById('reg-email');
+    if (mail && d.email) { mail.readOnly = true; mail.style.opacity = '.7'; }   // gehoert zum Nachweis
+    var hin = document.getElementById('reg-konto-hinweis');
+    if (hin) hin.classList.remove('hidden');
+  }).catch(function() { KONTO_TOKEN = ''; });
+}
+
 function resetRegForm() {
   ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
     var e = document.getElementById(id); if (e) e.value = '';
@@ -726,9 +750,13 @@ function portalRegister() {
 
   papi('POST', '/auth/registrieren', {
     vorname: vorname, nachname: nachname, email: email, telefon: telefon,
-    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung
-  }).then(function() {
-    okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
+    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung,
+    konto_token: KONTO_TOKEN || undefined
+  }).then(function(antwort) {
+    // Kam der Kunde aus einer bestaetigten Terminbuchung, ist das Konto sofort nutzbar --
+    // dann waere der Hinweis auf E-Mail-Bestaetigung und Freischaltung schlicht falsch.
+    okEl.textContent = (antwort && antwort.sofort_anmelden) ? t('reg_success_sofort') : t('reg_success');
+    okEl.classList.remove('hidden');
     document.getElementById('reg-pass').value = '';
     document.getElementById('reg-pass2').value = '';
     // Das ausgefuellte Formular hat seinen Zweck erfuellt -> ausblenden, damit nur die Information
@@ -1550,6 +1578,7 @@ function initPortal() {
   var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
   // E-Mail-Vorbelegung aus dem "Konto erstellen"-Link der Terminbestaetigungs-Mail (?email=...).
   // Nur ein simpler Feldwert (kein innerHTML -> keine XSS), aber auf Laenge/Plausibilitaet begrenzt.
+  KONTO_TOKEN = (_p.get('konto') || '').trim();
   var hatEmailParam = _p.has('email');
   var emailPrefill = (_p.get('email') || '').trim().slice(0, 160);
   if (emailPrefill && emailPrefill.indexOf('@') < 1) emailPrefill = '';
@@ -1570,9 +1599,13 @@ function initPortal() {
       var _re = document.getElementById('reg-email');
       if (_re) _re.value = emailPrefill;
     }
+    // Aus einer bestaetigten Terminbuchung heraus (?konto=<Token>): Daten serverseitig holen statt
+    // sie in der URL mitzuschleppen. Der Token ist der Nachweis, dass die Person das Postfach
+    // besitzt -- deshalb entfaellt spaeter die zweite Bestaetigungsmail.
+    if (KONTO_TOKEN) kontoStartLaden();
   }
-  // URL immer bereinigen, sobald ein email=-Param da war (auch bei ungueltigem Wert) -> keine E-Mail in Verlauf/Referrer.
-  if (hatEmailParam) window.history.replaceState({}, '', window.location.pathname + (wantReg ? '?registrieren' : ''));
+  // URL immer bereinigen, sobald ein email=- oder konto=-Param da war -> nichts davon in Verlauf/Referrer.
+  if (hatEmailParam || KONTO_TOKEN) window.history.replaceState({}, '', window.location.pathname + (wantReg ? '?registrieren' : ''));
 }
 initPortal();
 </script>
