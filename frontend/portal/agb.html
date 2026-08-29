@@ -65,7 +65,7 @@ function render() {
   var firma = f.firmenname || 'Schröder & Scholz';
   var vertragsdauer = f.vertragsdauer_monate || 6;
   var abholfrist = f.abholungsfrist_wochen || f.abholfrist_wochen || 4;
-  var stornoFrist = f.stornierung_frist_h || 24;
+  var stornoFrist = f.stornierung_frist_h != null ? f.stornierung_frist_h : 24;
   var lagerort = f.lagerungsort || 'in unserem Betrieb';
 
   if (AGBLANG === 'de') {

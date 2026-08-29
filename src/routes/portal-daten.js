@@ -223,7 +223,9 @@ router.post('/termine', authKunde, async (req, res, next) => {
 
     // Bestaetigungs-E-Mail an Kunden
     const portalUrl = einst ? (einst.portal_url || '') : '';
-    const datumFormatiert = new Date(datum).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+    // 'T12:00:00' anhaengen: new Date('YYYY-MM-DD') ist UTC-Mitternacht und kippt in Zeitzonen
+    // westlich von UTC auf den Vortag (Projekt-Stolperstein).
+    const datumFormatiert = new Date(String(datum).slice(0, 10) + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
     const htmlBestaetigung = kundenMailHtml(einst || {}, {
       anrede: k.anrede, vorname: k.vorname, nachname: k.nachname,
       titel: 'Terminbestätigung',
@@ -264,7 +266,8 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
     if (['storniert', 'abgesagt', 'abgeschlossen'].includes(t.status)) return res.status(400).json({ error: 'Dieser Termin kann nicht mehr verschoben werden.' });
 
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-    const fristH = einst.stornierung_frist_h || 24;
+    // != null statt || : eine bewusst auf 0 gesetzte Frist bedeutet "jederzeit stornierbar".
+    const fristH = einst.stornierung_frist_h != null ? einst.stornierung_frist_h : 24;
     const terminZeit = new Date(String(t.datum).substring(0, 10) + 'T' + String(t.uhrzeit_von || '00:00:00'));
     if ((terminZeit - new Date()) / 3600000 < fristH) {
       return res.status(400).json({ error: 'Verschieben ist nur bis ' + fristH + ' Stunden vor dem Termin möglich. Bitte rufen Sie uns an: ' + (einst.telefon || '') });
@@ -335,7 +338,7 @@ router.delete('/termine/:id', authKunde, async (req, res, next) => {
 
     // Stornierungsfrist pruefen
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
-    const fristH = einst ? (einst.stornierung_frist_h || 24) : 24;
+    const fristH = (einst && einst.stornierung_frist_h != null) ? einst.stornierung_frist_h : 24;
     const terminZeit = new Date(t.datum + 'T' + t.uhrzeit_von);
     const jetzt = new Date();
     const diffH = (terminZeit - jetzt) / 3600000;
@@ -349,7 +352,7 @@ router.delete('/termine/:id', authKunde, async (req, res, next) => {
     );
 
     // E-Mail an Kunden
-    const datumF = new Date(t.datum).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const datumF = new Date(String(t.datum).slice(0, 10) + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const htmlStorno = kundenMailHtml(einst || {}, {
       anrede: req.kunde.anrede, vorname: req.kunde.vorname, nachname: req.kunde.nachname,
       titel: 'Termin storniert',
@@ -396,11 +399,24 @@ router.get('/artikel/:id/preis', authKunde, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Wochenraster fuer die Anzeige — oder null, wenn die Tabelle `oeffnungszeiten` (noch) leer ist.
+// Wichtig: `regulaereWoche()` liefert fuer eine leere Tabelle sieben geschlossene Tage. Wuerden wir
+// das ausliefern, zeigte das Portal "die ganze Woche geschlossen" statt auf die Alt-Felder
+// zurueckzufallen. Leer -> null, damit die Anzeige den Rueckfallweg nimmt.
+async function wochenRaster() {
+  const c = (await query('SELECT COUNT(*)::int AS c FROM oeffnungszeiten')).rows[0].c;
+  return c > 0 ? await oeffnung.regulaereWoche() : null;
+}
+
 // ── GET /api/portal/daten/oeffnungszeiten ──
+// Quelle der Wahrheit ist das Wochenraster (`woche`, Index 0 = Montag) — die Alt-Felder
+// (mo_fr_*, sa_*, so_*) kennen nur EINEN Mo–Fr-Block und keine Sa/So-Mittagspause und
+// zeigen tagesgenau gepflegte Zeiten falsch an. Sie bleiben nur als Rueckfallebene fuer
+// aeltere, noch nicht nachgezogene Seiten in der Antwort.
 router.get('/oeffnungszeiten', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis, mittagspause_von, mittagspause_bis FROM einstellungen LIMIT 1');
-    res.json(rows[0] || {});
+    const { rows } = await query('SELECT mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis, mittagspause_von, mittagspause_bis, oeffnungszeiten_hinweis FROM einstellungen LIMIT 1');
+    res.json(Object.assign({}, rows[0] || {}, { woche: await wochenRaster() }));
   } catch (e) { next(e); }
 });
 
@@ -410,10 +426,12 @@ router.get('/firmendaten', async (req, res, next) => {
       `SELECT firmenname, rechtsform, inhaber, strasse, plz, ort, telefon, email,
        ust_id, handelsreg_nr, registergericht, datenschutz_beauftragter,
        vertragsdauer_monate, abholungsfrist_wochen, lagerungsort, stornierung_frist_h,
-       mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis
+       mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis,
+       oeffnungszeiten_hinweis
        FROM einstellungen LIMIT 1`
     );
-    res.json(rows[0] || {});
+    // Wie oben: `woche` ist massgeblich, die Alt-Felder sind nur Rueckfallebene.
+    res.json(Object.assign({}, rows[0] || {}, { woche: await wochenRaster() }));
   } catch (e) { next(e); }
 });
 

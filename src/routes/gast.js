@@ -376,7 +376,10 @@ router.get('/termin/bestaetigen', limiter, async (req, res, next) => {
     if (!t) return res.status(400).send(gastSeite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig (evtl. bereits bestätigt oder abgelaufen). Bitte buchen Sie bei Bedarf erneut über unsere Terminseite.'));
     const dF = t.datum_str.split('-').reverse().join('.');
     const hhmm = String(t.uhrzeit_von).substring(0, 5);
-    const form = '<form method="post" action="https://www.schroeder-scholz.de/api/gast/termin/bestaetigen?token=' + escAttr(token) + '" style="margin-top:8px"><button type="submit">Termin verbindlich bestätigen</button></form>';
+    // Relatives Ziel (gleiche Route, gleicher Token): der Button postet immer an DIE Instanz,
+    // die die Seite ausgeliefert hat. Mit absoluter Live-URL landete ein Klick auf einer Test-
+    // instanz sonst auf der Produktivumgebung.
+    const form = '<form method="post" action="?token=' + escAttr(token) + '" style="margin-top:8px"><button type="submit">Termin verbindlich bestätigen</button></form>';
     return res.send(gastSeite('Noch ein Klick: Termin bestätigen', 'Bitte bestätigen Sie Ihren Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> verbindlich.', form));
   } catch (e) { next(e); }
 });
@@ -446,11 +449,17 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       // (eine <table> darin waere ungueltiges HTML und bricht in Outlook). Konsistent mit der gastSeite-CTA.
       const kontoCtaMail = '<a href="' + escAttr(kontoUrlMail) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:13px 30px;font-size:15px;font-weight:700">Kundenkonto erstellen</a>'
         + '<br><span style="display:inline-block;margin-top:10px;font-size:13px;color:#777">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</span>';
+      // Selbstbedienungs-Absage (PR1): ohne diesen Link bleibt dem Gast ohne Konto nur der Anruf.
+      // Signierter Link, gueltig bis einen Tag nach dem Termin; Absage kostenfrei bis zur Stornofrist.
+      const fristH = einst.stornierung_frist_h != null ? einst.stornierung_frist_h : 24;
+      const absageZeile = 'Verhindert? Sie können Ihren Termin bis ' + fristH + ' Stunden vorher kostenfrei selbst absagen: '
+        + '<a href="' + escAttr(stornoLink(t.id)) + '" style="color:#171717"><strong>Termin online absagen</strong></a>';
       const htmlGast = portalMailHtml(einst, {
         titel: 'Ihr Termin ist bestätigt', name: t.kontakt_vorname || '',
         absaetze: ['vielen Dank — Ihr Termin bei Schröder &amp; Scholz ist jetzt verbindlich gebucht.',
           '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : ''),
           preisBlock,
+          absageZeile,
           kontoCtaMail],
         hinweis: 'Der Endpreis ist abhängig von Zollgröße und Fahrzeugart und kann vor Ort ggf. abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
       });
@@ -467,6 +476,134 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
     const kontoUrl = 'https://www.schroeder-scholz.de/portal/?registrieren&email=' + encodeURIComponent(t.kontakt_email || '');
     const kontoCta = '<div style="margin-top:20px;padding-top:18px;border-top:1px solid #eee"><a href="' + escAttr(kontoUrl) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700">Kundenkonto erstellen</a><p style="margin:12px 0 0;color:#777;font-size:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</p></div>';
     res.send(gastSeite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.', kontoCta));
+  } catch (e) { next(e); }
+});
+
+// ── Selbstbedienung fuer Gast-Termine (ohne Kundenkonto): Termin selbst absagen ──
+// Ohne diesen Weg ist der QR-/Flyer-Kunde in einer Sackgasse (nur Anruf). Der Link steht in der
+// Bestaetigungsmail. Bewusst KEIN DB-Token: ein signiertes JWT (Termin-ID + Zweck) laeuft mit dem
+// Termin ab und braucht keine Migration. Wer die Mail hat, darf absagen — mehr Rechte gibt der
+// Token nicht (kein Lesen fremder Daten, keine Aenderung ausser Absage).
+function stornoToken(terminId) {
+  // Bewusst NICHT an das Termindatum gekoppelt: verschiebt die Werkstatt den Termin, wuerde ein
+  // daran gebundener Token vor dem neuen Datum ablaufen. 180 Tage sind unbedenklich, weil der Link
+  // ausschliesslich DIESEN einen Termin absagen kann und nur solange er 'bestaetigt' und noch nicht
+  // innerhalb der Stornofrist ist (vergangene Termine sind dadurch automatisch ausgeschlossen).
+  return jwt.sign({ tid: terminId, typ: 'gast-storno' }, process.env.JWT_SECRET, { expiresIn: '180d' });
+}
+function stornoLink(terminId) {
+  return 'https://www.schroeder-scholz.de/api/gast/termin/absagen?token=' + stornoToken(terminId);
+}
+
+// Termin + Rahmendaten zum Storno-Token laden. Rueckgabe: { fehler } oder { t, einst, fristH, zuSpaet }.
+async function ladeStornoTermin(token) {
+  let payload = null;
+  try { payload = jwt.verify(token || '', process.env.JWT_SECRET); } catch (e) { payload = null; }
+  if (!payload || payload.typ !== 'gast-storno' || !payload.tid) {
+    return { fehler: ['Link ungültig', 'Dieser Absagelink ist ungültig oder abgelaufen. Bitte rufen Sie uns an, wenn Sie Ihren Termin absagen möchten.'] };
+  }
+  const t = (await query("SELECT *, to_char(datum,'YYYY-MM-DD') AS datum_str FROM termine WHERE id=$1 AND kunden_id IS NULL", [payload.tid])).rows[0];
+  if (!t) return { fehler: ['Termin nicht gefunden', 'Zu diesem Link gibt es keinen Termin mehr — er wurde entfernt oder inzwischen Ihrem Kundenkonto zugeordnet. Bitte sagen Sie in dem Fall im Kundenportal oder telefonisch ab; einen neuen Termin buchen Sie jederzeit über unsere Terminseite.'] };
+  if (['storniert', 'abgesagt'].includes(t.status)) return { fehler: ['Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.'] };
+  if (t.status === 'abgeschlossen') return { fehler: ['Nicht mehr möglich', 'Dieser Termin ist bereits abgeschlossen und kann nicht mehr abgesagt werden.'] };
+  if (t.status !== 'bestaetigt') return { fehler: ['Noch nicht bestätigt', 'Dieser Termin ist noch nicht verbindlich bestätigt. Ohne Bestätigung verfällt er von selbst — Sie müssen nichts weiter tun.'] };
+  const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+  const telSatz = einst.telefon ? (' Bitte rufen Sie uns kurz an: ' + einst.telefon + '.') : ' Bitte melden Sie sich kurz telefonisch bei uns.';
+  // Laeuft fuer den Termin schon die Abrechnung, darf der Kunde ihn nicht mehr still wegklicken —
+  // sonst steht im Rechnungswesen ein stornierter Termin an einer bereits erstellten Rechnung.
+  if (t.fakturiert || t.rechnung_id) {
+    return { fehler: ['Bitte kurz anrufen', 'Für diesen Termin läuft bei uns bereits die Abrechnung, deshalb können wir ihn hier nicht mehr selbst absagen.' + telSatz] };
+  }
+  // != null statt || : eine bewusst auf 0 gesetzte Frist ("jederzeit stornierbar") darf nicht zu 24 werden.
+  const fristH = einst.stornierung_frist_h != null ? einst.stornierung_frist_h : 24;
+  // Fristvergleich AUSDRUECKLICH in Europe/Berlin statt in der Zeitzone des Node-Prozesses (bei einem
+  // Server-/Container-Umzug auf UTC waere die Frist sonst um 1-2 Stunden verschoben). Beide Seiten als
+  // 'YYYY-MM-DD HH:MM' in Berliner Zeit — Date.now() ist absolut, die Umrechnung macht toLocaleString.
+  const grenze = new Date(Date.now() + fristH * 3600000).toLocaleString('sv-SE', { timeZone: 'Europe/Berlin' }).substring(0, 16);
+  const terminStr = t.datum_str + ' ' + String(t.uhrzeit_von || '00:00').substring(0, 5);
+  const zuSpaet = terminStr < grenze;
+  return { t: t, einst: einst, fristH: fristH, zuSpaet: zuSpaet };
+}
+
+// Eigenes Limit fuer die Absage: teilt es sich den Zaehler mit /leistungen, /slots und /kalkulation,
+// koennte jemand mit ~30 sinnlosen Absage-Aufrufen die ganze Buchungsstrecke fuer seine IP (und alle
+// dahinter, z.B. Firmennetz) 15 Minuten lang lahmlegen. Antwort als HTML-Seite, nicht als JSON —
+// hier landet ein Mensch aus einer E-Mail, kein API-Client.
+const absageLimiter = rateLimit({
+  windowMs: 900000, max: 20,
+  handler: (req, res) => res.status(429).send(gastSeite('Zu viele Anfragen', 'Bitte versuchen Sie es in einigen Minuten noch einmal — oder rufen Sie uns an, dann sagen wir den Termin für Sie ab.'))
+});
+
+// Erneut buchen — als Ausweg auf jeder Absage-Seite (keine Sackgasse).
+const neuBuchenCta = '<div style="margin-top:20px;padding-top:18px;border-top:1px solid #eee"><a href="https://www.schroeder-scholz.de/termin/" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700">Neuen Termin buchen</a></div>';
+
+// GET zeigt NUR die Seite mit Absage-Button (kein Zustandswechsel!), damit Mail-Link-Scanner
+// (Safe Links & Co.) den Termin nicht per Prefetch absagen. Erst der POST sagt wirklich ab.
+router.get('/termin/absagen', absageLimiter, async (req, res, next) => {
+  try {
+    const r = await ladeStornoTermin(req.query.token);
+    if (r.fehler) return res.status(400).send(gastSeite(r.fehler[0], r.fehler[1], neuBuchenCta));
+    const dF = r.t.datum_str.split('-').reverse().join('.');
+    const hhmm = String(r.t.uhrzeit_von).substring(0, 5);
+    const tel = r.einst.telefon ? (' unter <strong>' + escAttr(r.einst.telefon) + '</strong>') : '';
+    if (r.zuSpaet) {
+      // 200: der GET aendert nichts und teilt nur mit, dass hier nur noch der Anruf hilft.
+      return res.send(gastSeite('Absage nur noch telefonisch',
+        'Ihr Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> ist in weniger als ' + r.fristH + ' Stunden. So kurzfristig nehmen wir Absagen bitte persönlich entgegen — rufen Sie uns einfach an' + tel + '.'));
+    }
+    // Relatives Ziel (siehe Bestaetigung): postet an dieselbe Instanz, nicht fest auf die Live-Domain.
+    const form = '<form method="post" action="?token=' + escAttr(req.query.token) + '" style="margin-top:8px"><button type="submit">Termin verbindlich absagen</button></form>';
+    return res.send(gastSeite('Termin absagen?',
+      'Möchten Sie Ihren Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong>' + (r.t.termin_typ ? ' (' + escAttr(r.t.termin_typ) + ')' : '') + ' wirklich absagen? Das ist kostenfrei und Sie können jederzeit neu buchen.', form));
+  } catch (e) { next(e); }
+});
+
+router.post('/termin/absagen', absageLimiter, async (req, res, next) => {
+  try {
+    const token = req.query.token || (req.body && req.body.token);
+    const r = await ladeStornoTermin(token);
+    if (r.fehler) return res.status(400).send(gastSeite(r.fehler[0], r.fehler[1], neuBuchenCta));
+    const dF = r.t.datum_str.split('-').reverse().join('.');
+    const hhmm = String(r.t.uhrzeit_von).substring(0, 5);
+    if (r.zuSpaet) {
+      const tel = r.einst.telefon ? (' unter <strong>' + escAttr(r.einst.telefon) + '</strong>') : '';
+      return res.status(409).send(gastSeite('Absage nur noch telefonisch',
+        'Ihr Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> ist in weniger als ' + r.fristH + ' Stunden. Bitte rufen Sie uns kurz an' + tel + '.'));
+    }
+    // Status-Guard: genau EINMAL stornieren (kein zweiter Mailversand bei Doppelklick/Reload).
+    const upd = await query(
+      "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='Kunde (Online-Absage)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt'",
+      [r.t.id]);
+    if (!upd.rowCount) {
+      return res.status(409).send(gastSeite('Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.', neuBuchenCta));
+    }
+
+    // Mails: Bestaetigung an den Gast + Info an den Betrieb (der Slot ist wieder frei).
+    try {
+      const einst = r.einst;
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
+      const htmlGast = portalMailHtml(einst, {
+        titel: 'Ihr Termin ist abgesagt', name: r.t.kontakt_vorname || '',
+        absaetze: ['Ihr Termin bei Schröder &amp; Scholz wurde wie gewünscht abgesagt.',
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr' + (r.t.kennzeichen ? '<br><strong>Kennzeichen:</strong> ' + escAttr(r.t.kennzeichen) : ''),
+          'Sie können jederzeit einen neuen Termin buchen — wir freuen uns auf Sie.'],
+        button: { text: 'Neuen Termin buchen', url: 'https://www.schroeder-scholz.de/termin/' },
+        hinweis: 'Es entstehen Ihnen keine Kosten.' + (einst.telefon ? ' Bei Fragen erreichen Sie uns unter ' + einst.telefon + '.' : '')
+      });
+      if (r.t.kontakt_email) {
+        await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: r.t.kontakt_email, replyTo: einst.email || process.env.SMTP_USER, subject: 'Termin abgesagt: ' + dF + ' ' + hhmm + ' Uhr — Schröder & Scholz', html: htmlGast });
+      }
+      if (einst.email) {
+        await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: r.t.kontakt_email || process.env.SMTP_USER,
+          subject: 'Gast-Termin abgesagt: ' + (r.t.termin_typ || '') + ' am ' + dF + ' ' + hhmm,
+          // Escaping, obwohl Gast-Freitext beim Buchen bereits von <> befreit wird (doppelter Boden,
+          // falls dieselben Daten je aus einem anderen Pfad ohne diese Filterung stammen).
+          html: '<p><strong>Ein Gast hat seinen Termin online abgesagt — der Slot ist wieder frei:</strong></p><p>' + escAttr(r.t.kontakt_name || '') + '<br>Telefon: ' + escAttr(r.t.kontakt_telefon || '') + '<br>E-Mail: ' + escAttr(r.t.kontakt_email || '') + '<br>Kennzeichen: ' + escAttr(r.t.kennzeichen || '') + '<br>Termin: ' + dF + ' ' + hhmm + ' Uhr<br>Leistung: ' + escAttr(r.t.termin_typ || '') + '</p>' });
+      }
+    } catch (mailErr) { console.error('[Gast-Absage-Mail]', mailErr.message); }
+
+    res.send(gastSeite('Termin abgesagt', 'Ihr Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> ist abgesagt. Sie erhalten die Bestätigung zusätzlich per E-Mail — es entstehen Ihnen keine Kosten.', neuBuchenCta));
   } catch (e) { next(e); }
 });
 
