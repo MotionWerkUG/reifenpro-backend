@@ -37,6 +37,21 @@ Schema 1:1 aus der Produktiv-DB, ohne Daten. `npm test` fährt die Tests
 Produktiv-DB und schreiben PDFs nur in einen Temp-Ordner (`RECHNUNGEN_DIR`). Details:
 `test/README.md`. Nach jeder Änderung an `rechnungen.js` müssen die Tests grün sein.
 
+## Konsistenzprüfungen (nach Löschläufen, vor Jahresabschluss)
+
+Zwei Abfragen, die beide leer sein müssen. Wenn nicht, stimmt etwas mit der Belegkette nicht:
+
+```bash
+sudo -u postgres psql -d reifenpro -c "SELECT r.rechnungsnr, t.id AS termin FROM rechnungen r JOIN termine t ON t.rechnung_id = r.id WHERE t.beschreibung = '(anonymisiert nach Aufbewahrungsfrist)';"
+```
+Rechnung, deren Termin anonymisiert wurde — ein Beleg ohne nachvollziehbare Grundlage.
+
+```bash
+sudo -u postgres psql -d reifenpro -c "SELECT id, datum, kennzeichen FROM termine WHERE fakturiert = true AND rechnung_id IS NULL;"
+```
+Termin gilt als abgerechnet, hat aber keine Rechnung. Solche Zeilen fallen durch jedes
+Raster: nicht unter „Abzurechnen", nicht unter die Löschfristen.
+
 ## Werkzeuge
 `gobd-pruefer` (Pflicht bei jeder Änderung: Nummernkreis, § 14, Aufbewahrung, Rundung),
 `code-auditor`, `reviewer`, `test-autor` (Preis-/MwSt-Logik). Vor Deploy `/release-gate`.
