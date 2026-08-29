@@ -93,8 +93,11 @@ async function erzeugeRechnungPdf(rech, positionen) {
       doc.fillColor('#000').font('Helvetica').fontSize(11);
       let ey = 130;
       if (rech.empfaenger_firma) { doc.text(rech.empfaenger_firma, left, ey); ey = doc.y; }
-      const empfZeile = [rech.empfaenger_anrede, rech.empfaenger_name].filter(Boolean).join(' ');
-      if (empfZeile) { doc.text(empfZeile, left, ey); ey = doc.y; }
+      // Bei einem Firmenkunden ist die Firma der Leistungsempfaenger; die Person darunter ist
+      // nur der Ansprechpartner. Ohne "z. Hd." liest sich der Beleg so, als ginge er an die Person.
+      const empfZeile = [rech.empfaenger_firma ? 'z. Hd. ' : '', rech.empfaenger_anrede, rech.empfaenger_name]
+        .filter(Boolean).join(' ').replace('z. Hd.  ', 'z. Hd. ');
+      if (empfZeile.trim() && empfZeile.trim() !== 'z. Hd.') { doc.text(empfZeile, left, ey); ey = doc.y; }
       if (rech.empfaenger_strasse) doc.text(rech.empfaenger_strasse, left);
       doc.text([rech.empfaenger_plz, rech.empfaenger_ort].filter(Boolean).join(' '), left);
 

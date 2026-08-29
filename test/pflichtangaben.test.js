@@ -201,6 +201,30 @@ test('Bei Endpreisen zeigt der Beleg Brutto-Spalten, die exakt aufgehen', async 
   assert.ok(text.includes('21,08'), 'Steuerbetrag');
 });
 
+test('Firmenkunde: die Firma ist Empfaenger, die Person nur Ansprechpartner', async () => {
+  const { token } = await h.seedBasis();
+  const e = await entwurf(token, {
+    empfaenger: { anrede: 'Frau', vorname: 'Erika', nachname: 'Musterfrau', firma: 'Musterfuhrpark GmbH',
+                  strasse: 'Flottenweg 9', plz: '12345', ort: 'Musterstadt' },
+    positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 300, mwst_satz: 19 }]
+  });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+  const text = h.pdfText(f.body.pdf_pfad);
+  if (text === null) return;
+  assert.ok(text.includes('Musterfuhrpark GmbH'), 'Firma als Empfaenger');
+  assert.ok(text.includes('z. Hd. Frau Erika Musterfrau'), 'Person als Ansprechpartner gekennzeichnet');
+});
+
+test('Privatkunde bekommt keine z.-Hd.-Zeile', async () => {
+  const { token } = await h.seedBasis();
+  const e = await entwurf(token, { empfaenger: EMPF_VOLL, positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 100, mwst_satz: 19 }] });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  const text = h.pdfText(f.body.pdf_pfad);
+  if (text === null) return;
+  assert.ok(text.includes('Max Mustermann') && !text.includes('z. Hd.'));
+});
+
 test('Bei Nettopreisen bleiben die Netto-Spalten', async () => {
   const { token } = await h.seedBasis({ preise_inkl_mwst: false });
   const e = await entwurf(token, { empfaenger: EMPF_VOLL, positionen: [{ bezeichnung: 'Leistung', menge: 2, einheit: 'Stk', einzelpreis_netto: 50, mwst_satz: 19 }] });
