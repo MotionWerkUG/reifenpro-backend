@@ -85,12 +85,34 @@ async function main() {
     console.log('[Backup] Keine Datei-Verzeichnisse vorhanden – Datei-Backup uebersprungen.');
   }
 
+  // ── Dauerarchiv: einmal je Monat eine Kopie, die NIE rotiert wird ──
+  // Die tägliche Sicherung reicht 30 Tage zurück, die Aufbewahrungspflicht für Belege
+  // acht Jahre. Ohne diese Kopie waere ein Beleg, dessen Verlust erst nach zwei Monaten
+  // auffaellt, endgueltig weg. Der erste Lauf eines Monats legt den Monatsstand an.
+  const monat = new Date().toISOString().slice(0, 7);
+  const archivDir = path.join(DIR, 'dauerarchiv');
+  if (!fs.existsSync(archivDir)) fs.mkdirSync(archivDir, { recursive: true });
+  const archivDb = path.join(archivDir, 'reifenpro_' + monat + '.sql.gz');
+  if (!fs.existsSync(archivDb)) {
+    fs.copyFileSync(dbDest, archivDb);
+    console.log('[Backup] Dauerarchiv angelegt: ' + path.basename(archivDb) + ' (' + mb(archivDb) + ' MB)');
+  }
+  if (fileDest) {
+    const archivDat = path.join(archivDir, 'reifenpro-dateien_' + monat + '.tar.gz');
+    if (!fs.existsSync(archivDat)) {
+      fs.copyFileSync(fileDest, archivDat);
+      console.log('[Backup] Dauerarchiv angelegt: ' + path.basename(archivDat) + ' (' + mb(archivDat) + ' MB)');
+    }
+  }
+
   // ── Rotation: alte DB- und Datei-Backups loeschen ──
+  // Achtung: greift bewusst NUR im Hauptordner, nie im Unterordner 'dauerarchiv'.
   const grenze = new Date(Date.now() - KEEP * 86400000);
   fs.readdirSync(DIR)
     .filter(function (f) { return /^reifenpro_.*\.sql\.gz$/.test(f) || /^reifenpro-dateien_.*\.tar\.gz$/.test(f); })
     .forEach(function (f) {
       const fp = path.join(DIR, f);
+      if (!fs.statSync(fp).isFile()) return;
       if (fs.statSync(fp).mtime < grenze) { fs.unlinkSync(fp); console.log('[Backup] Geloescht: ' + f); }
     });
 

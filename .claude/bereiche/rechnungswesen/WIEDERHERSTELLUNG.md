@@ -8,6 +8,7 @@ Gilt für die Sicherungen aus `scripts/backup.js` (täglich 03:00 per Cron).
 | Inhalt | Ort | Aufbewahrung |
 |---|---|---|
 | Datenbank (`reifenpro_*.sql.gz`) | `/var/backups/reifenpro`, nur root | 30 Tage |
+| Monatsstand, dauerhaft | `/var/backups/reifenpro/dauerarchiv/` | wird nie rotiert |
 | Dateien (`reifenpro-dateien_*.tar.gz`) | ebenda | 30 Tage |
 | Datenbank verschlüsselt außer Haus | restic auf Hetzner Storage Box, via `offsite-backup.sh` | ca. 6 Monate |
 | Wochenkopie per E-Mail (DB + Dateien) | Postfach des Inhabers, montags | solange das Postfach sie hält |
@@ -58,9 +59,10 @@ Nie `pm2 restart all` — der Prozess `sandumotion` gehört einem anderen Projek
 
 ## Was die Sicherung NICHT abdeckt
 
-- **Kein Monatsarchiv.** Lokal und außer Haus reichen die Sicherungen 30 Tage bzw. rund ein
-  halbes Jahr zurück. Ein Fehler, der später auffällt, ist bei den Dateien nicht mehr
-  reparabel — das steht gegen die Aufbewahrungspflicht von acht Jahren.
+- **Noch keine Kopie außer Haus für die Belege.** Der Monatsstand liegt dauerhaft auf dem
+  Server (`dauerarchiv/`), aber eine zweite Kopie an einem anderen Ort fehlt. Geplant ist
+  eine Hetzner Storage Box; bis dahin gehen Rechnungs-PDFs und Protokolle nur als
+  Mailanhang hinaus.
 - **Belege liegen nicht verschlüsselt außer Haus.** Die Offsite-Sicherung umfasst nur
   Datenbanken; Rechnungs-PDFs und Protokolle gehen ausschließlich als Mailanhang hinaus.
 - **Kein automatischer Restore-Test.** Andere Projekte auf dem Server haben einen, ReifenPro
