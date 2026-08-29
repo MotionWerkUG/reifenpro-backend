@@ -571,8 +571,11 @@ router.post('/termin/absagen', absageLimiter, async (req, res, next) => {
         'Ihr Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> ist in weniger als ' + r.fristH + ' Stunden. Bitte rufen Sie uns kurz an' + tel + '.'));
     }
     // Status-Guard: genau EINMAL stornieren (kein zweiter Mailversand bei Doppelklick/Reload).
+    // Abrechnungs-Guard auch im WHERE (nicht nur in ladeStornoTermin): zwischen Pruefung und Update
+    // kann die Rechnung entstehen. storniert_von folgt dem Muster des Portal-Stornos ('kunde') und
+    // haelt zusaetzlich fest, woher die Absage kam.
     const upd = await query(
-      "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='Kunde (Online-Absage)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt'",
+      "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='kunde (gast-online)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt' AND fakturiert IS NOT TRUE AND rechnung_id IS NULL",
       [r.t.id]);
     if (!upd.rowCount) {
       return res.status(409).send(gastSeite('Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.', neuBuchenCta));
