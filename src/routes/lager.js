@@ -2,6 +2,7 @@
 const router = require('express').Router();
 const { query } = require('../db/index');
 const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
+const { auditLog } = require('../middleware/errorHandler');
 
 // GET /api/lager — alle Lagerorte mit Regalen und Belegung
 router.get('/', authenticate, requireStaff, async (req, res, next) => {
@@ -16,20 +17,30 @@ router.get('/', authenticate, requireStaff, async (req, res, next) => {
       "SELECT lagerplatz FROM einlagerungen WHERE status!='Abgeholt'"
     );
     const belegtSet = new Set(belegt.rows.map(r => r.lagerplatz));
+    // Wie viele Saetze liegen je Platz? Bei gestapelten Regalen koennen es mehrere sein.
+    const belegtZaehler = {};
+    belegt.rows.forEach(function (r) { belegtZaehler[r.lagerplatz] = (belegtZaehler[r.lagerplatz] || 0) + 1; });
 
     const result = orte.rows.map(function(ort) {
       const ortRegale = regale.rows.filter(function(r) {
         return r.ort_id === ort.id;
       }).map(function(regal) {
+        const kap = regal.plaetze_kapazitaet && regal.plaetze_kapazitaet > 0 ? regal.plaetze_kapazitaet : 1;
         const plaetze = [];
         for (var i = regal.plaetze_von; i <= regal.plaetze_bis; i++) {
           var pid = ort.name + '-' + regal.name + '-' + String(i).padStart(2,'0');
-          plaetze.push({ nr: i, id: pid, belegt: belegtSet.has(pid) });
+          // Bei gestapelten Regalen zaehlt, WIE VIELE Saetze auf dem Platz liegen. Ein Platz ist
+          // erst voll, wenn die Kapazitaet erreicht ist — und nur dann darf er als belegt gelten.
+          var anzahl = belegtZaehler[pid] || 0;
+          plaetze.push({ nr: i, id: pid, anzahl: anzahl, kapazitaet: kap, belegt: anzahl >= kap, teilbelegt: anzahl > 0 && anzahl < kap });
         }
         return Object.assign({}, regal, {
+          plaetze_kapazitaet: kap,
           plaetze_total: regal.plaetze_bis - regal.plaetze_von + 1,
           plaetze_belegt: plaetze.filter(function(p) { return p.belegt; }).length,
+          plaetze_teilbelegt: plaetze.filter(function(p) { return p.teilbelegt; }).length,
           plaetze_frei: plaetze.filter(function(p) { return !p.belegt; }).length,
+          saetze_gesamt: plaetze.reduce(function(a, p) { return a + p.anzahl; }, 0),
         });
       });
       return Object.assign({}, ort, { regale: ortRegale });
@@ -68,15 +79,23 @@ router.get('/naechster-freier', authenticate, requireStaff, async (req, res, nex
       "SELECT lagerplatz FROM einlagerungen WHERE status!='Abgeholt'"
     );
     const belegtSet = new Set(belegt.rows.map(function(r) { return r.lagerplatz; }));
+    const belegtZaehler = {};
+    belegt.rows.forEach(function (r) { belegtZaehler[r.lagerplatz] = (belegtZaehler[r.lagerplatz] || 0) + 1; });
 
+    // Erst wirklich leere Plaetze anbieten, danach erst halb belegte Stapelplaetze — sonst
+    // stapelt man, obwohl noch ganze Plaetze frei sind.
+    var halbBelegt = null;
     for (var reg of regale.rows) {
+      var kapR = reg.plaetze_kapazitaet && reg.plaetze_kapazitaet > 0 ? reg.plaetze_kapazitaet : 1;
       for (var i = reg.plaetze_von; i <= reg.plaetze_bis; i++) {
         var pid = reg.ort_name + '-' + reg.name + '-' + String(i).padStart(2,'0');
-        if (!belegtSet.has(pid)) {
-          return res.json({ lagerplatz: pid, verfuegbar: true });
-        }
+        var anz = belegtZaehler[pid] || 0;
+        if (anz === 0) return res.json({ lagerplatz: pid, verfuegbar: true, kapazitaet: kapR, belegt: 0 });
+        if (anz < kapR && !halbBelegt) halbBelegt = { lagerplatz: pid, verfuegbar: true, kapazitaet: kapR, belegt: anz,
+          hinweis: 'Auf diesem Platz liegt bereits ein Satz — hier wird gestapelt.' };
       }
     }
+    if (halbBelegt) return res.json(halbBelegt);
     res.json({ lagerplatz: null, verfuegbar: false, message: 'Keine freien Plaetze.' });
   } catch (err) { next(err); }
 });
@@ -84,6 +103,9 @@ router.get('/naechster-freier', authenticate, requireStaff, async (req, res, nex
 // GET /api/lager/stammplatz/:kundenId — Stammplatz des Kunden finden
 router.get('/stammplatz/:kundenId', authenticate, requireStaff, async (req, res, next) => {
   try {
+    // Ungueltige UUID wuerde in Postgres als 22P02 knallen -> HTTP 500. Sauber abweisen.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.params.kundenId || '')))
+      return res.status(400).json({ error: 'Ungültige Kunden-ID.' });
     const { fahrzeug_id, einlagerung_id } = req.query;
     // Exakt: Stammplatz eines konkreten Radsatzes (Wiedereinlagerung) -> dessen letzter Platz
     if (einlagerung_id) {
@@ -153,29 +175,85 @@ router.post('/orte', authenticate, requireAdmin, async (req, res, next) => {
 // POST /api/lager/regale — neues Regal anlegen
 router.post('/regale', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    const { ort_id, name, plaetze_von, plaetze_bis } = req.body;
+    // von/bis pruefen: "von 10 bis 1" legte bisher klaglos ein Regal an, das dauerhaft 0 Plaetze hat.
+    const vonZ = req.body.plaetze_von === undefined || req.body.plaetze_von === null || req.body.plaetze_von === '' ? 1 : parseInt(req.body.plaetze_von, 10);
+    const bisZ = req.body.plaetze_bis === undefined || req.body.plaetze_bis === null || req.body.plaetze_bis === '' ? 10 : parseInt(req.body.plaetze_bis, 10);
+    if (!Number.isInteger(vonZ) || !Number.isInteger(bisZ) || vonZ < 0 || bisZ < vonZ)
+      return res.status(400).json({ error: 'Platzbereich ungültig: „von" muss kleiner oder gleich „bis" sein.' });
+    if (bisZ - vonZ > 999) return res.status(400).json({ error: 'Ein Regal darf höchstens 1000 Plätze haben.' });
+    if (req.body.ort_id) {
+      const ort = await query('SELECT id FROM lager_orte WHERE id::text=$1', [String(req.body.ort_id)]);
+      if (!ort.rows.length) return res.status(400).json({ error: 'Lagerort nicht gefunden.' });
+    }
+    const { ort_id, name } = req.body;
     if (!ort_id || !name) return res.status(400).json({ error: 'ort_id und name sind Pflicht.' });
+    // Wie viele Saetze duerfen uebereinander? 1 = normal, 2+ = gestapelt (Container).
+    const kap = req.body.plaetze_kapazitaet === undefined ? 1 : parseInt(req.body.plaetze_kapazitaet, 10);
+    if (!Number.isInteger(kap) || kap < 1 || kap > 4)
+      return res.status(400).json({ error: 'Räder je Platz muss zwischen 1 und 4 liegen.' });
     const { rows } = await query(
-      'INSERT INTO lager_regale (ort_id, name, plaetze_von, plaetze_bis) VALUES ($1,$2,$3,$4) RETURNING *',
-      [ort_id, name.trim(), parseInt(plaetze_von)||1, parseInt(plaetze_bis)||10]
+      'INSERT INTO lager_regale (ort_id, name, plaetze_von, plaetze_bis, plaetze_kapazitaet) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [ort_id, name.trim(), vonZ, bisZ, kap]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
 
 // DELETE /api/lager/orte/:id
+// Deaktivieren (kein echtes Loeschen): betrifft moeglicherweise viele belegte Plaetze — gehoert
+// deshalb ins Protokoll.
 router.delete('/orte/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    await query('UPDATE lager_orte SET aktiv=false WHERE id=$1', [req.params.id]);
-    res.json({ message: 'Lagerort deaktiviert.' });
+    const belegt = (await query(
+      `SELECT COUNT(*)::int AS c FROM einlagerungen e
+        WHERE e.status <> 'Abgeholt'
+          AND e.lagerplatz LIKE (SELECT name FROM lager_orte WHERE id::text=$1) || '-%'`,
+      [String(req.params.id)])).rows[0];
+    const { rows } = await query('UPDATE lager_orte SET aktiv=false WHERE id::text=$1 RETURNING id, name', [String(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: 'Lagerort nicht gefunden.' });
+    await auditLog({ userId: req.user.id, aktion: 'lagerort.deaktiviert', tabelle: 'lager_orte',
+      datensatzId: rows[0].id, alteWerte: { name: rows[0].name, belegte_plaetze: belegt.c }, req });
+    res.json({ message: 'Lagerort deaktiviert.', belegte_plaetze: belegt.c,
+      hinweis: belegt.c ? belegt.c + ' belegte(r) Platz/Plätze erscheinen jetzt unter „Nicht zugeordnet". Über „Wieder aktivieren" rückgängig zu machen.' : undefined });
   } catch (err) { next(err); }
 });
 
 // DELETE /api/lager/regale/:id
 router.delete('/regale/:id', authenticate, requireAdmin, async (req, res, next) => {
   try {
+    const r0 = (await query('SELECT id, name FROM lager_regale WHERE id::text=$1', [String(req.params.id)])).rows[0];
+    if (!r0) return res.status(404).json({ error: 'Regal nicht gefunden.' });
+    await auditLog({ userId: req.user.id, aktion: 'regal.deaktiviert', tabelle: 'lager_regale',
+      datensatzId: r0.id, alteWerte: { name: r0.name }, req });
     await query('UPDATE lager_regale SET aktiv=false WHERE id=$1', [req.params.id]);
     res.json({ message: 'Regal deaktiviert.' });
+  } catch (err) { next(err); }
+});
+
+// Wieder aktivieren. Bisher gab es nur DELETE (= deaktivieren) und keinen Weg zurueck: ein
+// versehentlich deaktivierter Lagerort war nur ueber direkten Datenbankzugriff zu retten, waehrend
+// die dort liegenden Saetze im Lagerplan unter "Nicht zugeordnet" auftauchten.
+router.patch('/orte/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    if (req.body.aktiv === undefined) return res.status(400).json({ error: 'aktiv (true/false) erforderlich.' });
+    const aktiv = req.body.aktiv === true || req.body.aktiv === 'true';
+    const { rows } = await query('UPDATE lager_orte SET aktiv=$1 WHERE id::text=$2 RETURNING *', [aktiv, String(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: 'Lagerort nicht gefunden.' });
+    await auditLog({ userId: req.user.id, aktion: aktiv ? 'lagerort.aktiviert' : 'lagerort.deaktiviert',
+      tabelle: 'lager_orte', datensatzId: req.params.id, neueWerte: { aktiv }, req });
+    res.json(rows[0]);
+  } catch (err) { next(err); }
+});
+
+router.patch('/regale/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    if (req.body.aktiv === undefined) return res.status(400).json({ error: 'aktiv (true/false) erforderlich.' });
+    const aktiv = req.body.aktiv === true || req.body.aktiv === 'true';
+    const { rows } = await query('UPDATE lager_regale SET aktiv=$1 WHERE id::text=$2 RETURNING *', [aktiv, String(req.params.id)]);
+    if (!rows.length) return res.status(404).json({ error: 'Regal nicht gefunden.' });
+    await auditLog({ userId: req.user.id, aktion: aktiv ? 'regal.aktiviert' : 'regal.deaktiviert',
+      tabelle: 'lager_regale', datensatzId: req.params.id, neueWerte: { aktiv }, req });
+    res.json(rows[0]);
   } catch (err) { next(err); }
 });
 

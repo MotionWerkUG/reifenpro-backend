@@ -1,0 +1,63 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "1 — Werkstattbrett mit großen Flächen"
+    },
+    {
+      "file": "Abschluss.dc.html",
+      "x": 1400,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "2 — Nach „Fertig“: Was passiert mit den Rädern?"
+    },
+    {
+      "file": "Profiltiefe.dc.html",
+      "x": 2800,
+      "y": 0,
+      "w": 1280,
+      "h": 800,
+      "title": "3 — Profiltiefe messen"
+    },
+    {
+      "file": "Kontrolle.dc.html",
+      "x": 0,
+      "y": 940,
+      "w": 1280,
+      "h": 800,
+      "title": "4 — Wiedereinlagerung: sind es dieselben Reifen?"
+    },
+    {
+      "file": "Beleg.dc.html",
+      "x": 1400,
+      "y": 940,
+      "w": 1280,
+      "h": 800,
+      "title": "5 — Beleg, Unterschriften und Knopflogik"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "hinweis-ablauf",
+      "x": 2800,
+      "y": 940,
+      "w": 460,
+      "text": "Der Ablauf: Fertig antippen → Was passiert mit den Rädern → Profiltiefe je Rad → Beleg unterschreiben. Erst danach gilt der Termin als erledigt."
+    },
+    {
+      "id": "hinweis-groesse",
+      "x": 0,
+      "y": -170,
+      "w": 460,
+      "text": "Alle Flächen sind mit Handschuhen bedienbar: kein Knopf unter 60 Pixel Höhe, die Hauptaktion 76 bis 92 Pixel."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

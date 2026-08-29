@@ -239,23 +239,61 @@ async function bewertungsAnfrage() {
 }
 
 // ── LOESCHKONZEPT / DATENSPARSAMKEIT ──
-// (1) Personenbezug alter GAST-Termine (ohne Kundenkonto) nach 24 Monaten entfernen (Statistik-Zeile bleibt).
-// (2) Werbung stoppen, wo die Einwilligung trotz Aufforderung nicht per Double-Opt-in bestaetigt wurde
-//     (Token abgelaufen). Es werden KEINE Kundendaten geloescht (Aufbewahrungspflicht bleibt gewahrt).
+// Fristen mit dem Rechnungswesen abgestimmt und von David freigegeben (29.08.2026):
+//  (1) GAST-Termine, storniert oder abgesagt, nach 12 Monaten anonymisieren -- aus ihnen ist nie ein
+//      Geschaeftsvorgang geworden, sie laenger personenbezogen zu halten hat keinen Grund.
+//  (2) Alle uebrigen GAST-Termine nach 24 Monaten anonymisieren (bestehende Regel).
+//  (3) Kontaktanfragen ohne Geschaeftsvorgang nach 12 Monaten loeschen. BEWUSST 12 Monate und nicht
+//      6 Jahre: Die 6 Jahre gelten fuer Geschaeftskorrespondenz mit steuerlichem Bezug (§ 147 AO) --
+//      eine folgenlose Formularanfrage ist das nicht, sie so lange zu halten waere selbst ein Verstoss
+//      gegen Art. 5 Abs. 1 lit. e DSGVO. Wurde daraus ein Kunde (gleiche E-Mail), bleibt sie.
+//  (4) Werbung stoppen, wo die Einwilligung nie per Double-Opt-in bestaetigt wurde (Token abgelaufen).
+//
+// ZWEI SICHERHEITEN, die wichtiger sind als das Aufraeumen selbst:
+//  - Termine mit Rechnungsbezug (`rechnung_id` gesetzt oder `fakturiert`) werden NIE angefasst.
+//    Ein entkernter Termin zu einer bestehenden Rechnung waere ein Beleg ohne Grundlage; die
+//    Aufbewahrungspflicht schlaegt die Loeschpflicht. Diese Pruefung fehlte der bisherigen Regel.
+//  - Standardmaessig laeuft der Job als TROCKENLAUF: er zaehlt und protokolliert nur. Scharf wird er
+//    erst mit LOESCHLAUF_SCHARF=1 in der .env. Eine falsch gesetzte Frist ist schlimmer als gar keine,
+//    deshalb erst sehen, was passieren wuerde, dann schalten.
 async function loeschkonzept() {
-  const anon = await query(
-    `UPDATE termine SET kontakt_name=NULL, kontakt_anrede=NULL, kontakt_vorname=NULL, kontakt_nachname=NULL,
+  const scharf = process.env.LOESCHLAUF_SCHARF === '1';
+  const zeit = '[' + new Date().toISOString() + '] Loeschkonzept' + (scharf ? '' : ' (TROCKENLAUF)') + ': ';
+
+  // Kein Rechnungsbezug -- gilt fuer beide Termin-Regeln.
+  const ohneRechnung = "rechnung_id IS NULL AND fakturiert IS NOT TRUE";
+  const hatPersonenbezug = "(kontakt_name IS NOT NULL OR kontakt_email IS NOT NULL OR kennzeichen IS NOT NULL)";
+  const anonSetzen = `kontakt_name=NULL, kontakt_anrede=NULL, kontakt_vorname=NULL, kontakt_nachname=NULL,
        kontakt_telefon=NULL, kontakt_email=NULL, kontakt_strasse=NULL, kontakt_plz=NULL, kontakt_ort=NULL,
-       kennzeichen=NULL, beschreibung='(anonymisiert nach Aufbewahrungsfrist)'
-     WHERE kunden_id IS NULL AND datum < (CURRENT_DATE - INTERVAL '24 months')
-       AND (kontakt_name IS NOT NULL OR kontakt_email IS NOT NULL OR kennzeichen IS NOT NULL)`
-  );
+       kontakt_firma=NULL, kennzeichen=NULL, beschreibung='(anonymisiert nach Aufbewahrungsfrist)'`;
+
+  // (1) stornierte/abgesagte Gast-Termine nach 12 Monaten
+  const wo1 = `kunden_id IS NULL AND ${ohneRechnung} AND status IN ('storniert','abgesagt')
+       AND datum < (CURRENT_DATE - INTERVAL '12 months') AND ${hatPersonenbezug}`;
+  // (2) uebrige Gast-Termine nach 24 Monaten
+  const wo2 = `kunden_id IS NULL AND ${ohneRechnung} AND datum < (CURRENT_DATE - INTERVAL '24 months')
+       AND ${hatPersonenbezug}`;
+  // (3) folgenlose Kontaktanfragen nach 12 Monaten
+  const wo3 = `erstellt_am < (NOW() - INTERVAL '12 months')
+       AND NOT EXISTS (SELECT 1 FROM kunden k WHERE LOWER(k.email)=LOWER(kontakt_anfragen.email)
+                          OR LOWER(k.portal_email)=LOWER(kontakt_anfragen.email))`;
+
+  const zaehle = async (tabelle, wo) => parseInt((await query(`SELECT COUNT(*)::int AS c FROM ${tabelle} WHERE ${wo}`)).rows[0].c, 10);
+  const n1 = await zaehle('termine', wo1), n2 = await zaehle('termine', wo2), n3 = await zaehle('kontakt_anfragen', wo3);
+
+  if (scharf) {
+    if (n1) await query(`UPDATE termine SET ${anonSetzen} WHERE ${wo1}`);
+    if (n2) await query(`UPDATE termine SET ${anonSetzen} WHERE ${wo2}`);
+    if (n3) await query(`DELETE FROM kontakt_anfragen WHERE ${wo3}`);
+  }
   const stop = await query(
     `UPDATE kunden SET einwilligung_saison_erinnerung=false, einwilligung_token=NULL, einwilligung_token_ablauf=NULL
      WHERE einwilligung_saison_erinnerung=true AND einwilligung_saison_bestaetigt IS NOT TRUE
        AND einwilligung_token_ablauf IS NOT NULL AND einwilligung_token_ablauf < NOW()`
   );
-  console.log('[' + new Date().toISOString() + '] Loeschkonzept: ' + (anon.rowCount || 0) + ' Gast-Termine anonymisiert, ' + (stop.rowCount || 0) + ' unbestaetigte Werbe-Einwilligungen gestoppt.');
+  console.log(zeit + n1 + ' stornierte Gast-Termine (12 Mon.) + ' + n2 + ' weitere Gast-Termine (24 Mon.) anonymisiert, '
+    + n3 + ' folgenlose Kontaktanfragen geloescht, ' + (stop.rowCount || 0) + ' unbestaetigte Werbe-Einwilligungen gestoppt.'
+    + (scharf ? '' : ' -- nichts veraendert, LOESCHLAUF_SCHARF=1 setzen zum Scharfschalten.'));
 }
 
 // ── HAUPTLAUF ──

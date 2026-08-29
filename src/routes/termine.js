@@ -4,6 +4,7 @@ const router = express.Router();
 const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { portalMailHtml, anredeGruss } = require('../lib/mail-template');
+const { auditLog } = require('../middleware/errorHandler');
 
 // Alle Termin-Routen sind rein intern (Admin/Werkstatt) — Personal-Rechte erzwingen.
 router.use(authenticate, requireStaff);
@@ -11,12 +12,18 @@ router.use(authenticate, requireStaff);
 // ── GET /api/termine ── Admin: alle Termine
 router.get('/', async (req, res, next) => {
   try {
-    const { von, bis, status } = req.query;
+    const { von, bis, status, unbestaetigt } = req.query;
+    // einlagerung_gebucht: hat der Kunde die Einlagerung selbst mitgebucht? Steckt entweder als
+    // Hauptleistung (artikel_id) oder als Position in leistungen (Gast-/Portal-Buchung).
+    // einlagern bleibt die ausdrueckliche Entscheidung des Betriebs: NULL = noch keine getroffen.
     let sql = `SELECT t.*,
       k.vorname || ' ' || k.nachname as kundenname,
       COALESCE(t.kennzeichen, k.kennzeichen) AS kennzeichen, k.telefon,
       a.name as artikel_name, a.dauer_minuten,
-      f.marke as fahrzeug_marke, f.modell as fahrzeug_modell
+      f.marke as fahrzeug_marke, f.modell as fahrzeug_modell,
+      (COALESCE(a.name ILIKE '%einlagerung%', false)
+        OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(t.leistungen,'[]'::jsonb)) p
+                   WHERE p->>'bezeichnung' ILIKE '%einlagerung%')) AS einlagerung_gebucht
       FROM termine t
       LEFT JOIN kunden k ON k.id = t.kunden_id
       LEFT JOIN artikel a ON a.id = t.artikel_id
@@ -26,6 +33,18 @@ router.get('/', async (req, res, next) => {
     if (von) { params.push(von); sql += ` AND t.datum >= $${params.length}`; }
     if (bis) { params.push(bis); sql += ` AND t.datum <= $${params.length}`; }
     if (status) { params.push(status); sql += ` AND t.status = $${params.length}`; }
+    // Eine Gast-Buchung ist erst ein Termin, wenn der Kunde den Link in seiner Mail geklickt hat.
+    // Vorher gehoert sie weder aufs Werkstattbrett noch in den Kalender (sie blockiert auch keinen
+    // Slot, siehe gast.js). Mit ?unbestaetigt=1 laesst sie sich gezielt abrufen — damit ein Anruf
+    // "ich habe doch gebucht" beantwortbar bleibt.
+    const nurUnbestaetigt = unbestaetigt === '1' || unbestaetigt === 'true';
+    if (nurUnbestaetigt) {
+      // Auch abgelaufene Anfragen zeigen — sie sollen auffindbar bleiben, nur eben hier und
+      // nicht im Kalender. Das Ablaufdatum steuert die Loeschung, nicht die Sichtbarkeit.
+      sql += ` AND t.status='angefragt' AND t.bestaetigung_token IS NOT NULL`;
+    } else {
+      sql += ` AND NOT (t.status='angefragt' AND t.bestaetigung_token IS NOT NULL)`;
+    }
     sql += ' ORDER BY t.datum, t.uhrzeit_von';
     const { rows } = await query(sql, params);
     res.json(rows);
@@ -45,6 +64,9 @@ router.get('/statistik', async (req, res, next) => {
         COUNT(CASE WHEN portal_buchung=true AND status NOT IN ('storniert','abgesagt','nicht_erschienen') THEN 1 END) as online
        FROM termine
        WHERE EXTRACT(YEAR FROM datum) = $1
+         -- Gleiche Regel wie in der Terminliste: eine Gast-Buchung ohne geklickten
+         -- Bestaetigungslink ist noch kein Termin und darf die Auslastung nicht aufblaehen.
+         AND NOT (status='angefragt' AND bestaetigung_token IS NOT NULL)
        GROUP BY monat ORDER BY monat`,
       [j]
     );
@@ -178,11 +200,25 @@ router.delete('/:id', async (req, res, next) => {
 // ── POST /api/termine/portal-freigabe/:kundenId ── Kunde freigeben
 router.post('/portal-freigabe/:kundenId', async (req, res, next) => {
   try {
+    // Nur freigeben, wenn der Kunde seine E-Mail bestaetigt hat: sonst schaltet der Betrieb einen
+    // Zugang frei, dessen Adresse nie jemand nachgewiesen hat (Konto-Uebernahme durch Vertipper
+    // oder Fremdregistrierung). Und nur EINMAL: ein zweiter Klick darf keine zweite
+    // Willkommensmail beim Kunden ausloesen (WHERE portal_freigegeben=false).
     const { rows } = await query(
-      'UPDATE kunden SET portal_freigegeben=true, geaendert_am=NOW() WHERE id=$1 RETURNING vorname, nachname, anrede, portal_email',
+      `UPDATE kunden SET portal_freigegeben=true, geaendert_am=NOW()
+       WHERE id=$1 AND portal_freigegeben=false AND portal_email_bestaetigt=true
+       RETURNING vorname, nachname, anrede, portal_email`,
       [req.params.kundenId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Kunde nicht gefunden' });
+    if (!rows.length) {
+      const ist = (await query('SELECT portal_aktiv, portal_freigegeben, portal_email_bestaetigt FROM kunden WHERE id=$1', [req.params.kundenId])).rows[0];
+      if (!ist) return res.status(404).json({ error: 'Kunde nicht gefunden' });
+      if (ist.portal_freigegeben) return res.json({ message: 'Portalzugang war bereits freigeschaltet.', bereits_freigegeben: true });
+      return res.status(409).json({
+        error: 'Der Kunde hat seine E-Mail-Adresse noch nicht bestätigt. Freischalten ist erst danach möglich.',
+        wartet_auf_kunden: true
+      });
+    }
     const k = rows[0];
     // Willkommens-E-Mail
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
@@ -203,7 +239,8 @@ router.post('/portal-freigabe/:kundenId', async (req, res, next) => {
         button: { text: 'Zum Kundenportal', url: portalUrl }
       })
     }).catch(() => {});
-    res.json({ message: 'Freigegeben und E-Mail gesendet' });
+    await auditLog({ userId: req.user.id, aktion: 'kunde.portal_freigegeben', tabelle: 'kunden', datensatzId: req.params.kundenId, req });
+    res.json({ message: 'Portal freigeschaltet, Willkommens-E-Mail gesendet.' });
   } catch (e) { next(e); }
 });
 
@@ -223,6 +260,8 @@ router.patch('/:id/kunde', async (req, res, next) => {
 // damit die Werkstatt es sofort sieht (Buero entscheidet -> Werkstatt wird informiert).
 router.patch('/:id/einlagern', async (req, res, next) => {
   try {
+    // true = vormerken, false = ausdruecklich zurueckziehen (auch wenn der Kunde die Einlagerung
+    // gebucht hat). NULL bleibt der Zustand "noch nicht entschieden" und wird hier nie gesetzt.
     const einlagern = req.body && (req.body.einlagern === true || req.body.einlagern === 'true');
     const { rows } = await query('UPDATE termine SET einlagern=$1, geaendert_am=NOW() WHERE id=$2 RETURNING id, einlagern', [einlagern, req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Termin nicht gefunden.' });
@@ -234,6 +273,17 @@ router.patch('/:id/einlagern', async (req, res, next) => {
 router.patch('/:id/fakturiert', async (req, res, next) => {
   try {
     const fakturiert = !(req.body && (req.body.fakturiert === false || req.body.fakturiert === 'false'));
+    // Ein abgesagter oder nicht wahrgenommener Termin kann nicht abgerechnet worden sein.
+    // Ohne diese Pruefung liess er sich als fakturiert markieren und verschwand still aus
+    // der Liste "Abzurechnen" — die Gegenrichtung (Absage trotz Rechnung) ist im Gast-Weg
+    // bereits gesperrt. Das Zuruecknehmen (fakturiert=false) bleibt immer erlaubt.
+    const OFFEN_UNMOEGLICH = ['storniert', 'abgesagt', 'nicht_erschienen'];
+    if (fakturiert) {
+      const ist = (await query('SELECT status FROM termine WHERE id=$1', [req.params.id])).rows[0];
+      if (!ist) return res.status(404).json({ error: 'Termin nicht gefunden.' });
+      if (OFFEN_UNMOEGLICH.includes(ist.status))
+        return res.status(409).json({ error: 'Ein abgesagter Termin kann nicht als abgerechnet markiert werden.' });
+    }
     const { rows } = await query('UPDATE termine SET fakturiert=$1 WHERE id=$2 RETURNING id, fakturiert', [fakturiert, req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Termin nicht gefunden.' });
     res.json({ message: 'ok', fakturiert: rows[0].fakturiert });
