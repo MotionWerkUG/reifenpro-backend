@@ -2023,9 +2023,11 @@ function gwAnfNeuerKunde(id) {
 var allRechnungen = [];
 function rEur(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function rDatum(d) { if (!d) return '-'; var t = new Date(d); return String(t.getDate()).padStart(2, '0') + '.' + String(t.getMonth() + 1).padStart(2, '0') + '.' + t.getFullYear(); }
-function rStatusBadge(s) {
+function rStatusBadge(s, istStorno) {
   var map = { entwurf: ['Entwurf', '#888'], festgeschrieben: ['Festgeschrieben', '#1a7f37'], storniert: ['Storniert', '#c0392b'] };
-  var m = map[s] || [s, '#888'];
+  // Eine Stornorechnung hat selbst den Status 'festgeschrieben' — ohne eigenes Kennzeichen
+  // waere sie in der Liste nicht von einer normalen Rechnung zu unterscheiden.
+  var m = istStorno ? ['Stornorechnung', '#c0392b'] : (map[s] || [s, '#888']);
   return '<span style="background:' + m[1] + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">' + m[0] + '</span>';
 }
 function loadRechnungen() {
@@ -2038,7 +2040,7 @@ function loadRechnungStatistik() {
     var eur = function(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; };
     el.innerHTML = '<div class="stats" style="margin-bottom:16px">' +
       '<div class="sc sc-g"><div class="sv">' + eur(s.umsatz_brutto) + '</div><div class="sl">Umsatz ' + s.jahr + ' (brutto)</div></div>' +
-      '<div class="sc sc-b"><div class="sv">' + s.anzahl + '</div><div class="sl">Rechnungen</div></div>' +
+      '<div class="sc sc-b"><div class="sv">' + s.anzahl + '</div><div class="sl">Abgerechnet ' + s.jahr + ' (ohne Storno)</div></div>' +
       '<div class="sc sc-y"><div class="sv">' + eur(s.offen_summe) + '</div><div class="sl">Offen (' + s.offen_anzahl + ')</div></div>' +
       '<div class="sc sc-a"><div class="sv">' + eur(s.ueberfaellig_summe) + '</div><div class="sl">Überfällig (' + s.ueberfaellig_anzahl + ')</div></div>' +
       '</div>';
@@ -2076,18 +2078,21 @@ function renderRechnungen() {
       akt += '<button class="btn btn-danger btn-sm" onclick="loescheRechnung(\'' + r.id + '\')">X</button>';
     } else {
       akt += '<button class="btn btn-g btn-sm" onclick="rechnungPdf(\'' + r.id + '\')">PDF</button>';
-      if (r.status === 'festgeschrieben') {
+      // Nur eine normale festgeschriebene Rechnung laesst sich bezahlen, mahnen und stornieren.
+      // Eine Stornorechnung ist der Korrekturbeleg selbst — sie wird nicht erneut storniert
+      // (das lehnt auch der Server ab) und nicht gemahnt.
+      if (r.status === 'festgeschrieben' && !r.storno_von_id) {
         akt += '<button class="btn btn-g btn-sm" onclick="toggleBezahlt(\'' + r.id + '\',' + (r.zahlungsstatus === 'bezahlt' ? 'false' : 'true') + ')">' + (r.zahlungsstatus === 'bezahlt' ? 'Als offen' : 'Als bezahlt') + '</button>';
         if (r.zahlungsstatus !== 'bezahlt') akt += '<button class="btn btn-g btn-sm" onclick="mahnen(\'' + r.id + '\')">Mahnen</button>';
         akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
-    var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
+    var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
       '<td>' + (r.kundenname || r.empfaenger_firma || r.empfaenger_name || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
       '<td>' + rEur(r.brutto_summe) + '</td>' +
-      '<td>' + rStatusBadge(r.status) + '</td>' +
+      '<td>' + rStatusBadge(r.status, !!r.storno_von_id) + '</td>' +
       '<td>' + zahlung + '</td>' +
       '<td style="white-space:nowrap">' + akt + '</td></tr>';
   });
