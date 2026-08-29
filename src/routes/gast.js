@@ -339,10 +339,22 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
       const dF = datum.split('-').reverse().join('.');
       const link = 'https://www.schroeder-scholz.de/api/gast/termin/bestaetigen?token=' + token;
+      // Gebuchte Leistungen schon in DIESER Mail zeigen (nicht erst in der finalen Bestaetigung):
+      // der Kunde soll vor dem Bestaetigen sehen, was er bestellt hat. Gleiche Darstellung wie in
+      // der finalen Mail -> kundenseitig NUR brutto und als "ab" (PAngV; der Endpreis haengt an
+      // Zollgroesse und Fahrzeugart). Der Gutschein steht bereits im Block darueber, hier nicht doppelt.
+      const eurA = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
+      const posHtmlA = kalk.positionen.map(p => escAttr(p.bezeichnung) + ': ab ' + eurA(p.zeilen_brutto)).join('<br>');
+      const preisBlockA = posHtmlA
+        ? ('<strong>Ihre Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtmlA
+           + '<br><strong>Summe (Schätzung): ab ' + eurA(kalk.brutto) + '</strong>'
+           + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
+        : '';
       const htmlGast = portalMailHtml(einst, {
         titel: 'Bitte bestätigen Sie Ihre Terminanfrage', name: vn,
         absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
           '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + gutscheinCode + ' (−' + gutscheinRabatt + ' %)' : ''),
+          preisBlockA,
           'Ihr Termin ist noch <strong>nicht verbindlich</strong>. Bitte bestätigen Sie ihn innerhalb von 45 Minuten mit einem Klick auf den Button — erst dann ist er fest gebucht.'],
         button: { text: 'Termin verbindlich bestätigen', url: link },
         hinweis: 'Wenn Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail einfach — es wird kein Termin gebucht. Der Link ist 45 Minuten gültig.'
