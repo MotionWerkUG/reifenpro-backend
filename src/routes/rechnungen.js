@@ -13,17 +13,64 @@ router.use(authenticate, requireStaff);
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 
+// Rechtsformen, bei denen der Firmenname selbst den Unternehmer benennt (Handelsregister).
+// Bei allen anderen (Einzelunternehmen, GbR) ist der Inhabername Pflichtangabe (§ 14 UStG).
+const REGISTER_RECHTSFORMEN = ['GmbH', 'UG (haftungsbeschränkt)', 'UG', 'AG', 'OHG', 'KG', 'GmbH & Co. KG', 'e.K.', 'eG'];
+
+// Obergrenze fuer Positionen je Rechnung. Schuetzt den gemeinsamen DB-Pool vor Massen-Inserts
+// und ist fuer den Werkstattbetrieb weit ueber jedem realistischen Beleg.
+const MAX_POSITIONEN = 200;
+
+// Mindestabstand zwischen zwei Mahnstufen (Tage).
+const MAHN_ABSTAND_TAGE = 7;
+
+// Zahl aus dem Client pruefen: endlich und in einem kaufmaennisch sinnvollen Rahmen.
+function zahlOk(v, min, max) {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min && n <= max;
+}
+
+// Positionen aus dem Client pruefen. Liefert eine Fehlermeldung oder null.
+// Faengt ab: fehlende Bezeichnung (§ 14 Abs. 4 Nr. 5 UStG), unsinnige/unendliche Zahlen und
+// Massen-Positionen, die den gemeinsamen Datenbank-Pool blockieren wuerden.
+function pruefePositionen(positionen) {
+  if (!Array.isArray(positionen) || !positionen.length) return 'Mindestens eine Position erforderlich.';
+  if (positionen.length > MAX_POSITIONEN) return 'Zu viele Positionen (maximal ' + MAX_POSITIONEN + ' je Rechnung).';
+  for (let i = 0; i < positionen.length; i++) {
+    const p = positionen[i] || {};
+    const nr = 'Position ' + (i + 1) + ': ';
+    if (!String(p.bezeichnung == null ? '' : p.bezeichnung).trim()) return nr + 'Bezeichnung fehlt (Art der Leistung ist Pflichtangabe).';
+    if (!zahlOk(p.menge, 0, 100000)) return nr + 'Menge ist keine gültige Zahl.';
+    const preis = (p.einzelpreis_netto != null) ? p.einzelpreis_netto : p.einzelpreis_brutto;
+    if (!zahlOk(preis, -1000000, 1000000)) return nr + 'Einzelpreis ist keine gültige Zahl.';
+    if (p.mwst_satz != null && !zahlOk(p.mwst_satz, 0, 100)) return nr + 'Steuersatz ist keine gültige Zahl.';
+  }
+  return null;
+}
+
 // Summen + normalisierte Positionen serverseitig berechnen (Client-Werte werden NICHT vertraut)
 function berechneSummen(positionen) {
   let netto = 0, brutto = 0;
   const proSatz = {};
   const norm = (positionen || []).map(function (p, i) {
     const menge = Number(p.menge) || 0;
-    const ep = Number(p.einzelpreis_netto) || 0;
     const satz = Number(p.mwst_satz);
     const mwst = Number.isFinite(satz) ? satz : 19;
-    const zNetto = round2(menge * ep);
-    const zBrutto = round2(zNetto * (1 + mwst / 100));
+    // Zwei Preisrichtungen:
+    // a) einzelpreis_brutto gesetzt -> der Bruttopreis ist der zugesagte Endpreis und bleibt exakt;
+    //    die Steuer wird herausgerechnet (brutto * satz / (100 + satz)). Betrieb mit Endpreisen.
+    // b) sonst wie bisher: Nettopreis ist die Basis, Brutto wird aufgeschlagen.
+    const epBrutto = Number(p.einzelpreis_brutto);
+    let ep, zNetto, zBrutto;
+    if (p.einzelpreis_netto == null && Number.isFinite(epBrutto)) {
+      zBrutto = round2(menge * epBrutto);
+      zNetto = round2(zBrutto - round2(zBrutto * mwst / (100 + mwst)));
+      ep = menge ? round2(zNetto / menge) : 0;
+    } else {
+      ep = Number(p.einzelpreis_netto) || 0;
+      zNetto = round2(menge * ep);
+      zBrutto = round2(zNetto * (1 + mwst / 100));
+    }
     netto = round2(netto + zNetto);
     brutto = round2(brutto + zBrutto);
     if (!proSatz[mwst]) proSatz[mwst] = { satz: mwst, netto: 0, mwst: 0 };
@@ -353,7 +400,7 @@ router.get('/verfahrensdokumentation', async (req, res, next) => {
       '<h2>3. Festschreibung und Unveränderbarkeit</h2><p>Eine Rechnung ist zunächst ein <em>Entwurf</em> und änderbar. Mit dem <em>Festschreiben</em> erhält sie die Rechnungsnummer, ein eingefrorenes Aussteller- und Empfänger-Abbild sowie ein erzeugtes PDF; danach ist sie technisch gegen Änderung und Löschung gesperrt. Pflichtangaben nach § 14 UStG (Empfänger, ab 250 € vollständige Anschrift, Steuernr./USt-IdNr.) werden vor dem Festschreiben geprüft.</p>' +
       '<h2>4. Korrekturen / Storno</h2><p>Festgeschriebene Rechnungen werden nicht gelöscht oder geändert. Korrekturen erfolgen ausschließlich über eine <strong>Stornorechnung</strong> mit eigener fortlaufender Nummer und negativen Beträgen, die auf die Originalrechnung verweist. Das Original bleibt erhalten und wird als „storniert" gekennzeichnet.</p>' +
       '<h2>5. Protokollierung (Nachvollziehbarkeit)</h2><p>Alle relevanten Vorgänge (Entwurf anlegen/ändern, Festschreiben, Storno, Zahlungsstatus, Mahnung, Export) werden mit Benutzer, Zeitpunkt und Vorgang in einem Änderungs-/Audit-Protokoll erfasst.</p>' +
-      '<h2>6. Aufbewahrung</h2><p>Rechnungen (Datensatz und PDF) werden gemäß § 147 AO / § 14b UStG <strong>10 Jahre</strong> aufbewahrt und maschinell auswertbar vorgehalten. Ein Export des Rechnungsjournals als CSV steht für die Betriebsprüfung zur Verfügung.</p>' +
+      '<h2>6. Aufbewahrung</h2><p>Rechnungen (Datensatz und PDF) werden gemäß § 147 Abs. 3 AO / § 14b Abs. 1 UStG <strong>8 Jahre</strong> aufbewahrt und maschinell auswertbar vorgehalten. Ein Export des Rechnungsjournals als CSV steht für die Betriebsprüfung zur Verfügung.</p>' +
       '<h2>7. Technik und Datensicherung</h2><p>Betrieb auf einem Server (PostgreSQL-Datenbank, Node.js-Anwendung). <span class="muted">Hinweis: Das Datensicherungskonzept (regelmäßige Backups, Aufbewahrung der Sicherungen) ist organisatorisch festzulegen und hier zu ergänzen.</span></p>' +
       '<h2>8. Verantwortlich</h2><p>' + esc(e.inhaber || firma) + '</p>' +
       '<p class="muted" style="margin-top:30px">Diese Dokumentation ist eine Vorlage. Bitte durch Steuerberater prüfen und um das individuelle Datensicherungs- und Zugriffskonzept ergänzen.</p>' +
@@ -381,7 +428,8 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
-    if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    const posFehler = pruefePositionen(positionen);
+    if (posFehler) return res.status(400).json({ error: posFehler });
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
@@ -487,9 +535,12 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         artikel_id: p.artikel_id || null
       }));
     } else {
-      // R4: der (ggf. Brutto-)Artikel-/Kundenpreis der Hauptleistung wird bei inkl. auf Netto umgerechnet
-      const einzelNetto = inkl ? round2(preis / (1 + (Number(mwst) || 0) / 100)) : round2(preis);
-      positionen = [{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: einzelNetto, mwst_satz: mwst, artikel_id: t.aid || null }];
+      // Bei preise_inkl_mwst=true ist der Artikel-/Kundenpreis der zugesagte Endpreis: er wird als
+      // Bruttopreis uebergeben und bleibt damit exakt erhalten (44,00 EUR bleiben 44,00 EUR).
+      const basis = { bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, mwst_satz: mwst, artikel_id: t.aid || null };
+      positionen = [inkl
+        ? Object.assign({}, basis, { einzelpreis_brutto: round2(preis) })
+        : Object.assign({}, basis, { einzelpreis_netto: round2(preis) })];
     }
     // Gutschein/Rabatt als MwSt-korrekte Position (je Steuersatz gemindert -> korrekter Steuerausweis).
     // Vorrang: 1) manueller Staff-Override im Body (Live-Validierung gegen gutscheine),
@@ -540,6 +591,12 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     }
     const rdatum = heute();
     const result = await withTransaction(async (client) => {
+      // Doppelabrechnung sicher ausschliessen: Die Vorpruefung oben liest ohne Sperre, zwischen
+      // ihr und dem Schreiben liegen mehrere Abfragen. Deshalb den Termin hier sperren und die
+      // Verknuepfung erneut pruefen — parallele Anfragen warten und laufen dann in den 409.
+      const sperre = await client.query('SELECT rechnung_id FROM termine WHERE id=$1 FOR UPDATE', [t.id]);
+      if (!sperre.rows.length) { const e = new Error('Termin nicht gefunden.'); e.status = 404; throw e; }
+      if (sperre.rows[0].rechnung_id) { const e = new Error('Für diesen Termin wurde bereits eine Rechnung erstellt.'); e.status = 409; throw e; }
       const ins = await client.query(
         `INSERT INTO rechnungen
            (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
@@ -555,7 +612,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.aus_termin', tabelle: 'rechnungen', datensatzId: result.id, neueWerte: { termin_id: t.id, rabatt_quelle: rabattQuelle, rabatt_prozent: rabattProzent, rabatt_label: rabattLabel }, req });
     res.status(201).json(result);
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
 });
 
 // ── PUT /:id ── Entwurf aendern (nur Entwurf)
@@ -565,7 +625,8 @@ router.put('/:id', async (req, res, next) => {
     if (!cur.rows.length) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
     if (cur.rows[0].status !== 'entwurf') return res.status(400).json({ error: 'Nur Entwuerfe koennen bearbeitet werden.' });
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
-    if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    const posFehler = pruefePositionen(positionen);
+    if (posFehler) return res.status(400).json({ error: posFehler });
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // kunden_id ist explizit setzbar (auch auf null); fehlt das Feld ganz, bleibt die bisherige Verknuepfung
@@ -616,7 +677,12 @@ router.delete('/:id', async (req, res, next) => {
     const cur = await query('SELECT status FROM rechnungen WHERE id=$1', [req.params.id]);
     if (!cur.rows.length) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
     if (cur.rows[0].status !== 'entwurf') return res.status(400).json({ error: 'Nur Entwuerfe koennen geloescht werden.' });
-    await query('DELETE FROM rechnungen WHERE id=$1', [req.params.id]); // Positionen via ON DELETE CASCADE
+    // Ein aus einem Termin erzeugter Entwurf haengt per termine.rechnung_id am Termin (FK RESTRICT).
+    // Beim Verwerfen des Entwurfs wird die Verknuepfung geloest, damit der Termin wieder abrechenbar ist.
+    await withTransaction(async (client) => {
+      await client.query('UPDATE termine SET rechnung_id=NULL WHERE rechnung_id=$1', [req.params.id]);
+      await client.query('DELETE FROM rechnungen WHERE id=$1', [req.params.id]); // Positionen via ON DELETE CASCADE
+    });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.entwurf_geloescht', tabelle: 'rechnungen', datensatzId: req.params.id, req });
     res.json({ message: 'Entwurf geloescht.' });
   } catch (e) { next(e); }
@@ -650,8 +716,30 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       if (!aussteller.steuernummer && !aussteller.ust_id) {
         const e = new Error('Bitte zuerst Steuernummer oder USt-IdNr. in den Einstellungen hinterlegen (§ 14 UStG).'); e.status = 400; throw e;
       }
+      // Name und Anschrift des Ausstellers sind IMMER Pflicht (§ 14 Abs. 4 Nr. 1 UStG) —
+      // die Kleinbetragsregelung (§ 33 UStDV) lockert nur die Empfaengerangaben.
+      if (!aussteller.firmenname || !aussteller.strasse || !aussteller.plz || !aussteller.ort) {
+        const e = new Error('Firmenname und vollständige Anschrift des Ausstellers fehlen — bitte in den Einstellungen vervollständigen (§ 14 UStG).'); e.status = 400; throw e;
+      }
+      // Bei nicht im Handelsregister eingetragenen Rechtsformen (Einzelunternehmen, GbR) genuegt die
+      // Geschaeftsbezeichnung nicht — der buergerliche Name des Inhabers gehoert auf die Rechnung.
+      // Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde z. B. in
+      // "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
+      if (!REGISTER_RECHTSFORMEN.includes(String(aussteller.rechtsform || '').trim()) && !aussteller.inhaber) {
+        const e = new Error('Name des Inhabers fehlt — bei Einzelunternehmen/GbR gehört er als Name des leistenden Unternehmers auf die Rechnung (§ 14 UStG). Bitte in den Einstellungen eintragen.'); e.status = 400; throw e;
+      }
       if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
         const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
+      }
+      // Regelbesteuerung: nur 19 % und 7 %. Ein Satz von 0 % (oder ein unbekannter Satz) braucht
+      // den Hinweis auf den Grund der Steuerbefreiung (§ 14 Abs. 4 Nr. 8 UStG), den das System
+      // nicht fuehrt — solche Rechnungen werden daher nicht festgeschrieben.
+      if (pos.some(function (p) { return !String(p.bezeichnung || '').trim(); })) {
+        const e = new Error('Jede Position braucht eine Bezeichnung (Art der Leistung — § 14 Abs. 4 Nr. 5 UStG).'); e.status = 400; throw e;
+      }
+      const unzulaessig = pos.map(function (p) { return Number(p.mwst_satz); }).filter(function (x) { return x !== 19 && x !== 7; });
+      if (unzulaessig.length) {
+        const e = new Error('Unzulässiger Steuersatz (' + unzulaessig[0] + ' %). Vorgesehen sind 19 % und 7 %; für steuerfreie Leistungen fehlt der Pflichthinweis nach § 14 Abs. 4 Nr. 8 UStG.'); e.status = 400; throw e;
       }
       // Eine Rechnung über 0,00 € hat keinen Zweck und soll nicht festgeschrieben werden (Stornos laufen ueber /storno).
       if (Number(rech.brutto_summe) <= 0 && !rech.storno_von_id) {
@@ -664,7 +752,10 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       // ersetzt. Dadurch ist die Reihenfolge Rechnungsnummer <-> Rechnungsdatum immer
       // monoton (spaetere Nummer nie aelteres Datum). Datumsmathematik in Postgres, um
       // die Zeitzonen-Verschiebung von new Date()/toISOString() zu vermeiden.
-      const zzt = parseInt(einst.zahlungsziel_tage) || 14;
+      // Zahlungsziel 0 (sofort faellig, z. B. Barzahlung) ist eine gueltige Einstellung —
+      // deshalb kein "|| 14", das die 0 stillschweigend in 14 Tage verwandeln wuerde.
+      const zztRoh = parseInt(einst.zahlungsziel_tage, 10);
+      const zzt = Number.isFinite(zztRoh) && zztRoh >= 0 ? zztRoh : 14;
       const dq = await client.query(
         `SELECT to_char((now() AT TIME ZONE 'Europe/Berlin')::date,'YYYY-MM-DD') AS rdatum,
                 EXTRACT(YEAR FROM (now() AT TIME ZONE 'Europe/Berlin')::date)::int AS jahr,
@@ -685,6 +776,12 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       );
       const nr = 'RE-' + jahr + '-' + String(cnt.rows[0].letzte_nr).padStart(4, '0');
 
+      // Hinweis (bewusst so): Die PDF-Datei wird VOR dem abschliessenden UPDATE geschrieben.
+      // Scheitert die Transaktion danach, wird die Nummer samt Zaehler zurueckgerollt, die
+      // Datei bleibt aber unreferenziert liegen und wird beim naechsten Versuch derselben
+      // Rechnung unter demselben Namen ueberschrieben. Kein Datenverlust und kein Beleg zu
+      // wenig; der umgekehrte Weg (erst DB, dann PDF) koennte dagegen eine festgeschriebene
+      // Rechnung ohne Beleg hinterlassen.
       const pdfPfad = await erzeugeRechnungPdf(
         Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller }, emp),
         pos
@@ -755,7 +852,10 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
       );
       const storno = ins.rows[0];
       await insertPositionen(client, storno.id, s.positionen);
-      const pdfPfad = await erzeugeRechnungPdf(Object.assign({}, storno, { aussteller: aussteller }), s.positionen);
+      // Eindeutiger Bezug zur Originalrechnung auf dem Beleg (Nummer + Datum), nicht nur als interne Notiz.
+      const pdfPfad = await erzeugeRechnungPdf(
+        Object.assign({}, storno, { aussteller: aussteller, storno_von_nr: orig.rechnungsnr, storno_von_datum: orig.rechnungsdatum }),
+        s.positionen);
       await client.query('UPDATE rechnungen SET pdf_pfad=$1 WHERE id=$2', [pdfPfad, storno.id]);
       await client.query("UPDATE rechnungen SET status='storniert' WHERE id=$1", [orig.id]);
       return Object.assign({}, storno, { pdf_pfad: pdfPfad });
@@ -807,6 +907,16 @@ router.post('/:id/mahnung', async (req, res, next) => {
     }
     const mail = r.k_email || r.portal_email;
     if (!mail) return res.status(400).json({ error: 'Für diesen Kunden ist keine E-Mail hinterlegt.' });
+
+    // Gemahnt wird erst nach Faelligkeit und mit Mindestabstand zwischen den Stufen — sonst koennte
+    // ein versehentlicher Doppelklick den Kunden mehrfach anschreiben und die Mahnstufe hochtreiben.
+    const frist = (await query(
+      `SELECT COALESCE(CURRENT_DATE < faelligkeit, false) AS zu_frueh,
+              COALESCE(CURRENT_DATE < mahnung_am + ($1 * INTERVAL '1 day'), false) AS zu_dicht,
+              to_char((mahnung_am + ($1 * INTERVAL '1 day'))::date, 'DD.MM.YYYY') AS naechste
+       FROM rechnungen WHERE id=$2`, [MAHN_ABSTAND_TAGE, req.params.id])).rows[0];
+    if (frist.zu_frueh) return res.status(400).json({ error: 'Die Rechnung ist noch nicht fällig.' });
+    if (frist.zu_dicht) return res.status(400).json({ error: 'Zuletzt wurde bereits gemahnt. Die nächste Mahnung ist ab ' + frist.naechste + ' möglich.' });
 
     const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
     const stufe = (r.mahnstufe || 0) + 1;
