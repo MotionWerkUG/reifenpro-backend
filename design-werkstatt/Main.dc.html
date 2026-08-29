@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; }
+    a { color: #87680c; } a:hover { color: #201e1b; }
+  </style>
+</helmet>
+
+<div style="width: 1280px; height: 800px; background: #f3f2ef; color: #201e1b; display: flex; flex-direction: column; overflow: hidden;">
+
+  <div style="height: 72px; flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; padding: 0 26px;">
+    <div>
+      <div style="font-size: 22px; font-weight: 800;">Werkstatt — Dienstag, 6. Oktober</div>
+      <div style="font-size: 14px; color: #6f6a61; margin-top: 2px;">3 offen · 1 erledigt</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <div style="height: 62px; display: flex; align-items: center; gap: 9px; padding: 0 18px; border: 1px solid #dbd6cc; border-radius: 12px; background: #ffffff;">
+        <div style="width: 30px; height: 30px; border-radius: 50%; background: #fdf6e0; color: #87680c; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center;">M.Sw</div>
+        <span style="font-size: 15px; font-weight: 600;">Marek</span>
+      </div>
+      <div style="height: 62px; padding: 0 24px; background: #eab308; color: #1c1608; border-radius: 12px; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 10px;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1c1608" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Ohne Termin</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; padding: 22px 26px; display: flex; flex-direction: column; gap: 16px; min-height: 0;">
+
+    <div style="background: #ffffff; border: 2px solid #eab308; border-radius: 14px; padding: 20px 22px;">
+      <div style="display: flex; align-items: flex-start; gap: 22px;">
+        <div style="flex-shrink: 0; text-align: center; min-width: 92px;">
+          <div style="font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums;">10:00</div>
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: .8px; color: #87680c; text-transform: uppercase; margin-top: 2px;">als nächstes</div>
+        </div>
+        <div style="flex-grow: 1; min-width: 0;">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <span style="font-size: 26px; font-weight: 800;">Räderwechsel</span>
+            <span style="font-family: ui-monospace, Menlo, monospace; font-size: 15px; padding: 4px 10px; background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 7px;">WOR-AB-1234</span>
+            <span style="font-size: 15px; color: #6f6a61;">T.Gbrl</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 24px; margin-top: 12px; flex-wrap: wrap;">
+            <div>
+              <div style="font-size: 11px; font-weight: 700; letter-spacing: .8px; color: #6f6a61; text-transform: uppercase;">Eingelagerter Satz</div>
+              <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 2px;">
+                <span style="font-size: 40px; font-weight: 800; color: #87680c; letter-spacing: 1px;">A-01-07</span>
+                <span style="font-size: 15px; color: #6f6a61;">195/65 R15 91T · Winter · Stahl</span>
+              </div>
+            </div>
+            <div>
+              <div style="font-size: 11px; font-weight: 700; letter-spacing: .8px; color: #6f6a61; text-transform: uppercase;">Danach einlagern</div>
+              <div style="font-size: 17px; font-weight: 700; margin-top: 4px;">Sommersatz vom Fahrzeug</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 20px;">
+        <div style="height: 96px; border-radius: 14px; background: #eab308; color: #1c1608; display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 27px; font-weight: 800;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1c1608" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>
+          Fertig
+        </div>
+        <div style="height: 96px; border-radius: 14px; background: #ffffff; border: 2px solid #dbd6cc; display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 25px; font-weight: 700;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#201e1b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Später
+        </div>
+        <div style="height: 96px; border-radius: 14px; background: #ffffff; border: 2px solid #dbd6cc; display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 25px; font-weight: 700; color: #6f6a61;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6f6a61" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          Nicht da
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 22px;">
+      <div style="flex-shrink: 0; min-width: 92px; text-align: center;">
+        <div style="font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: #6f6a61;">11:30</div>
+      </div>
+      <div style="flex-grow: 1;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <span style="font-size: 22px; font-weight: 700;">Reifeneinlagerung</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 14px; padding: 3px 9px; background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 7px;">WOR-LB-2244</span>
+          <span style="font-size: 14px; color: #6f6a61;">L.Brndt</span>
+          <span style="font-size: 12px; font-weight: 800; letter-spacing: .5px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,.18); color: #87680c; border: 1px solid rgba(234,179,8,.25);">EINLAGERN</span>
+        </div>
+        <div style="font-size: 14px; color: #6f6a61; margin-top: 5px;">Erstmalige Einlagerung — Reifendaten und Profiltiefen noch zu erfassen</div>
+      </div>
+      <div style="display: flex; gap: 10px; flex-shrink: 0;">
+        <div style="height: 80px; padding: 0 34px; border-radius: 14px; background: #eab308; color: #1c1608; display: flex; align-items: center; font-size: 23px; font-weight: 800;">Fertig</div>
+        <div style="height: 80px; width: 80px; border-radius: 14px; background: #ffffff; border: 2px solid #dbd6cc; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6f6a61" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 22px;">
+      <div style="flex-shrink: 0; min-width: 92px; text-align: center;">
+        <div style="font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: #6f6a61;">13:00</div>
+      </div>
+      <div style="flex-grow: 1;">
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <span style="font-size: 22px; font-weight: 700;">Räderwechsel</span>
+          <span style="font-family: ui-monospace, Menlo, monospace; font-size: 14px; padding: 3px 9px; background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 7px;">WOR-KR-3390</span>
+          <span style="font-size: 14px; color: #6f6a61;">A.Krn</span>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 10px; margin-top: 5px;">
+          <span style="font-size: 32px; font-weight: 800; color: #87680c; letter-spacing: 1px;">A-02-03</span>
+          <span style="font-size: 14px; color: #6f6a61;">225/45 R17 91Y · Winter · Alu · seit 12.04.2026</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; flex-shrink: 0;">
+        <div style="height: 80px; padding: 0 34px; border-radius: 14px; background: #eab308; color: #1c1608; display: flex; align-items: center; font-size: 23px; font-weight: 800;">Fertig</div>
+        <div style="height: 80px; width: 80px; border-radius: 14px; background: #ffffff; border: 2px solid #dbd6cc; display: flex; align-items: center; justify-content: center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6f6a61" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 22px; opacity: .62;">
+      <div style="flex-shrink: 0; min-width: 92px; text-align: center;">
+        <div style="font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; color: #6f6a61;">08:30</div>
+      </div>
+      <div style="flex-grow: 1;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 22px; font-weight: 700;">Räderwechsel</span>
+          <span style="font-size: 14px; color: #6f6a61;">J.Ort · A-04-02</span>
+        </div>
+        <div style="font-size: 14px; color: #1a8f52; margin-top: 5px; font-weight: 600;">Erledigt 08:52 · Sommersatz auf A-04-02 eingelagert · Beleg unterschrieben</div>
+      </div>
+      <div style="flex-shrink: 0; height: 62px; padding: 0 22px; border: 1px solid #dbd6cc; border-radius: 12px; font-size: 16px; font-weight: 600; display: flex; align-items: center;">Beleg ansehen</div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

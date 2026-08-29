@@ -4,6 +4,7 @@ const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth
 const { auditLog } = require('../middleware/errorHandler');
 const { sendMail } = require('../lib/mailer');
 const { kundenMailHtml } = require('../lib/mail-template');
+const { normalisiereLagerplatz, kapazitaetFuer } = require('../lib/lagerplatz');
 
 // Oeffnungszeiten als lesbarer Text (aus den synchron gehaltenen Firmendaten-Feldern).
 function oeffnungszeilenText(e) {
@@ -188,16 +189,30 @@ router.post('/', async (req, res, next) => {
     const anz = anzahl == null || anzahl === '' ? 4 : parseInt(anzahl);
     if (isNaN(anz) || anz < 1 || anz > 12)
       return res.status(400).json({ error: 'Anzahl muss zwischen 1 und 12 liegen.' });
-    // Lagerplatz normalisieren (trim + Grossschreibung) -> sonst umgehen Leerzeichen/Kleinschreibung die Doppelbelegungssperre
-    const lp = String(lagerplatz).trim().toUpperCase();
+    // Lagerplatz auf die Schreibweise des Lagerplans bringen ("A-01-7" -> "A-01-07").
+    // Ohne das umgehen abweichende Schreibweisen die Doppelbelegungssperre, und der Platz
+    // taucht im Lagerplan als "nicht zugeordnet" auf, obwohl er real belegt ist.
+    const lp = normalisiereLagerplatz(lagerplatz);
     if (!lp) return res.status(400).json({ error: 'Lagerplatz erforderlich.' });
     // Pruefung + Insert in einer Transaktion mit Advisory-Lock je Lagerplatz
     // -> verhindert, dass zwei gleichzeitige Einlagerungen denselben Platz belegen.
     const neu = await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['lagerplatz:' + lp]);
+      // Ein Platz fasst so viele Saetze, wie das Regal erlaubt (gestapelter Container: 2).
+      // Beide Saetze tragen denselben Platz; wer welcher ist, steht ueber Kundennummer und
+      // Kennzeichen auf dem Etikett.
+      const kap = await kapazitaetFuer(client, lp);
       const belegt = await client.query(
-        "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt'", [lp]);
-      if (belegt.rows.length) { const e = new Error(`Lagerplatz ${lp} ist bereits belegt.`); e.status = 409; throw e; }
+        `SELECT e.id, k.kunden_nr, k.nachname FROM einlagerungen e
+           LEFT JOIN kunden k ON k.id = e.kunden_id
+          WHERE e.lagerplatz=$1 AND e.status!='Abgeholt'`, [lp]);
+      if (belegt.rows.length >= kap) {
+        const wer = belegt.rows.map(function (r) { return [r.kunden_nr, r.nachname].filter(Boolean).join(' '); }).filter(Boolean).join(', ');
+        const e = new Error(kap > 1
+          ? `Lagerplatz ${lp} ist voll (${belegt.rows.length} von ${kap} Sätzen)${wer ? ': ' + wer : ''}.`
+          : `Lagerplatz ${lp} ist bereits belegt${wer ? ' durch ' + wer : ''}.`);
+        e.status = 409; throw e;
+      }
       // Vorgaenger (Folgeeinlagerung) nur uebernehmen, wenn er zum selben Kunden gehoert.
       let vg = vorgaenger_id || null;
       if (vg) {
@@ -219,6 +234,11 @@ router.post('/', async (req, res, next) => {
          anz, felgen||'Nein', dot||null,
          lp, bemerkungen||null, req.user.id, fahrzeug_id||null, vg]
       );
+      // Erster Eintrag der Platz-Historie: ab hier ist nachvollziehbar, wo der Satz wann lag.
+      await client.query(
+        `INSERT INTO einlagerung_platz_historie (einlagerung_id, lagerplatz, von, grund, geaendert_von)
+         VALUES ($1, $2, NOW(), 'eingelagert', $3)`,
+        [ins.rows[0].id, lp, req.user.id]);
       return ins.rows[0];
     });
     await auditLog({ userId: req.user.id, aktion: 'einlagerung.erstellt',
@@ -266,20 +286,43 @@ router.patch('/:id/lagerplatz', async (req, res, next) => {
   try {
     const { lagerplatz } = req.body;
     if (!lagerplatz || !lagerplatz.trim()) return res.status(400).json({ error: 'Lagerplatz erforderlich.' });
-    const lp = lagerplatz.trim().toUpperCase();
+    const lp = normalisiereLagerplatz(lagerplatz);
+    if (!lp) return res.status(400).json({ error: 'Lagerplatz erforderlich.' });
     const updated = await withTransaction(async (client) => {
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['lagerplatz:' + lp]);
+      const kap = await kapazitaetFuer(client, lp);
       const belegt = await client.query(
-        "SELECT id FROM einlagerungen WHERE lagerplatz=$1 AND status!='Abgeholt' AND id<>$2", [lp, req.params.id]);
-      if (belegt.rows.length) { const e = new Error(`Lagerplatz ${lp} ist bereits belegt.`); e.status = 409; throw e; }
+        `SELECT e.id, k.kunden_nr, k.nachname FROM einlagerungen e
+           LEFT JOIN kunden k ON k.id = e.kunden_id
+          WHERE e.lagerplatz=$1 AND e.status!='Abgeholt' AND e.id<>$2`, [lp, req.params.id]);
+      if (belegt.rows.length >= kap) {
+        const wer = belegt.rows.map(function (r) { return [r.kunden_nr, r.nachname].filter(Boolean).join(' '); }).filter(Boolean).join(', ');
+        const e = new Error(kap > 1
+          ? `Lagerplatz ${lp} ist voll (${belegt.rows.length} von ${kap} Sätzen)${wer ? ': ' + wer : ''}.`
+          : `Lagerplatz ${lp} ist bereits belegt${wer ? ' durch ' + wer : ''}.`);
+        e.status = 409; throw e;
+      }
+      const vorher = (await client.query('SELECT lagerplatz FROM einlagerungen WHERE id=$1', [req.params.id])).rows[0];
+      if (!vorher) return null;
       const r = await client.query(
         'UPDATE einlagerungen SET lagerplatz=$1, geaendert_von=$2 WHERE id=$3 RETURNING *',
         [lp, req.user.id, req.params.id]);
-      return r.rows[0];
+      // Historie: der Kunde kommt mit einem Beleg, auf dem der ALTE Platz steht. Ohne diese Spur
+      // findet der Tresen den Satz nicht wieder. Alter Eintrag wird abgeschlossen, neuer geoeffnet.
+      await client.query(
+        `UPDATE einlagerung_platz_historie SET bis = NOW()
+         WHERE einlagerung_id = $1 AND bis IS NULL`, [req.params.id]);
+      await client.query(
+        `INSERT INTO einlagerung_platz_historie (einlagerung_id, lagerplatz, von, grund, geaendert_von)
+         VALUES ($1, $2, NOW(), $3, $4)`,
+        [req.params.id, lp, (req.body && req.body.grund) || 'umgelagert', req.user.id]);
+      return Object.assign({}, r.rows[0], { _vorher: vorher.lagerplatz });
     });
     if (!updated) return res.status(404).json({ error: 'Nicht gefunden.' });
     await auditLog({ userId: req.user.id, aktion: 'einlagerung.lagerplatz_geaendert',
-      tabelle: 'einlagerungen', datensatzId: req.params.id, neueWerte: { lagerplatz: lp }, req });
+      tabelle: 'einlagerungen', datensatzId: req.params.id,
+      alteWerte: { lagerplatz: updated._vorher }, neueWerte: { lagerplatz: lp }, req });
+    delete updated._vorher;
     res.json(updated);
   } catch (err) {
     if (err.status) return res.status(err.status).json({ error: err.message });

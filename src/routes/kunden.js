@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
+const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail } = require('../lib/kundendaten');
 
 // Deutsches Kennzeichen pruefen/normalisieren (z. B. WOR-AB-1234, optional E/H). Leeres Feld erlaubt.
 function normKennzeichen(raw) {
@@ -100,9 +101,27 @@ router.post('/', async (req, res, next) => {
   try {
     const { vorname, nachname, telefon, telefon2, email, firma, anrede, ust_id,
             strasse, plz, ort, kennzeichen, fahrzeug_marke,
-            fahrzeug_modell, baujahr, notizen, ist_gewerbe, grosskunden_rabatt } = req.body;
+            fahrzeug_modell, baujahr, notizen, ist_gewerbe, grosskunden_rabatt,
+            kundentyp, land, rechnung_email, ohne_anschrift } = req.body;
     if (!vorname || !nachname || !telefon)
       return res.status(400).json({ error: 'Vorname, Nachname und Telefon sind Pflicht.' });
+    // Firmenkunde: der Firmenname ist der Rechnungsempfaenger, Vor-/Nachname der Ansprechpartner.
+    const typP = pruefeKundentyp({ kundentyp, firma });
+    if (typP.fehler) return res.status(400).json({ error: typP.fehler });
+    // Kein Land angegeben heisst NULL, nicht "Deutschland" — nur so bleibt spaeter erkennbar,
+    // ob jemand Deutschland gewaehlt oder das Feld nie ausgefuellt hat. Fuer die PLZ-Pruefung
+    // gilt Deutschland als Annahme.
+    const landW = land ? String(land).toUpperCase().slice(0, 2) : null;
+    // Anschrift ist Pflicht, ABER mit bewusster Ausnahme: wer nur einen Reifen kauft, soll
+    // anlegbar bleiben. Die Ausnahme muss ausdruecklich mitgeschickt werden (ohne_anschrift),
+    // damit sie eine Entscheidung ist und keine stille Luecke.
+    // Weiche Funde (Strasse ohne Hausnummer) einmal zurueckfragen statt sperren — mit
+    // hausnummer_bestaetigt kommt derselbe Aufruf durch. Harte Funde bleiben hart.
+    const adr = pruefeAnschrift({ strasse, plz, ort, land: landW || 'DE' }, ohne_anschrift !== true);
+    if (adr && !(adr.weich && req.body.hausnummer_bestaetigt === true))
+      return res.status(400).json({ error: adr.fehler, code: adr.code, rueckfrage: adr.weich === true });
+    const reFehler = pruefeRechnungEmail(rechnung_email);
+    if (reFehler) return res.status(400).json({ error: reFehler });
     // Duplikatpruefung per E-Mail (case-insensitiv); mit force=true ueberschreibbar
     if (email && req.body.force !== true) {
       const dup = await query(
@@ -123,8 +142,9 @@ router.post('/', async (req, res, next) => {
       `INSERT INTO kunden
          (kunden_nr,vorname,nachname,telefon,telefon2,email,firma,anrede,ust_id,
           strasse,plz,ort,kennzeichen,fahrzeug_marke,fahrzeug_modell,
-          baujahr,notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+          baujahr,notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von,
+          kundentyp,land,rechnung_email)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
        RETURNING *`,
       [kunden_nr, vorname.trim(), nachname.trim(), telefon.trim(),
        telefon2||null, email||null, firma||null, anrede||null, ust_id||null,
@@ -132,7 +152,8 @@ router.post('/', async (req, res, next) => {
        kzP.wert,
        fahrzeug_marke||null, fahrzeug_modell||null,
        baujahr||null, notizen||null,
-       ist_gewerbe === true, Math.max(0, Math.min(100, parseInt(grosskunden_rabatt) || 0)), req.user.id]
+       ist_gewerbe === true, Math.max(0, Math.min(100, parseInt(grosskunden_rabatt) || 0)), req.user.id,
+       typP.typ, landW, rechnung_email ? String(rechnung_email).trim() : null]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.erstellt',
       tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: rows[0], req });
@@ -151,13 +172,36 @@ router.put('/:id', async (req, res, next) => {
       if (!kzP.ok) return res.status(400).json({ error: 'Kennzeichen ungültig (Format z. B. WOR-AB-1234).' });
       kzWert = kzP.wert;
     }
+    // Beim Aendern gelten dieselben Regeln wie beim Anlegen — sonst waere die Pflicht durch
+    // "erst ohne Anschrift anlegen, dann irgendetwas eintragen" umgehbar.
+    const nTyp = req.body.kundentyp !== undefined ? req.body.kundentyp : o.kundentyp;
+    const nFirma = req.body.firma !== undefined ? req.body.firma : o.firma;
+    const typP = pruefeKundentyp({ kundentyp: nTyp, firma: nFirma });
+    if (typP.fehler) return res.status(400).json({ error: typP.fehler });
+    const nLandRoh = req.body.land !== undefined ? req.body.land : o.land;
+    const nLand = nLandRoh ? String(nLandRoh).toUpperCase().slice(0, 2) : null;
+    const nStr = req.body.strasse !== undefined ? req.body.strasse : o.strasse;
+    const nPlz = req.body.plz !== undefined ? req.body.plz : o.plz;
+    const nOrt = req.body.ort !== undefined ? req.body.ort : o.ort;
+    // Pflicht nur, wenn schon eine Anschrift da war oder gerade eine gesetzt wird: ein
+    // Bestandskunde ohne Anschrift laesst sich sonst nicht mehr speichern.
+    // Pflicht nur, wenn schon eine Anschrift da war — ein Bestandskunde ohne Anschrift laesst sich
+    // sonst nicht mehr speichern. Mit ohne_anschrift laesst sie sich bewusst auch wieder entfernen
+    // (etwa wenn sie beim falschen Kunden gelandet war), genauso wie beim Anlegen.
+    const hatteAdresse = !!(o.strasse || o.plz || o.ort) && req.body.ohne_anschrift !== true;
+    const adr = pruefeAnschrift({ strasse: nStr, plz: nPlz, ort: nOrt, land: nLand || 'DE' }, hatteAdresse);
+    if (adr && !(adr.weich && req.body.hausnummer_bestaetigt === true))
+      return res.status(400).json({ error: adr.fehler, code: adr.code, rueckfrage: adr.weich === true });
+    const nReMail = req.body.rechnung_email !== undefined ? req.body.rechnung_email : o.rechnung_email;
+    const reFehler = pruefeRechnungEmail(nReMail);
+    if (reFehler) return res.status(400).json({ error: reFehler });
     const { rows } = await query(
       `UPDATE kunden SET
          vorname=$1, nachname=$2, telefon=$3, telefon2=$4,
          email=$5, firma=$6, strasse=$7, plz=$8, ort=$9,
          kennzeichen=$10, fahrzeug_marke=$11, fahrzeug_modell=$12,
          baujahr=$13, notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17,
-         anrede=$18, ust_id=$19
+         anrede=$18, ust_id=$19, kundentyp=$21, land=$22, rechnung_email=$23
        WHERE id=$20 RETURNING *`,
       [req.body.vorname       || o.vorname,
        req.body.nachname      || o.nachname,
@@ -178,7 +222,8 @@ router.put('/:id', async (req, res, next) => {
        req.body.grosskunden_rabatt !== undefined ? Math.max(0, Math.min(100, parseInt(req.body.grosskunden_rabatt) || 0)) : o.grosskunden_rabatt,
        req.body.anrede !== undefined ? req.body.anrede : o.anrede,
        req.body.ust_id !== undefined ? req.body.ust_id : o.ust_id,
-       req.params.id]
+       req.params.id,
+       typP.typ, nLand, nReMail ? String(nReMail).trim() : null]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.geaendert',
       tabelle: 'kunden', datensatzId: req.params.id,

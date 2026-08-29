@@ -1,0 +1,236 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; }
+    a { color: #87680c; } a:hover { color: #201e1b; }
+    .rp-scroll::-webkit-scrollbar { width: 8px; }
+    .rp-scroll::-webkit-scrollbar-thumb { background: #dbd6cc; border-radius: 4px; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; display: flex; background: #f3f2ef; color: #201e1b; overflow: hidden;">
+
+  <div style="width: 240px; flex-shrink: 0; background: #ffffff; border-right: 1px solid #e9e6df; display: flex; flex-direction: column; padding: 14px 0;">
+    <div style="padding: 0 14px 16px; font-size: 17px; font-weight: 800; letter-spacing: 2.4px;">REIFEN<span style="color: #87680c;">PRO</span></div>
+    <div style="padding: 10px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">VERWALTUNG</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span style="margin-left: 11px;">Dashboard</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M17 11.5a3 3 0 100-6"/></svg><span style="margin-left: 11px;">Kunden</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg><span style="margin-left: 11px;">Einlagerung</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg><span style="margin-left: 11px;">Lagerplan</span></div>
+    </div>
+    <div style="padding: 16px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">BETRIEB</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg><span style="margin-left: 11px;">Kalender</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 01-5 5L4 17l3 3 5.7-5.7a4 4 0 015-5l2-2-3-3z"/></svg><span style="margin-left: 11px;">Werkstatt</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><span style="margin-left: 11px;">Statistik</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/><path d="M9 13h6M9 17h6"/></svg><span style="margin-left: 11px;">Rechnungen</span></div>
+    </div>
+    <div style="padding: 16px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">TEAM</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="position: relative; display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; background: #fdf6e0; color: #87680c; font-weight: 700;">
+        <div style="position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 20px; width: 3px; border-radius: 0 3px 3px 0; background: #87680c;"></div>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="12" cy="10" r="2.6"/><path d="M7.5 18c.7-2.2 2.4-3.3 4.5-3.3s3.8 1.1 4.5 3.3"/></svg><span style="margin-left: 11px;">Mitarbeiter</span></div>
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.4 8.3-8 9-4.6-.7-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span style="margin-left: 11px;">DSGVO-Anfragen</span></div>
+    </div>
+    <div style="padding: 16px 14px 6px; font-size: 10px; font-weight: 700; letter-spacing: .9px; color: #6f6a61;">SYSTEM</div>
+    <div style="display: flex; flex-direction: column; gap: 1px; padding: 0 10px;">
+      <div style="display: flex; align-items: center; padding: 9px 14px; border-radius: 9px; color: #6f6a61;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg><span style="margin-left: 11px;">Einstellungen</span></div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <div style="height: 58px; flex-shrink: 0; background: #ffffff; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; padding: 0 22px;">
+      <div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: #6f6a61;">
+        <span>Mitarbeiter</span><span>›</span><strong style="color: #201e1b; font-weight: 600;">Rollen und Rechte</strong>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px; font-size: 13px; color: #6f6a61;">
+        <span>Sa., 29.08. 08:12</span>
+        <div style="width: 7px; height: 7px; border-radius: 50%; background: #1a8f52;"></div>
+        <span style="color: #201e1b;">David Gebray</span>
+        <div style="padding: 7px 14px; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; font-weight: 600; color: #201e1b;">Abmelden</div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; padding: 22px; display: grid; grid-template-columns: 292px minmax(0, 1fr); gap: 18px; min-height: 0;">
+
+      <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
+        <div style="padding: 16px 18px 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #87680c;">Rollen</div>
+            <div style="font-size: 12px; color: #6f6a61; margin-top: 3px;">5 Rollen · 8 Zugänge</div>
+          </div>
+          <div style="width: 34px; height: 34px; border-radius: 8px; background: #eab308; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" title="Neue Rolle anlegen">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1c1608" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          </div>
+        </div>
+        <div class="rp-scroll" style="flex-grow: 1; overflow-y: auto; min-height: 0; border-top: 1px solid #e9e6df;">
+
+          <div style="padding: 12px 18px; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div><div style="font-size: 13px; font-weight: 600;">Inhaber</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">alle Rechte, nicht änderbar</div></div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6f6a61" stroke-width="2" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+              <span style="font-size: 12px; color: #6f6a61;">1 Zugang</span>
+            </div>
+          </div>
+
+          <div style="padding: 12px 18px; border-bottom: 1px solid #e9e6df; background: #fdf6e0; box-shadow: inset 3px 0 0 #87680c; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div><div style="font-size: 13px; font-weight: 700; color: #87680c;">Werkstatt</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Kunden, Einlagerung, Lager, Termine ändern</div></div>
+            <span style="font-size: 12px; color: #87680c; font-weight: 600; flex-shrink: 0;">3 Zugänge</span>
+          </div>
+
+          <div style="padding: 12px 18px; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div><div style="font-size: 13px; font-weight: 600;">Empfang</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">wie Werkstatt, zusätzlich Rechnungen</div></div>
+            <span style="font-size: 12px; color: #6f6a61; flex-shrink: 0;">1 Zugang</span>
+          </div>
+
+          <div style="padding: 12px 18px; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div><div style="font-size: 13px; font-weight: 600;">Buchhaltung</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Rechnungen, Export, Preise</div></div>
+            <span style="font-size: 12px; color: #6f6a61; flex-shrink: 0;">1 Zugang</span>
+          </div>
+
+          <div style="padding: 12px 18px; border-bottom: 1px solid #e9e6df; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div><div style="font-size: 13px; font-weight: 600;">Aushilfe</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Termine ändern, sonst nur lesen</div></div>
+            <span style="font-size: 12px; color: #6f6a61; flex-shrink: 0;">2 Zugänge</span>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="rp-scroll" style="overflow-y: auto; min-height: 0; padding-right: 4px;">
+
+        <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px; margin-bottom: 16px;">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;">
+            <div style="display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; flex-grow: 1;">
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Name der Rolle</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px; font-weight: 600;">Werkstatt</div>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 5px;">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; font-weight: 600;">Kurzbeschreibung</div>
+                <div style="background: #f3f2ef; border: 1px solid #dbd6cc; border-radius: 8px; font-size: 13px; padding: 9px 12px;">Kunden, Einlagerung, Lager, Termine ändern</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-shrink: 0; padding-top: 22px;">
+              <div style="padding: 9px 18px; border-radius: 8px; border: 1px solid #e9e6df; font-size: 13px; font-weight: 600; color: #6f6a61; background: #f3f2ef;" title="Erst möglich, wenn niemand mehr zugeordnet ist">Rolle löschen</div>
+              <div style="padding: 9px 18px; border-radius: 8px; background: #eab308; color: #1c1608; font-size: 13px; font-weight: 700;">Speichern</div>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e9e6df;">
+            <span style="font-size: 12px; color: #6f6a61; margin-right: 2px;">Gilt für</span>
+            <div style="display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(234,179,8,.18); color: #87680c; border: 1px solid rgba(234,179,8,.25);">Marek Sowa</div>
+            <div style="display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; background: rgba(234,179,8,.18); color: #87680c; border: 1px solid rgba(234,179,8,.25);">Pascal Ruth</div>
+            <div style="display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #f3f2ef; color: #6f6a61; border: 1px solid #dbd6cc;">Jana Ort · gesperrt</div>
+            <span style="font-size: 12px; color: #6f6a61;">Eine Änderung hier wirkt sofort für alle drei.</span>
+          </div>
+        </div>
+
+        <div style="background: #ffffff; border: 1px solid #e9e6df; border-radius: 12px; padding: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid #e9e6df; margin-bottom: 4px;">
+            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #87680c;">Rechte je Bereich</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #6f6a61; text-align: center;">
+              <div>kein Zugriff</div><div>nur lesen</div><div>lesen und ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Kunden</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Stammdaten, Fahrzeuge, Dokumente</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; color: #6f6a61;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; background: #eab308; color: #1c1608; font-weight: 700;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Einlagerung und Lager</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Sätze annehmen, Lagerplatz vergeben</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; color: #6f6a61;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; background: #eab308; color: #1c1608; font-weight: 700;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Kalender und Werkstatt</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Termine, Werkstattbrett, Räderwechsel</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; color: #6f6a61;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; background: #eab308; color: #1c1608; font-weight: 700;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Artikel und Preise</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Leistungen, Preisstaffel, Online-Buchbarkeit</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; color: #6f6a61;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Rechnungen</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Erstellen und festschreiben; Storno nur mit Inhaber-Rolle</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; color: #6f6a61;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Website und CMS</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Öffnungszeiten, Abschnitte, Bilder</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; color: #6f6a61;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Einstellungen, Bank, Firma</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Enthält IBAN, Steuernummer und Rechnungskopf</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; color: #6f6a61;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0; border-bottom: 1px solid #e9e6df;">
+            <div><div style="font-size: 13px; font-weight: 600;">Mitarbeiter und Rollen</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Zugänge anlegen, sperren, Rechte vergeben</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; color: #6f6a61;">ändern</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: minmax(0, 1fr) 312px; align-items: center; padding: 10px 0;">
+            <div><div style="font-size: 13px; font-weight: 600;">DSGVO-Löschungen</div><div style="font-size: 12px; color: #6f6a61; margin-top: 2px;">Kundenkonten anonymisieren oder endgültig löschen</div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, 104px); gap: 0; border: 1px solid #dbd6cc; border-radius: 8px; overflow: hidden; font-size: 12px; text-align: center;">
+              <div style="padding: 7px 4px; background: #171717; color: #ffffff; font-weight: 700;">kein</div>
+              <div style="padding: 7px 4px; color: #6f6a61; border-left: 1px solid #dbd6cc; border-right: 1px solid #dbd6cc;">lesen</div>
+              <div style="padding: 7px 4px; color: #6f6a61;">ändern</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 16px; padding: 12px 14px; background: #f3f2ef; border: 1px solid #e9e6df; border-radius: 8px; font-size: 12px; color: #6f6a61; line-height: 1.55;">
+            Zwei Rechte kann sich niemand selbst geben: „Mitarbeiter und Rollen ändern“ und „DSGVO-Löschungen“. Und dem letzten verbliebenen Inhaber lässt sich die Rolle nicht entziehen — sonst sperrt sich der Betrieb aus.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

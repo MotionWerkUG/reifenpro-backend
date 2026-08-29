@@ -16,3 +16,9 @@ gewerbe-dokumente/
 *.bak.*
 _qa-backup*
 .DS_Store
+
+# Entwurfsflaechen: die .dc.html-Quellen und canvas.json gehoeren ins Repo,
+# die daraus erzeugte grosse Ausgabedatei nicht (wird beim Veroeffentlichen neu gebaut).
+design/mitarbeiter-rechte-rollen.html
+design-werkstatt/raederwechsel-am-tablet.html
+design*/shots/

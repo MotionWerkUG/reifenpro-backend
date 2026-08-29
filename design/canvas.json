@@ -1,0 +1,115 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Mitarbeiter — Liste und Detail",
+      "page": "page-1"
+    },
+    {
+      "file": "Rollen.dc.html",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Rollen und Rechte",
+      "page": "page-1"
+    },
+    {
+      "file": "NeuerZugang.dc.html",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Neuen Zugang anlegen",
+      "page": "page-1"
+    },
+    {
+      "file": "Uebersicht.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Übersicht der sechs Vorschläge",
+      "page": "page-2"
+    },
+    {
+      "file": "TabletPin.dc.html",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "1 — PIN am Werkstatt-Tablet",
+      "page": "page-2"
+    },
+    {
+      "file": "Gueltigkeit.dc.html",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "2 — Zugang gültig bis",
+      "page": "page-2"
+    },
+    {
+      "file": "Wirkungsvorschau.dc.html",
+      "x": 4680,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "3 — Wirkung sofort sichtbar",
+      "page": "page-2"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "hinweis-plus",
+      "x": 0,
+      "y": -150,
+      "w": 420,
+      "text": "Anlegen sitzt als Plus-Feld oben rechts in der Liste, nicht als Knopf mit Text. Liste und Detailspalte scrollen unabhängig.",
+      "page": "page-1"
+    },
+    {
+      "id": "hinweis-rollen",
+      "x": 1560,
+      "y": -150,
+      "w": 420,
+      "text": "Rollen sind anlegbar: Werkstatt, Empfang, Buchhaltung, Aushilfe. Drei Stufen je Bereich statt einer festen Rolle.",
+      "page": "page-1"
+    },
+    {
+      "id": "hinweis-abweichung",
+      "x": 3120,
+      "y": -150,
+      "w": 420,
+      "text": "Beim Anlegen wird eine Rolle gewählt; einzelne Rechte lassen sich danach je Person abweichend setzen.",
+      "page": "page-1"
+    },
+    {
+      "id": "hinweis-verbesserung",
+      "x": 0,
+      "y": -150,
+      "w": 520,
+      "text": "Heute links, Vorschlag rechts. Die drei Gegenüberstellungen daneben zeigen die empfohlenen Punkte im Detail.",
+      "page": "page-2"
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-2"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Entwurf"
+    },
+    {
+      "id": "page-2",
+      "name": "Verbesserungen"
+    }
+  ]
+}
