@@ -35,6 +35,17 @@ sudo -u postgres psql -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE ${TEST_DB} OWNER
 sudo -u postgres pg_dump --schema-only "${SRC_DB}" \
   | sudo -u postgres psql -v ON_ERROR_STOP=1 -q -d "${TEST_DB}" > /dev/null
 
+# Noch nicht produktiv ausgefuehrte Migrationen nachziehen. Das Schema stammt aus der
+# Produktivdatenbank; liegt im Projekt eine Migration, die dort noch nicht gelaufen ist,
+# wuerden die Tests sonst gegen ein aelteres Schema laufen als der Code erwartet.
+# Die Dateien sind nach Projektkonvention mehrfach ausfuehrbar (IF NOT EXISTS).
+for f in migration-*.sql; do
+  [ -e "$f" ] || continue
+  if ! sudo -u postgres psql -v ON_ERROR_STOP=1 -q -d "${TEST_DB}" -f "$f" > /dev/null 2>&1; then
+    echo "[Test-DB] Hinweis: $f liess sich nicht anwenden (uebersprungen)." >&2
+  fi
+done
+
 # Die Objekte gehoeren nach dem Restore dem Superuser -> Anwendungsnutzer berechtigen.
 sudo -u postgres psql -v ON_ERROR_STOP=1 -q -d "${TEST_DB}" <<SQL
 GRANT USAGE, CREATE ON SCHEMA public TO ${APP_USER};

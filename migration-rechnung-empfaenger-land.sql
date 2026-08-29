@@ -1,0 +1,12 @@
+-- Laendercode des Rechnungsempfaengers als Snapshot an der Rechnung.
+--
+-- Warum eine eigene Spalte und nicht ein Blick in den Kundenstamm: Eine festgeschriebene
+-- Rechnung muss den Stand zum Zeitpunkt der Ausstellung festhalten (wie Name und Anschrift,
+-- die ebenfalls als Snapshot gespeichert werden). Zieht der Kunde spaeter ins Ausland, darf
+-- sich der alte Beleg nicht rueckwirkend aendern.
+--
+-- NULL bedeutet "nicht erfasst"; die E-Rechnung faellt dann auf DE zurueck. Bewusst KEIN
+-- Spaltenstandard 'DE', damit unterscheidbar bleibt, ob jemand Deutschland gewaehlt hat
+-- oder das Feld nie ausgefuellt wurde (abgestimmt mit der Admin-Session, gleiche Regel
+-- wie bei kunden.land).
+ALTER TABLE rechnungen ADD COLUMN IF NOT EXISTS empfaenger_land text;
