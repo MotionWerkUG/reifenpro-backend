@@ -164,6 +164,9 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="auth-sub" data-i18n="register_sub">Neues Kundenkonto erstellen</div>
     <div id="reg-err" class="auth-err hidden"></div>
     <div id="reg-ok" class="auth-ok hidden"></div>
+    <!-- Nach erfolgreicher Registrierung wird dieser Block ausgeblendet: die ausgefuellten Felder
+         sind dann erledigt und der Nutzer soll nur noch lesen, wie es weitergeht. -->
+    <div id="reg-form">
     <div class="g2">
       <div class="fg"><label data-i18n="firstname">Vorname</label><input id="reg-vorname"></div>
       <div class="fg"><label data-i18n="lastname">Nachname</label><input id="reg-nachname"></div>
@@ -195,6 +198,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="auth-switch" style="margin-top:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)">
       <span data-i18n="gewerbe_link_q">Sie sind Gewerbekunde?</span> <a onclick="zeigeScreen('gewerbe')" data-i18n="gewerbe_link">Zugang anfragen</a>
     </div>
+    </div><!-- /reg-form -->
+    <!-- Weg nach dem Erfolg: statt eines automatischen Sprungs nach 7 Sekunden entscheidet der
+         Nutzer selbst, wann er weitergeht — er soll die drei Schritte in Ruhe lesen koennen. -->
+    <button id="reg-weiter" class="btn btn-p hidden" style="margin-top:16px" onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</button>
   </div>
 </div>
 
@@ -666,6 +673,10 @@ function resetRegForm() {
   });
   var err = document.getElementById('reg-err'); if (err) err.classList.add('hidden');
   var ok = document.getElementById('reg-ok'); if (ok) ok.classList.add('hidden');
+  // Formular wieder zeigen und den Weiter-Knopf verstecken (sonst bliebe der Erfolgszustand
+  // stehen, wenn jemand spaeter erneut auf "Registrieren" geht).
+  var form = document.getElementById('reg-form'); if (form) form.classList.remove('hidden');
+  var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.add('hidden');
 }
 
 // ── AUTH ──
@@ -720,12 +731,12 @@ function portalRegister() {
     okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
     document.getElementById('reg-pass').value = '';
     document.getElementById('reg-pass2').value = '';
-    // Nach 7s zurueck zum Login — aber nur, wenn der Nutzer noch auf dem Register-Screen ist (kein Rauswurf aus aktiver Session)
-    if (REG_TIMER) clearTimeout(REG_TIMER);
-    REG_TIMER = setTimeout(function() {
-      REG_TIMER = null;
-      if (!document.getElementById('screen-register').classList.contains('hidden')) zeigeScreen('login');
-    }, 7000);
+    // Das ausgefuellte Formular hat seinen Zweck erfuellt -> ausblenden, damit nur die Information
+    // stehen bleibt, wie es weitergeht. Der Weg zur Anmeldung wird als Knopf angeboten (frueher
+    // sprang die Seite nach 7 Sekunden von selbst — zu hektisch zum Lesen).
+    var form = document.getElementById('reg-form'); if (form) form.classList.add('hidden');
+    var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.remove('hidden');
+    if (REG_TIMER) { clearTimeout(REG_TIMER); REG_TIMER = null; }
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
   });
