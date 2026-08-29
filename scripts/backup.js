@@ -21,6 +21,23 @@ const FILE_DIRS = [
 ];
 
 function stamp() { return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); }
+
+// Eine Sicherung, die niemand prueft, ist keine Sicherung. Der Dump muss lesbar sein und
+// wie ein pg_dump aussehen — sonst wird die Datei geloescht und der Lauf schlaegt fehl,
+// damit der Fehler auffaellt statt als "Fertig." im Log zu verschwinden.
+function pruefeDump(datei) {
+  const groesse = fs.statSync(datei).size;
+  let kopf = '';
+  try { kopf = execSync('gunzip -c "' + datei + '" | head -c 400', { shell: '/bin/bash' }).toString(); }
+  catch (e) { kopf = ''; }
+  const plausibel = groesse > 1024 && /PostgreSQL database dump/i.test(kopf) && /CREATE TABLE|COPY /.test(
+    (function () { try { return execSync('gunzip -c "' + datei + '" | head -c 200000', { shell: '/bin/bash' }).toString(); } catch (e) { return ''; } })()
+  );
+  if (!plausibel) {
+    try { fs.unlinkSync(datei); } catch (e) { /* egal */ }
+    throw new Error('Datenbank-Sicherung unbrauchbar (' + groesse + ' Bytes, kein gueltiger pg_dump-Inhalt). Datei verworfen.');
+  }
+}
 function mb(p) { return (fs.statSync(p).size / 1024 / 1024).toFixed(2); }
 
 async function main() {
@@ -31,14 +48,24 @@ async function main() {
   const dbName = 'reifenpro_' + s + '.sql.gz';
   const dbDest = path.join(DIR, dbName);
   console.log('[Backup] Starte DB: ' + dbName);
-  execSync(
-    'PGPASSWORD="' + process.env.DB_PASSWORD + '" pg_dump ' +
-    '-h ' + (process.env.DB_HOST || 'localhost') + ' ' +
-    '-p ' + (process.env.DB_PORT || 5432) + ' ' +
-    '-U ' + process.env.DB_USER + ' ' + process.env.DB_NAME +
-    ' | gzip > "' + dbDest + '"',
-    { stdio: 'pipe' }
-  );
+  // WICHTIG: 'set -o pipefail' und bash als Shell. Ohne das ist der Exitcode der von gzip,
+  // und ein fehlgeschlagener pg_dump erzeugt eine leere Datei, die als Erfolg gemeldet wird.
+  // Das Passwort kommt ueber die Umgebung, nicht in die Kommandozeile: bei einem Fehler
+  // steht der komplette Befehl in der Meldung und landete sonst im Logfile.
+  try {
+    execSync(
+      'set -o pipefail; pg_dump ' +
+      '-h ' + (process.env.DB_HOST || 'localhost') + ' ' +
+      '-p ' + (process.env.DB_PORT || 5432) + ' ' +
+      '-U ' + process.env.DB_USER + ' ' + process.env.DB_NAME +
+      ' | gzip > "' + dbDest + '"',
+      { stdio: 'pipe', shell: '/bin/bash', env: Object.assign({}, process.env, { PGPASSWORD: process.env.DB_PASSWORD }) }
+    );
+  } catch (err) {
+    try { fs.unlinkSync(dbDest); } catch (e) { /* egal */ }
+    throw new Error('Datenbank-Sicherung fehlgeschlagen: ' + String(err.stderr || err.message).trim().split('\n').slice(-2).join(' '));
+  }
+  pruefeDump(dbDest);
   console.log('[Backup] DB erstellt: ' + dbDest + ' (' + mb(dbDest) + ' MB)');
 
   // ── 2) Dateien (Rechnungs-PDFs, Uploads, Gewerbe-Dokumente) ──
