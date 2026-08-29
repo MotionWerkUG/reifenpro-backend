@@ -578,6 +578,15 @@ router.post('/termin/absagen', absageLimiter, async (req, res, next) => {
       "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='kunde (gast-online)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt' AND fakturiert IS NOT TRUE AND rechnung_id IS NULL",
       [r.t.id]);
     if (!upd.rowCount) {
+      // Der Guard kann aus zwei Gruenden greifen — einmal nachladen, damit der Text stimmt:
+      // entweder war der Termin schon storniert, oder zwischen Pruefung und Update ist die
+      // Rechnung entstanden. "Bereits abgesagt" waere im zweiten Fall schlicht falsch.
+      const jetzt = (await query('SELECT status, fakturiert, rechnung_id FROM termine WHERE id=$1', [r.t.id])).rows[0];
+      if (jetzt && jetzt.status === 'bestaetigt' && (jetzt.fakturiert || jetzt.rechnung_id)) {
+        const tel = r.einst.telefon ? (' Bitte rufen Sie uns kurz an: ' + escAttr(r.einst.telefon) + '.') : ' Bitte melden Sie sich kurz telefonisch bei uns.';
+        return res.status(409).send(gastSeite('Bitte kurz anrufen',
+          'Für diesen Termin läuft bei uns inzwischen die Abrechnung, deshalb können wir ihn hier nicht mehr selbst absagen.' + tel));
+      }
       return res.status(409).send(gastSeite('Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.', neuBuchenCta));
     }
 
