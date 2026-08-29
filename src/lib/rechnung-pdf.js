@@ -216,4 +216,5 @@ async function erzeugeRechnungPdf(rech, positionen) {
   });
 }
 
-module.exports = { erzeugeRechnungPdf, PDF_DIR };
+// epcPayload wird mit exportiert, damit der GiroCode-Inhalt automatisiert pruefbar ist.
+module.exports = { erzeugeRechnungPdf, PDF_DIR, epcPayload };
