@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { query } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
+const { authenticate, requireStaff } = require('../middleware/auth');
 
 // Brute-Force-Schutz: fehlgeschlagene Logins begrenzen, Reset-/Vergessen-Mails drosseln
 const loginLimiter = rateLimit({
@@ -389,6 +390,57 @@ router.post('/einwilligung-widerrufen', authKunde, async (req, res, next) => {
     );
     res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe-, Saison- oder Bewertungs-E-Mails mehr.' });
   } catch (e) { next(e); }
+});
+
+// ── POST /api/portal/auth/personal/bestaetigung-erneut/:kundenId ──
+// Personal-Variante von "Bestaetigungsmail erneut senden". Anlass: Klickt der Kunde den Link nie
+// (Spam-Ordner, Tippfehler, abgelaufen), kommt der Betrieb aus der Lage sonst nicht heraus — der
+// Admin-Knopf "Freischalten" erscheint erst nach bestaetigter E-Mail, und eine erneute Registrierung
+// mit derselben Adresse hilft dem Kunden NICHT: die Route oben antwortet dann bewusst generisch
+// und OHNE Mail (Anti-Enumeration). Hier ist der Ausweg.
+//
+// Unterschiede zur kundenseitigen Route: Adressierung ueber die kunden_id (das Personal sieht den
+// Datensatz ohnehin), kein resetLimiter (der schuetzt vor Fremdmissbrauch, nicht vor dem Inhaber)
+// und eine ECHTE Rueckmeldung statt der generischen — Anti-Enumeration ist gegenueber angemeldetem
+// Personal sinnlos, und der Betrieb muss wissen, ob die Mail rausging.
+router.post('/personal/bestaetigung-erneut/:kundenId', authenticate, requireStaff, async (req, res, next) => {
+  try {
+    const k = (await query('SELECT * FROM kunden WHERE id=$1', [req.params.kundenId])).rows[0];
+    if (!k) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
+    if (!k.portal_email) return res.status(400).json({ error: 'Für diesen Kunden ist kein Portal-Zugang angelegt.' });
+    // Gleicher Zustandsfilter wie kundenseitig: sonst verschickt der Knopf sinnlose Mails an
+    // Kunden, die laengst bestaetigt haben und nur auf die Freischaltung warten.
+    if (k.portal_email_bestaetigt) {
+      return res.status(409).json({ error: 'Die E-Mail ist bereits bestätigt. Dieser Kunde wartet nur noch auf die Freischaltung.' });
+    }
+    if (!k.portal_aktiv) return res.status(409).json({ error: 'Der Portal-Zugang dieses Kunden ist deaktiviert.' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const ablauf = new Date(Date.now() + 24 * 3600000);
+    await query('UPDATE kunden SET portal_bestaetigung_token=$1, portal_token_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const link = portalUrl + '?bestaetigen=' + token;
+    let versandt = true;
+    await sendMail(
+      k.portal_email,
+      'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
+      portalMailHtml(einst, {
+        titel: 'E-Mail bestätigen', name: k.vorname,
+        absaetze: ['bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button, damit wir Ihren Zugang freischalten können.'],
+        button: { text: 'E-Mail bestätigen', url: link },
+        hinweis: 'Der Bestätigungslink ist 24 Stunden gültig.'
+      })
+    ).catch(function (e) { versandt = false; console.error('[Resend-Personal-Mail]', e.message); });
+    // Ehrliche Rueckmeldung: der Betrieb soll nicht glauben, die Mail sei raus, wenn der Versand scheiterte.
+    if (!versandt) return res.status(502).json({ error: 'Der neue Link wurde gesetzt, aber die E-Mail konnte nicht versendet werden. Bitte E-Mail-Einstellungen prüfen.' });
+    res.json({ message: 'Bestätigungsmail wurde erneut an ' + k.portal_email + ' gesendet.', gueltig_bis: ablauf });
+  } catch (e) {
+    // Der Unique-Index auf LOWER(portal_email) kann hier nicht greifen (wir aendern die Adresse nicht),
+    // aber eine verstaendliche Meldung statt eines rohen 500 kostet nichts.
+    if (e && e.code === '23505') return res.status(409).json({ error: 'Diese Portal-Adresse ist bereits einem anderen Kunden zugeordnet.' });
+    next(e);
+  }
 });
 
 module.exports = router;
