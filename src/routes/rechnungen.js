@@ -119,12 +119,13 @@ function berechneSummen(positionen) {
 
 const LEER_EMPF = {
   empfaenger_anrede: null, empfaenger_vorname: null, empfaenger_nachname: null,
-  empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null
+  empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null,
+  empfaenger_land: null
 };
 
 async function ladeEmpfaenger(kunden_id) {
   if (!kunden_id) return Object.assign({}, LEER_EMPF);
-  const { rows } = await query('SELECT anrede,vorname,nachname,firma,strasse,plz,ort FROM kunden WHERE id=$1', [kunden_id]);
+  const { rows } = await query('SELECT anrede,vorname,nachname,firma,strasse,plz,ort,land FROM kunden WHERE id=$1', [kunden_id]);
   if (!rows.length) return Object.assign({}, LEER_EMPF);
   const k = rows[0];
   return {
@@ -135,7 +136,9 @@ async function ladeEmpfaenger(kunden_id) {
     empfaenger_firma: k.firma || null,
     empfaenger_strasse: k.strasse || null,
     empfaenger_plz: k.plz || null,
-    empfaenger_ort: k.ort || null
+    empfaenger_ort: k.ort || null,
+    // Laendercode als Snapshot: die Rechnung soll den Stand bei Ausstellung festhalten.
+    empfaenger_land: k.land || null
   };
 }
 
@@ -155,7 +158,8 @@ function empfaengerAusBody(body) {
     empfaenger_firma: firma,
     empfaenger_strasse: s(e.strasse),
     empfaenger_plz: s(e.plz),
-    empfaenger_ort: s(e.ort)
+    empfaenger_ort: s(e.ort),
+    empfaenger_land: s(e.land)
   };
 }
 
@@ -355,6 +359,10 @@ router.get('/:id/xrechnung', async (req, res, next) => {
       '<cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:ClassifiedTaxCategory></cac:Item>\n' +
       '    <cac:Price><cbc:PriceAmount' + cur + '>' + m(Math.abs(Number(p.einzelpreis_netto) || 0)) + '</cbc:PriceAmount></cac:Price>\n' +
       '  </cac:InvoiceLine>').join('\n');
+    // Laendercode des Empfaengers aus dem Rechnungs-Snapshot. Fehlt er (Altbestand oder nie
+    // erfasst), gilt Deutschland — der Betrieb rechnet im Inland ab. Der Aussteller bleibt
+    // fest DE: er sitzt in Deutschland, das ist keine variable Groesse.
+    const empfLand = String(r.empfaenger_land || 'DE').trim().toUpperCase().slice(0, 2) || 'DE';
     // Verkaeufer-Steuer-IDs (USt-IdNr und/oder Steuernummer)
     let sellerTax = '';
     if (a.ust_id) sellerTax += '      <cac:PartyTaxScheme><cbc:CompanyID>' + x(a.ust_id) + '</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>\n';
@@ -379,7 +387,7 @@ sellerTax +
 '  </cac:Party></cac:AccountingSupplierParty>\n' +
 '  <cac:AccountingCustomerParty><cac:Party>\n' +
 buyerEP +
-'      <cac:PostalAddress><cbc:StreetName>' + x(r.empfaenger_strasse) + '</cbc:StreetName><cbc:CityName>' + x(r.empfaenger_ort) + '</cbc:CityName><cbc:PostalZone>' + x(r.empfaenger_plz) + '</cbc:PostalZone><cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country></cac:PostalAddress>\n' +
+'      <cac:PostalAddress><cbc:StreetName>' + x(r.empfaenger_strasse) + '</cbc:StreetName><cbc:CityName>' + x(r.empfaenger_ort) + '</cbc:CityName><cbc:PostalZone>' + x(r.empfaenger_plz) + '</cbc:PostalZone><cac:Country><cbc:IdentificationCode>' + x(empfLand) + '</cbc:IdentificationCode></cac:Country></cac:PostalAddress>\n' +
 '      <cac:PartyLegalEntity><cbc:RegistrationName>' + x(empfName) + '</cbc:RegistrationName></cac:PartyLegalEntity>\n' +
 '  </cac:Party></cac:AccountingCustomerParty>\n' +
 (a.iban ? '  <cac:PaymentMeans><cbc:PaymentMeansCode>58</cbc:PaymentMeansCode><cac:PayeeFinancialAccount><cbc:ID>' + x(a.iban) + '</cbc:ID></cac:PayeeFinancialAccount></cac:PaymentMeans>\n' : '') +
@@ -490,10 +498,10 @@ router.post('/', async (req, res, next) => {
       const ins = await client.query(
         `INSERT INTO rechnungen
            (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
-            rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
-         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+            empfaenger_land, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$18,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
         [kunden_id || null, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
-         rdatum, ldatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.user.id]
+         rdatum, ldatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.user.id, emp.empfaenger_land]
       );
       await insertPositionen(client, ins.rows[0].id, s.positionen);
       return ins.rows[0];
@@ -625,10 +633,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       const ins = await client.query(
         `INSERT INTO rechnungen
            (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
-            rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
-         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+            empfaenger_land, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$18,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
         [t.kunden_id, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
-         rdatum, t.datum || rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), 'Aus Termin vom ' + (t.datum || ''), req.user.id]
+         rdatum, t.datum || rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), 'Aus Termin vom ' + (t.datum || ''), req.user.id, emp.empfaenger_land]
       );
       await insertPositionen(client, ins.rows[0].id, s.positionen);
       // Termin mit der Rechnung verknuepfen -> verhindert Doppelabrechnung
@@ -669,7 +677,8 @@ router.put('/:id', async (req, res, next) => {
         emp = {
           empfaenger_anrede: c.empfaenger_anrede, empfaenger_vorname: c.empfaenger_vorname, empfaenger_nachname: c.empfaenger_nachname,
           empfaenger_name: c.empfaenger_name, empfaenger_firma: c.empfaenger_firma,
-          empfaenger_strasse: c.empfaenger_strasse, empfaenger_plz: c.empfaenger_plz, empfaenger_ort: c.empfaenger_ort
+          empfaenger_strasse: c.empfaenger_strasse, empfaenger_plz: c.empfaenger_plz, empfaenger_ort: c.empfaenger_ort,
+          empfaenger_land: c.empfaenger_land
         };
       }
     }
@@ -680,12 +689,12 @@ router.put('/:id', async (req, res, next) => {
       await client.query(
         `UPDATE rechnungen SET kunden_id=$1, empfaenger_anrede=$2, empfaenger_vorname=$3, empfaenger_nachname=$4,
            empfaenger_name=$5, empfaenger_firma=$6, empfaenger_strasse=$7, empfaenger_plz=$8, empfaenger_ort=$9,
-           rechnungsdatum=$10, leistungsdatum=$11,
+           empfaenger_land=$18, rechnungsdatum=$10, leistungsdatum=$11,
            netto_summe=$12, mwst_summe=$13, brutto_summe=$14, mwst_aufschluesselung=$15, notizen=$16
          WHERE id=$17`,
         [kid, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
          rechnungsdatum || cur.rows[0].rechnungsdatum, leistungsdatum || cur.rows[0].leistungsdatum,
-         s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.params.id]
+         s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.params.id, emp.empfaenger_land]
       );
       await client.query('DELETE FROM rechnung_positionen WHERE rechnung_id=$1', [req.params.id]);
       await insertPositionen(client, req.params.id, s.positionen);
@@ -731,7 +740,8 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       const emp = {
         empfaenger_anrede: rech.empfaenger_anrede, empfaenger_vorname: rech.empfaenger_vorname, empfaenger_nachname: rech.empfaenger_nachname,
         empfaenger_name: rech.empfaenger_name, empfaenger_firma: rech.empfaenger_firma,
-        empfaenger_strasse: rech.empfaenger_strasse, empfaenger_plz: rech.empfaenger_plz, empfaenger_ort: rech.empfaenger_ort
+        empfaenger_strasse: rech.empfaenger_strasse, empfaenger_plz: rech.empfaenger_plz, empfaenger_ort: rech.empfaenger_ort,
+        empfaenger_land: rech.empfaenger_land
       };
 
       // ── § 14 UStG: Pflichtangaben vor dem Festschreiben prüfen ──
@@ -865,15 +875,15 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
 
       const ins = await client.query(
         `INSERT INTO rechnungen
-           (rechnungsnr, status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
+           (rechnungsnr, status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort, empfaenger_land,
             aussteller, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung,
             zahlungsstatus, storno_von_id, festgeschrieben_am, erstellt_von, notizen)
-         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$20,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
+         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$21,$11,$12,$20,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
         [nr, orig.kunden_id, orig.empfaenger_anrede, orig.empfaenger_vorname, orig.empfaenger_nachname, orig.empfaenger_name, orig.empfaenger_firma, orig.empfaenger_strasse, orig.empfaenger_plz, orig.empfaenger_ort,
          JSON.stringify(aussteller), rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung),
          orig.id, req.user.id, 'Storno zu ' + orig.rechnungsnr,
          // Leistungsdatum der Stornorechnung = Leistungszeitraum der Originalrechnung (nicht das Storno-Ausstellungsdatum)
-         orig.leistungsdatum || rdatum]
+         orig.leistungsdatum || rdatum, orig.empfaenger_land]
       );
       const storno = ins.rows[0];
       await insertPositionen(client, storno.id, s.positionen);
@@ -922,7 +932,7 @@ router.get('/:id/pdf', async (req, res, next) => {
 router.post('/:id/mahnung', async (req, res, next) => {
   try {
     const r = (await query(
-      `SELECT r.*, k.email AS k_email, k.portal_email, k.vorname
+      `SELECT r.*, k.rechnung_email AS k_rechnung_email, k.email AS k_email, k.portal_email, k.vorname
        FROM rechnungen r LEFT JOIN kunden k ON k.id = r.kunden_id WHERE r.id = $1`,
       [req.params.id]
     )).rows[0];
@@ -930,7 +940,8 @@ router.post('/:id/mahnung', async (req, res, next) => {
     if (r.status !== 'festgeschrieben' || r.zahlungsstatus !== 'offen') {
       return res.status(400).json({ error: 'Nur offene, festgeschriebene Rechnungen können gemahnt werden.' });
     }
-    const mail = r.k_email || r.portal_email;
+    // Mahnungen gehen an die Rechnungsadresse, wenn es eine gibt — sonst an die allgemeine.
+    const mail = r.k_rechnung_email || r.k_email || r.portal_email;
     if (!mail) return res.status(400).json({ error: 'Für diesen Kunden ist keine E-Mail hinterlegt.' });
 
     // Gemahnt wird erst nach Faelligkeit und mit Mindestabstand zwischen den Stufen — sonst koennte
@@ -977,8 +988,9 @@ router.post('/:id/senden', async (req, res, next) => {
     if (r.status !== 'festgeschrieben') return res.status(400).json({ error: 'Nur festgeschriebene Rechnungen können versendet werden.' });
     let mail = (req.body && req.body.email) ? String(req.body.email).trim() : null;
     if (!mail && r.kunden_id) {
-      const k = (await query('SELECT email, portal_email FROM kunden WHERE id=$1', [r.kunden_id])).rows[0];
-      mail = k ? (k.email || k.portal_email) : null;
+      // Vorrang: eigene Rechnungsadresse (Buchhaltung), dann die allgemeine Adresse.
+      const k = (await query('SELECT rechnung_email, email, portal_email FROM kunden WHERE id=$1', [r.kunden_id])).rows[0];
+      mail = k ? (k.rechnung_email || k.email || k.portal_email) : null;
     }
     if (!mail) return res.status(400).json({ error: 'Keine E-Mail-Adresse für den Empfänger hinterlegt.' });
     if (!r.pdf_pfad || !fs.existsSync(r.pdf_pfad)) return res.status(400).json({ error: 'Rechnungs-PDF nicht gefunden.' });

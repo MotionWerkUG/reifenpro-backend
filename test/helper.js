@@ -87,12 +87,15 @@ async function seedKunde(opt) {
   // kunden_nr ist NOT NULL und im Betrieb fortlaufend; im Test genuegt ein eindeutiger Wert.
   const nr = (await query("SELECT 'T-' || LPAD((COUNT(*)+1)::text, 4, '0') AS nr FROM kunden")).rows[0].nr;
   const r = await query(
-    `INSERT INTO kunden (kunden_nr, anrede, vorname, nachname, strasse, plz, ort)
-     VALUES ($7,$1,$2,$3,$4,$5,$6) RETURNING id`,
+    `INSERT INTO kunden (kunden_nr, anrede, vorname, nachname, strasse, plz, ort, land, rechnung_email, email)
+     VALUES ($7,$1,$2,$3,$4,$5,$6,$8,$9,$10) RETURNING id`,
     [o.anrede || 'Herr', o.vorname || 'Max', o.nachname || 'Mustermann',
      o.strasse !== undefined ? o.strasse : 'Musterweg 2',
      o.plz !== undefined ? o.plz : '54321',
-     o.ort !== undefined ? o.ort : 'Musterstadt', o.kunden_nr || nr]
+     o.ort !== undefined ? o.ort : 'Musterstadt', o.kunden_nr || nr,
+     o.land !== undefined ? o.land : null,
+     o.rechnung_email !== undefined ? o.rechnung_email : null,
+     o.email !== undefined ? o.email : null]
   );
   return r.rows[0].id;
 }

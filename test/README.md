@@ -60,4 +60,5 @@ TEST_DB_NAME=reifenpro_test2 npm run test:db && TEST_DB_NAME=reifenpro_test2 npm
 - `export.test.js` — Rechnungsjournal-CSV, DATEV-EXTF-Buchungsstapel, Funktionstrennung (Admin/Mitarbeiter)
 - `aus-termin.test.js` — Rechnung aus Termin: Endpreis-Logik, Doppelabrechnung, Gast-Termin
 - `haertung.test.js` — Nebenläufigkeit, Pflichtfeld- und Zahlenprüfung, Positionsgrenze, Mahnabstand
+- `land-versand.test.js` — Ländercode als Snapshot, E-Rechnung, Rechnungsadresse beim Versand
 - `girocode.test.js` — GiroCode nach EPC069-12: Inhalt, Grenzfälle, und der QR wird aus dem gerenderten PDF zurückgelesen
