@@ -25,6 +25,15 @@ Backend nach `src/…`, dann `pm2 restart reifenpro`.
 - Zeitzonen-Falle: `new Date('YYYY-MM-DD')` = UTC-Vortag → `+'T12:00:00'`.
 - Portal-Token im localStorage: `rp_portal_token`.
 - Bereits verdrahtet: Profil bearbeiten, Einwilligung widerrufen, Bestätigung erneut senden.
+- Gast-Buchung ist Double-Opt-in: erst `angefragt` + `bestaetigung_token` (45 Min), erst der POST
+  auf den Mail-Link bucht verbindlich. GET zeigt nur eine Seite mit Button — nie Zustand ändern,
+  sonst bestätigen Mail-Scanner (Safe Links) den Termin per Prefetch.
+- Gast-Absage ohne Konto: signierter Link (JWT `typ:'gast-storno'`, 180 Tage) in der
+  Bestätigungsmail → `GET/POST /api/gast/termin/absagen`. Wirkt nur auf Termine mit
+  `kunden_id IS NULL` und Status `bestaetigt`; innerhalb der Stornofrist nur telefonisch.
+- Öffnungszeiten kommen aus dem Wochenraster (`oeffnung.regulaereWoche()`, Index 0 = Montag).
+  Die Alt-Felder `mo_fr_*`/`sa_*`/`so_*` sind nur Rückfallebene (ein Mo–Fr-Block, keine Sa/So-Pause);
+  ist die Tabelle `oeffnungszeiten` leer, liefern die Portal-Endpunkte `woche: null`.
 
 ## Tabus
 Admin-/CMS-/Rechnungs-Dateien nicht anfassen; geteiltes Fundament nur nach Ankündigung.
