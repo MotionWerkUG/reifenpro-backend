@@ -361,8 +361,12 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
         absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
           '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + gutscheinCode + ' (−' + gutscheinRabatt + ' %)' : ''),
           preisBlockA,
-          'Ihr Termin ist noch <strong>nicht verbindlich</strong>. Bitte bestätigen Sie ihn innerhalb von 45 Minuten mit einem Klick auf den Button — erst dann ist er fest gebucht.'],
-        button: { text: 'Termin verbindlich bestätigen', url: link },
+          // Bewusst kein "mit einem Klick": der Button fuehrt auf eine Seite, auf der der Termin
+          // erst bestaetigt wird (der Zwischenschritt schuetzt davor, dass Mail-Scanner den Termin
+          // per Vorabruf buchen). Wer glaubt, mit dem Mailklick sei es erledigt, verliert seinen
+          // Termin nach 45 Minuten — deshalb muss der Text den zweiten Schritt ankuendigen.
+          'Ihr Termin ist noch <strong>nicht verbindlich</strong>. Bitte öffnen Sie innerhalb von 45 Minuten den Button unten und bestätigen Sie den Termin auf der folgenden Seite — erst dann ist er fest gebucht.'],
+        button: { text: 'Zur Terminbestätigung', url: link },
         hinweis: 'Wenn Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail einfach — es wird kein Termin gebucht. Der Link ist 45 Minuten gültig.'
       });
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Bitte bestätigen: Terminanfrage ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
