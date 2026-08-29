@@ -49,12 +49,88 @@ Fachlich NEU für ReifenPro (nicht vom Autohandel übernehmen):
 - **Eigene Kassen-Instanz** mit eigenem Schlüssel und eigener Datenbank, kein gemeinsamer
   Datentopf mit dem Autohandel.
 
+## Analyse der vorhandenen Kasse (29.08.2026)
+
+**Zwei Firmen bestätigt** — ReifenPro ist nicht dieselbe Firma wie der Autohandel. Damit:
+eigene Instanz, eigene Datenbank, eigener Nummernkreis, eigene TSE, eigene ELSTER-Meldung.
+
+**Kopieren oder zweite Instanz?** Die Kasse ist NICHT mandantenfähig (kein `mandant_id`,
+ein Firmendatensatz je Datenbank) — eine zweite Instanz ist also zwingend und funktioniert:
+Auf dem Server läuft bereits eine zweite (`kassen-baukasten`, eigener Dienst, Port, DB).
+Der Code selbst sollte aber **nicht** kopiert werden. Beleg: Genau diese Kopie ist in fünf
+Wochen um rund 600 Zeilen auseinandergelaufen und hat zwei komplette Module verloren —
+darunter den DATEV-Export. Jede Kopie trägt alle Pflichten nach § 146a AO und GoBD doppelt.
+
+**Was schon Konfiguration ist:** Firma, Kontenrahmen, Warengruppen, Standorte, Kassenplätze,
+Module, Branchen-Preset (es gibt „Werkstatt/Handwerk"), Beschriftung des Referenzfelds,
+Preismodus brutto.
+
+**Was fest verdrahtet und für uns falsch ist** (gehört als Konfiguration in die EINE Codebasis):
+1. Die ERP-Schnittstelle spricht Autohandel: Betragsarten Anzahlung/Kaution/Kaufpreis und
+   Steuerarten M/K/F/B stehen als Text im Code. Sendet ReifenPro „Montage", fällt es
+   stillschweigend in den letzten Zweig und bucht eine **Anzahlung** — ein falscher
+   Buchungssatz, den man erst beim Steuerberater bemerkt.
+2. Der Schnittstellenweg kann nur **Bar**. EC-Zahlung ist nicht vorgesehen.
+3. Freie Buchungen verlangen zwingend eine Ticketnummer — eine Härtung für den Autohandel,
+   die bei uns die Kasse blockieren würde.
+4. Im Steuerexport steht fest „FIN" statt des konfigurierten Referenzfelds.
+5. Der mitgelieferte Kontenplan ist reiner Autohandel (Fahrzeugankauf, § 25a). Wir brauchen
+   einen eigenen.
+
+**Zahlungsvermerke und Bonablage** (die Frage des Inhabers): Es gibt keinen Schalter
+„bezahlt" — die Zahlung IST die Buchung, erkennbar am Gegenkonto (Kasse 1000, EC 1360,
+Forderung 1400). Teilzahlungen werden je Steuersatz und Zahlart aufgeteilt, auf den Cent
+genau. Der Bon liegt **nirgends als Datei**: Er ist die Menge der Buchungszeilen mit
+derselben Belegnummer und entsteht daraus dreifach — auf Papier, als digitaler Beleg über
+eine signierte Adresse ohne Anmeldung, und im Steuerexport. Die Aufbewahrung erzwingt die
+Datenbank selbst: Löschen verboten, Ändern nur für Storno-Kennzeichen und die
+TSE-Nachsignierung. Storno erzeugt immer eine Gegenbuchung über den ganzen Beleg.
+
+**TSE:** heute eine Test-TSE, Leipzig hängt behelfsweise an der TSS eines Demo-Standorts.
+In der Datenbank steht **keine einzige Buchung** — günstigster denkbarer Zeitpunkt. Vor dem
+Echtbetrieb: Live-Vertrag, eigene TSS je Standort, Seriennummern eintragen, ELSTER-Meldung
+binnen eines Monats. Ob zwei Firmen an derselben Cloud-TSE hängen dürfen, ist eine Frage an
+den Steuerberater — die vorsichtige Empfehlung ist: getrennt, wie die Buchführung.
+
+## Die eine Sache, die heute nicht geht
+
+**Ein Zahlungseingang auf eine ReifenPro-Rechnung ist an der Kasse nicht buchbar.** Der
+vorhandene Forderungsausgleich funktioniert ausschließlich gegen Forderungen, die die Kasse
+selbst gebucht hat; eine fremde Rechnungsnummer kennt sie nicht. Der einzige heutige Umweg
+würde einen **Erlös** buchen statt eines Ausgleichs — dann stünde der Umsatz doppelt, einmal
+bei der Rechnungsstellung und einmal bei der Zahlung. Genau der Fall „Kunde zahlt später
+bar" braucht also einen neuen Endpunkt in der Kasse. Das ist der größte Einzelposten.
+
+## Weitere Lücken der Schnittstelle
+
+- Die Betragsart kommt nur als Textpräfix im Buchungstext zurück, nicht als eigenes Feld.
+- Kein Storno-Signal: Stornos sieht man nur, wenn man die Gegenbuchungen auswertet.
+- Kein Filter auf dem Export (kein Zeitraum, kein Vorgang) — der Erstlauf holt immer alles.
+- Das ERP kann einen offenen Kassenvorgang nicht zurückziehen. Storniert ReifenPro einen
+  Termin, blockiert der offene Vorgang den Tagesabschluss, bis ihn jemand von Hand ablehnt.
+- Drei Stolperstellen beim Anlegen eines Vorgangs: die Idempotenz greift nur mit gesetzter
+  Belegnummer, ein bereits bestätigter Vorgang antwortet mit Erfolg ohne Kennung, und ein
+  gesendeter Steuersatz wird durch den des getroffenen Kontos überschrieben.
+
+## Aufwand
+
+Einrichtung der Instanz etwa ein Tag, dazu Wartezeiten für fiskaly-Vertrag und Kontenplan.
+Echte Codeänderungen etwa fünf bis acht Tage, größter Posten der Kopplungsendpunkt.
+
+## Reihenfolge
+
+1. Fachliches festschreiben, bevor Code entsteht: Betragsarten, Erlöskonten, Leitmerkmal,
+   Belegaufteilung. Kontenplan mit dem Steuerberater. Ergebnis: eigene Vertragsdatei.
+2. Die vier verdrahteten Stellen in der EINEN Codebasis konfigurierbar machen — jetzt, wo
+   der Autohandel noch null Buchungen hat.
+3. Instanz einrichten, noch mit Test-TSE, komplett durchspielen.
+4. Kopplungsendpunkt für den Zahlungseingang bauen.
+5. Prüf-Agenten, Release-Gate.
+6. Live-TSE, Bereinigung der Testbuchungen, erste Echtbuchung, ELSTER-Meldung.
+
 ## Offene Punkte — Entscheidungen des Inhabers
 
-1. **Ist ReifenPro dieselbe Firma wie die, für die AutoKasse und Carventory heute laufen?**
-   Der wichtigste Punkt. Eine Firma bedeutet eine Buchführung und einen durchgehenden
-   Umsatz; zwei Firmen bedeuten getrennte Instanzen, getrennte Nummernkreise, getrennte
-   Bücher. Alles Weitere hängt daran.
+1. ~~Dieselbe Firma?~~ **Beantwortet: nein, zwei Firmen.** Damit ist die Trennung gesetzt.
 2. Soll die Laufkundschaft standardmäßig nur einen Kassenbeleg bekommen, oder immer
    zusätzlich eine Rechnung?
 3. Ab wann wird bar kassiert (Gründungsdatum)? Davon hängt die ELSTER-Meldung ab, die
@@ -64,7 +140,15 @@ Fachlich NEU für ReifenPro (nicht vom Autohandel übernehmen):
 5. Kassennachschau und Verfahrensdokumentation: Die Kasse bringt ihre eigene mit. Der
    Betrieb braucht eine gemeinsame, die beide Systeme und ihre Schnittstelle beschreibt.
 
-## Was NICHT gebaut wird, bevor Punkt 1 geklärt ist
+## Was NICHT gebaut wird, bevor das Fachliche steht
 
 Kein Code. Eine falsch aufgesetzte Kassenanbindung erzeugt fiskalische Belege, die sich
-nicht mehr zurücknehmen lassen — anders als eine Rechnung im Entwurf.
+nicht mehr zurücknehmen lassen — anders als eine Rechnung im Entwurf. Konkret fehlen noch
+die Betragsarten, die Erlöskonten (mit dem Steuerberater) und das Leitmerkmal.
+
+## Nebenbefund zum Aufräumen
+
+Der Dienst `kassen-baukasten` läuft seit vier Wochen aus einem Verzeichnis, das inzwischen
+nach `_archiv` verschoben wurde. Bevor eine dritte Instanz auf denselben Server kommt,
+gehört er gestoppt und abgeschaltet — sonst wird bei der nächsten Portvergabe geraten
+statt gewusst.
