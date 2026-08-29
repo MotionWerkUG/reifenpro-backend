@@ -16,6 +16,7 @@ const KEEP = parseInt(process.env.BACKUP_KEEP_DAYS) || 30;
 const FILE_DIRS = [
   '/home/deploy/projekte/reifenpro/rechnungen',        // Rechnungs-PDFs (GoBD) — aktives Projekt (Modell A)
   '/home/deploy/projekte/reifenpro/gewerbe-dokumente', // hochgeladene Gewerbeanmeldungen
+  '/home/deploy/projekte/reifenpro/protokoll-dateien', // Uebergabeprotokolle mit Unterschrift + Fotos (aufbewahrungspflichtig)
   '/var/www/schroeder-homepage/uploads',               // Homepage-/CMS-Bilder
 ];
 
