@@ -12,3 +12,14 @@ vollständig sein, unabhängig davon, ob eine Bild-URL dann noch erreichbar ist.
 
 Empfohlene Anzeigegröße im Dokumentkopf: `width="196" height="35"`.
 Verboten bleibt ein „SS"-Monogramm (siehe DESIGN.md).
+
+## Schriftfestigkeit
+
+Die beiden Textzeilen haben `textLength` + `lengthAdjust="spacingAndGlyphs"`. Damit ist
+die Breite der Wortmarke auf jedem Rechner identisch, auch wenn die Systemschrift fehlt
+und der Browser eine Ersatzschrift nimmt. Nachgemessen mit Ersatzschriften (serif,
+monospace, cursive): jeweils exakt 441 bzw. 363 Einheiten, also kein Verrutschen
+gegenüber dem goldenen Unterstrich. Wichtig, weil unterschriebene Dokumente per
+Datenbank-Trigger unveränderbar sind — ein später verrutschter Kopf ließe sich nicht
+mehr korrigieren. Beim Ändern der Texte die Werte neu messen
+(`getComputedTextLength()`), sonst werden die Buchstaben gestaucht oder gedehnt.
