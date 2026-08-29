@@ -117,11 +117,43 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Anschrift-Pruefung. Bewusst locker: eine Ziffer in der Strasse (Hausnummer) ODER "Postfach"
+// als zulaessige Zustellanschrift. Wortgleich mit der Regel im Rechnungswesen und auf der
+// Gaeste-Buchungsseite -- dieselbe Adresse darf nicht an einer Stelle durchgehen und an der
+// anderen scheitern. PLZ: fuenf Ziffern (Land DE).
+function anschriftPruefen(strasse, plz, ort) {
+  const st = String(strasse == null ? '' : strasse).trim();
+  const pz = String(plz == null ? '' : plz).trim();
+  const or = String(ort == null ? '' : ort).trim();
+  if (!st || !pz || !or) return 'Bitte geben Sie Straße, PLZ und Ort an.';
+  if (!(/\d/.test(st) || /postfach/i.test(st))) return 'Bitte geben Sie die Hausnummer mit an (oder ein Postfach).';
+  if (!/^\d{5}$/.test(pz)) return 'Die PLZ besteht aus fünf Ziffern.';
+  return null;
+}
+
 // ── POST /api/portal/daten/termine ──
 router.post('/termine', authKunde, async (req, res, next) => {
   try {
     const { datum, uhrzeit_von, artikel_id, beschreibung, kennzeichen, fahrzeug_id, typ, zoll } = req.body;
     if (!datum || !uhrzeit_von || !artikel_id || !/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Pflichtfelder fehlen oder ungültiges Datum/Uhrzeit' });
+
+    // Anschrift ist spaetestens bei der Buchung Pflicht (Vorgabe David): ohne sie laesst sich die
+    // Leistung hinterher nicht rechtssicher abrechnen (Pflichtangabe nach § 14 UStG ueber 250 €).
+    // Portal-Registrierte haben sie im Normalfall NICHT -- die Registrierung erhebt sie bewusst
+    // nicht. Deshalb hier einmalig nachfordern und in den Stamm uebernehmen, statt sie zu
+    // ueberspringen und das Problem erst beim Rechnungschreiben zu entdecken.
+    const kd = req.kunde;
+    const clean160 = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').trim().slice(0, 160);
+    if (!kd.strasse || !kd.plz || !kd.ort) {
+      const nStr = clean160(req.body.strasse), nPlz = clean160(req.body.plz).slice(0, 12), nOrt = clean160(req.body.ort).slice(0, 120);
+      if (!nStr && !nPlz && !nOrt) {
+        return res.status(400).json({ code: 'ANSCHRIFT_FEHLT', error: 'Für die Buchung brauchen wir noch Ihre Anschrift (Straße, PLZ, Ort).' });
+      }
+      const fehler = anschriftPruefen(nStr, nPlz, nOrt);
+      if (fehler) return res.status(400).json({ code: 'ANSCHRIFT_UNGUELTIG', error: fehler });
+      await query('UPDATE kunden SET strasse=$1, plz=$2, ort=$3, geaendert_am=NOW() WHERE id=$4', [nStr, nPlz, nOrt, kd.id]);
+      kd.strasse = nStr; kd.plz = nPlz; kd.ort = nOrt;
+    }
 
     const artRes = await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
     if (!artRes.rows.length) return res.status(404).json({ error: 'Artikel nicht gefunden' });
