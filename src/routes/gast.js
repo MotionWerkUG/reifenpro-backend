@@ -507,6 +507,9 @@ async function ladeStornoTermin(token) {
   if (['storniert', 'abgesagt'].includes(t.status)) return { fehler: ['Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.'] };
   if (t.status === 'abgeschlossen') return { fehler: ['Nicht mehr möglich', 'Dieser Termin ist bereits abgeschlossen und kann nicht mehr abgesagt werden.'] };
   if (t.status !== 'bestaetigt') return { fehler: ['Noch nicht bestätigt', 'Dieser Termin ist noch nicht verbindlich bestätigt. Ohne Bestätigung verfällt er von selbst — Sie müssen nichts weiter tun.'] };
+  // Bereits abgerechnet (Vorkasse/Vorab-Rechnung): nicht still stornieren, sonst haengt eine Rechnung
+  // an einem stornierten Termin. Solche Faelle klaert der Betrieb persoenlich.
+  if (t.fakturiert === true) return { fehler: ['Bitte telefonisch absagen', 'Zu diesem Termin liegt bereits eine Abrechnung vor. Bitte rufen Sie uns kurz an — wir klären die Absage persönlich mit Ihnen.'] };
   const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
   const telSatz = einst.telefon ? (' Bitte rufen Sie uns kurz an: ' + einst.telefon + '.') : ' Bitte melden Sie sich kurz telefonisch bei uns.';
   // Laeuft fuer den Termin schon die Abrechnung, darf der Kunde ihn nicht mehr still wegklicken —
@@ -571,8 +574,11 @@ router.post('/termin/absagen', absageLimiter, async (req, res, next) => {
         'Ihr Termin am <strong>' + dF + '</strong> um <strong>' + hhmm + ' Uhr</strong> ist in weniger als ' + r.fristH + ' Stunden. Bitte rufen Sie uns kurz an' + tel + '.'));
     }
     // Status-Guard: genau EINMAL stornieren (kein zweiter Mailversand bei Doppelklick/Reload).
+    // `fakturiert IS NOT TRUE` auch hier im WHERE: der Zustand kann sich zwischen Pruefung und
+    // Update geaendert haben. storniert_von bleibt beim Muster des Portal-Stornos ('kunde'), mit
+    // Zusatz woher die Absage kam.
     const upd = await query(
-      "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='Kunde (Online-Absage)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt'",
+      "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='kunde (gast-online)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt' AND fakturiert IS NOT TRUE",
       [r.t.id]);
     if (!upd.rowCount) {
       return res.status(409).send(gastSeite('Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.', neuBuchenCta));
