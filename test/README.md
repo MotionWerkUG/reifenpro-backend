@@ -28,7 +28,14 @@ npm test
 
 Wichtig: Immer nur EIN Testlauf gleichzeitig. Alle Testdateien teilen sich `reifenpro_test`
 und leeren die Tabellen per `TRUNCATE`; deshalb läuft `npm test` mit `--test-concurrency=1`.
-Ein zweiter, parallel gestarteter Lauf (z. B. aus einer anderen Session) lässt beide fehlschlagen.
+Ein zweiter, parallel gestarteter Lauf (z. B. aus einer anderen Session) lässt beide
+fehlschlagen — typischerweise mit `duplicate key users_email_key`.
+
+Wenn wirklich zwei Läufe gleichzeitig nötig sind, bekommt der zweite eine eigene Datenbank:
+
+```bash
+TEST_DB_NAME=reifenpro_test2 npm run test:db && TEST_DB_NAME=reifenpro_test2 npm test
+```
 
 ## Schutzmechanismen
 

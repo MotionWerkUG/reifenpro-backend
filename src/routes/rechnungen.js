@@ -726,7 +726,7 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       // Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde z. B. in
       // "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
       if (!REGISTER_RECHTSFORMEN.includes(String(aussteller.rechtsform || '').trim()) && !aussteller.inhaber) {
-        const e = new Error('Name des Inhabers fehlt — bei Einzelunternehmen/GbR gehört er als Name des leistenden Unternehmers auf die Rechnung (§ 14 UStG). Bitte in den Einstellungen eintragen.'); e.status = 400; throw e;
+        const e = new Error('Name des Inhabers fehlt — bitte in den Einstellungen eintragen. Er ist der Name des leistenden Unternehmers (§ 14 UStG) und wird bei jeder Rechtsform verlangt, die nicht im Handelsregister eingetragen ist (Einzelunternehmen, GbR). Auch bei einer ungewöhnlichen Schreibweise der Rechtsform wird er sicherheitshalber verlangt.'); e.status = 400; throw e;
       }
       if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
         const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
