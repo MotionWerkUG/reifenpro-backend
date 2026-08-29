@@ -438,12 +438,17 @@ router.put('/profil', authKunde, async (req, res, next) => {
     const clean = (s) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, 80);
     const telefon = clean(req.body.telefon), kennzeichen = clean(req.body.kennzeichen),
           fahrzeug_marke = clean(req.body.fahrzeug_marke), fahrzeug_modell = clean(req.body.fahrzeug_modell);
+    // Anschrift ist fuer die Rechnung Pflicht und wird bei der Registrierung bewusst nicht erhoben
+    // -> der Kunde muss sie im Profil pflegen koennen, sonst bleibt die Buchung der einzige Weg.
+    const strasse = clean(req.body.strasse), plz = clean(req.body.plz), ort = clean(req.body.ort);
     // COALESCE: nur uebergebene Felder aendern, fehlende NICHT auf NULL setzen (sonst Datenverlust)
     await query(
       `UPDATE kunden SET telefon=COALESCE($1,telefon), kennzeichen=COALESCE($2,kennzeichen),
-       fahrzeug_marke=COALESCE($3,fahrzeug_marke), fahrzeug_modell=COALESCE($4,fahrzeug_modell), geaendert_am=NOW() WHERE id=$5`,
+       fahrzeug_marke=COALESCE($3,fahrzeug_marke), fahrzeug_modell=COALESCE($4,fahrzeug_modell),
+       strasse=COALESCE($6,strasse), plz=COALESCE($7,plz), ort=COALESCE($8,ort), geaendert_am=NOW() WHERE id=$5`,
       [telefon != null ? telefon : null, kennzeichen != null ? kennzeichen : null,
-       fahrzeug_marke != null ? fahrzeug_marke : null, fahrzeug_modell != null ? fahrzeug_modell : null, req.kunde.id]);
+       fahrzeug_marke != null ? fahrzeug_marke : null, fahrzeug_modell != null ? fahrzeug_modell : null, req.kunde.id,
+       strasse != null ? strasse : null, plz != null ? plz : null, ort != null ? ort : null]);
     res.json({ message: 'Profil aktualisiert' });
   } catch (e) { next(e); }
 });
