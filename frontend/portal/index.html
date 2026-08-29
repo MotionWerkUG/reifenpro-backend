@@ -203,6 +203,13 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <!-- Weg nach dem Erfolg: statt eines automatischen Sprungs nach 7 Sekunden entscheidet der
          Nutzer selbst, wann er weitergeht — er soll die drei Schritte in Ruhe lesen koennen. -->
     <button id="reg-weiter" class="btn btn-p hidden" style="margin-top:16px" onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</button>
+    <!-- Keine Mail angekommen? Haeufigster Fall ist der Spam-Ordner. Der Knopf steht bewusst IMMER
+         hier -- auch wenn die Adresse schon registriert war. Die Antwort der Registrierung ist in
+         beiden Faellen wortgleich, damit Fremde nicht durchprobieren koennen, wer hier Kunde ist. -->
+    <div id="reg-nachfassen" class="auth-switch hidden" style="margin-top:14px">
+      <span data-i18n="no_mail_hint">Keine E-Mail erhalten? Bitte auch den Spam-Ordner prüfen.</span>
+      <a onclick="resendNachRegistrierung()" data-i18n="resend_confirm">Bestätigungsmail erneut senden</a>
+    </div>
   </div>
 </div>
 
@@ -518,7 +525,8 @@ var I18N = {
     accept_required: 'Bitte Datenschutz und AGB akzeptieren',
     reg_success_sofort: 'Konto erstellt. Ihre E-Mail ist durch die Terminbestätigung bereits bestätigt — Sie können sich sofort anmelden.',
     reg_from_booking: 'Wir haben Ihre Daten aus der Terminbuchung übernommen. Vergeben Sie nur noch ein Passwort — Ihr Konto ist dann sofort nutzbar.',
-    reg_success: 'Registrierung erfolgreich. So geht es weiter: 1. Bestätigen Sie Ihre E-Mail über den Link, den wir Ihnen soeben gesendet haben. 2. Danach schalten wir Ihren Zugang frei — in der Regel innerhalb eines Werktags. Anschließend können Sie sich anmelden.',
+    no_mail_hint: 'Keine E-Mail erhalten? Bitte auch den Spam-Ordner prüfen.',
+    reg_success: 'Registrierung erfolgreich. So geht es weiter: 1. Bestätigen Sie Ihre E-Mail über den Link, den wir Ihnen soeben gesendet haben (bitte auch im Spam-Ordner nachsehen). 2. Danach schalten wir Ihren Zugang frei — in der Regel innerhalb eines Werktags. Anschließend können Sie sich anmelden.',
     login_pending_confirm: 'Ihre E-Mail-Adresse ist noch nicht bestätigt. Bitte klicken Sie auf den Link in unserer Bestätigungsmail. Nicht erhalten? Lassen Sie sie unten erneut senden.',
     login_pending_approval: 'Ihre E-Mail ist bestätigt — jetzt schalten wir Ihren Zugang noch frei. Das erledigen wir in der Regel innerhalb eines Werktags und melden uns bei Ihnen.',
     overview_hello: 'Schön, dass Sie da sind',
@@ -582,7 +590,8 @@ var I18N = {
     accept_required: 'Please accept privacy policy and terms',
     reg_success_sofort: 'Account created. Your email is already confirmed through the appointment confirmation — you can sign in right away.',
     reg_from_booking: 'We have taken your details from your booking. Just choose a password — your account is ready immediately.',
-    reg_success: 'Registration successful. What happens next: 1. Confirm your email via the link we just sent you. 2. We then activate your access — usually within one business day. After that you can sign in.',
+    no_mail_hint: 'No email received? Please check your spam folder as well.',
+    reg_success: 'Registration successful. What happens next: 1. Confirm your email via the link we just sent you (please also check your spam folder). 2. We then activate your access — usually within one business day. After that you can sign in.',
     login_pending_confirm: 'Your email address is not confirmed yet. Please click the link in our confirmation email. Did not receive it? Resend it below.',
     login_pending_approval: 'Your email is confirmed — we just need to activate your access. We usually do this within one business day and will get back to you.',
     overview_hello: 'Great to have you here',
@@ -713,6 +722,7 @@ function resetRegForm() {
   // stehen, wenn jemand spaeter erneut auf "Registrieren" geht).
   var form = document.getElementById('reg-form'); if (form) form.classList.remove('hidden');
   var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.add('hidden');
+  var nf = document.getElementById('reg-nachfassen'); if (nf) nf.classList.add('hidden');
 }
 
 // ── AUTH ──
@@ -776,6 +786,10 @@ function portalRegister() {
     // sprang die Seite nach 7 Sekunden von selbst — zu hektisch zum Lesen).
     var form = document.getElementById('reg-form'); if (form) form.classList.add('hidden');
     var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.remove('hidden');
+    // Nachfass-Angebot nur beim normalen Weg: wer aus einer bestaetigten Buchung kommt, bekommt
+    // gar keine Bestaetigungsmail und wuerde davon nur verwirrt.
+    var nf = document.getElementById('reg-nachfassen');
+    if (nf) nf.classList.toggle('hidden', !!(antwort && antwort.sofort_anmelden));
     if (REG_TIMER) { clearTimeout(REG_TIMER); REG_TIMER = null; }
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
@@ -1421,6 +1435,16 @@ function einwilligungWiderrufen() {
   papi('POST', '/auth/einwilligung-widerrufen', {})
     .then(function(r) { notify((r && r.message) || t('consent_revoked'), 'ok'); ladeProfil(); })
     .catch(function(e) { notify(e.message, 'err'); });
+}
+
+// Nachfassen direkt vom Erfolgsbildschirm aus (E-Mail steht noch im Formularfeld).
+function resendNachRegistrierung() {
+  var e = document.getElementById('reg-email');
+  var em = e ? e.value.trim() : '';
+  if (!em) { notify(t('resend_need_email'), 'err'); return; }
+  papi('POST', '/auth/bestaetigung-erneut', { email: em })
+    .then(function() { notify(t('resend_sent'), 'ok'); })
+    .catch(function() { notify(t('resend_sent'), 'ok'); });   // Antwort bewusst immer gleich
 }
 
 function resendBestaetigung() {

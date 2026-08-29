@@ -285,7 +285,10 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
           name: vn,
           absaetze: [
             'vielen Dank für Ihre Registrierung im Kundenportal von Schröder &amp; Scholz.',
-            'Bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button. Anschließend prüfen wir Ihren Zugang und schalten ihn frei — danach können Sie Ihre eingelagerten Räder einsehen und Termine bequem online buchen.'
+            'Bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button. Anschließend prüfen wir Ihren Zugang und schalten ihn frei — danach können Sie Ihre eingelagerten Räder einsehen und Termine bequem online buchen.',
+            // Haeufigster Grund fuer "nichts gekommen" ist der Spam-Ordner. Den Weg zum erneuten
+            // Anfordern hier zu nennen, spart dem Kunden den Anruf und dem Betrieb die Nachforschung.
+            'Sollte diese E-Mail einmal im Spam-Ordner landen oder verloren gehen: Sie können den Bestätigungslink jederzeit im Kundenportal unter „Bestätigungsmail erneut senden“ neu anfordern.'
           ],
           button: { text: 'E-Mail bestätigen', url: link },
           hinweis: 'Der Bestätigungslink ist 24 Stunden gültig. Falls Sie sich nicht registriert haben, können Sie diese E-Mail ignorieren.'
