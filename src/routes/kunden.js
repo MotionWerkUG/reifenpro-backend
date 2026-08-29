@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
-const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail } = require('../lib/kundendaten');
+const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail, ohneGeheimnisse } = require('../lib/kundendaten');
 
 // Deutsches Kennzeichen pruefen/normalisieren (z. B. WOR-AB-1234, optional E/H). Leeres Feld erlaubt.
 function normKennzeichen(raw) {
@@ -41,7 +41,7 @@ router.get('/', async (req, res, next) => {
     params.push(parseInt(offset));
     sql += ` OFFSET $${params.length}`;
     const { rows } = await query(sql, params);
-    res.json(rows);
+    res.json(ohneGeheimnisse(rows));
   } catch (err) { next(err); }
 });
 
@@ -78,6 +78,31 @@ router.get('/dokumente-faellig', async (req, res, next) => {
       if (gDs) out.push({ kunden_id: k.id, kunden_nr: k.kunden_nr, name: name, typ: 'datenschutzerklaerung', dokument: 'Datenschutzerklärung', grund: gDs });
       if (gV) out.push({ kunden_id: k.id, kunden_nr: k.kunden_nr, name: name, typ: 'einlagerungsvertrag', dokument: 'Einlagerungsvertrag', grund: gV });
     });
+    // Einlagerungs- und Auslagerungsscheine haengen am VORGANG, nicht am Kunden: ein Kunde mit
+    // fuenf Einlagerungen braucht fuenf unterschriebene Scheine. Deshalb hier je Einlagerung
+    // pruefen, ob ein unterschriebener Schein existiert — sonst gilt er nach dem ersten als
+    // erledigt, und ein nie unterschriebener Schein faellt niemandem mehr auf.
+    const offeneScheine = (await query(
+      `SELECT e.id AS einlagerung_id, e.beleg_nr, e.lagerplatz, e.reifen_groesse, e.status,
+              k.id AS kunden_id, k.kunden_nr, k.vorname, k.nachname
+         FROM einlagerungen e
+         JOIN kunden k ON k.id = e.kunden_id AND k.aktiv = true
+        WHERE e.status <> 'Abgeholt'
+          AND NOT EXISTS (
+            SELECT 1 FROM kunden_dokumente d
+             WHERE d.einlagerung_id = e.id
+               AND d.typ = 'einlagerungsschein'
+               AND d.unterschrift_kunde IS NOT NULL)
+        ORDER BY e.erstellt_am DESC`)).rows;
+    offeneScheine.forEach(function (r) {
+      out.push({
+        kunden_id: r.kunden_id, kunden_nr: r.kunden_nr,
+        name: [r.vorname, r.nachname].filter(Boolean).join(' '),
+        typ: 'einlagerungsschein', dokument: 'Einlagerungsschein', grund: 'noch nicht unterschrieben',
+        einlagerung_id: r.einlagerung_id, beleg_nr: r.beleg_nr,
+        lagerplatz: r.lagerplatz, reifen_groesse: r.reifen_groesse
+      });
+    });
     res.json(out);
   } catch (err) { next(err); }
 });
@@ -93,7 +118,7 @@ router.get('/:id', async (req, res, next) => {
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
-    res.json(rows[0]);
+    res.json(ohneGeheimnisse(rows[0]));
   } catch (err) { next(err); }
 });
 
@@ -156,7 +181,7 @@ router.post('/', async (req, res, next) => {
        typP.typ, landW, rechnung_email ? String(rechnung_email).trim() : null]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.erstellt',
-      tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: rows[0], req });
+      tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: ohneGeheimnisse(rows[0]), req });
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -225,10 +250,12 @@ router.put('/:id', async (req, res, next) => {
        req.params.id,
        typP.typ, nLand, nReMail ? String(nReMail).trim() : null]
     );
+    // Auch das Aenderungsprotokoll bekommt keine Geheimnisse: es wird aufbewahrt und
+    // ueberlebt eine Kontoloeschung — ein dort abgelegter Hash oder Token waere ein Nachschluessel.
     await auditLog({ userId: req.user.id, aktion: 'kunden.geaendert',
       tabelle: 'kunden', datensatzId: req.params.id,
-      alteWerte: o, neueWerte: rows[0], req });
-    res.json(rows[0]);
+      alteWerte: ohneGeheimnisse(o), neueWerte: ohneGeheimnisse(rows[0]), req });
+    res.json(ohneGeheimnisse(rows[0]));
   } catch (err) { next(err); }
 });
 

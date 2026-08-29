@@ -535,6 +535,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </div>
           <div id="kd-docs"></div>
         </div>
+        <div class="pnl">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+            <div class="ptitle" style="margin-bottom:0">Datenschutz-Anfragen</div>
+            <button class="btn btn-g btn-sm" onclick="dsgvoKarte()">Anfrage erfassen</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">Auskunft, Löschung oder Widerspruch, die per Telefon, Brief oder am Tresen eingehen, hier erfassen. Die Bearbeitung läuft dann über den Bereich Datenschutz — dort lässt sich die Auskunft nach Art. 15 auch erstellen und drucken. Frist: ein Monat.</div>
+        </div>
       </div>
 
       <!-- EINLAGERUNG -->
@@ -708,6 +715,21 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
             <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
             <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
+            <div class="fg full" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border)">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Impressum — Pflichtangaben nach Eintragung</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">Pflicht nach § 5 DDG, sobald der Betrieb in der Handwerksrolle steht, und nach § 36 VSBG. Solange die Firma nicht gegründet ist, dürfen die Felder leer bleiben — die Anwendung läuft dann normal weiter. Die Homepage zieht diese Angaben ins Impressum.</div>
+            </div>
+            <div class="fg"><label>Zuständige Handwerkskammer</label><input id="s-hwk" placeholder="Handwerkskammer für München und Oberbayern, Max-Joseph-Straße 4, 80333 München"></div>
+            <div class="fg"><label>Gesetzliche Berufsbezeichnung</label><input id="s-berufbez" placeholder="Kraftfahrzeugtechniker-Meister"></div>
+            <div class="fg"><label>Verliehen in (Staat)</label><input id="s-berufstaat" placeholder="Deutschland"></div>
+            <div class="fg"><label>Berufsrechtliche Regelungen (Link)</label><input id="s-berufsrecht" placeholder="https://www.gesetze-im-internet.de/hwo/"></div>
+            <div class="fg"><label>Verbraucherschlichtung</label>
+              <select id="s-schlicht">
+                <option value="nein">Nicht bereit und nicht verpflichtet</option>
+                <option value="ja">Zur Teilnahme bereit</option>
+              </select>
+            </div>
+            <div class="fg"><label>Schlichtungsstelle (Name + Anschrift)</label><input id="s-schlichtstelle" placeholder="Allgemeine Verbraucherschlichtungsstelle des Zentrums für Schlichtung e.V., Straßburger Straße 8, 77694 Kehl"></div>
             <div class="fg full"><label>Logo (JPG/PNG)</label>
               <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
               <div id="s-logo-prev" style="margin-top:8px"></div>
@@ -1081,15 +1103,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 <div class="ov" id="m-dok">
   <div class="modal xl">
-    <button class="mx" onclick="closeModal('dok')">x</button>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <button class="mx" onclick="dokSchliessen()">x</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;padding-right:44px">
       <div class="mtitle" id="dok-titel" style="margin-bottom:0">Dokument</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <div class="dok-saved" id="dok-saved-badge">Gespeichert</div>
         <button class="btn btn-g btn-sm" id="dok-sw" onclick="switchDok()" style="display:none">Wechseln</button>
-        <button class="btn btn-g btn-sm" onclick="druckUndSpeichereDok()">Drucken</button>
-        <button class="btn btn-p btn-sm" onclick="saveDokOhneSchließen()">Speichern</button>
-        <button class="btn btn-g btn-sm" onclick="closeModal('dok')">Fertig</button>
+        <button class="btn btn-p btn-sm" id="dok-speichern" onclick="saveDokOhneSchließen()">Speichern</button>
+        <button class="btn btn-g btn-sm" id="dok-drucken" onclick="druckUndSpeichereDok()" style="display:none">Drucken</button>
       </div>
     </div>
     <!-- Dokument ZUERST (muss vor der Unterschrift lesbar sein), Unterschriftenfeld darunter -->
@@ -1101,6 +1122,11 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <button class="btn btn-g btn-sm" style="position:absolute;top:8px;right:8px" onclick="clearSig()">Löschen</button>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben.</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <strong style="color:var(--fg)">Ablauf:</strong> 1. Kunde unterschreibt hier auf dem Bildschirm.
+        2. <strong style="color:var(--fg)">Speichern</strong> — erst damit ist das Dokument abgelegt. Danach lässt es sich drucken.
+        Das <strong style="color:var(--fg)">x</strong> oben rechts schließt nur die Ansicht; ist noch nicht gespeichert, wird vorher gefragt.
+      </div>
     </div>
   </div>
 </div>
@@ -1470,7 +1496,11 @@ window.addEventListener('load', function() {
   // Modal Overlay-Click
   document.querySelectorAll('.ov').forEach(function(o) {
     o.addEventListener('click', function(e) {
-      if (e.target === o) o.classList.remove('open');
+      if (e.target !== o) return;
+      // Der Dokumentdialog geht nur ueber dokSchliessen() zu, sonst waere die Unterschrift
+      // bei einem Klick daneben ohne Nachfrage verloren.
+      if (o.id === 'm-dok') { dokSchliessen(); return; }
+      o.classList.remove('open');
     });
   });
 
@@ -1681,13 +1711,22 @@ function startApp() {
   loadHeute();
   loadAbzurechnen();
   loadKontakt();
+  // Beide Dashboard-Meldungen wurden bisher nur von showPage('dashboard') geladen — beim
+  // ersten Aufbau nach dem Login lief showPage aber nie. Ergebnis: die Hinweise auf faellige
+  // Dokumente und offene Gewerbeanfragen waren genau dann unsichtbar, wenn man sie braucht.
+  loadDokFaellig();
+  loadGewerbeAnf();
   startUhr();
   befuelleJahrDropdown();
   if (!window._popBound) {
     window._popBound = true;
     window.addEventListener('popstate', function(e) {
       var m = document.querySelector('.ov.open');
-      if (m) { m.classList.remove('open'); if (history.pushState) { try { history.pushState({ page: currentPage }, '', '#' + currentPage); } catch (x) {} } return; }
+      if (m) {
+        if (m.id === 'm-dok') dokSchliessen(); else m.classList.remove('open');
+        if (history.pushState) { try { history.pushState({ page: currentPage }, '', '#' + currentPage); } catch (x) {} }
+        return;
+      }
       closeNav();
       showPage((e.state && e.state.page) || 'dashboard', true);
     });
@@ -1834,30 +1873,41 @@ function loadDokFaellig() {
     var byK = {};
     rows.forEach(function(r) {
       var k = byK[r.kunden_id] || (byK[r.kunden_id] = { kid: r.kunden_id, name: r.name, kunden_nr: r.kunden_nr, docs: [] });
-      k.docs.push({ typ: r.typ, grund: r.grund });
+      k.docs.push({ typ: r.typ, grund: r.grund, einlagerung_id: r.einlagerung_id, lagerplatz: r.lagerplatz });
     });
     var kunden = Object.keys(byK).map(function(k) { return byK[k]; });
-    var dokLbl = function(t) { return t === 'einlagerungsvertrag' ? 'Vertrag' : 'Datenschutz'; };
+    var dokLbl = function(t) {
+      if (t === 'einlagerungsvertrag') return 'Vertrag';
+      if (t === 'einlagerungsschein') return 'Einlagerungsschein';
+      return 'Datenschutz';
+    };
     el.innerHTML = '<details class="pnl" style="border-left:3px solid var(--accent);margin-bottom:14px">' +
       '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px">' +
       '<span class="ptitle" style="margin:0">Dokumente zu erneuern (' + kunden.length + ' Kunden)</span>' +
       '<span style="font-size:12px;color:var(--muted)">– zum Aufklappen</span></summary>' +
-      '<div style="font-size:12px;color:var(--muted);margin:8px 0 6px">Kunden mit eingelagerten Rädern, bei denen Datenschutz oder Vertrag fehlt oder abgelaufen ist.</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin:8px 0 6px">Kunden mit eingelagerten Rädern, bei denen Datenschutz, Vertrag oder die Unterschrift auf dem Einlagerungsschein fehlt.</div>' +
       kunden.map(function(k) {
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
           '<div style="min-width:0"><strong>' + kEsc(k.name) + '</strong> <span style="color:var(--muted);font-size:12px">' + kEsc(k.kunden_nr || '') + '</span></div>' +
           '<div style="display:flex;gap:5px;flex-wrap:wrap">' + k.docs.map(function(d) {
-            return '<button class="btn btn-g btn-sm" onclick="dokFaelligOeffnen(\'' + k.kid + '\',\'' + d.typ + '\')" title="' + kEsc(d.grund) + '">' + dokLbl(d.typ) + ' öffnen</button>';
+            var t = kEsc(d.grund) + (d.lagerplatz ? ' — Lagerplatz ' + kEsc(d.lagerplatz) : '');
+            return '<button class="btn btn-g btn-sm" onclick="dokFaelligOeffnen(\'' + k.kid + '\',\'' + d.typ + '\',\'' + (d.einlagerung_id || '') + '\')" title="' + t + '">' + dokLbl(d.typ) + (d.lagerplatz ? ' ' + kEsc(d.lagerplatz) : '') + ' öffnen</button>';
           }).join('') + '</div>' +
           '</div>';
       }).join('') + '</details>';
   }).catch(function() {});
 }
-function dokFaelligOeffnen(kid, typ) {
+function dokFaelligOeffnen(kid, typ, eid) {
   showPage('kunden');
   setTimeout(function() {
     zeigeK(kid);
-    setTimeout(function() { if (typ === 'einlagerungsvertrag') oeffneVertrag(); else oeffneDsgvo(); }, 350);
+    setTimeout(function() {
+      // Der Einlagerungsschein haengt am Vorgang: direkt den richtigen oeffnen, damit
+      // niemand in der Kundenakte suchen muss, welcher Satz gemeint ist.
+      if (typ === 'einlagerungsschein' && eid) zeigeSchein(eid, 'ein');
+      else if (typ === 'einlagerungsvertrag') oeffneVertrag();
+      else oeffneDsgvo();
+    }, 350);
   }, 120);
 }
 function renderKontakt() {
@@ -2660,6 +2710,10 @@ function fillEinst() {
   fv('s-steu', EINST.steuernummer); fv('s-ustid', EINST.ust_id);
   fv('s-rf', EINST.rechtsform); fv('s-hrnr', EINST.handelsreg_nr);
   fv('s-hrgericht', EINST.registergericht); fv('s-dsb', EINST.datenschutz_beauftragter);
+  fv('s-hwk', EINST.handwerkskammer); fv('s-berufbez', EINST.berufsbezeichnung);
+  fv('s-berufstaat', EINST.berufsbezeichnung_staat); fv('s-berufsrecht', EINST.berufsrechtliche_regelungen);
+  fv('s-schlichtstelle', EINST.schlichtung_stelle);
+  var sch = document.getElementById('s-schlicht'); if (sch) sch.value = EINST.schlichtung_bereit ? 'ja' : 'nein';
   fv('s-vers', EINST.versicherung_name); fv('s-purl', EINST.portal_url);
   fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
   fv('s-buchbar-ab', EINST.buchbar_ab ? String(EINST.buchbar_ab).substring(0, 10) : '');
@@ -2696,6 +2750,9 @@ function saveEinst() {
     google_bewertung_url: gv('s-google'), facebook_url: gv('s-fb'), instagram_url: gv('s-ig'),
     ust_id: gv('s-ustid'), rechtsform: gv('s-rf'), handelsreg_nr: gv('s-hrnr'),
     registergericht: gv('s-hrgericht'), datenschutz_beauftragter: gv('s-dsb'),
+    handwerkskammer: gv('s-hwk'), berufsbezeichnung: gv('s-berufbez'),
+    berufsbezeichnung_staat: gv('s-berufstaat'), berufsrechtliche_regelungen: gv('s-berufsrecht'),
+    schlichtung_bereit: gv('s-schlicht') === 'ja', schlichtung_stelle: gv('s-schlichtstelle'),
     versicherung_name: gv('s-vers'), portal_url: gv('s-purl'),
     bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
     zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
@@ -4780,6 +4837,7 @@ function statJahr(dir) {
 // Pflichtdokument oeffnen: liegt ein GUELTIGES vor -> nur ansehen/drucken (kein erneutes Unterschreiben);
 // fehlt es oder ist es abgelaufen (Textaenderung/Frist) -> Unterschriftsformular.
 function oeffnePflichtDok(typ) {
+  dokUngespeichert = false;
   aktDokTyp = typ; aktEinlId = null; dokGespeichertId = null;
   if (!aktK) { zeigeDokVorschau(); return; }
   api('GET', '/kunden/' + aktK.id + '/dokumente').then(function(docs) {
@@ -4790,8 +4848,16 @@ function oeffnePflichtDok(typ) {
 }
 function oeffneDsgvo() { oeffnePflichtDok('datenschutzerklaerung'); }
 function oeffneVertrag() { oeffnePflichtDok('einlagerungsvertrag'); }
+// Wer den Beleg ausstellt, steht namentlich drauf — das ersetzt die Firmenunterschrift.
+function mitarbeiterName() {
+  var n = USER ? [USER.vorname, USER.nachname].filter(Boolean).join(' ').trim() : '';
+  return n || (USER && USER.email) || 'Schröder & Scholz';
+}
 function zeigeSchein(eid, typ) { aktDokTyp = typ === 'ein' ? 'einlagerungsschein' : 'auslagerungsschein'; aktEinlId = eid; dokGespeichertId = null; zeigeDokVorschau(); }
 function switchDok() {
+  // Ohne diese Rueckfrage waere eine schon geleistete, aber noch nicht gespeicherte
+  // Unterschrift beim Wechsel kommentarlos weg — derselbe Fall wie beim Schliessen.
+  if (dokUngespeichert && !confirm('Das Dokument ist noch nicht gespeichert.\n\nWirklich wechseln und verwerfen?')) return;
   aktDokTyp = aktDokTyp === 'datenschutzerklaerung' ? 'einlagerungsvertrag' : 'datenschutzerklaerung';
   dokGespeichertId = null; zeigeDokVorschau();
 }
@@ -4805,11 +4871,22 @@ function zeigeDokVorschau() {
   document.getElementById('dok-inhalt').innerHTML = genDok();
   document.getElementById('sig-wrap').style.display = '';
   var badge = document.getElementById('dok-saved-badge'); if (badge) badge.style.display = 'none';
+  var dr = document.getElementById('dok-drucken'); if (dr) dr.style.display = 'none';
+  dokUngespeichert = false;
   initSig();
   openModal('dok');
 }
+// Schliessen heisst schliessen — aber nicht stillschweigend verwerfen. Wurde noch nicht
+// gespeichert, wird nachgefragt. Vorher war nach einem Klick auf "Fertig" alles weg, ohne Hinweis.
+var dokUngespeichert = false;
+function dokSchliessen() {
+  if (dokUngespeichert && !confirm('Das Dokument ist noch nicht gespeichert.\n\nWirklich schließen und verwerfen?')) return;
+  dokUngespeichert = false;
+  closeModal('dok');
+}
 function saveDokOhneSchließen() {
   if (!aktK) { notify('Kein Kunde ausgewählt.', 'err'); return; }
+  if (dokGespeichertId && !dokUngespeichert) { notify('Dieses Dokument ist bereits gespeichert.', 'info'); return; }
   var html = document.getElementById('dok-inhalt').innerHTML;
   var sig = getSig();
   var titles = { datenschutzerklaerung: 'Datenschutzerklärung', einlagerungsvertrag: 'Einlagerungsvertrag', einlagerungsschein: 'Einlagerungsschein', auslagerungsschein: 'Auslagerungsschein' };
@@ -4822,7 +4899,9 @@ function saveDokOhneSchließen() {
   }).then(function(d) {
     if (d) dokGespeichertId = d.id;
     var badge = document.getElementById('dok-saved-badge'); if (badge) badge.style.display = 'inline-flex';
-    notify('Dokument gespeichert!', 'info');
+    dokUngespeichert = false;
+    var dr = document.getElementById('dok-drucken'); if (dr) dr.style.display = '';
+    notify('Dokument gespeichert.', 'info');
     if (aktK) ladeDocs(aktK.id);
     if (aktDokTyp === 'datenschutzerklaerung' && sig && aktK) {
       api('PUT', '/kunden/' + aktK.id, { portal_verifiziert: true }).then(function() {
@@ -4832,19 +4911,28 @@ function saveDokOhneSchließen() {
       }).catch(function() {});
     }
     if (sig) {
+      // Beschriftung des Feldes beibehalten: der Vertrag sagt "Unterschrift Auftraggeber",
+      // der Schein "Unterschrift Kunde". Ein fester Text haette sie nach dem Speichern ueberschrieben.
       var sigArea = document.getElementById('sig-print-area');
-      if (sigArea) sigArea.innerHTML = 'Unterschrift des Kunden<br><img src="' + sig + '" style="max-height:55px;margin-top:4px;display:block">';
+      if (sigArea && !sigArea.querySelector('img')) {
+        sigArea.innerHTML = kEsc(sigArea.textContent.trim()) + '<br><img src="' + sig + '" style="max-height:13mm;margin-top:4px;display:block">';
+      }
     }
   }).catch(function(e) { notify(e.message, 'err'); });
 }
 function druckUndSpeichereDok() {
-  saveDokOhneSchließen();
-  var inhalt = document.getElementById('dok-inhalt').innerHTML;
+  var quelle = document.getElementById('dok-inhalt');
   var sig = getSig();
-  var druckHtml = inhalt;
-  if (sig) {
-    druckHtml = druckHtml.replace('Unterschrift des Kunden</div>', 'Unterschrift des Kunden<br><img src="' + sig + '" style="max-height:55px;margin-top:4px;display:block"></div>');
+  // Die Unterschrift ueber das Element einsetzen statt per Textersetzung: der alte Weg suchte
+  // woertlich "Unterschrift des Kunden" und traf damit nur die Datenschutzerklaerung — auf
+  // gedrucktem Vertrag ("Unterschrift Auftraggeber") und Schein ("Unterschrift Kunde") fehlte
+  // die Unterschrift.
+  var klon = quelle.cloneNode(true);
+  var feld = klon.querySelector('#sig-print-area');
+  if (sig && feld && !feld.querySelector('img')) {
+    feld.innerHTML = feld.textContent.trim() + '<br><img src="' + sig + '" style="max-height:13mm;margin-top:4px;display:block">';
   }
+  var druckHtml = klon.innerHTML;
   var w = window.open('', '_blank');
   if (!w) { notify('Pop-up blockiert. Bitte Pop-ups für diese Seite erlauben.', 'err'); return; }
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + document.getElementById('dok-titel').textContent + '</title><style>body{margin:0;padding:0}@media print{body{margin:0}}</style></head><body>' + druckHtml + '</body></html>');
@@ -4861,6 +4949,8 @@ function zeigeDok(did) {
     document.getElementById('sig-wrap').style.display = d.unterschrift_datum ? 'none' : '';
     dokGespeichertId = d.id;
     var badge = document.getElementById('dok-saved-badge'); if (badge) badge.style.display = 'inline-flex';
+    var dr = document.getElementById('dok-drucken'); if (dr) dr.style.display = '';
+    dokUngespeichert = false;
     initSig(); openModal('dok');
   }).catch(function(e) { notify(e.message, 'err'); });
 }
@@ -4881,14 +4971,14 @@ function initSig() {
     var t = ev.touches ? ev.touches[0] : ev;
     return { x: (t.clientX - r.left) * (c.width / r.width), y: (t.clientY - r.top) * (c.height / r.height) };
   }
-  c.onmousedown = function(ev) { sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; };
+  c.onmousedown = function(ev) { sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; dokUngespeichert = true; };
   c.onmousemove = function(ev) { if (!sigDrw) return; var p = getPos(ev); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); };
   c.onmouseup = c.onmouseleave = function() { sigDrw = false; };
-  c.ontouchstart = function(ev) { ev.preventDefault(); sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; };
+  c.ontouchstart = function(ev) { ev.preventDefault(); sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; dokUngespeichert = true; };
   c.ontouchmove = function(ev) { ev.preventDefault(); if (!sigDrw) return; var p = getPos(ev); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); };
   c.ontouchend = function() { sigDrw = false; };
 }
-function clearSig() { if (sigCtx) { var c = document.getElementById('sig-canvas'); sigCtx.clearRect(0, 0, c.width, c.height); } sigHas = false; }
+function clearSig() { if (sigCtx) { var c = document.getElementById('sig-canvas'); sigCtx.clearRect(0, 0, c.width, c.height); } sigHas = false; dokUngespeichert = false; }
 function getSig() { if (!sigHas) return null; return document.getElementById('sig-canvas').toDataURL('image/png'); }
 
 // ── ETIKETT ──
@@ -5014,10 +5104,23 @@ function genDok() {
   return '<div style="padding:20px">Dokument nicht bekannt.</div>';
 }
 
+// Wortmarke fuer Dokumentenkoepfe. Inline eingebettet, nicht als Bildpfad: gespeicherte Scheine
+// liegen als HTML in der Datenbank und sind nach der Unterschrift unveraenderbar — ein Pfad, der
+// spaeter umzieht, wuerde den Beleg dauerhaft beschaedigen. Die Schriftbreite ist im SVG per
+// textLength fixiert, damit der Kopf ohne die Hausschrift nicht verrutscht.
+var MARKE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="196" height="35" role="img" aria-label="Schröder & Scholz"><text x="0" y="52" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#1a1a1a" textLength="441" lengthAdjust="spacingAndGlyphs">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#555555" textLength="363" lengthAdjust="spacingAndGlyphs">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>';
+// Traegt jemand in den Einstellungen einen anderen Firmennamen ein (anderer Betrieb), wird dessen
+// Name gesetzt statt unserer Wortmarke — sonst behauptet der Beleg eine fremde Marke.
+function markeKopf(f, rueckfall) {
+  var name = (f && f.firmenname) ? String(f.firmenname).trim() : '';
+  var eigen = /schr(ö|oe)der\s*(&|und)\s*scholz/i.test(name);
+  if (!name) return rueckfall ? kEsc(rueckfall) : MARKE_SVG;
+  return eigen ? MARKE_SVG : kEsc(name);
+}
 function dokStyle() {
   // WICHTIG: alle Regeln auf .dok scopen – sonst wirken *{} und body{} global und
   // verformen die ganze Admin-Seite (Style bleibt nach Schliessen des Modals im DOM).
-  return '<style>.dok,.dok *{box-sizing:border-box;margin:0;padding:0}.dok{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#111;padding:10mm 12mm;max-width:210mm;margin:auto}.dok .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm}.dok .firmenname{font-size:16pt;font-weight:700;color:#1a3a6e;letter-spacing:1px}.dok .hdr-sub{font-size:7.5pt;color:#555;margin-top:2px}.dok .dok-titel{font-size:14pt;font-weight:700;color:#1a3a6e;margin-bottom:4mm;padding-bottom:2mm;border-bottom:1px solid #d0d8e8}.dok .sek{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a3a6e;padding:3mm 0 1.5mm;border-bottom:1px solid #d0d8e8;margin-bottom:2mm}.dok .g2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 5mm}.dok .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm 4mm}.dok .iz{padding:2mm 0;border-bottom:1px solid #eef}.dok .iz-l{font-size:7pt;color:#777;text-transform:uppercase;letter-spacing:.5px}.dok .iz-v{font-size:9.5pt;font-weight:600}.dok .para{margin-bottom:2.5mm;font-size:8.5pt;line-height:1.5}.dok .para-t{font-weight:700;margin-top:3mm;margin-bottom:1mm}.dok .sig-box{display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:6mm}.dok .sig-line{border-top:1.5px solid #1a3a6e;padding-top:1.5mm;font-size:7.5pt;color:#555}.dok .sig-area{min-height:18mm;border:1px dashed #aaa;border-radius:3px;padding:2mm;margin-bottom:2mm;font-size:7pt;color:#999}.dok .fuss{margin-top:6mm;padding-top:3mm;border-top:1px solid #ddd;font-size:7pt;color:#777;text-align:center}@media print{.dok{padding:8mm 10mm}}</style>';
+  return '<style>.dok,.dok *{box-sizing:border-box;margin:0;padding:0}.dok{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#111;padding:10mm 12mm;max-width:210mm;margin:auto}.dok .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm}.dok .firmenname{font-size:16pt;font-weight:700;color:#1a3a6e;letter-spacing:1px}.dok .hdr-sub{font-size:7.5pt;color:#555;margin-top:2px}.dok .dok-titel{font-size:14pt;font-weight:700;color:#1a3a6e;margin-bottom:4mm;padding-bottom:2mm;border-bottom:1px solid #d0d8e8}.dok .sek{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a3a6e;padding:3mm 0 1.5mm;border-bottom:1px solid #d0d8e8;margin-bottom:2mm}.dok .g2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 5mm}.dok .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm 4mm}.dok .iz{padding:2mm 0;border-bottom:1px solid #eef}.dok .iz-l{font-size:7pt;color:#777;text-transform:uppercase;letter-spacing:.5px}.dok .iz-v{font-size:9.5pt;font-weight:600}.dok .para{margin-bottom:2.5mm;font-size:8.5pt;line-height:1.5}.dok .para-t{font-weight:700;margin-top:3mm;margin-bottom:1mm}.dok .sig-box{display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:6mm}.dok .sig-line{border-top:1.5px solid #1a3a6e;padding-top:1.5mm;font-size:7.5pt;color:#555}.dok .sig-box>div{display:flex;flex-direction:column;justify-content:flex-end}.dok .sig-area{height:20mm;border:1px dashed #aaa;border-radius:3px;padding:2mm;margin-bottom:2mm;font-size:7pt;color:#999;overflow:hidden}.dok .sig-area img{max-height:13mm;width:auto}.dok .sig-firma{height:20mm;padding:2mm;margin-bottom:2mm;font-size:7.5pt;color:#555;display:flex;flex-direction:column;justify-content:center;line-height:1.4}.dok .fuss{margin-top:6mm;padding-top:3mm;border-top:1px solid #ddd;font-size:7pt;color:#777;text-align:center}@media print{.dok{padding:8mm 10mm}}</style>';
 }
 
 function genDsgvo() {
@@ -5025,7 +5128,7 @@ function genDsgvo() {
   var datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
   return '<div class="dok">' + dokStyle() +
-    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || 'Firma') + '</div>' +
+    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, 'Firma') + '</div>' +
     '<div class="hdr-sub">' + adresse + '<br>' + (f.telefon || '') + (f.email ? '  |  ' + f.email : '') + '</div></div>' +
     '<div style="text-align:right"><div style="font-size:8pt;color:#777">Datum: ' + datum + '</div>' +
     '<div style="font-size:7pt;color:#aaa;margin-top:2px">Art. 13 DSGVO</div></div></div>' +
@@ -5059,7 +5162,7 @@ function genDsgvo() {
     '<div class="para">Mit Ihrer Unterschrift bestätigen Sie, dass Sie diese Datenschutzerklärung erhalten und verstanden haben und einer Verarbeitung Ihrer personenbezogenen Daten zum Zweck der Vertragsdurchführung zustimmen. Ihre Einwilligung ist freiwillig und kann jederzeit widerrufen werden.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift des Kunden</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
-    '<div><div class="sig-area"></div><div class="sig-line">' + (f.firmenname || '') + ' - ' + (f.inhaber || '') + '</div></div>' +
+    '<div><div class="sig-firma"><div><strong>Angenommen durch ' + kEsc(mitarbeiterName()) + '</strong></div><div>Elektronisch erstellt - eine Unterschrift des Betriebs ist nicht erforderlich.</div></div><div class="sig-line">' + (f.firmenname || '') + ', ' + datum + '</div></div>' +
     '</div>' +
     '<div class="fuss">' + (f.firmenname || '') + (f.rechtsform ? ' - ' + f.rechtsform : '') + (f.handelsreg_nr ? ' - HRB ' + f.handelsreg_nr : '') + (f.registergericht ? ' - AG ' + f.registergericht : '') + (f.ust_id ? ' - USt-ID: ' + f.ust_id : '') + '</div>' +
     '</div>';
@@ -5073,7 +5176,7 @@ function genVertrag() {
   var ablaufStr = ablauf.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
   return '<div class="dok">' + dokStyle() +
-    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || '') + '</div>' +
+    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, '') + '</div>' +
     '<div class="hdr-sub">' + adresse + ' | Tel: ' + (f.telefon || '') + '</div></div>' +
     '<div style="text-align:right"><div style="font-size:8pt;color:#777">Datum: ' + datum + '</div></div></div>' +
     '<div class="dok-titel">Reifeneinlagerungsvertrag</div>' +
@@ -5108,7 +5211,7 @@ function genVertrag() {
     '<div class="para">Der Auftraggeber erkennt die erfassten Profiltiefen sowie den Reifenzustand als korrekt an. Das Nachziehen der Radschrauben nach 50-100 km liegt in der Verantwortung des Fahrers.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift Auftraggeber</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
-    '<div><div class="sig-area"></div><div class="sig-line">' + (f.inhaber || f.firmenname || '') + ', ' + datum + '</div></div>' +
+    '<div><div class="sig-firma"><div><strong>Angenommen durch ' + kEsc(mitarbeiterName()) + '</strong></div><div>Elektronisch erstellt - eine Unterschrift des Betriebs ist nicht erforderlich.</div></div><div class="sig-line">' + (f.firmenname || '') + ', ' + datum + '</div></div>' +
     '</div>' +
     '<div class="fuss">' + (f.firmenname || '') + (f.rechtsform ? ' - ' + f.rechtsform : '') + (f.ust_id ? ' - USt-ID: ' + f.ust_id : '') + '</div>' +
     '</div>';
@@ -5121,9 +5224,9 @@ function genSchein(e, typ) {
   var istEin = typ === 'ein';
   var titel = istEin ? 'Einlagerungsschein' : 'Auslagerungsschein';
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
-  if (!e) return '<div class="dok">' + dokStyle() + '<div class="hdr"><div class="firmenname">' + (f.firmenname||'') + '</div></div><div class="dok-titel">' + titel + '</div><div style="padding:20px;color:red">Keine Einlagerung ausgewählt.</div></div>';
+  if (!e) return '<div class="dok">' + dokStyle() + '<div class="hdr"><div class="firmenname">' + markeKopf(f, '') + '</div></div><div class="dok-titel">' + titel + '</div><div style="padding:20px;color:red">Keine Einlagerung ausgewählt.</div></div>';
   return '<div class="dok">' + dokStyle() +
-    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || '') + '</div>' +
+    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, '') + '</div>' +
     '<div class="hdr-sub">' + adresse + ' | Tel: ' + (f.telefon || '') + '</div></div>' +
     '<div style="text-align:right"><div style="font-size:8pt;color:#777">' + datum + '</div>' +
     '<div style="font-size:8pt;color:#777;font-weight:600">' + e.beleg_nr + '</div></div></div>' +
@@ -5157,11 +5260,11 @@ function genSchein(e, typ) {
     (e.bemerkungen ? '<div class="sek" style="margin-top:3mm">Bemerkungen</div><div class="para">' + e.bemerkungen + '</div>' : '') +
     '<div class="sek" style="margin-top:3mm">Bestätigung ' + (istEin ? 'Einlagerung' : 'Rückgabe') + '</div>' +
     '<div class="para">' + (istEin
-      ? 'Ich bestatige die Übergabe oben genannter Reifen zur Einlagerung und bestatige die korrekte Erfassung der Profiltiefen. Das Nachziehen der Radschrauben nach 50-100 km liegt in meiner Verantwortung.'
-      : 'Ich bestatige die Rückgabe und habe die Reifen in einwandfreiem Zustand übernommen. Profiltiefe und Zustand wurden geprüft.') + '</div>' +
+      ? 'Ich bestätige die Übergabe oben genannter Reifen zur Einlagerung und bestätige die korrekte Erfassung der Profiltiefen. Das Nachziehen der Radschrauben nach 50-100 km liegt in meiner Verantwortung.'
+      : 'Ich bestätige die Rückgabe und habe die Reifen in einwandfreiem Zustand übernommen. Profiltiefe und Zustand wurden geprüft.') + '</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift Kunde</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
-    '<div><div class="sig-area"></div><div class="sig-line">Mitarbeiter, ' + datum + '</div></div>' +
+    '<div><div class="sig-firma"><div><strong>Angenommen durch ' + kEsc(mitarbeiterName()) + '</strong></div><div>Elektronisch erstellt - eine Unterschrift des Betriebs ist nicht erforderlich.</div></div><div class="sig-line">' + (f.firmenname || '') + ', ' + datum + '</div></div>' +
     '</div>' +
     '<div class="fuss">' + (f.firmenname || '') + (f.ust_id ? ' - USt-ID: ' + f.ust_id : '') + (f.telefon ? ' - Tel: ' + f.telefon : '') + '</div>' +
     '</div>';
@@ -5300,20 +5403,82 @@ function renderDsgvo(liste) {
       (d.antwort ? '<div style="font-size:12px;margin-top:6px;color:var(--muted)">Antwort: ' + kEsc(d.antwort) + '</div>' : '') +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px">' +
+      (d.kunden_id && (d.typ === 'auskunft' || d.typ === 'export')
+        ? '<button class="btn btn-p btn-sm" onclick="dsgvoAuskunft(\'' + d.kunden_id + '\')">Auskunft erstellen</button>' : '') +
       (d.status === 'offen' ? '<button class="btn btn-grn btn-sm" onclick="dsgvoOk(\'' + d.id + '\')">Erledigt</button>' +
                              '<button class="btn btn-g btn-sm" onclick="dsgvoNein(\'' + d.id + '\')">Ablehnen</button>' : '') +
       '</div>' +
       '</div></div>';
   }).join('');
 }
-function dsgvoKarte(kid) {
+// Die Art der Anfrage muss zu den Werten passen, die die Datenbank zulaesst — freier Text
+// aus einem prompt() wurde vom CHECK abgelehnt und die Anfrage war verloren.
+var DSGVO_TYPEN = [
+  ['auskunft', 'Auskunft (Art. 15)'], ['export', 'Datenübertragbarkeit (Art. 20)'],
+  ['loeschung', 'Löschung (Art. 17)'], ['berichtigung', 'Berichtigung (Art. 16)'],
+  ['einschraenkung', 'Einschränkung (Art. 18)'], ['widerruf', 'Widerruf der Einwilligung (Art. 7)'],
+  ['widerspruch', 'Widerspruch (Art. 21)']
+];
+function dsgvoKarte() {
   if (!aktK) { notify('Kein Kunde ausgewählt.', 'err'); return; }
-  var typ = prompt('Art der Anfrage (Auskunft, Löschung, Berichtigung, Widerspruch, Datenübertragbarkeit):', 'Auskunft');
-  if (!typ) return;
-  api('POST', '/dsgvo', {
-    kunden_id: aktK.id, vorname: aktK.vorname, nachname: aktK.nachname,
-    email: aktK.email, telefon: aktK.telefon, typ: typ, beschreibung: null
-  }).then(function() { notify('DSGVO-Anfrage erfasst.'); }).catch(function(e) { notify(e.message, 'err'); });
+  var liste = DSGVO_TYPEN.map(function(t, i) { return (i + 1) + ' = ' + t[1]; }).join('\n');
+  var wahl = prompt('Art der Anfrage von ' + aktK.vorname + ' ' + aktK.nachname + ':\n\n' + liste + '\n\nNummer eingeben:', '1');
+  if (!wahl) return;
+  var t = DSGVO_TYPEN[parseInt(wahl, 10) - 1];
+  if (!t) { notify('Ungültige Auswahl.', 'err'); return; }
+  var notiz = prompt('Wie ist die Anfrage eingegangen? (Telefon, Brief, persönlich - optional)', '');
+  api('POST', '/dsgvo', { kunden_id: aktK.id, typ: t[0], nachricht: notiz || null })
+    .then(function() { notify('DSGVO-Anfrage erfasst. Frist: ein Monat (Art. 12 Abs. 3 DSGVO).'); loadDsgvo(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+// Die Auskunft nach Art. 15 war bisher nur als API vorhanden und im Admin nirgends
+// erreichbar: Eine Anfrage konnte man abhaken, aber nicht beantworten. Hier wird sie erzeugt,
+// als lesbares Blatt angezeigt und laesst sich direkt drucken.
+function dsgvoAuskunft(kid) {
+  api('GET', '/dsgvo/auskunft/' + kid).then(function(a) {
+    var d = a.gespeicherte_daten || {};
+    function tabelle(titel, zeilen) {
+      if (!zeilen || !zeilen.length) return '<div class="sek">' + titel + '</div><div class="para">Keine Daten gespeichert.</div>';
+      var sp = Object.keys(zeilen[0]);
+      return '<div class="sek">' + titel + ' (' + zeilen.length + ')</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:2mm">' +
+        '<tr>' + sp.map(function(k) { return '<th style="text-align:left;border-bottom:1px solid #d0d8e8;padding:1mm 2mm 1mm 0">' + kEsc(k) + '</th>'; }).join('') + '</tr>' +
+        zeilen.map(function(z) {
+          return '<tr>' + sp.map(function(k) {
+            var v = z[k];
+            return '<td style="border-bottom:1px solid #eef;padding:1mm 2mm 1mm 0">' + kEsc(v === null || v === undefined ? '' : String(v)) + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</table>';
+    }
+    var stamm = d.stammdaten || {};
+    var stammZeilen = Object.keys(stamm).filter(function(k) { return stamm[k] !== null && stamm[k] !== '' && k !== 'id'; })
+      .map(function(k) { return '<div class="iz"><div class="iz-l">' + kEsc(k) + '</div><div class="iz-v">' + kEsc(String(stamm[k])) + '</div></div>'; }).join('');
+    var f = EINST || {};
+    var html = '<div class="dok">' + dokStyle() +
+      '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, '') + '</div>' +
+      '<div class="hdr-sub">' + kEsc([f.strasse, (f.plz || '') + ' ' + (f.ort || '')].filter(function(x) { return String(x).trim(); }).join(' - ')) + '</div></div></div>' +
+      '<div class="dok-titel">Auskunft nach Art. 15 DSGVO</div>' +
+      '<div class="para">Erstellt am ' + rDatum(a.generiert_am) + '. Diese Auskunft umfasst alle zu Ihrer Person gespeicherten Daten.</div>' +
+      '<div class="sek">Stammdaten</div><div class="g2">' + stammZeilen + '</div>' +
+      tabelle('Fahrzeuge', d.fahrzeuge) +
+      tabelle('Einlagerungen', d.einlagerungen) +
+      tabelle('Termine', d.termine) +
+      tabelle('Rechnungen', d.rechnungen) +
+      tabelle('Dokumente', d.dokumente) +
+      tabelle('Kontaktanfragen', d.kontaktanfragen) +
+      tabelle('Bisherige DSGVO-Anfragen', d.dsgvo_anfragen) +
+      '<div class="sek">Aufbewahrungsfristen</div><div class="para">' +
+      Object.keys(a.aufbewahrungsfristen || {}).map(function(k) { return kEsc(k) + ': ' + kEsc(a.aufbewahrungsfristen[k]); }).join('<br>') + '</div>' +
+      '<div class="sek">Ihre Rechte</div><div class="para">' + (a.betroffenenrechte || []).map(kEsc).join('<br>') + '</div>' +
+      (a.hinweis_nicht_enthalten ? '<div class="para" style="color:#555">' + kEsc(a.hinweis_nicht_enthalten) + '</div>' : '') +
+      '</div>';
+    var w = window.open('', '_blank');
+    if (!w) { notify('Bitte Pop-ups für diese Seite erlauben.', 'err'); return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Auskunft Art. 15 DSGVO</title></head><body>' + html + '</body></html>');
+    w.document.close();
+    notify('Auskunft erstellt. Die Anfrage wurde protokolliert.');
+    loadDsgvo();
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function dsgvoOk(id) {
   api('PATCH', '/dsgvo/' + id, { status: 'bearbeitet' })

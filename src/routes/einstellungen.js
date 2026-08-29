@@ -23,7 +23,11 @@ const ALLOWED = [
   'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
   'max_parallele_termine', 'termine_pro_stunde', 'stornierung_frist_h', 'portal_url',
   'bank', 'iban', 'bic', 'zahlungsziel_tage',
-  'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland', 'buchbar_ab'
+  'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland', 'buchbar_ab',
+  // Impressumsangaben nach § 5 DDG und § 36 VSBG. Bewusst NICHT in PFLICHT: der Betrieb ist
+  // noch nicht gegruendet, leere Felder duerfen die Anwendung nicht blockieren.
+  'handwerkskammer', 'berufsbezeichnung', 'berufsbezeichnung_staat',
+  'berufsrechtliche_regelungen', 'schlichtung_bereit', 'schlichtung_stelle'
 ];
 
 // Spalten vom Typ time/integer/numeric: leerer String wird zu NULL,
@@ -83,6 +87,24 @@ router.put('/', authenticate, requireAdmin, async (req, res, next) => {
       if (!cols.length) {
         const cur = await query('SELECT * FROM einstellungen WHERE id=$1', [id]);
         return res.json(cur.rows[0]);
+      }
+      // Pflichtangaben duerfen nicht geleert werden, sobald sie einmal gesetzt sind.
+      // Firmenname und Anschrift stehen im Impressum (§ 5 DDG — ein Impressum ohne Anschrift
+      // ist abmahnfaehig) und im Rechnungskopf (§ 14 UStG). Die Homepage-Route sichert das
+      // bereits ab; ueber die Einstellungen war es bisher moeglich.
+      const PFLICHT = ['firmenname', 'strasse', 'plz', 'ort'];
+      const betroffen = cols.filter(c => PFLICHT.includes(c));
+      if (betroffen.length) {
+        const cur = (await query('SELECT firmenname, strasse, plz, ort FROM einstellungen WHERE id=$1', [id])).rows[0] || {};
+        const leer = (v) => String(v == null ? '' : v).trim() === '';
+        const geleert = betroffen.filter(c => !leer(cur[c]) && leer(e[c]));
+        if (geleert.length) {
+          const namen = { firmenname: 'Firmenname', strasse: 'Straße', plz: 'PLZ', ort: 'Ort' };
+          return res.status(400).json({
+            error: geleert.map(c => namen[c]).join(', ') + ' darf nicht leer sein — die Angabe steht im Impressum und im Rechnungskopf.',
+            code: 'PFLICHTANGABE_LEER'
+          });
+        }
       }
       const params = cols.map(c => normalize(c, e[c]));
       const sets = cols.map((c, i) => c + '=$' + (i + 1));

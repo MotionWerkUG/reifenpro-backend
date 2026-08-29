@@ -54,6 +54,12 @@ router.post('/', async (req, res, next) => {
             unterschrift_kunde, unterschrift_datum } = req.body;
     if (!typ || !inhalt_html)
       return res.status(400).json({ error: 'typ und inhalt_html sind Pflicht.' });
+    // Ohne Whitelist landete ein unbekannter typ erst im Check-Constraint der Datenbank und
+    // kam als roher 500er zurueck. Der Aufrufer soll stattdessen sehen, was erlaubt ist.
+    const ERLAUBTE_TYPEN = ['datenschutzerklaerung', 'einlagerungsvertrag', 'einlagerungsschein',
+                            'auslagerungsschein', 'scan', 'sonstiges'];
+    if (!ERLAUBTE_TYPEN.includes(typ))
+      return res.status(400).json({ error: 'Unbekannte Dokumentart: ' + typ, code: 'TYP_UNBEKANNT' });
     // Der Einlagerungsvertrag ist der Punkt, an dem eine Leistung entsteht und die spaeter
     // abgerechnet wird. Ohne vollstaendige Anschrift ist er als Beleg unbrauchbar (die Rechnung
     // braucht sie nach § 14 UStG). Bisher wurde die Anschrift aus dem Stamm gezogen, aber nie
