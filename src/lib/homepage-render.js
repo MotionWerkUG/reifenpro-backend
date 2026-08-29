@@ -60,7 +60,42 @@ function renderGalerie(s) {
     '<h2>' + esc(s.headline || 'Galerie') + '</h2><div class="gal-grid">' + imgs + '</div></div></section>';
 }
 
-function oeffnungszeilen(f) {
+// ── Öffnungszeiten ──────────────────────────────────────────────────────────
+// Quelle ist das Wochenraster (Tabelle `oeffnungszeiten`, Mo=0..So=6) inkl. zweiter
+// Spanne (Mittagspause) und geschlossener Tage. Fehlt es (alter Datenstand), greifen
+// die Alt-Felder mo_fr_*/sa_*/so_* als Rückfallebene.
+var TAG_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+var TAG_LANG = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+
+function spannenText(spannen) {
+  return (spannen || []).map(function (sp) { return hm(sp[0]) + ' – ' + hm(sp[1]); }).join(' und ');
+}
+
+// Gleiche aufeinanderfolgende Tage zusammenfassen: „Mo – Fr  08:00 – 18:00“.
+function oeffnungszeilenAusWoche(woche) {
+  var z = [];
+  var i = 0;
+  while (i < 7) {
+    var tag = woche[i] || { geschlossen: true, spannen: [] };
+    var text = tag.geschlossen || !(tag.spannen || []).length ? 'geschlossen' : spannenText(tag.spannen);
+    var j = i;
+    while (j + 1 < 7) {
+      var nx = woche[j + 1] || { geschlossen: true, spannen: [] };
+      var ntext = nx.geschlossen || !(nx.spannen || []).length ? 'geschlossen' : spannenText(nx.spannen);
+      if (ntext !== text) break;
+      j++;
+    }
+    var label = i === j ? TAG_LANG[i] : TAG_KURZ[i] + ' – ' + TAG_KURZ[j];
+    z.push([label, text]);
+    i = j + 1;
+  }
+  // Eine Woche komplett ohne Zeiten -> lieber gar keine Tabelle als sieben Mal „geschlossen“
+  if (z.every(function (r) { return r[1] === 'geschlossen'; })) return [];
+  return z;
+}
+
+function oeffnungszeilen(f, oz) {
+  if (oz && Array.isArray(oz.woche) && oz.woche.length === 7) return oeffnungszeilenAusWoche(oz.woche);
   var z = [];
   if (f.mo_fr_von && f.mo_fr_bis) z.push(['Mo – Fr', hm(f.mo_fr_von) + ' – ' + hm(f.mo_fr_bis)]);
   if (f.sa_offen && f.sa_von && f.sa_bis) z.push(['Samstag', hm(f.sa_von) + ' – ' + hm(f.sa_bis)]);
@@ -68,7 +103,26 @@ function oeffnungszeilen(f) {
   return z;
 }
 
-function jsonLd(f) {
+// „Do, 03.10.2026 — Tag der Deutschen Einheit: geschlossen“
+function besondererTagText(b) {
+  var d = new Date(b.datum + 'T12:00:00');
+  var datum = TAG_KURZ[(d.getDay() + 6) % 7] + ', ' + ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2) + '.' + d.getFullYear();
+  var zeit = b.geschlossen ? 'geschlossen' : hm(b.von) + ' – ' + hm(b.bis);
+  return [datum + (b.bezeichnung ? ' – ' + b.bezeichnung : ''), zeit];
+}
+
+// Hinweisblock unter der Tabelle: Feiertage/Betriebsurlaub + freier Hinweistext.
+function besondereTageHtml(oz) {
+  var liste = (oz && Array.isArray(oz.besondere) ? oz.besondere : []).slice(0, 8);
+  if (!liste.length) return '';
+  var zeilen = liste.map(function (b) {
+    var t = besondererTagText(b);
+    return '<tr><td>' + esc(t[0]) + '</td><td>' + esc(t[1]) + '</td></tr>';
+  }).join('');
+  return '<div class="oz-bes"><h3>Feiertage &amp; besondere Tage</h3><table class="oz">' + zeilen + '</table></div>';
+}
+
+function jsonLd(f, oz) {
   var data = {
     '@context': 'https://schema.org', '@type': 'AutoRepair',
     name: 'Schröder & Scholz',
@@ -85,9 +139,32 @@ function jsonLd(f) {
   var social = [f.google_bewertung_url, f.facebook_url, f.instagram_url].filter(Boolean);
   if (social.length) data.sameAs = social;
   var oh = [];
-  if (f.mo_fr_von && f.mo_fr_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: hm(f.mo_fr_von), closes: hm(f.mo_fr_bis) });
-  if (f.sa_offen && f.sa_von && f.sa_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: 'Saturday', opens: hm(f.sa_von), closes: hm(f.sa_bis) });
+  var SCHEMA_TAG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  if (oz && Array.isArray(oz.woche) && oz.woche.length === 7) {
+    // Je Spanne ein Eintrag (Mittagspause = zwei Eintraege), geschlossene Tage weglassen.
+    for (var wt = 0; wt < 7; wt++) {
+      var tag = oz.woche[wt];
+      if (!tag || tag.geschlossen) continue;
+      (tag.spannen || []).forEach(function (sp) {
+        oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: SCHEMA_TAG[wt], opens: hm(sp[0]), closes: hm(sp[1]) });
+      });
+    }
+  } else {
+    if (f.mo_fr_von && f.mo_fr_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: hm(f.mo_fr_von), closes: hm(f.mo_fr_bis) });
+    if (f.sa_offen && f.sa_von && f.sa_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: 'Saturday', opens: hm(f.sa_von), closes: hm(f.sa_bis) });
+    if (f.so_offen && f.so_von && f.so_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: 'Sunday', opens: hm(f.so_von), closes: hm(f.so_bis) });
+  }
   if (oh.length) data.openingHoursSpecification = oh;
+  // Feiertage/Betriebsurlaub als Sonderzeiten -> Google zeigt „an Feiertagen geschlossen“
+  var bes = (oz && Array.isArray(oz.besondere) ? oz.besondere : []).map(function (b) {
+    return {
+      '@type': 'OpeningHoursSpecification',
+      validFrom: b.datum, validThrough: b.datum,
+      opens: b.geschlossen ? '00:00' : hm(b.von),
+      closes: b.geschlossen ? '00:00' : hm(b.bis)
+    };
+  });
+  if (bes.length) data.specialOpeningHoursSpecification = bes;
   return JSON.stringify(data);
 }
 
@@ -216,7 +293,7 @@ function extraCss() {
     '@media(max-width:600px){.vgrid{gap:16px}}';
 }
 
-function renderSektion(s, f) {
+function renderSektion(s, f, oz) {
   if (s.typ === 'faq') return renderFaq(s);
   if (s.typ === 'kundenstimmen') return renderKundenstimmen(s);
   if (s.typ === 'galerie') return renderGalerie(s);
@@ -230,9 +307,12 @@ function renderSektion(s, f) {
       '</div></section>';
   }
   if (s.typ === 'oeffnungszeiten') {
-    var rows = oeffnungszeilen(f).map(function(r) { return '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>'; }).join('') || '<tr><td colspan="2">Bitte erfragen Sie unsere Öffnungszeiten.</td></tr>';
+    var rows = oeffnungszeilen(f, oz).map(function(r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Bitte erfragen Sie unsere Öffnungszeiten.</td></tr>';
+    // Freier Hinweis (z. B. „Termine auch nach Vereinbarung“) aus den Firmendaten
+    var hinweis = f.oeffnungszeiten_hinweis && String(f.oeffnungszeiten_hinweis).trim()
+      ? '<p class="oz-hinweis">' + nl2br(String(f.oeffnungszeiten_hinweis).trim()) + '</p>' : '';
     return '<section class="sec alt" id="oeffnungszeiten"><div class="inner narrow"><h2>' + esc(s.headline || 'Öffnungszeiten') + '</h2>' +
-      '<table class="oz">' + rows + '</table></div></section>';
+      '<table class="oz">' + rows + '</table>' + hinweis + besondereTageHtml(oz) + '</div></section>';
   }
   if (s.typ === 'kontakt') {
     var hasAdr = !!(f.strasse || f.ort);
@@ -291,8 +371,21 @@ function navHtml(f) {
     .join('') + '</nav>';
 }
 
-function renderHomepage(sektionen, f, fonts) {
+// Telefon in der Kopfzeile — staerkster Hebel auf dem Handy (Anruf mit einem Tipp).
+// Bleibt auf schmalen Bildschirmen sichtbar, waehrend die uebrigen Menuepunkte einklappen.
+var ICON_TEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z"/></svg>';
+function telHtml(f) {
+  if (!f.telefon) return '';
+  // tel:-Ziel ohne Leerzeichen/Trennzeichen, Anzeige bleibt die gepflegte Schreibweise
+  var ziel = String(f.telefon).replace(/[^\d+]/g, '');
+  if (!ziel) return '';
+  return '<a class="nav-tel" href="tel:' + esc(ziel) + '" aria-label="Anrufen: ' + esc(f.telefon) + '">' +
+    ICON_TEL + '<span>' + esc(f.telefon) + '</span></a>';
+}
+
+function renderHomepage(sektionen, f, fonts, oz) {
   f = f || {};
+  oz = oz || {};
   var aktiv = (sektionen || []).filter(function(s) { return s.sichtbar; }).sort(function(a, b) { return a.sortierung - b.sortierung; });
   var body = '';
   var i = 0;
@@ -301,7 +394,7 @@ function renderHomepage(sektionen, f, fonts) {
       var group = [];
       while (i < aktiv.length && aktiv[i].typ === 'leistung') { group.push(aktiv[i]); i++; }
       body += renderLeistungen(group);
-    } else { body += renderSektion(aktiv[i], f); i++; }
+    } else { body += renderSektion(aktiv[i], f, oz); i++; }
   }
   // Vorteile-Band direkt nach dem Hero, Marken-Band am Ende der Inhalte
   if (aktiv[0] && aktiv[0].typ === 'hero') body = body.replace('</section>', '</section>' + renderVorteile());
@@ -337,12 +430,12 @@ function renderHomepage(sektionen, f, fonts) {
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' +
     '<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">' +
     '<link rel="apple-touch-icon" href="/apple-touch-icon.png">' +
-    '<script type="application/ld+json">' + jsonLd(f) + '</scr' + 'ipt>' +
+    '<script type="application/ld+json">' + jsonLd(f, oz) + '</scr' + 'ipt>' +
     '<style>' + css(f, fonts) + extraCss() + '</style></head><body>' +
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
-    navHtml(f) +
+    '<div class="nav-right">' + navHtml(f) + telHtml(f) + '</div>' +
     '</div></header>' +
     '<main>' + body + '</main>' +
     '<footer class="foot"><div class="inner">' +
@@ -405,6 +498,10 @@ function css(f, fonts) {
     ".wm{display:inline-flex;align-items:center}.wm svg{height:38px;width:auto}" +
     ".nav-links{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.nav-links a{color:#e6e6e6;font-size:calc(14px*var(--sc));font-weight:600}.nav-links a:hover{color:var(--accent)}" +
     ".btn-sm{background:var(--accent);color:var(--accent-ink)!important;padding:8px 16px;border-radius:8px}" +
+    ".nav-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}" +
+    ".nav-tel{display:inline-flex;align-items:center;gap:8px;color:#fff;font-size:calc(14px*var(--sc));font-weight:700;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px;white-space:nowrap}" +
+    ".nav-tel svg{width:16px;height:16px;color:var(--accent);flex:none}" +
+    ".nav-tel:hover{border-color:var(--accent);color:var(--accent)}.nav-tel:hover svg{color:var(--accent)}" +
     ".hero{min-height:62vh;display:flex;align-items:center;background-size:cover;background-position:center;color:#fff}" +
     ".hero-in{max-width:1240px;margin:0 auto;padding:60px 24px}" +
     ".hero h1{font-size:clamp(calc(30px*var(--sc)),5vw,calc(52px*var(--sc)));font-weight:800;max-width:16em;line-height:1.15}" +
@@ -426,6 +523,11 @@ function css(f, fonts) {
     ".gal-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.gal-grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;display:block}" +
     ".t-img{aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#eef0f3}.t-img img{width:100%;height:100%;object-fit:cover;display:block}" +
     ".oz{width:100%;border-collapse:collapse;font-size:calc(16px*var(--sc))}.oz td{padding:12px 0;border-bottom:1px solid #e6e8ec}.oz td:last-child{text-align:right;font-weight:700}" +
+    ".oz-hinweis{margin:14px 0 0;color:#555;font-size:calc(15px*var(--sc));line-height:1.6}" +
+    ".oz-bes{margin-top:26px}.oz-bes h3{font-size:calc(15px*var(--sc));text-transform:uppercase;letter-spacing:1.5px;color:#555;margin:0 0 6px}" +
+    ".oz-bes .oz td{padding:9px 0;font-size:calc(15px*var(--sc))}.oz td{vertical-align:top}" +
+    // Auf dem Handy Datum und Zeit untereinander statt gequetscht nebeneinander
+    "@media(max-width:600px){.oz-bes .oz tr{display:block;border-bottom:1px solid #e6e8ec;padding:8px 0}" + ".oz-bes .oz td{display:block;padding:0;border:none}.oz-bes .oz td:last-child{text-align:left;margin-top:2px}}" +
     "#kontakt p{margin-bottom:10px;font-size:calc(16px*var(--sc))}" +
     ".k-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}" +
     ".k-card{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:24px;margin-bottom:20px}.k-card h3{font-size:calc(20px*var(--sc));margin-bottom:10px}" +
@@ -457,7 +559,7 @@ function css(f, fonts) {
     ".foot-links{font-size:calc(13px*var(--sc))}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:var(--accent)}" +
     ".foot-social{display:flex;gap:14px;justify-content:center;margin:6px 0 14px}.foot-social a{color:#cfcfcf;display:inline-flex}.foot-social a:hover{color:var(--accent)}" +
     ".foot-bewerten{display:inline-block;margin:0 0 16px;font-size:13px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:9px 18px;border-radius:8px;text-decoration:none}.foot-bewerten:hover{filter:brightness(1.05)}" +
-    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.sec{padding:44px 0}.wm svg{height:30px}}";
+    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.nav-right{gap:10px}.nav-tel{padding:7px 12px;font-size:calc(13px*var(--sc))}.sec{padding:44px 0}.wm svg{height:30px}}";
 }
 
 function script() {
