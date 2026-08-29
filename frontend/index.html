@@ -2240,7 +2240,11 @@ function nrArtikelAdd(sel) {
 function nrSammlePositionen() {
   var brutto = nrBruttoModus();
   return Array.prototype.map.call(document.querySelectorAll('#nr-positionen .nr-pos-row'), function(row) {
-    var preis = parseFloat(row.querySelector('.nr-p-preis').value) || 0;
+    var feld = row.querySelector('.nr-p-preis');
+    // Unveraenderte Zeile: den exakten Ausgangswert senden, nicht den gerundeten Anzeigewert.
+    var preis = (feld.dataset.exakt && feld.value === feld.dataset.anzeige)
+      ? Number(feld.dataset.exakt)
+      : (parseFloat(feld.value) || 0);
     var p = {
       bezeichnung: row.querySelector('.nr-p-bez').value.trim(),
       menge: parseFloat(row.querySelector('.nr-p-menge').value) || 0,
@@ -2390,7 +2394,13 @@ function editRechnung(id) {
       var anzeige = nrBruttoModus() && p.zeilen_brutto != null && Number(p.menge)
         ? Number(p.zeilen_brutto) / Number(p.menge)
         : Number(p.einzelpreis_netto);
-      row.querySelector('.nr-p-preis').value = Number(anzeige).toFixed(2);
+      var feld = row.querySelector('.nr-p-preis');
+      feld.value = Number(anzeige).toFixed(2);
+      // Der Wert je Einheit ist bei Menge groesser eins oft nicht auf zwei Stellen darstellbar
+      // (11,89 EUR auf 3 Stueck). Wird die Zeile nicht angefasst, muss beim Speichern der exakte
+      // Wert zurueckgehen — sonst wanderte der Zeilenbetrag bei jedem Oeffnen um einen Cent.
+      feld.dataset.exakt = String(anzeige);
+      feld.dataset.anzeige = feld.value;
       row.querySelector('.nr-p-mwst').value = String(parseInt(p.mwst_satz) || 0);
     });
     if (!(r.positionen || []).length) addPositionRow(null);
