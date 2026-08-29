@@ -756,6 +756,11 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
         const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
       }
+      // "Vollständige Anschrift" heisst mit Hausnummer — ein Strassenname allein genuegt nicht.
+      // Postfach wird akzeptiert, das ist eine zulaessige Zustellanschrift.
+      if (Number(rech.brutto_summe) > 250 && !/\d/.test(emp.empfaenger_strasse) && !/postfach/i.test(emp.empfaenger_strasse)) {
+        const e = new Error('In der Empfängeranschrift fehlt die Hausnummer — ohne sie ist die Anschrift nicht vollständig (§ 14 UStG).'); e.status = 400; throw e;
+      }
       // Regelbesteuerung: nur 19 % und 7 %. Ein Satz von 0 % (oder ein unbekannter Satz) braucht
       // den Hinweis auf den Grund der Steuerbefreiung (§ 14 Abs. 4 Nr. 8 UStG), den das System
       // nicht fuehrt — solche Rechnungen werden daher nicht festgeschrieben.
