@@ -128,6 +128,51 @@ Echte Codeänderungen etwa fünf bis acht Tage, größter Posten der Kopplungsen
 5. Prüf-Agenten, Release-Gate.
 6. Live-TSE, Bereinigung der Testbuchungen, erste Echtbuchung, ELSTER-Meldung.
 
+## Entscheidungen des Inhabers vom 29.08.2026 (nachmittags)
+
+- **Großkunden zahlen per Überweisung**, nicht bar. Damit ist der Fall „Barzahlung auf eine
+  offene Rechnung" fast bedeutungslos: Eine Überweisung berührt die Kasse nie, sie wird vom
+  Steuerberater aus dem Kontoauszug gebucht. In ReifenPro wird die Rechnung schlicht als
+  bezahlt markiert. **Der aufwendige Kopplungsendpunkt entfällt damit vorerst.**
+- **Gewünschter Ablauf:** Eine Rechnung aus ReifenPro erscheint in der Kasse als offener
+  Kassenvorgang; der Inhaber wählt ihn aus und bucht „Betrag erhalten". Das ist genau der
+  vorhandene Mechanismus (`POST /api/kassenvorgang` → Reiter „Kassenvorgänge" → bestätigen).
+- **Wertgutscheine sind nicht geplant.** Fällt aus dem Umfang.
+- **Der Kassen-Baukasten wurde nie weitergeführt.** Damit ist `autokasse` der Master; die
+  Kopie im Archiv ist tot und der zugehörige Dienst gehört abgeschaltet.
+
+## Was der gewünschte Ablauf heute schon kann — und was fehlt
+
+Geprüft am Code (`bucheKassenvorgang`, server.js):
+
+- Das mitgesendete Feld `konto` hat **Vorrang** vor der Ableitung. Schickt ReifenPro
+  `konto: "1400"` (Forderungen), bucht die Kasse **Kasse an Forderungen** — genau richtig
+  für einen Zahlungseingang, ohne neuen Umsatz.
+- Der Steuersatz wird dabei auf 0 gesetzt, wenn der getroffene Kontoschlüssel 0 % führt.
+  Auch richtig: Die Umsatzsteuer ist mit der Rechnung entstanden, nicht mit der Zahlung.
+- **Was fehlt:** Die Vorgangsart kommt aus der fest verdrahteten Zuordnung und wäre
+  „Anzahlung". Im Steuerexport (DSFinV-K) stünde damit „Anzahlungseinstellung" statt
+  „Forderungsauflösung". Der Geschäftsvorfalltyp `Forderungsaufloesung` existiert bereits —
+  es fehlt nur die Möglichkeit, ihn über die Schnittstelle zu wählen. Das ist eine der vier
+  ohnehin nötigen Konfigurierbarkeits-Änderungen, kein neuer Endpunkt.
+
+Ergebnis: Der gewünschte Ablauf ist **fast vollständig mit dem Vorhandenen abbildbar**.
+
+## Barzahlung direkt aus ReifenPro melden — möglich und zulässig
+
+Der Inhaber steht beim Kassieren ohnehin am Rechner. Ein Knopf „bar erhalten" an der
+Rechnung, der die Zahlung sofort an die Kasse meldet, ist zulässig — dafür ist die
+ERP-Schnittstelle da. Drei Bedingungen:
+
+1. **Sofort buchen und signieren.** Die Aufzeichnung muss unmittelbar erfolgen (§ 146a AO,
+   Einzelaufzeichnung). Der heutige Zweischritt „offen → später bestätigen" stammt aus dem
+   Autohandel, wo eine zweite Person bestätigt. Für den Einmannbetrieb sollte die Meldung
+   direkt buchen, nicht in einer Liste warten.
+2. **Der Kunde bekommt einen Beleg der Kasse** — mit den TSE-Angaben (§ 6 KassenSichV).
+   Eine ReifenPro-Rechnung allein genügt dafür nicht, solange sie diese Angaben nicht trägt.
+3. **Kein zweiter Umsatz.** Gab es die Rechnung schon, bucht die Kasse gegen Forderungen;
+   gab es sie nicht, bucht sie den Erlös und ReifenPro schreibt keine zweite Rechnung.
+
 ## Offene Punkte — Entscheidungen des Inhabers
 
 1. ~~Dieselbe Firma?~~ **Beantwortet: nein, zwei Firmen.** Damit ist die Trennung gesetzt.
