@@ -97,6 +97,23 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
         if (andere === 0)
           return { code: 400, body: { error: 'Der letzte aktive Administrator kann nicht gelöscht werden.' } };
       }
+      // Spuren des Kontos: auf users zeigen neun Fremdschluessel, sieben davon blockierend
+      // (audit_log, kunden, einlagerungen x2, kunden_dokumente, rechnungen, dsgvo_anfragen).
+      // Schon ein einziger Login erzeugt einen audit_log-Eintrag. Diese Spur ist der Nachweis,
+      // WER etwas getan hat (bei rechnungen.erstellt_von auch GoBD-relevant) und darf NICHT
+      // mitgeloescht werden. Statt in eine FK-Verletzung (HTTP 500) zu laufen, sagen wir
+      // klar, dass hier nur das Deaktivieren bleibt — der Zugang ist damit genauso weg.
+      const spuren = (await client.query(
+        `SELECT (SELECT COUNT(*) FROM audit_log        WHERE user_id=$1)
+              + (SELECT COUNT(*) FROM kunden           WHERE erstellt_von=$1)
+              + (SELECT COUNT(*) FROM einlagerungen    WHERE erstellt_von=$1 OR geaendert_von=$1)
+              + (SELECT COUNT(*) FROM kunden_dokumente WHERE erstellt_von=$1)
+              + (SELECT COUNT(*) FROM rechnungen       WHERE erstellt_von=$1)
+              + (SELECT COUNT(*) FROM dsgvo_anfragen   WHERE bearbeitet_von=$1)
+              + (SELECT COUNT(*) FROM einlagerung_platz_historie WHERE geaendert_von=$1) AS cnt`,
+        [req.params.id])).rows[0].cnt;
+      if (parseInt(spuren, 10) > 0)
+        return { code: 409, body: { error: 'Dieser Zugang hat bereits Vorgänge erfasst und kann nicht gelöscht werden — die Protokollspur muss nachvollziehbar bleiben. Deaktiviere den Zugang stattdessen: die Anmeldung ist damit sofort gesperrt.', nur_deaktivierbar: true } };
       await client.query('DELETE FROM refresh_tokens WHERE user_id=$1', [req.params.id]);
       const { rows } = await client.query('DELETE FROM users WHERE id=$1 RETURNING id,email', [req.params.id]);
       if (!rows.length) return { code: 404, body: { error: 'User nicht gefunden.' } };
@@ -105,7 +122,13 @@ router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
     if (out.code !== 200) return res.status(out.code).json(out.body);
     await auditLog({ userId: req.user.id, aktion: 'user.geloescht', tabelle: 'users', datensatzId: req.params.id, req });
     res.json(out.body);
-  } catch (err) { next(err); }
+  } catch (err) {
+    // Sicherheitsnetz, falls doch eine Referenz aus einer neuen Tabelle dazukommt:
+    // lieber eine verstaendliche 409 als "Interner Serverfehler".
+    if (err && err.code === '23503')
+      return res.status(409).json({ error: 'Dieser Zugang hat bereits Vorgänge erfasst und kann nicht gelöscht werden. Deaktiviere ihn stattdessen.', nur_deaktivierbar: true });
+    next(err);
+  }
 });
 
 router.post('/mein-passwort', authenticate, async (req, res, next) => {

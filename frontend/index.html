@@ -859,9 +859,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="fg"><label id="nk-nn-lab">Nachname *</label><input id="nk-nn"></div>
       <div class="fg"><label>Telefon *</label><input id="nk-tel" type="tel"></div>
       <div class="fg"><label>E-Mail</label><input id="nk-mail" type="email" oninput="valEmail(this)"></div>
-      <div class="fg"><label>Straße</label><input id="nk-str"></div>
-      <div class="fg"><label>PLZ</label><input id="nk-plz"></div>
-      <div class="fg full"><label>Ort</label><input id="nk-ort"></div>
+      <div class="fg full" style="margin-bottom:-4px"><div style="font-size:11px;color:var(--muted);line-height:1.5">Anschrift wird für Einlagerungsvertrag und Rechnung gebraucht. Für reine Laufkundschaft lässt sie sich beim Speichern bewusst überspringen.</div></div>
+      <div class="fg"><label>Straße und Hausnummer *</label><input id="nk-str" placeholder="z.B. Musterweg 12a"></div>
+      <div class="fg"><label>PLZ *</label><input id="nk-plz"></div>
+      <div class="fg"><label>Ort *</label><input id="nk-ort"></div>
+      <div class="fg"><label>Land</label>
+        <select id="nk-land"><option value="DE">Deutschland</option><option value="AT">Österreich</option><option value="CH">Schweiz</option><option value="">— nicht angegeben —</option></select>
+      </div>
+      <div class="fg full" id="nk-remail-wrap" style="display:none"><label>Rechnungs-E-Mail (optional)</label><input id="nk-remail" type="email" placeholder="z.B. buchhaltung@firma.de">
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Rechnungen gehen an diese Adresse statt an die allgemeine E-Mail — sonst landen sie beim Ansprechpartner in der Werkstatt.</div>
+      </div>
       <div class="fsec">Fahrzeug</div>
       <div class="fg"><label>Fahrzeugtyp</label>
         <select id="nk-fztyp"><option value="PKW">PKW</option><option value="Transporter">Transporter</option><option value="SUV">SUV</option><option value="Kombi">Kombi</option></select>
@@ -1305,6 +1312,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="fg full"><label>Regalname *</label><input id="nrg-name" placeholder="z.B. Regal B"></div>
       <div class="fg"><label>Plätze von</label><input id="nrg-von" type="number" value="1" min="1"></div>
       <div class="fg"><label>Plätze bis</label><input id="nrg-bis" type="number" value="20" min="1"></div>
+      <div class="fg full"><label>Räder je Platz</label>
+        <select id="nrg-kap">
+          <option value="1">1 Satz je Platz (Standard)</option>
+          <option value="2">2 Sätze übereinander gestapelt</option>
+          <option value="3">3 Sätze übereinander gestapelt</option>
+        </select>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.55">Für Container oder Regale, in denen liegend gestapelt wird. Beide Sätze bekommen dieselbe Lagerplatznummer — unterschieden werden sie über Kundennummer und Kennzeichen auf dem Etikett. Rutscht ein Satz nach der Entnahme des unteren nach, bleibt seine Nummer richtig, der Beleg des Kunden stimmt weiter.</div>
+      </div>
     </div>
     <input type="hidden" id="nrg-ort-id">
     <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nrg')">Abbrechen</button><button class="btn btn-p" onclick="saveRegal()">Regal anlegen</button></div>
@@ -2615,6 +2630,8 @@ function nkKundentypChange() {
   if (vl) vl.textContent = firma ? 'Ansprechpartner Vorname *' : 'Vorname *';
   if (nl) nl.textContent = firma ? 'Ansprechpartner Nachname *' : 'Nachname *';
   if (firma) { var a = document.getElementById('nk-anrede'); if (a && a.value === 'Firma') a.value = 'Herr'; }
+  var rw = document.getElementById('nk-remail-wrap');
+  if (rw) rw.style.display = (document.getElementById('nk-kundentyp').value === 'firma') ? '' : 'none';
 }
 
 // ── EINSTELLUNGEN ──
@@ -3029,6 +3046,7 @@ function lagerRegalHinzu(ortId, ortName) {
   document.getElementById('nrg-name').value = '';
   document.getElementById('nrg-von').value = '1';
   document.getElementById('nrg-bis').value = '20';
+  var kf = document.getElementById('nrg-kap'); if (kf) kf.value = '1';
   openModal('nrg');
 }
 function saveRegal() {
@@ -3037,7 +3055,7 @@ function saveRegal() {
   var rv = parseInt(gv('nrg-von')) || 1;
   var rb = parseInt(gv('nrg-bis')) || 20;
   if (rb < rv) { notify('„Plätze bis" muss größer/gleich „von" sein.', 'err'); var bf = document.getElementById('nrg-bis'); if (bf) bf.focus(); return; }
-  api('POST', '/lager/regale', { ort_id: ortId, name: rn, plaetze_von: rv, plaetze_bis: rb })
+  api('POST', '/lager/regale', { ort_id: ortId, name: rn, plaetze_von: rv, plaetze_bis: rb, plaetze_kapazitaet: parseInt(gv('nrg-kap')) || 1 })
     .then(function() { notify('Regal angelegt!'); closeModal('nrg'); loadLager(); loadLagerEinst(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
@@ -3116,9 +3134,9 @@ function renderK() {
     if (k.portal_aktiv && k.portal_freigegeben) {
       portalBadge = '<span class="portal-badge pb-aktiv">Aktiv</span>';
     } else if (k.portal_aktiv && !k.portal_freigegeben && k.portal_email_bestaetigt) {
-      portalBadge = '<span class="portal-badge pb-warten">Freigabe</span>';
+      portalBadge = '<span class="portal-badge pb-warten" title="Kunde hat bestätigt — wartet auf die Freischaltung durch den Betrieb">Freigabe</span>';
     } else if (k.portal_aktiv && !k.portal_email_bestaetigt) {
-      portalBadge = '<span class="portal-badge pb-warten">E-Mail</span>';
+      portalBadge = '<span class="portal-badge pb-warten" title="Wartet auf die Bestätigung durch den Kunden per E-Mail">E-Mail</span>';
     } else {
       portalBadge = '<span class="portal-badge pb-kein">-</span>';
     }
@@ -3223,6 +3241,17 @@ function zeigeK(id) {
       pbtn.innerHTML = '<button class="btn btn-grn btn-sm" onclick="portalFreigeben(\'' + aktK.id + '\')">Portal freigeben</button>';
     } else if (aktK.portal_aktiv && aktK.portal_freigegeben) {
       pbtn.innerHTML = '<span class="portal-badge pb-aktiv">Portal aktiv</span>';
+    } else if (aktK.portal_aktiv && !aktK.portal_email_bestaetigt) {
+      // Vorher stand hier nichts — der Kunde hatte sich registriert, im Kundenblatt war davon
+      // aber kein Wort zu sehen. Freigeben geht in diesem Zustand bewusst nicht; stattdessen
+      // muss klar sein, worauf gewartet wird und was man dem Kunden am Telefon sagen kann.
+      pbtn.innerHTML = '<div style="max-width:460px">' +
+        '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:8px">' +
+        '<span class="portal-badge pb-warten">Wartet auf den Kunden</span> ' +
+        kEsc(aktK.portal_email || '') + ' hat den Bestätigungslink aus der Registrierungsmail noch nicht geöffnet. ' +
+        'Freischalten ist erst danach möglich.</div>' +
+        '<button class="btn btn-g btn-sm" data-kid="' + kEsc(aktK.id) + '" onclick="bestaetigungErneut(this.getAttribute(\'data-kid\'))">Bestätigungsmail erneut senden</button>' +
+        '</div>';
     } else {
       pbtn.innerHTML = '';
     }
@@ -3275,9 +3304,43 @@ function buildEinlTabelle(einl) {
         '<td>' + aktionen + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 }
+// Rettungsleine, wenn der Kunde die Registrierungsmail nicht bekommen hat (Spam, verlegt, Link
+// abgelaufen). Eine erneute Registrierung hilft ihm NICHT: die Portal-Route antwortet dann aus
+// Missbrauchsschutz freundlich, verschickt aber bewusst keine Mail. Darum dieser Weg ueber das Personal.
+function bestaetigungErneut(kid) {
+  var k = (allK || []).find(function(x) { return x.id === kid; });
+  var adr = k && k.portal_email ? k.portal_email : 'die hinterlegte Adresse';
+  if (!confirm('Bestätigungsmail erneut an ' + adr + ' senden?\n\nDer Link ist danach wieder 24 Stunden gültig.')) return;
+  api('POST', '/portal/auth/personal/bestaetigung-erneut/' + kid)
+    .then(function(r) {
+      var bis = r && r.gueltig_bis ? new Date(r.gueltig_bis) : null;
+      notify((r && r.message ? r.message : 'Bestätigungsmail gesendet.') +
+        (bis ? ' Gültig bis ' + fd(bis) + ', ' + String(bis.getHours()).padStart(2, '0') + ':' + String(bis.getMinutes()).padStart(2, '0') + ' Uhr.' : ''));
+    })
+    .catch(function(e) {
+      // 502 heisst: neuer Link gesetzt, aber der Versand ist gescheitert. Das darf NICHT wie Erfolg
+      // aussehen, sonst wartet der Betrieb auf eine Mail, die nie ankommt.
+      notify(e.message || 'Senden fehlgeschlagen.', 'err');
+      if (/E-Mail-Einstellung|SMTP|Versand/i.test(e.message || '')) {
+        notify('Bitte die E-Mail-Einstellungen prüfen — der Link wurde erneuert, die Mail ging aber nicht raus.', 'err');
+      }
+    });
+}
 function portalFreigeben(kid) {
   api('POST', '/termine/portal-freigabe/' + kid)
-    .then(function() { notify('Portal freigeschaltet! Willkommens-E-Mail gesendet.'); loadK(); })
+    .then(function(r) {
+      notify((r && r.message) || 'Portal freigeschaltet, Willkommens-E-Mail gesendet.');
+      // Liste UND offene Detailansicht neu zeichnen: sonst bleibt der Knopf stehen und ein
+      // zweiter Klick loest eine weitere Willkommensmail beim Kunden aus.
+      loadK();
+      if (typeof aktK !== 'undefined' && aktK && aktK.id === kid) {
+        api('GET', '/kunden').then(function(rows) {
+          allK = rows || allK;
+          var frisch = (allK || []).find(function(x) { return x.id === kid; });
+          if (frisch) { aktK = frisch; zeigeK(kid); }
+        }).catch(function() {});
+      }
+    })
     .catch(function(e) { notify(e.message, 'err'); });
 }
 function ladeFahrzeugeAdmin(kid) {
@@ -3386,6 +3449,9 @@ function saveNK() {
     firma: kundentyp === 'firma' ? gv('nk-firmenname') : null,
     ust_id: kundentyp === 'firma' ? (gv('nk-ustid') || null) : null,
     ist_gewerbe: istGewerbe,
+    kundentyp: kundentyp,
+    land: gv('nk-land') || null,
+    rechnung_email: kundentyp === 'firma' ? (gv('nk-remail') || null) : null,
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
     fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null
@@ -3419,6 +3485,19 @@ function sendeNeuerKunde(data, force) {
     }
   }).catch(function(e) {
     if (e.code === 'EMAIL_EXISTS') { if (confirm(e.message)) sendeNeuerKunde(data, true); return; }
+    // Strasse ohne Hausnummer: einmal nachfragen statt sperren — "Am Markt" gibt es wirklich.
+    if (e.code === 'HAUSNUMMER') {
+      if (confirm(e.message)) sendeNeuerKunde(Object.assign({}, data, { hausnummer_bestaetigt: true }), force);
+      else { var f = document.getElementById('nk-str'); if (f) f.focus(); }
+      return;
+    }
+    // Ohne Anschrift geht nur bewusst: Laufkundschaft, die nur einen Reifen kauft.
+    if (e.code === 'ANSCHRIFT_FEHLT') {
+      if (confirm(e.message + '\n\nOhne Anschrift anlegen? Ein Einlagerungsvertrag ist dann nicht möglich, bis sie nachgetragen ist.'))
+        sendeNeuerKunde(Object.assign({}, data, { ohne_anschrift: true }), force);
+      else { var f2 = document.getElementById('nk-str'); if (f2) f2.focus(); }
+      return;
+    }
     notify(e.message, 'err');
   });
 }
@@ -3777,6 +3856,19 @@ function loadAktivitaet() {
   }).catch(function() {});
 }
 // Heutige Termine als Uebersicht im Dashboard (wer kommt heute) -> anklickbar zum Termin.
+// Einlagerungs-Regel an EINER Stelle — Dashboard, Werkstattbrett und Terminansicht benutzen sie
+// gemeinsam. Hat der Kunde die Einlagerung selbst gebucht, gilt sie als gesetzt; man kann sie dann
+// nur noch zuruecknehmen. einlagern===null heisst: der Betrieb hat noch nichts entschieden.
+function einlagernAktiv(t) { return (t.einlagern === null || t.einlagern === undefined) ? !!t.einlagerung_gebucht : !!t.einlagern; }
+function einlagerKnopf(t) {
+  var aktiv = einlagernAktiv(t);
+  var gebucht = !!t.einlagerung_gebucht;
+  var text = aktiv
+    ? (gebucht ? 'Einlagerung zurückziehen' : 'Einlager-Vormerkung aufheben')
+    : (gebucht ? 'Einlagerung wieder vormerken' : 'Für Einlagerung vormerken');
+  return '<button class="btn ' + (aktiv ? 'btn-g' : 'btn-p') + ' btn-sm" data-tid="' + kEsc(t.id) + '" ' +
+    'onclick="terminEinlagern(this.getAttribute(\'data-tid\'), ' + (aktiv ? 'false' : 'true') + ')">' + text + '</button>';
+}
 function loadHeute() {
   var d = isoLocal(new Date());
   api('GET', '/termine?von=' + d + '&bis=' + d).then(function(rows) {
@@ -3796,19 +3888,33 @@ function loadHeute() {
     };
     el.innerHTML = '<div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
       '<div style="font-weight:700;margin-bottom:4px">Heute — ' + list.length + ' Termin(e)</div>' +
+      '<div id="dash-unbestaetigt"></div>' +
       list.map(function(t) {
         var name = t.kundenname || t.kontakt_name || 'Laufkundschaft';
         var leist = t.artikel_name || t.termin_typ || 'Termin';
         return '<div onclick="zeigeTermin(\'' + t.id + '\')" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border);cursor:pointer">' +
           '<span style="font-family:monospace;font-weight:600;color:var(--blue);min-width:44px">' + (t.uhrzeit_von || '').substring(0, 5) + '</span>' +
           '<span style="flex:1;min-width:0"><span style="font-weight:600;font-size:14px">' + kEsc(leist) + '</span> <span style="color:var(--muted);font-size:12px">' + kEsc(name) + (t.kennzeichen ? ' · ' + kEsc(t.kennzeichen) : '') + '</span>' +
-          (t.einlagern ? ' <span style="font-size:10px;font-weight:800;color:var(--accent-text)">EINLAGERN</span>' : '') + '</span>' +
+          (einlagernAktiv(t) ? ' <span style="font-size:10px;font-weight:800;color:var(--accent-text)">EINLAGERN</span>' : '') + '</span>' +
           badge(t.status) + '</div>';
       }).join('') + '</div>';
   }).catch(function() {});
 }
+// Gast-Buchungen ohne Klick auf den Bestaetigungslink sind keine Termine — sie stehen weder auf dem
+// Werkstattbrett noch im Kalender. Ganz verschwinden duerfen sie trotzdem nicht: ruft der Kunde an,
+// muss man sie finden koennen.
+function loadUnbestaetigt() {
+  api('GET', '/termine?unbestaetigt=1').then(function(rows) {
+    var el = document.getElementById('dash-unbestaetigt'); if (!el) return;
+    var n = (rows || []).length;
+    if (!n) { el.innerHTML = ''; return; }
+    el.innerHTML = '<div style="margin:6px 0 2px;padding:7px 10px;background:var(--ydim);border:1px solid rgba(179,120,26,.25);border-radius:8px;font-size:12px;color:var(--yellow)">' +
+      n + ' Buchung(en) warten auf die Bestätigung des Kunden per E-Mail — noch kein fester Termin.</div>';
+  }).catch(function() {});
+}
 // Erledigte, noch nicht abgerechnete Termine -> "Abzurechnen"-Liste im Dashboard (Buero rechnet ab).
 function loadAbzurechnen() {
+  loadUnbestaetigt();
   api('GET', '/termine?status=abgeschlossen').then(function(rows) {
     var el = document.getElementById('dash-abzurechnen'); if (!el) return;
     var offen = (rows || []).filter(function(t) { return !t.fakturiert; });
@@ -3853,7 +3959,7 @@ function renderDash() {
             '<span style="color:#666;font-size:12px">' + kEsc(k.portal_email || '') + '</span>' +
             (ok ? '' : ' <span style="color:#b45309;font-size:11px">E-Mail noch nicht bestätigt</span>') + '</div>' +
             (ok ? '<button class="btn btn-grn btn-sm" onclick="portalFreigeben(\'' + k.id + '\')">Freischalten</button>'
-                : '<span style="font-size:11px;color:#999">wartet</span>') +
+                : '<button class="btn btn-g btn-sm" data-kid="' + kEsc(k.id) + '" onclick="bestaetigungErneut(this.getAttribute(\'data-kid\'))">Bestätigungsmail erneut senden</button>') +
             '</div>';
         }).join('') + '</div>';
     }
@@ -3898,19 +4004,33 @@ function renderLager() {
     c.innerHTML = '<div class="empty">Noch keine Lagerorte.<br><br><button class="btn btn-g" onclick="showPage(\'einstellungen\')">Zu den Einstellungen</button></div>';
     return;
   }
+  // Je Platz koennen bei gestapelten Regalen mehrere Saetze liegen — deshalb sammeln, nicht ueberschreiben.
   var occ = {};
-  allE.filter(function(e) { return e.status !== 'Abgeholt'; }).forEach(function(e) { occ[e.lagerplatz] = e; });
+  allE.filter(function(e) { return e.status !== 'Abgeholt'; }).forEach(function(e) {
+    (occ[e.lagerplatz] = occ[e.lagerplatz] || []).push(e);
+  });
   var html = '<div style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)">' +
     '<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--panel);border:1px solid var(--border);margin-right:5px"></span>Frei</span>' +
-    '<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(234,179,8,.3);margin-right:5px"></span>Belegt</span></div>';
+    '<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.45);margin-right:5px"></span>Teilweise belegt (gestapelt)</span>' +
+    '<span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(234,179,8,.3);margin-right:5px"></span>Voll</span></div>';
   allLager.forEach(function(ort) {
     html += '<div style="margin-bottom:28px"><div style="font-size:15px;font-weight:700;margin-bottom:12px">' + ort.name + '</div>';
     ort.regale.forEach(function(regal) {
-      html += '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">' + regal.name + ' (' + regal.plaetze_frei + ' frei)</div><div style="display:flex;gap:3px;flex-wrap:wrap">';
+      var kap = regal.plaetze_kapazitaet && regal.plaetze_kapazitaet > 1 ? regal.plaetze_kapazitaet : 1;
+      var kopf = regal.name + ' (' + regal.plaetze_frei + ' frei' + (kap > 1 ? ', ' + kap + ' Sätze je Platz' : '') + ')';
+      html += '<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px">' + kEsc(kopf) + '</div><div style="display:flex;gap:3px;flex-wrap:wrap">';
       for (var p = regal.plaetze_von; p <= regal.plaetze_bis; p++) {
         var pid = ort.name + '-' + regal.name + '-' + String(p).padStart(2, '0');
-        var e = occ[pid];
-        html += '<div onclick="zeigeLager(\'' + pid + '\')" title="' + kEsc(e ? (e.kundenname || '') + ' - ' + e.reifen_groesse : 'Frei') + '" style="width:28px;height:28px;border-radius:4px;border:1px solid ' + (e ? 'rgba(234,179,8,.5)' : 'var(--border)') + ';background:' + (e ? 'rgba(234,179,8,.28)' : 'var(--panel)') + ';cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px">' + p + '</div>';
+        var saetze = occ[pid] || [];
+        var voll = saetze.length >= kap;
+        var teil = saetze.length > 0 && !voll;
+        var titel = saetze.length
+          ? saetze.map(function(x) { return (x.kundenname || '') + ' · ' + x.reifen_groesse; }).join(' | ') + (kap > 1 ? ' (' + saetze.length + ' von ' + kap + ')' : '')
+          : 'Frei';
+        var hg = voll ? 'rgba(234,179,8,.28)' : (teil ? 'rgba(234,179,8,.12)' : 'var(--panel)');
+        var ra = voll ? 'rgba(234,179,8,.5)' : (teil ? 'rgba(234,179,8,.45)' : 'var(--border)');
+        html += '<div onclick="zeigeLager(\'' + pid + '\')" title="' + kEsc(titel) + '" style="position:relative;width:28px;height:28px;border-radius:4px;border:1px solid ' + ra + ';background:' + hg + ';cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px">' + p +
+          (kap > 1 && saetze.length ? '<span style="position:absolute;bottom:-1px;right:1px;font-size:8px;font-weight:800;color:var(--accent-text)">' + saetze.length + '</span>' : '') + '</div>';
       }
       html += '</div></div>';
     });
@@ -4185,7 +4305,7 @@ function zeigeTermin(id) {
     btns = '<button class="btn btn-grn btn-sm" onclick="terminErledigt(\'' + t.id + '\')">Erledigt</button>' +
       '<button class="btn btn-g btn-sm" onclick="closeModal(\'td\');ntBearbeiten(\'' + t.id + '\')">Bearbeiten</button>' +
       (!t.kunden_id ? '<button class="btn btn-grn btn-sm" onclick="terminNeuerKunde(\'' + t.id + '\')">Kunde anlegen</button>' : '') +
-      '<button class="btn ' + (t.einlagern ? 'btn-g' : 'btn-p') + ' btn-sm" onclick="terminEinlagern(\'' + t.id + '\',' + (t.einlagern ? 'false' : 'true') + ')">' + (t.einlagern ? 'Einlager-Vormerkung aufheben' : 'Für Einlagerung vormerken') + '</button>' +
+      einlagerKnopf(t) +
       '<button class="btn btn-danger btn-sm" onclick="terminNichtErschienen(\'' + t.id + '\')">Nicht erschienen</button>' +
       '<button class="btn btn-danger btn-sm" onclick="terminAbsagen(\'' + t.id + '\')">Absagen</button>';
   }
@@ -4193,6 +4313,7 @@ function zeigeTermin(id) {
     '<div style="display:flex;flex-direction:column;gap:8px">' +
     '<div>' + iz('Kunde', t.kundenname || t.kontakt_name || '-') + '</div>' +
     '<div>' + iz('Leistung', leistAlle) + '</div>' +
+    (t.einlagerung_gebucht ? '<div>' + iz('Einlagerung', einlagernAktiv(t) ? 'vom Kunden gebucht' : 'vom Kunden gebucht, vom Betrieb zurückgezogen') + '</div>' : '') +
     '<div>' + iz('Kennzeichen', t.kennzeichen || '-') + '</div>' +
     '<div>' + iz('Telefon', t.kontakt_telefon || '-') + '</div>' +
     (t.gutschein_code ? '<div>' + iz('Gutschein', t.gutschein_code + (t.gutschein_rabatt ? ' (−' + t.gutschein_rabatt + ' %)' : '')) + '</div>' : '') +
@@ -4395,7 +4516,7 @@ function renderWS() {
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">' +
           '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
-          (t.einlagern ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
+          (einlagernAktiv(t) ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
           (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:#c0392b">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
@@ -5054,17 +5175,29 @@ function loadUsers() {
 }
 function renderUsers() {
   var el = document.getElementById('users-liste'); if (!el) return;
-  if (!allUsers.length) { el.innerHTML = '<div class="empty">Keine Mitarbeiter. Admin-Account nicht sichtbar.</div>'; return; }
-  var html = '<div class="tw"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Erstellt</th><th>Aktionen</th></tr></thead><tbody>';
+  if (!allUsers.length) {
+    // Mitarbeiter duerfen die Nutzerverwaltung nicht lesen (GET /users -> 403). Ohne Hinweis
+    // sah die Seite aus wie "keine Mitarbeiter vorhanden" oder wie ein Defekt.
+    el.innerHTML = '<div class="empty">' + (USER && USER.rolle === 'admin'
+      ? 'Noch keine weiteren Mitarbeiter angelegt.'
+      : 'Die Mitarbeiterverwaltung ist Administratoren vorbehalten.') + '</div>';
+    return;
+  }
+  var html = '<div class="tw"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Erstellt</th><th>Aktionen</th></tr></thead><tbody>';
   allUsers.forEach(function(u) {
-    html += '<tr>' +
-      '<td><strong>' + u.vorname + ' ' + u.nachname + '</strong></td>' +
-      '<td style="font-size:12px;color:var(--muted)">' + u.email + '</td>' +
-      '<td><span class="badge ' + (u.rolle === 'admin' ? 'b-r' : 'b-b') + '">' + u.rolle + '</span></td>' +
+    var name = kEsc(u.vorname + ' ' + u.nachname);
+    var aktiv = u.aktiv !== false;
+    html += '<tr' + (aktiv ? '' : ' style="opacity:.6"') + '>' +
+      '<td><strong>' + name + '</strong></td>' +
+      '<td style="font-size:12px;color:var(--muted)">' + kEsc(u.email) + '</td>' +
+      '<td><span class="badge ' + (u.rolle === 'admin' ? 'b-r' : 'b-b') + '">' + kEsc(u.rolle) + '</span></td>' +
+      '<td><span class="badge ' + (aktiv ? 'b-g' : 'b-y') + '">' + (aktiv ? 'aktiv' : 'gesperrt') + '</span></td>' +
       '<td style="font-size:12px;color:var(--muted)">' + fd(u.erstellt_am) + '</td>' +
       '<td><div style="display:flex;gap:5px;flex-wrap:wrap">' +
-      '<button class="btn btn-g btn-sm" onclick="oeffnePW(\'' + u.id + '\',\'' + u.vorname + ' ' + u.nachname + '\')">Passwort</button>' +
-      '<button class="btn btn-danger btn-sm" onclick="loescheUser(\'' + u.id + '\')">Löschen</button>' +
+      '<button class="btn btn-g btn-sm" data-uid="' + kEsc(u.id) + '" onclick="oeffnePW(this.getAttribute(\'data-uid\'), this.getAttribute(\'data-name\'))" data-name="' + name + '">Passwort</button>' +
+      '<button class="btn btn-g btn-sm" data-uid="' + kEsc(u.id) + '" onclick="userRolleWechseln(this.getAttribute(\'data-uid\'))">' + (u.rolle === 'admin' ? 'Zu Mitarbeiter' : 'Zu Admin') + '</button>' +
+      '<button class="btn ' + (aktiv ? 'btn-danger' : 'btn-grn') + ' btn-sm" data-uid="' + kEsc(u.id) + '" onclick="userAktivSetzen(this.getAttribute(\'data-uid\'), ' + (aktiv ? 'false' : 'true') + ')">' + (aktiv ? 'Deaktivieren' : 'Wieder freigeben') + '</button>' +
+      '<button class="btn btn-danger btn-sm" data-uid="' + kEsc(u.id) + '" onclick="loescheUser(this.getAttribute(\'data-uid\'))">Löschen</button>' +
       '</div></td></tr>';
   });
   html += '</tbody></table></div>' +
@@ -5109,9 +5242,41 @@ function saveMyPW() {
     .catch(function(e) { notify(e.message, 'err'); });
 }
 function loescheUser(uid) {
-  if (!confirm('Mitarbeiter-Konto löschen?')) return;
+  var u = allUsers.filter(function(x) { return x.id === uid; })[0];
+  var name = u ? u.vorname + ' ' + u.nachname : 'dieses Konto';
+  if (!confirm('Konto von ' + name + ' endgültig löschen?\n\nSobald der Zugang schon Vorgänge erfasst hat, geht das nicht — dann bleibt nur das Deaktivieren.')) return;
   api('DELETE', '/users/' + uid)
     .then(function() { notify('Gelöscht.'); loadUsers(); })
+    .catch(function(e) {
+      // Der Server lehnt das Loeschen ab, sobald Protokollspuren existieren. Statt den Admin
+      // mit der Meldung allein zu lassen, direkt den Weg anbieten, der zum Ziel fuehrt.
+      if (/deaktivier/i.test(e.message || '')) {
+        if (confirm(e.message + '\n\nJetzt deaktivieren?')) { userAktivSetzen(uid, false); return; }
+        return;
+      }
+      notify(e.message, 'err');
+    });
+}
+// Zugang sperren oder wieder freigeben. Das ist der Weg, um einen ausgeschiedenen Mitarbeiter
+// vom System zu trennen: Anmeldung sofort gesperrt, Protokollspur bleibt zuordenbar.
+function userAktivSetzen(uid, aktiv) {
+  var u = allUsers.filter(function(x) { return x.id === uid; })[0];
+  if (!u) return;
+  if (aktiv === false && !confirm('Zugang von ' + u.vorname + ' ' + u.nachname + ' sperren?\n\nDie Anmeldung ist danach sofort nicht mehr möglich. Alle bisherigen Vorgänge bleiben erhalten.')) return;
+  api('PUT', '/users/' + uid, { vorname: u.vorname, nachname: u.nachname, email: u.email, rolle: u.rolle, aktiv: aktiv })
+    .then(function() { notify(aktiv ? 'Zugang wieder freigegeben.' : 'Zugang gesperrt.'); loadUsers(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+function userRolleWechseln(uid) {
+  var u = allUsers.filter(function(x) { return x.id === uid; })[0];
+  if (!u) return;
+  var neu = u.rolle === 'admin' ? 'mitarbeiter' : 'admin';
+  var text = neu === 'admin'
+    ? u.vorname + ' ' + u.nachname + ' zum Administrator machen?\n\nAdministratoren dürfen Preise, Firmendaten, Bankverbindung und Mitarbeiter ändern.'
+    : u.vorname + ' ' + u.nachname + ' auf Mitarbeiter zurückstufen?';
+  if (!confirm(text)) return;
+  api('PUT', '/users/' + uid, { vorname: u.vorname, nachname: u.nachname, email: u.email, rolle: neu, aktiv: u.aktiv !== false })
+    .then(function() { notify('Rolle geändert.'); loadUsers(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
 
