@@ -23,6 +23,33 @@ Eine Sparte pro Session. Was nicht dein Bereich ist, gib an die zuständige Sess
 - **Bild-Upload:** Endpunkt + sharp-Pipeline = homepage (homepage.js) · die Admin-UI, die ihn aufruft = admin.
 - **Backend-Deploy:** Bereichs-Branch → main mergen → `sudo pm2 restart reifenpro` (läuft aus dem Hauptordner).
 
+## 0. Warum das überhaupt ein Problem ist (Stand 2026-08-29)
+
+Drei Tatsachen, die zusammen das ganze Durcheinander erklären:
+
+1. **Der Name gehört zum Prozess, nicht zum Ordner.** Er ist Ordnername + Zufallssuffix
+   (`admin-35`, `admin-1e`). Jeder Start, jedes Resume, jedes Neuverbinden erzeugt einen
+   neuen Prozess und damit einen neuen Suffix — auch mitten in der Arbeit.
+2. **Ein Fenster schließen beendet die Session NICHT.** Der Prozess läuft weiter, bleibt in
+   `ListAgents` sichtbar und ansprechbar — und kann weiter in die Dateien des Worktrees
+   schreiben. Am 29.08.2026 liefen so 60 Sessions gleichzeitig, 13 davon älter als eine
+   Woche, die älteste seit 21 Tagen.
+3. **Worktrees trennen Bereiche, nicht Prozesse.** Zwei Sessions im selben Worktree teilen
+   sich dieselben Dateien. Genau das ist in der Nacht auf den 29.08. passiert: zwei
+   Instanzen desselben Admin-Strangs, beide mit demselben Arbeitsstand.
+
+Konsequenz für jede Session: Ein Peer-Name in einer Notiz von gestern ist wertlos. Vor dem
+Anschreiben immer `ListAgents`, und bei Zweifeln die Gegenseite nach ihrem Worktree und
+ihrem `git status` fragen, statt dem Namen zu glauben.
+
+### Schutz beim Start (automatisch)
+
+Der `SessionStart`-Hook speichert jetzt zusätzlich die **PID** des Sitzungsprozesses. Startet
+eine zweite Session in einem Worktree, in dem laut Registry schon eine **lebende** Session
+sitzt, schreibt der Hook eine deutliche Warnung in den Sitzungskontext: PID, Laufzeit und
+was zu tun ist (Gegenseite fragen, mit David klären, nicht parallel committen). Das ersetzt
+kein Aufräumen, macht die Doppelbelegung aber in der ersten Sekunde sichtbar.
+
 ## 1. Feste Namen pro Bereich (Hauptlösung)
 
 Jede Session soll beim Start einen **festen, sprechenden Namen** bekommen — dann ändert
@@ -42,7 +69,12 @@ Namen setzen — eine der beiden Varianten:
 - In einer laufenden Session: `/rename homepage`.
 
 Hinweis: Ein fester Name wird nach einem Neustart NICHT automatisch wiederhergestellt —
-beim (Neu-)Start erneut `--name` angeben bzw. `/rename` ausführen.
+beim (Neu-)Start erneut `--name` angeben bzw. `/rename` ausführen. Ohne `--name` vergibt
+Claude Code wieder einen Zufallssuffix, und dann sind zwei Admin-Sessions in der Liste nicht
+mehr auseinanderzuhalten.
+
+**Beenden gehört dazu:** Eine Session, die nicht mehr gebraucht wird, mit `/exit` beenden —
+nicht nur das Fenster schließen. Sonst bleibt sie als Geist zurück (siehe Abschnitt 0).
 
 ## 2. Automatische Registry (Absicherung)
 
