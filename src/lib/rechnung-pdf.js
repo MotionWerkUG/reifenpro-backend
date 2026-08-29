@@ -125,9 +125,15 @@ async function erzeugeRechnungPdf(rech, positionen) {
       doc.text('Pos', col.pos + 2, y, { width: 22 });
       doc.text('Bezeichnung', col.bez, y, { width: w.bez });
       doc.text('Menge', col.menge, y, { width: w.menge, align: 'right' });
-      doc.text('Einzel netto', col.ep, y, { width: w.ep, align: 'right' });
+      // Betrieb mit Endpreisen: Einzelpreis und Zeilensumme werden BRUTTO ausgewiesen. Sonst
+      // stuende dort ein gerundeter Nettopreis, der mit der Menge multipliziert einen Cent von
+      // der Zeilensumme abweichen kann (3 x 36,97 = 110,91 bei einer Zeile ueber 110,92).
+      // Das nach Steuersaetzen aufgeschluesselte Entgelt steht in jedem Fall im Summenblock
+      // darunter (§ 14 Abs. 4 Nr. 8 UStG).
+      const bruttoSpalten = !!rech.brutto_darstellung;
+      doc.text(bruttoSpalten ? 'Einzel brutto' : 'Einzel netto', col.ep, y, { width: w.ep, align: 'right' });
       doc.text('MwSt', col.mwst, y, { width: w.mwst, align: 'right' });
-      doc.text('Netto', col.sum, y, { width: w.sum, align: 'right' });
+      doc.text(bruttoSpalten ? 'Brutto' : 'Netto', col.sum, y, { width: w.sum, align: 'right' });
       doc.y = y + 18;
       doc.font('Helvetica').fontSize(9.5).fillColor('#000');
       (positionen || []).forEach(function (p) {
@@ -137,9 +143,14 @@ async function erzeugeRechnungPdf(rech, positionen) {
         doc.text(p.bezeichnung || '', col.bez, ry, { width: w.bez });
         const afterBezY = doc.y;
         doc.text(mengeStr(p), col.menge, ry, { width: w.menge, align: 'right' });
-        doc.text(eur(p.einzelpreis_netto), col.ep, ry, { width: w.ep, align: 'right' });
+        const menge = Number(p.menge) || 0;
+        const zeileSumme = bruttoSpalten ? Number(p.zeilen_brutto) : Number(p.zeilen_netto);
+        const einzel = bruttoSpalten
+          ? (menge ? Math.round((Number(p.zeilen_brutto) / menge) * 100) / 100 : 0)
+          : Number(p.einzelpreis_netto);
+        doc.text(eur(einzel), col.ep, ry, { width: w.ep, align: 'right' });
         doc.text(proz(p.mwst_satz), col.mwst, ry, { width: w.mwst, align: 'right' });
-        doc.text(eur(p.zeilen_netto), col.sum, ry, { width: w.sum, align: 'right' });
+        doc.text(eur(zeileSumme), col.sum, ry, { width: w.sum, align: 'right' });
         doc.y = Math.max(afterBezY, doc.y) + 4;
         doc.moveTo(left, doc.y).lineTo(rightEdge, doc.y).strokeColor('#eee').lineWidth(0.5).stroke();
       });

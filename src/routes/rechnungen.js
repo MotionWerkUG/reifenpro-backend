@@ -808,7 +808,7 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       // wenig; der umgekehrte Weg (erst DB, dann PDF) koennte dagegen eine festgeschriebene
       // Rechnung ohne Beleg hinterlassen.
       const pdfPfad = await erzeugeRechnungPdf(
-        Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller }, emp),
+        Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller, brutto_darstellung: einst.preise_inkl_mwst !== false }, emp),
         pos
       );
 
@@ -879,7 +879,7 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
       await insertPositionen(client, storno.id, s.positionen);
       // Eindeutiger Bezug zur Originalrechnung auf dem Beleg (Nummer + Datum), nicht nur als interne Notiz.
       const pdfPfad = await erzeugeRechnungPdf(
-        Object.assign({}, storno, { aussteller: aussteller, storno_von_nr: orig.rechnungsnr, storno_von_datum: orig.rechnungsdatum }),
+        Object.assign({}, storno, { aussteller: aussteller, storno_von_nr: orig.rechnungsnr, storno_von_datum: orig.rechnungsdatum, brutto_darstellung: einst.preise_inkl_mwst !== false }),
         s.positionen);
       await client.query('UPDATE rechnungen SET pdf_pfad=$1 WHERE id=$2', [pdfPfad, storno.id]);
       await client.query("UPDATE rechnungen SET status='storniert' WHERE id=$1", [orig.id]);

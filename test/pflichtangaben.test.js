@@ -162,6 +162,38 @@ test('Der PDF-Beleg zeigt alle Pflichtangaben, inkl. Entgelt je Steuersatz', asy
   assert.ok(text.includes('129,70'), 'Gesamtbetrag');
 });
 
+test('Bei Endpreisen zeigt der Beleg Brutto-Spalten, die exakt aufgehen', async () => {
+  // Mit Netto-Spalten stuende dort ein gerundeter Einzelpreis: 3 x 36,97 = 110,91, waehrend die
+  // Zeile 110,92 betraegt. Bei einem Betrieb mit Endpreisen wird deshalb brutto ausgewiesen.
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const e = await entwurf(token, {
+    empfaenger: EMPF_VOLL,
+    positionen: [{ bezeichnung: 'Raederwechsel', menge: 3, einheit: 'Stk', einzelpreis_brutto: 44, mwst_satz: 19 }]
+  });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+
+  const text = h.pdfText(f.body.pdf_pfad);
+  if (text === null) { console.log('Hinweis: pdftotext nicht vorhanden - PDF-Inhalt nicht geprueft.'); return; }
+  assert.ok(text.includes('Einzel brutto') && !text.includes('Einzel netto'), 'Brutto-Spalten');
+  assert.ok(/3 Stk\s+44,00 €/.test(text), 'Einzelpreis ist der Endpreis');
+  assert.ok(text.includes('132,00'), 'Zeilensumme geht exakt auf (3 x 44,00)');
+  // Das nach Steuersaetzen aufgeschluesselte Entgelt bleibt Pflicht und steht im Summenblock.
+  assert.ok(/19 %\s*MwSt auf\s*110,92/.test(text), 'Entgelt je Steuersatz weiterhin ausgewiesen');
+  assert.ok(text.includes('21,08'), 'Steuerbetrag');
+});
+
+test('Bei Nettopreisen bleiben die Netto-Spalten', async () => {
+  const { token } = await h.seedBasis({ preise_inkl_mwst: false });
+  const e = await entwurf(token, { empfaenger: EMPF_VOLL, positionen: [{ bezeichnung: 'Leistung', menge: 2, einheit: 'Stk', einzelpreis_netto: 50, mwst_satz: 19 }] });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  assert.equal(f.status, 200);
+  const text = h.pdfText(f.body.pdf_pfad);
+  if (text === null) return;
+  assert.ok(text.includes('Einzel netto') && !text.includes('Einzel brutto'));
+  assert.ok(/2 Stk\s+50,00 €/.test(text) && text.includes('100,00'), 'Netto-Zeile geht auf');
+});
+
 test('MwSt wird je Steuersatz aggregiert, Rundung je Zeile', async () => {
   const { token } = await h.seedBasis();
   const e = await entwurf(token, {
