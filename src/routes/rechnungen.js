@@ -724,7 +724,12 @@ router.delete('/:id', async (req, res, next) => {
     // Ein aus einem Termin erzeugter Entwurf haengt per termine.rechnung_id am Termin (FK RESTRICT).
     // Beim Verwerfen des Entwurfs wird die Verknuepfung geloest, damit der Termin wieder abrechenbar ist.
     await withTransaction(async (client) => {
-      await client.query('UPDATE termine SET rechnung_id=NULL WHERE rechnung_id=$1', [req.params.id]);
+      // Auch das Kennzeichen 'fakturiert' zuruecknehmen: Das Frontend setzt es beim Erzeugen
+      // der Rechnung. Bliebe es stehen, waere der Termin nach dem Verwerfen des Entwurfs als
+      // abgerechnet markiert, ohne dass eine Rechnung existiert — er taucht dann weder in
+      // "Abzurechnen" auf noch faellt er unter die Loeschfristen (die abgerechnete Termine
+      // bewusst verschonen).
+      await client.query('UPDATE termine SET rechnung_id=NULL, fakturiert=false WHERE rechnung_id=$1', [req.params.id]);
       await client.query('DELETE FROM rechnungen WHERE id=$1', [req.params.id]); // Positionen via ON DELETE CASCADE
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.entwurf_geloescht', tabelle: 'rechnungen', datensatzId: req.params.id, req });

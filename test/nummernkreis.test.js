@@ -135,14 +135,15 @@ test('Jahreswechsel: der Nummernkreis beginnt im neuen Jahr wieder bei 0001', as
 test('Verworfener Entwurf loest die Termin-Verknuepfung, statt am Fremdschluessel zu scheitern', async () => {
   const id = await neuerEntwurf();
   const t = await h.query(
-    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, rechnung_id)
-     VALUES (CURRENT_DATE, '09:00', '09:30', 'Raederwechsel', 'abgeschlossen', $1) RETURNING id`, [id]);
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, rechnung_id, fakturiert)
+     VALUES (CURRENT_DATE, '09:00', '09:30', 'Raederwechsel', 'abgeschlossen', $1, true) RETURNING id`, [id]);
 
   const del = await h.api(token, 'DELETE', '/api/rechnungen/' + id);
   assert.equal(del.status, 200, JSON.stringify(del.body));
 
-  const nach = await h.query('SELECT rechnung_id FROM termine WHERE id=$1', [t.rows[0].id]);
+  const nach = await h.query('SELECT rechnung_id, fakturiert FROM termine WHERE id=$1', [t.rows[0].id]);
   assert.equal(nach.rows[0].rechnung_id, null, 'Termin ist wieder abrechenbar');
+  assert.notEqual(nach.rows[0].fakturiert, true, 'und gilt nicht mehr als abgerechnet');
   assert.equal((await h.query('SELECT 1 FROM rechnungen WHERE id=$1', [id])).rows.length, 0);
 });
 
