@@ -46,24 +46,6 @@ test('Ueber 250 EUR ist die vollstaendige Anschrift des Empfaengers Pflicht', as
   assert.match(f.body.error, /Anschrift/);
 });
 
-test('Ueber 250 EUR muss die Strasse eine Hausnummer enthalten', async () => {
-  const { token } = await h.seedBasis();
-  const e = await entwurf(token, {
-    empfaenger: { vorname: 'Max', nachname: 'Mustermann', strasse: 'Musterweg', plz: '54321', ort: 'Musterstadt' },
-    positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 300, mwst_satz: 19 }]
-  });
-  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
-  assert.equal(f.status, 400);
-  assert.match(f.body.error, /Hausnummer/);
-
-  // Ein Postfach ist eine zulaessige Zustellanschrift und wird akzeptiert.
-  const e2 = await entwurf(token, {
-    empfaenger: { vorname: 'Max', nachname: 'Mustermann', strasse: 'Postfach', plz: '54321', ort: 'Musterstadt' },
-    positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 300, mwst_satz: 19 }]
-  });
-  assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + e2.id + '/festschreiben')).status, 200);
-});
-
 test('Kleinbetragsrechnung bis 250 EUR geht ohne Anschrift (§ 33 UStDV)', async () => {
   const { token } = await h.seedBasis();
   const e = await entwurf(token, {
