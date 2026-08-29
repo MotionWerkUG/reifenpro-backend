@@ -493,6 +493,43 @@ router.get('/rechnungen/:id/pdf', authKunde, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── DOKUMENTE (Kunde sieht eigene Scheine) ──
+// Einlagerungs-/Auslagerungsschein, Vertrag und Datenschutzerklaerung werden im Admin erzeugt
+// und dort bewusst gespeichert (kunden_dokumente). Der Kunde soll sie im Portal wiederfinden,
+// statt sie sich zuschicken zu lassen.
+// WICHTIG: Es erscheint nur, was im Admin auch GESPEICHERT wurde -- ein bloss gedruckter Schein
+// existiert nirgends. Fehlt einer, ist das kein Portal-Fehler.
+router.get('/dokumente', authKunde, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, typ, titel, einlagerung_id,
+              to_char(erstellt_am,'YYYY-MM-DD') AS erstellt_am,
+              (unterschrift_kunde IS NOT NULL) AS unterschrieben
+       FROM kunden_dokumente WHERE kunden_id=$1 ORDER BY erstellt_am DESC`,
+      [req.kunde.id]);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+// Einzelnes Dokument als EIGENSTAENDIGE Seite ausliefern -- bewusst nicht als Schnipsel in die
+// Portal-Oberflaeche gerendert: `inhalt_html` ist gespeichertes Markup (inkl. Unterschrift als
+// Data-URI). Auch wenn es aus unserem eigenen Admin stammt, hat es in der Portal-Seite nichts
+// verloren. Der CSP-Kopf erlaubt genau das, was ein solches Dokument braucht (Inline-Styles,
+// eingebettete Bilder) und verbietet Skripte und jede Fremdressource.
+router.get('/dokumente/:id', authKunde, async (req, res, next) => {
+  try {
+    const d = (await query(
+      'SELECT titel, typ, inhalt_html FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2',
+      [req.params.id, req.kunde.id])).rows[0];
+    if (!d || !d.inhalt_html) return res.status(404).json({ error: 'Dokument nicht gefunden' });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:");
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Disposition', 'inline');
+    res.send(d.inhalt_html);
+  } catch (e) { next(e); }
+});
+
 // ── FAHRZEUGE (Kunde pflegt eigene) ──
 const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 
