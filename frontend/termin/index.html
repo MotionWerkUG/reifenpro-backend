@@ -247,6 +247,7 @@ var state = { schritt: 1, haupt: [], zusatz: [], fahrzeugtyp: '', zoll: '', datu
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function eur(n){return (Number(n)||0).toFixed(2).replace('.',',')+' €';}
+function r2(n){return Math.round((Number(n)||0)*100)/100;}
 function dauerVon(a){return a&&a.dauer_minuten?a.dauer_minuten:30;}
 function alleGewaehlt(){return state.haupt.concat(state.zusatz);}
 function gesamtDauer(){var d=0;alleGewaehlt().forEach(function(a){d+=dauerVon(a);});return d||30;}
@@ -393,18 +394,25 @@ function renderSum(){
   fetch(url).then(function(r){return r.json();}).then(function(k){
     var rows='';
     (k.positionen||[]).forEach(function(p){
-      rows+='<div class="row"><span>'+esc(p.bezeichnung)+(p.rolle==='zusatz'?' <span class="muted">(Zusatz)</span>':'')+'</span><strong>'+eur(p.grundpreis_netto)+'</strong></div>';
-      if(Number(p.zuschlag_netto)>0) rows+='<div class="subrow"><span>+ Zuschlag '+esc(p.fahrzeugtyp||state.fahrzeugtyp||'')+'</span><span>'+eur(p.zuschlag_netto)+'</span></div>';
+      var satz=Number(p.mwst_satz!=null?p.mwst_satz:19);
+      var zeileBrutto=(p.zeilen_brutto!=null)?Number(p.zeilen_brutto)
+        :r2((Number(p.grundpreis_netto||0)+Number(p.zuschlag_netto||0))*(1+satz/100));
+      rows+='<div class="row"><span>'+esc(p.bezeichnung)+(p.rolle==='zusatz'?' <span class="muted">(Zusatz)</span>':'')+'</span><strong>'+eur(zeileBrutto)+'</strong></div>';
+      if(Number(p.zuschlag_netto)>0){
+        // Zuschlag ebenfalls brutto ausweisen; aus der Zeilensumme abgeleitet, damit sich
+        // Zeile und Zuschlag nicht durch getrenntes Runden widersprechen.
+        var grundBrutto=r2(Number(p.grundpreis_netto||0)*(1+satz/100));
+        rows+='<div class="subrow"><span>davon Zuschlag '+esc(p.fahrzeugtyp||state.fahrzeugtyp||'')+'</span><span>'+eur(r2(zeileBrutto-grundBrutto))+'</span></div>';
+      }
     });
     rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
-    rows+='<div class="row"><span>Nettobetrag</span><span>'+eur(k.netto)+'</span></div>';
-    rows+='<div class="row"><span>zzgl. MwSt</span><span>'+eur(k.mwst)+'</span></div>';
+    rows+='<div class="subrow"><span>darin enthaltene MwSt</span><span>'+eur(k.mwst)+'</span></div>';
     var g=gsBrutto(k.brutto);
     if(g){
       rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+' (−'+state.gutschein.rabatt+'%)</span><span>−'+eur(g.rabatt)+'</span></div>';
-      rows+='<div class="row total"><span>Gesamt (brutto)</span><span><span class="preis-alt">'+eur(k.brutto)+'</span>'+eur(g.neu)+'</span></div>';
+      rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span><span class="preis-alt">'+eur(k.brutto)+'</span>'+eur(g.neu)+'</span></div>';
     } else {
-      rows+='<div class="row total"><span>Gesamt (brutto)</span><span>'+eur(k.brutto)+'</span></div>';
+      rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span>'+eur(k.brutto)+'</span></div>';
     }
     box.innerHTML='<h3>Ihre Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis Ihrer Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
   }).catch(function(){ box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
