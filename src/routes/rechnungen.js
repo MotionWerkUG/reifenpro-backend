@@ -555,13 +555,23 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     let leist = t.leistungen; if (typeof leist === 'string') { try { leist = JSON.parse(leist); } catch (e) { leist = null; } }
     let positionen;
     if (Array.isArray(leist) && leist.length) {
-      positionen = leist.map((p) => ({
-        bezeichnung: (p.bezeichnung || 'Leistung') + (t.kennzeichen ? ' — ' + t.kennzeichen : '') + (p.zuschlag_netto > 0 && p.fahrzeugtyp ? ' (' + p.fahrzeugtyp + ')' : ''),
-        menge: 1, einheit: null,
-        einzelpreis_netto: round2((Number(p.grundpreis_netto) || 0) + (Number(p.zuschlag_netto) || 0)),
-        mwst_satz: p.mwst_satz != null ? p.mwst_satz : 19,
-        artikel_id: p.artikel_id || null
-      }));
+      positionen = leist.map((p) => {
+        const pos = {
+          bezeichnung: (p.bezeichnung || 'Leistung') + (t.kennzeichen ? ' — ' + t.kennzeichen : '') + (p.zuschlag_netto > 0 && p.fahrzeugtyp ? ' (' + p.fahrzeugtyp + ')' : ''),
+          menge: 1, einheit: null,
+          mwst_satz: p.mwst_satz != null ? p.mwst_satz : 19,
+          artikel_id: p.artikel_id || null
+        };
+        // Der Betrag, den der Kunde bei der Buchung gesehen hat, ist der BRUTTO-Zeilenbetrag.
+        // Er wird unveraendert uebernommen. Wuerde man stattdessen die gespeicherten
+        // Nettowerte addieren und wieder hochrechnen, verlaere jede Zeile bis zu einem Cent
+        // (44,00 -> 36,97 -> 43,99), und bei mehreren Leistungen summiert sich das sichtbar.
+        // Der Nettowert ist nur der Rueckfall fuer alte Buchungen ohne zeilen_brutto.
+        const brutto = Number(p.zeilen_brutto);
+        if (Number.isFinite(brutto) && brutto !== 0) pos.einzelpreis_brutto = round2(brutto);
+        else pos.einzelpreis_netto = round2((Number(p.grundpreis_netto) || 0) + (Number(p.zuschlag_netto) || 0));
+        return pos;
+      });
     } else {
       // Bei preise_inkl_mwst=true ist der Artikel-/Kundenpreis der zugesagte Endpreis: er wird als
       // Bruttopreis uebergeben und bleibt damit exakt erhalten (44,00 EUR bleiben 44,00 EUR).
