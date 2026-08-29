@@ -5,8 +5,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-const { query } = require('../db/index');
+const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
+const { authenticate, requireStaff } = require('../middleware/auth');
 
 // Brute-Force-Schutz: fehlgeschlagene Logins begrenzen, Reset-/Vergessen-Mails drosseln
 const loginLimiter = rateLimit({
@@ -61,6 +62,38 @@ async function sendMail(to, subject, html) {
   });
 }
 
+// Leerstring wie NULL behandeln -> COALESCE(NULLIF(...)) greift sauber
+function kontaktWert(v) { const x = String(v == null ? '' : v).trim(); return x === '' ? null : x; }
+
+// ── GET /api/portal/auth/konto-start ──
+// Vorbefuellung des Registrierungsformulars aus einem bestaetigten Gast-Termin. Adressiert ueber den
+// signierten Token aus der Terminbestaetigung, damit in der URL des CTA keine personenbezogenen Daten
+// stehen. Gibt bewusst nur zurueck, was ins Formular gehoert -- keine Termin-, Preis- oder Fahrzeugdaten.
+router.get('/konto-start', async (req, res, next) => {
+  try {
+    const t = await gastKontoTermin(req.query.token);
+    if (!t) return res.status(400).json({ error: 'Dieser Link ist ungültig oder abgelaufen. Bitte legen Sie Ihr Konto normal an.' });
+    res.json({
+      vorname: t.kontakt_vorname || '', nachname: t.kontakt_nachname || '',
+      email: t.kontakt_email || '', telefon: t.kontakt_telefon || '',
+      kundentyp: t.kontakt_kundentyp || 'privat', firma: t.kontakt_firma || ''
+    });
+  } catch (e) { next(e); }
+});
+
+// Prueft den Token aus der Terminbestaetigung und liefert den zugehoerigen Gast-Termin.
+// Bedingungen: gueltige Signatur, richtiger Typ, Termin existiert, gehoert noch KEINEM Konto
+// (kunden_id IS NULL) und ist bestaetigt -- unbestaetigte Anfragen beweisen nichts.
+async function gastKontoTermin(token) {
+  let p = null;
+  try { p = jwt.verify(token || '', process.env.JWT_SECRET); } catch (e) { p = null; }
+  if (!p || p.typ !== 'gast-konto' || !p.tid || !p.email) return null;
+  const t = (await query(
+    "SELECT * FROM termine WHERE id=$1 AND kunden_id IS NULL AND LOWER(kontakt_email)=$2 AND status IN ('bestaetigt','abgeschlossen')",
+    [p.tid, String(p.email).toLowerCase()])).rows[0];
+  return t || null;
+}
+
 // ── POST /api/portal/auth/registrieren ──
 router.post('/registrieren', registrierLimiter, async (req, res, next) => {
   try {
@@ -89,6 +122,83 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
       // Bewusst KEINE Mail (der Angreifer sieht das fremde Postfach nicht -> Mail wuerde nur einen
       // Spam-Vektor an bekannte Adressen eroeffnen). Der Nutzer nutzt bei Bedarf "Passwort vergessen".
       return res.json({ message: 'Registrierung erfolgreich. Bitte E-Mail bestätigen.' });
+    }
+
+    // ── Weg aus einer bestaetigten Gast-Buchung: keine zweite Bestaetigung, keine Freischaltung ──
+    // Wer den Bestaetigungslink seines Termins angeklickt hat, hat den Besitz des Postfachs bereits
+    // bewiesen. Ihn dafuer ein zweites Mal per Mail bestaetigen zu lassen (und dann noch auf die
+    // Freischaltung warten zu lassen) ist reine Schikane -- Entscheidung David.
+    // Bedingungen, damit das sicher bleibt:
+    //  - Nachweis NUR ueber den signierten Token, NIE ueber blosse Uebereinstimmung der Adresse,
+    //  - die angegebene E-Mail muss der Adresse im Token entsprechen,
+    //  - es darf noch KEIN Portal-Konto auf diese Adresse geben (sonst waere das ein Weg, sich an
+    //    ein fremdes bestehendes Konto zu haengen; dann greift unten der normale Ablauf).
+    const kontoTermin = req.body.konto_token ? await gastKontoTermin(req.body.konto_token) : null;
+    if (kontoTermin && !existiert.rows.length
+        && String(kontoTermin.kontakt_email || '').toLowerCase() === email.toLowerCase()) {
+      const now2 = new Date();
+      const ip2 = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+      const agbV2 = 'Stand ' + now2.toISOString().substring(0, 10);
+      // Anschrift und Kennzeichen aus der Buchung uebernehmen -- genau die Daten, die spaeter fuer
+      // die Rechnung gebraucht werden und die der Kunde sonst ein zweites Mal eintippen muesste.
+      const kid = await withTransaction(async (client) => {
+        // Bestandskunde ohne Portal-Zugang? Dann daran anknuepfen statt einen zweiten Datensatz anzulegen.
+        const best = (await client.query(
+          'SELECT id FROM kunden WHERE LOWER(email)=$1 AND aktiv=true AND portal_password IS NULL LIMIT 1',
+          [email.toLowerCase()])).rows[0];
+        let id;
+        if (best) {
+          id = best.id;
+          await client.query(
+            `UPDATE kunden SET portal_email=$1, portal_password=$2, portal_aktiv=true,
+             portal_freigegeben=true, portal_email_bestaetigt=true,
+             portal_bestaetigung_token=NULL, portal_token_ablauf=NULL,
+             portal_registriert_am=$3, portal_agb_akzeptiert=true, portal_agb_datum=$3,
+             portal_dsgvo_akzeptiert=true, portal_dsgvo_datum=$3,
+             einwilligung_saison_erinnerung=$4, einwilligung_ip=$5, agb_version=$6,
+             einwilligung_bewertung=$7, einwilligung_bewertung_am=$8,
+             telefon=COALESCE(NULLIF(telefon,''), $9), geaendert_am=NOW()
+             WHERE id=$10`,
+            [email.toLowerCase(), hash, now2, saison ? true : false, ip2, agbV2,
+             bewertung ? true : false, bewertung ? now2 : null, tel, id]);
+        } else {
+          const nr2 = 'K-' + String((await client.query("SELECT nextval('seq_kunden_nr') AS n")).rows[0].n).padStart(4, '0');
+          id = (await client.query(
+            `INSERT INTO kunden (kunden_nr, vorname, nachname, email, telefon,
+             portal_email, portal_password, portal_aktiv, portal_freigegeben,
+             portal_email_bestaetigt, portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
+             portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
+             einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,true,true,$8,true,$8,true,$8,$9,$10,$11,$12,$13,true)
+             RETURNING id`,
+            [nr2, vn, nn, email.toLowerCase(), tel, email.toLowerCase(), hash, now2,
+             saison ? true : false, ip2, agbV2, bewertung ? true : false, bewertung ? now2 : null])).rows[0].id;
+        }
+        // Anschrift/Kennzeichen aus der Buchung nur fuellen, wo im Stamm noch nichts steht --
+        // gepflegte Daten des Betriebs duerfen dadurch nicht ueberschrieben werden.
+        await client.query(
+          `UPDATE kunden SET strasse=COALESCE(NULLIF(strasse,''), $1), plz=COALESCE(NULLIF(plz,''), $2),
+           ort=COALESCE(NULLIF(ort,''), $3), kennzeichen=COALESCE(NULLIF(kennzeichen,''), $4), geaendert_am=NOW()
+           WHERE id=$5`,
+          [kontaktWert(kontoTermin.kontakt_strasse), kontaktWert(kontoTermin.kontakt_plz),
+           kontaktWert(kontoTermin.kontakt_ort), kontaktWert(kontoTermin.kennzeichen), id]);
+        // Alle noch kontenlosen Termine dieser Adresse ans Konto haengen -- sonst sieht der Kunde
+        // seinen gerade gebuchten Termin im Portal ueberhaupt nicht (das Portal liest ueber kunden_id).
+        await client.query(
+          "UPDATE termine SET kunden_id=$1, geaendert_am=NOW() WHERE kunden_id IS NULL AND LOWER(kontakt_email)=$2",
+          [id, email.toLowerCase()]);
+        return id;
+      });
+      // Betrieb informieren (wie beim normalen Weg) -- aber KEINE Bestaetigungsmail an den Kunden.
+      const einstK = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+      if (einstK.email) {
+        sendMail(einstK.email, 'Neues Kundenkonto (aus Online-Buchung): ' + vn + ' ' + nn,
+          '<p>Ein Gast hat nach seiner bestätigten Terminbuchung ein Kundenkonto erstellt:</p><p>' +
+          vn + ' ' + nn + '<br>' + email.toLowerCase() + (tel ? '<br>' + tel : '') +
+          '</p><p>Die E-Mail-Adresse war durch die Terminbestätigung bereits nachgewiesen, das Konto ist deshalb sofort nutzbar. Vorhandene Termine dieser Adresse wurden dem Konto zugeordnet.</p>'
+        ).catch(function (e) { console.error('[Konto-aus-Buchung-Mail]', e.message); });
+      }
+      return res.json({ message: 'Konto erstellt. Sie können sich sofort anmelden.', sofort_anmelden: true });
     }
 
     // Prüfe ob Kunde bereits in DB (über normale E-Mail) -> verknüpfen statt duplizieren.
@@ -328,12 +438,17 @@ router.put('/profil', authKunde, async (req, res, next) => {
     const clean = (s) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, 80);
     const telefon = clean(req.body.telefon), kennzeichen = clean(req.body.kennzeichen),
           fahrzeug_marke = clean(req.body.fahrzeug_marke), fahrzeug_modell = clean(req.body.fahrzeug_modell);
+    // Anschrift ist fuer die Rechnung Pflicht und wird bei der Registrierung bewusst nicht erhoben
+    // -> der Kunde muss sie im Profil pflegen koennen, sonst bleibt die Buchung der einzige Weg.
+    const strasse = clean(req.body.strasse), plz = clean(req.body.plz), ort = clean(req.body.ort);
     // COALESCE: nur uebergebene Felder aendern, fehlende NICHT auf NULL setzen (sonst Datenverlust)
     await query(
       `UPDATE kunden SET telefon=COALESCE($1,telefon), kennzeichen=COALESCE($2,kennzeichen),
-       fahrzeug_marke=COALESCE($3,fahrzeug_marke), fahrzeug_modell=COALESCE($4,fahrzeug_modell), geaendert_am=NOW() WHERE id=$5`,
+       fahrzeug_marke=COALESCE($3,fahrzeug_marke), fahrzeug_modell=COALESCE($4,fahrzeug_modell),
+       strasse=COALESCE($6,strasse), plz=COALESCE($7,plz), ort=COALESCE($8,ort), geaendert_am=NOW() WHERE id=$5`,
       [telefon != null ? telefon : null, kennzeichen != null ? kennzeichen : null,
-       fahrzeug_marke != null ? fahrzeug_marke : null, fahrzeug_modell != null ? fahrzeug_modell : null, req.kunde.id]);
+       fahrzeug_marke != null ? fahrzeug_marke : null, fahrzeug_modell != null ? fahrzeug_modell : null, req.kunde.id,
+       strasse != null ? strasse : null, plz != null ? plz : null, ort != null ? ort : null]);
     res.json({ message: 'Profil aktualisiert' });
   } catch (e) { next(e); }
 });
@@ -389,6 +504,57 @@ router.post('/einwilligung-widerrufen', authKunde, async (req, res, next) => {
     );
     res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe-, Saison- oder Bewertungs-E-Mails mehr.' });
   } catch (e) { next(e); }
+});
+
+// ── POST /api/portal/auth/personal/bestaetigung-erneut/:kundenId ──
+// Personal-Variante von "Bestaetigungsmail erneut senden". Anlass: Klickt der Kunde den Link nie
+// (Spam-Ordner, Tippfehler, abgelaufen), kommt der Betrieb aus der Lage sonst nicht heraus — der
+// Admin-Knopf "Freischalten" erscheint erst nach bestaetigter E-Mail, und eine erneute Registrierung
+// mit derselben Adresse hilft dem Kunden NICHT: die Route oben antwortet dann bewusst generisch
+// und OHNE Mail (Anti-Enumeration). Hier ist der Ausweg.
+//
+// Unterschiede zur kundenseitigen Route: Adressierung ueber die kunden_id (das Personal sieht den
+// Datensatz ohnehin), kein resetLimiter (der schuetzt vor Fremdmissbrauch, nicht vor dem Inhaber)
+// und eine ECHTE Rueckmeldung statt der generischen — Anti-Enumeration ist gegenueber angemeldetem
+// Personal sinnlos, und der Betrieb muss wissen, ob die Mail rausging.
+router.post('/personal/bestaetigung-erneut/:kundenId', authenticate, requireStaff, async (req, res, next) => {
+  try {
+    const k = (await query('SELECT * FROM kunden WHERE id=$1', [req.params.kundenId])).rows[0];
+    if (!k) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
+    if (!k.portal_email) return res.status(400).json({ error: 'Für diesen Kunden ist kein Portal-Zugang angelegt.' });
+    // Gleicher Zustandsfilter wie kundenseitig: sonst verschickt der Knopf sinnlose Mails an
+    // Kunden, die laengst bestaetigt haben und nur auf die Freischaltung warten.
+    if (k.portal_email_bestaetigt) {
+      return res.status(409).json({ error: 'Die E-Mail ist bereits bestätigt. Dieser Kunde wartet nur noch auf die Freischaltung.' });
+    }
+    if (!k.portal_aktiv) return res.status(409).json({ error: 'Der Portal-Zugang dieses Kunden ist deaktiviert.' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const ablauf = new Date(Date.now() + 24 * 3600000);
+    await query('UPDATE kunden SET portal_bestaetigung_token=$1, portal_token_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const link = portalUrl + '?bestaetigen=' + token;
+    let versandt = true;
+    await sendMail(
+      k.portal_email,
+      'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
+      portalMailHtml(einst, {
+        titel: 'E-Mail bestätigen', name: k.vorname,
+        absaetze: ['bitte bestätigen Sie Ihre E-Mail-Adresse mit einem Klick auf den folgenden Button, damit wir Ihren Zugang freischalten können.'],
+        button: { text: 'E-Mail bestätigen', url: link },
+        hinweis: 'Der Bestätigungslink ist 24 Stunden gültig.'
+      })
+    ).catch(function (e) { versandt = false; console.error('[Resend-Personal-Mail]', e.message); });
+    // Ehrliche Rueckmeldung: der Betrieb soll nicht glauben, die Mail sei raus, wenn der Versand scheiterte.
+    if (!versandt) return res.status(502).json({ error: 'Der neue Link wurde gesetzt, aber die E-Mail konnte nicht versendet werden. Bitte E-Mail-Einstellungen prüfen.' });
+    res.json({ message: 'Bestätigungsmail wurde erneut an ' + k.portal_email + ' gesendet.', gueltig_bis: ablauf });
+  } catch (e) {
+    // Der Unique-Index auf LOWER(portal_email) kann hier nicht greifen (wir aendern die Adresse nicht),
+    // aber eine verstaendliche Meldung statt eines rohen 500 kostet nichts.
+    if (e && e.code === '23505') return res.status(409).json({ error: 'Diese Portal-Adresse ist bereits einem anderen Kunden zugeordnet.' });
+    next(e);
+  }
 });
 
 module.exports = router;

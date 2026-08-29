@@ -5,7 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 
-const DATEI_DIR = '/var/www/reifenpro-backend/protokoll-dateien';
+// Protokoll-Dateien (Fotos, Unterschriften, PDFs) sind unterschriebene Belege mit
+// Aufbewahrungspflicht. Sie gehoeren ins aktive Projekt (Modell A) — der alte Pfad
+// /var/www/reifenpro-backend/... ist der inaktive Vor-Umzug-Ordner und wird vom
+// naechtlichen Backup nicht erfasst. Ueberschreibbar per PROTOKOLL_DIR.
+const DATEI_DIR = process.env.PROTOKOLL_DIR ||
+  path.join(__dirname, '..', '..', 'protokoll-dateien');
 
 function fmtDatum(d) {
   return new Date(d || Date.now()).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });

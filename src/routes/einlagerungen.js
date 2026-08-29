@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { query, withTransaction } = require('../db/index');
-const { authenticate, requireStaff } = require('../middleware/auth');
+const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { sendMail } = require('../lib/mailer');
 const { kundenMailHtml } = require('../lib/mail-template');
@@ -172,6 +172,10 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({
         error: 'kunden_id, reifen_groesse, reifen_typ und lagerplatz sind Pflicht.'
       });
+    // Reifentyp gegen dieselbe Whitelist wie die DB-CHECK-Constraint pruefen; sonst schlaegt erst
+    // die Constraint zu und der Nutzer bekommt HTTP 500 statt einer verstaendlichen 400-Meldung.
+    if (!['Winter','Sommer','Ganzjahr'].includes(reifen_typ))
+      return res.status(400).json({ error: 'Reifentyp muss Winter, Sommer oder Ganzjahr sein.' });
     // Serverseitige Validierung (verhindert, dass Garbage in die Werkstattdaten gelangt)
     // Format Breite/Verhaeltnis R Zoll (z.B. 205/55 R16 91W) + plausible Wertebereiche (verhindert 000/00 R00 o.ae.)
     const _dm = String(reifen_groesse).match(/^(\d{3})\/(\d{2})\s*[A-Z]{0,2}\s*(\d{2})\s*[0-9A-Z ]*$/i);
@@ -283,19 +287,60 @@ router.patch('/:id/lagerplatz', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+// Loeschung einer abgeholten Einlagerung. Bewusst restriktiv und transaktional:
+// an einer Einlagerung haengen Belege (Protokolle, unterschriebene Dokumente) und die
+// Wiedereinlagerungs-Kette. Ohne Pruefung liefe das DELETE in eine FK-Verletzung
+// (protokolle.einlagerung_id ist NO ACTION -> 500 "Interner Serverfehler") oder wuerde
+// still Verknuepfungen kappen (ON DELETE SET NULL bei kunden_dokumente/vorgaenger_id).
+// Darum: klare 409-Meldung mit Grund statt Datenverlust oder unverstaendlichem Fehler.
+// requireAdmin wie bei den anderen Loeschrouten (artikel.js, users.js, lager.js): hier werden
+// endgueltig Geschaeftsbelege entfernt, das ist keine Mitarbeiter-Alltagsaktion.
+router.delete('/:id', requireAdmin, async (req, res, next) => {
   try {
-    const { rows } = await query(
-      "DELETE FROM einlagerungen WHERE id=$1 AND status='Abgeholt' RETURNING id, beleg_nr",
-      [req.params.id]
-    );
-    if (!rows.length)
-      return res.status(400).json({
-        error: 'Nur abgeholte Einlagerungen können gelöscht werden.'
-      });
+    const id = String(req.params.id || '');
+    // Ungueltige UUID wuerde in Postgres als 22P02 knallen (500) -> als "nicht gefunden" behandeln.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+      return res.status(404).json({ error: 'Nicht gefunden.' });
+
+    const out = await withTransaction(async (client) => {
+      const e = (await client.query(
+        'SELECT id, beleg_nr, status FROM einlagerungen WHERE id=$1 FOR UPDATE', [id])).rows[0];
+      if (!e) return { code: 404, body: { error: 'Nicht gefunden.' } };
+      if (e.status !== 'Abgeholt')
+        return { code: 400, body: { error: 'Nur abgeholte Einlagerungen können gelöscht werden.' } };
+
+      // 1. Protokolle = unterschriebene Belege (Aufbewahrungspflicht) und harter FK-Blocker.
+      const prot = (await client.query(
+        'SELECT COUNT(*)::int AS c FROM protokolle WHERE einlagerung_id=$1', [id])).rows[0].c;
+      if (prot)
+        return { code: 409, body: { error: 'Nicht löschbar: ' + prot + ' Protokoll(e) gehören zu dieser Einlagerung (Aufbewahrungspflicht). Erst das Protokoll löschen.' } };
+
+      // 2. Unterschriebene Dokumente (Einlagerungsvertrag/-schein) sind ebenfalls Belege.
+      const dokUnt = (await client.query(
+        'SELECT COUNT(*)::int AS c FROM kunden_dokumente WHERE einlagerung_id=$1 AND unterschrift_kunde IS NOT NULL', [id])).rows[0].c;
+      if (dokUnt)
+        return { code: 409, body: { error: 'Nicht löschbar: ' + dokUnt + ' unterschriebene(s) Dokument(e) gehören zu dieser Einlagerung (Aufbewahrungspflicht).' } };
+
+      // 3. Folge-Einlagerung: Loeschen wuerde die Wiedereinlagerungs-Kette still zerreissen
+      //    (vorgaenger_id -> NULL), die Historie waere danach unvollstaendig.
+      const nachf = (await client.query(
+        'SELECT COUNT(*)::int AS c FROM einlagerungen WHERE vorgaenger_id=$1', [id])).rows[0].c;
+      if (nachf)
+        return { code: 409, body: { error: 'Nicht löschbar: ' + nachf + ' spätere Einlagerung(en) bauen als Wiedereinlagerung darauf auf.' } };
+
+      // Nur noch unverknuepfte Reste: Dokumente ohne Unterschrift explizit entkoppeln
+      // (statt sich auf ON DELETE SET NULL zu verlassen) und Anzahl protokollieren.
+      const dokLos = (await client.query(
+        'UPDATE kunden_dokumente SET einlagerung_id=NULL WHERE einlagerung_id=$1 RETURNING id', [id])).rowCount;
+      await client.query('DELETE FROM einlagerungen WHERE id=$1', [id]);
+      return { code: 200, body: { message: 'Gelöscht.' }, beleg_nr: e.beleg_nr, dokEntkoppelt: dokLos };
+    });
+
+    if (out.code !== 200) return res.status(out.code).json(out.body);
     await auditLog({ userId: req.user.id, aktion: 'einlagerung.geloescht',
-      tabelle: 'einlagerungen', datensatzId: req.params.id, req });
-    res.json({ message: 'Gelöscht.' });
+      tabelle: 'einlagerungen', datensatzId: id,
+      alteWerte: { beleg_nr: out.beleg_nr, dokumente_entkoppelt: out.dokEntkoppelt }, req });
+    res.json(out.body);
   } catch (err) { next(err); }
 });
 

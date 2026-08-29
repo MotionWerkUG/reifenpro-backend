@@ -33,7 +33,19 @@ app.use('/api/auth/login', rateLimit({
   message: { error: 'Zu viele fehlgeschlagene Login-Versuche. Bitte in 15 Minuten erneut versuchen.' }
 }));
 app.use(compression());
-app.use(express.json({ limit: '50mb' }));
+// JSON-Limit: global klein (ein pauschales 50mb war ueber JEDE oeffentliche Route als
+// Speicher-DoS nutzbar). Die wenigen Routen mit Base64-Uploads bekommen gezielt mehr und
+// MUESSEN vor dem globalen Parser stehen — der zweite Parser laesst einen bereits geparsten
+// Body unangetastet. Zahlen mit den Bereichen abgestimmt (Base64 ist ca. 4/3 der Dateigroesse):
+app.use('/api/homepage/bild',  express.json({ limit: '40mb' }));  // Handyfotos bis ca. 25 MB
+app.use('/api/homepage/fonts', express.json({ limit: '5mb'  }));  // Schriftdatei max. 3 MB
+app.use('/api/protokolle',     express.json({ limit: '25mb' }));  // Werkstattfoto max. 15 MB + Unterschrift
+app.use('/api/gewerbe',        express.json({ limit: '25mb' }));  // Gewerbeanmeldung max. 15 MB (Portal-Formular)
+app.use('/api/einstellungen',  express.json({ limit: '10mb' }));  // Firmenlogo als Data-URL im Einstellungs-Objekt
+// Kundendokumente: der Scan steckt als Data-URL im HTML des Dokuments. Nur dieser Unterpfad,
+// nicht die ganze /api/kunden-Familie -> Express-4-RegExp statt Praefix-Mount.
+app.use(/^\/api\/kunden\/[^/]+\/dokumente/, express.json({ limit: '25mb' }));
+app.use(express.json({ limit: '1mb' }));
 app.use(morgan('combined'));
 
 app.get('/health', function(req, res) {

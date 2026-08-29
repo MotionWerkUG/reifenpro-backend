@@ -169,6 +169,16 @@
       <div class="gs-msg" id="gs-msg"></div>
     </div>
     <form id="p4form" autocomplete="on" onsubmit="return false">
+    <div class="field"><label class="lab">Kundenart</label>
+      <select id="f-kundentyp" name="kundentyp" onchange="kundenartWechsel()">
+        <option value="privat" selected>Privatkunde</option>
+        <option value="firma">Firmenkunde</option>
+      </select>
+    </div>
+    <div class="field" id="fw-firma" style="display:none"><label class="lab">Firma *</label>
+      <input type="text" id="f-firma" name="firma" autocomplete="organization" placeholder="Muster GmbH">
+    </div>
+    <div class="info" id="firma-hinweis" style="display:none;margin-bottom:14px">Bitte den vollständigen Firmennamen mit Rechtsform angeben – so erscheint er auf der Rechnung. Name und Anrede darunter sind die Ansprechpartnerin oder der Ansprechpartner.</div>
     <div class="grid2">
       <div class="field"><label class="lab">Anrede</label>
         <select id="f-anrede" name="anrede" autocomplete="honorific-prefix"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
@@ -176,8 +186,8 @@
       <div class="field"><label class="lab">Telefon *</label><input type="tel" id="f-tel" name="tel" autocomplete="tel"></div>
     </div>
     <div class="grid2">
-      <div class="field"><label class="lab">Vorname *</label><input type="text" id="f-vorname" name="vorname" autocomplete="given-name"></div>
-      <div class="field"><label class="lab">Nachname *</label><input type="text" id="f-nachname" name="nachname" autocomplete="family-name"></div>
+      <div class="field"><label class="lab" id="lab-vorname">Vorname *</label><input type="text" id="f-vorname" name="vorname" autocomplete="given-name"></div>
+      <div class="field"><label class="lab" id="lab-nachname">Nachname *</label><input type="text" id="f-nachname" name="nachname" autocomplete="family-name"></div>
     </div>
     <div class="field"><label class="lab">E-Mail *</label><input type="email" id="f-email" name="email" autocomplete="email"></div>
     <div class="field"><label class="lab">Straße &amp; Hausnummer *</label>
@@ -208,7 +218,7 @@
     <h1 id="done-title">Termin bestätigt!</h1>
     <div id="done-text" class="sub" style="margin-top:10px"></div>
     <div id="done-konto" class="hidden" style="margin:24px auto 0;max-width:440px;padding:18px 20px;border:1px solid #e5e7eb;border-radius:12px;background:#faf9f6;text-align:center">
-      <div style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</div>
+      <div id="done-konto-hinweis" style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</div>
       <a id="done-konto-link" href="#" style="display:inline-block;text-decoration:none;background:#eab308;color:#171717;font-weight:700;padding:11px 20px;border-radius:9px;font-size:15px">Kundenkonto erstellen</a>
     </div>
     <div style="margin-top:16px"><a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none">Zur Startseite</a></div>
@@ -424,15 +434,40 @@ function weiter(){
   if(n===4){ absenden(); return; }
 }
 function zurueck(){ if(state.schritt>1) zeigeSchritt(state.schritt-1); }
+// Privat- oder Firmenkunde: Firmenname ist nur im Firmenfall sichtbar und dann Pflicht.
+// Vor-/Nachname bleiben in beiden Faellen die Person — bei Firmen der Ansprechpartner
+// (der Firmenname gehoert NICHT ins Nachnamensfeld, sonst steht er falsch auf der Rechnung).
+function kundenartWechsel(){
+  var firma = (document.getElementById('f-kundentyp')||{}).value === 'firma';
+  var w=document.getElementById('fw-firma'); if(w) w.style.display = firma ? '' : 'none';
+  var h=document.getElementById('firma-hinweis'); if(h) h.style.display = firma ? '' : 'none';
+  var lv=document.getElementById('lab-vorname'), ln=document.getElementById('lab-nachname');
+  if(lv) lv.textContent = firma ? 'Vorname Ansprechpartner *' : 'Vorname *';
+  if(ln) ln.textContent = firma ? 'Nachname Ansprechpartner *' : 'Nachname *';
+  if(!firma){ var f=document.getElementById('f-firma'); if(f) f.value=''; }
+}
+
+var ADR_BESTAETIGT = false; // Rueckfrage zur fehlenden Hausnummer nur einmal stellen
 function absenden(){
   var v=function(id){return (document.getElementById(id).value||'').trim();};
   var d={ main_ids: state.haupt.map(function(h){return h.artikel_id;}), zusatz_ids: state.zusatz.map(function(z){return z.artikel_id;}),
+    kundentyp:v('f-kundentyp')||'privat', firma:v('f-firma'),
     anrede:v('f-anrede'), vorname:v('f-vorname'), nachname:v('f-nachname'), telefon:v('f-tel'), email:v('f-email'),
     strasse:v('f-strasse'), plz:v('f-plz'), ort:v('f-ort'),
     fahrzeugtyp:state.fahrzeugtyp, zoll:state.zoll, kennzeichen:kz(),
     datum:state.datum, uhrzeit_von:state.slot, gutschein_code: state.gutschein ? state.gutschein.code : '',
     datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
   if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
+  if(d.kundentyp==='firma'&&!d.firma){fehler('Bitte den Firmennamen angeben – er steht später auf der Rechnung.');return;}
+  // Hausnummer fehlt: nachfragen statt sperren. Adressen ohne Hausnummer gibt es real
+  // (kleine Orte, „Am Markt"); ein echter Kunde darf daran nicht scheitern. Der haeufige
+  // Fall ist die vergessene Hausnummer — dafuer reicht die Rueckfrage.
+  if(!/\d/.test(d.strasse)&&!/postfach/i.test(d.strasse)&&!ADR_BESTAETIGT){
+    if(!confirm('In der Straße steht keine Hausnummer. Für Vertrag und Rechnung brauchen wir die vollständige Anschrift.\n\nTrotzdem so übernehmen?')){
+      document.getElementById('f-strasse').focus(); return;
+    }
+    ADR_BESTAETIGT = true;
+  }
   if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
   var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
   fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
@@ -451,9 +486,21 @@ function absenden(){
         document.getElementById('done-title').textContent='Termin bestätigt!';
         document.getElementById('done-text').textContent='Ihr Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
       }
-      // Optionaler Konto-CTA (sekundaer): Kundenkonto mit vorbefuellter E-Mail anlegen.
-      var kl=document.getElementById('done-konto-link');
-      if(kl && d.email){ kl.href='/portal/?registrieren&email='+encodeURIComponent(d.email); document.getElementById('done-konto').classList.remove('hidden'); }
+      // Optionaler Konto-CTA (sekundaer). KEINE personenbezogenen Daten in der URL:
+      // die Vorbefuellung laeuft ueber den signierten Token, den das Backend erst beim
+      // Bestaetigen des Termins erzeugt und in die Bestaetigungsmail legt. Hier, direkt
+      // nach dem Buchen, gibt es ihn noch nicht -> wir verweisen auf die Mail und bieten
+      // den normalen Weg als Rueckfall an (funktioniert unabhaengig von der Deploy-Reihenfolge).
+      var kl=document.getElementById('done-konto-link'), kh=document.getElementById('done-konto-hinweis');
+      var wartetAufBestaetigung = (j.message==='bestaetigung_noetig');
+      if(kh) kh.textContent = wartetAufBestaetigung
+        ? 'Danach können Sie Ihr Kundenkonto direkt aus derselben E-Mail heraus anlegen – Ihre Daten sind dann schon eingetragen, Sie vergeben nur noch ein Passwort. Damit sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.'
+        : 'Mit einem Kundenkonto sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.';
+      // Vor der Bestaetigung KEIN Knopf: der schnelle Weg (ein Klick, ohne zweite Mail) haengt am
+      // Token aus der Bestaetigungsmail. Ein Knopf hier wuerde in den langsameren Weg fuehren und
+      // dem Satz darueber widersprechen.
+      if(kl){ kl.href='/portal/?registrieren'; kl.style.display = wartetAufBestaetigung ? 'none' : 'inline-block'; }
+      document.getElementById('done-konto').classList.remove('hidden');
       document.getElementById('pdone').classList.remove('hidden');
       window.scrollTo({top:0,behavior:'smooth'});
     })

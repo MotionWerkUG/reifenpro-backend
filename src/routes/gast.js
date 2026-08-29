@@ -239,11 +239,15 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     mainIds = mainIds.filter((x) => UUID_RE.test(String(x))).slice(0, 20);
     const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
+    // Privat- oder Firmenkunde. Unbekannte Werte gelten als 'privat' -> ein Tippfehler im Formular
+    // verhindert keine Buchung. Bei 'firma' ist der Firmenname Pflicht (Rechnungsempfaenger).
+    const kundentyp = (b.kundentyp === 'firma') ? 'firma' : 'privat';
     if (!vorname || !nachname || !telefon || !email || !kennzeichen || !strasse || !plz || !ort || !datum || !uhrzeit_von || !mainIds.length)
       return res.status(400).json({ error: 'Bitte alle Pflichtfelder ausfüllen (inkl. Anschrift und mindestens eine Leistung).' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
+    if (kundentyp === 'firma' && !String(b.firma || '').trim()) return res.status(400).json({ error: 'Bitte geben Sie den Firmennamen an.' });
     // Sanftes Cool-down gegen Mail-Bombing einer fremden Adresse: max. 2 OFFENE (unbestaetigte) Anfragen
     // je Ziel-E-Mail. KEIN 24h-Hard-Lock -> bestaetigte Termine zaehlen nicht (nach Bestaetigung sofort
     // wieder buchbar), unbestaetigte laufen nach 45 Min ab (selbstheilend) -> kein Dauer-Lockout eines
@@ -292,6 +296,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     const tel = noTag(telefon).slice(0, 60), em = noTag(email).slice(0, 160), kz = noTag(kennzeichen).slice(0, 20);
     const an = ['Herr', 'Frau', 'Divers', 'Firma'].includes(anrede) ? anrede : null;
     const str = noTag(strasse).slice(0, 160), pz = noTag(plz).slice(0, 12), or = noTag(ort).slice(0, 120);
+    const fa = kundentyp === 'firma' ? noTag(b.firma).slice(0, 160) : null;
     const mainArtId = mainIds[0];
     const hauptNamen = kalk.positionen.filter(p => p.rolle === 'haupt').map(p => p.bezeichnung);
     const zusatzN = kalk.positionen.filter(p => p.rolle === 'zusatz').length;
@@ -326,9 +331,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
         `INSERT INTO termine (kontakt_name, kontakt_anrede, kontakt_vorname, kontakt_nachname, kontakt_telefon, kontakt_email,
            kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
            kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung,
-           bestaetigung_token, bestaetigung_token_ablauf, gutschein_code, gutschein_rabatt)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23)`,
-        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt]);
+           bestaetigung_token, bestaetigung_token_ablauf, gutschein_code, gutschein_rabatt,
+           kontakt_kundentyp, kontakt_firma)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23,$24,$25)`,
+        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt, kundentyp, fa]);
     });
 
     // Nur EINE Mail an den (noch unverifizierten) Gast: der Bestaetigungslink. Admin-Mail + finale
@@ -339,10 +345,22 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
       const dF = datum.split('-').reverse().join('.');
       const link = 'https://www.schroeder-scholz.de/api/gast/termin/bestaetigen?token=' + token;
+      // Gebuchte Leistungen schon in DIESER Mail zeigen (nicht erst in der finalen Bestaetigung):
+      // der Kunde soll vor dem Bestaetigen sehen, was er bestellt hat. Gleiche Darstellung wie in
+      // der finalen Mail -> kundenseitig NUR brutto und als "ab" (PAngV; der Endpreis haengt an
+      // Zollgroesse und Fahrzeugart). Der Gutschein steht bereits im Block darueber, hier nicht doppelt.
+      const eurA = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
+      const posHtmlA = kalk.positionen.map(p => escAttr(p.bezeichnung) + ': ab ' + eurA(p.zeilen_brutto)).join('<br>');
+      const preisBlockA = posHtmlA
+        ? ('<strong>Ihre Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtmlA
+           + '<br><strong>Summe (Schätzung): ab ' + eurA(kalk.brutto) + '</strong>'
+           + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
+        : '';
       const htmlGast = portalMailHtml(einst, {
         titel: 'Bitte bestätigen Sie Ihre Terminanfrage', name: vn,
         absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
           '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + gutscheinCode + ' (−' + gutscheinRabatt + ' %)' : ''),
+          preisBlockA,
           'Ihr Termin ist noch <strong>nicht verbindlich</strong>. Bitte bestätigen Sie ihn innerhalb von 45 Minuten mit einem Klick auf den Button — erst dann ist er fest gebucht.'],
         button: { text: 'Termin verbindlich bestätigen', url: link },
         hinweis: 'Wenn Sie diese Anfrage nicht gestellt haben, ignorieren Sie diese E-Mail einfach — es wird kein Termin gebucht. Der Link ist 45 Minuten gültig.'
@@ -442,9 +460,12 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
            + (t.gutschein_code ? '<br>Gutschein ' + t.gutschein_code + ': −' + t.gutschein_rabatt + ' % (Anrechnung auf der Rechnung)' : '')
            + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
         : '';
-      // #6 Konto-CTA (sekundaer) unter dem Bestaetigungstext. E-Mail des Gastes vorbelegt; Backend behandelt
-      // Bestandskunden sauber (Passwort-festlegen statt Doppelkonto). encodeURIComponent -> URL-sicher.
-      const kontoUrlMail = 'https://www.schroeder-scholz.de/portal/?registrieren&email=' + encodeURIComponent(t.kontakt_email || '');
+      // #6 Konto-CTA (sekundaer) unter dem Bestaetigungstext. Statt der E-Mail in der URL geht jetzt ein
+      // signierter Einmal-Token mit: der Kunde hat seine Adresse mit DIESEM Klick gerade bewiesen, also
+      // soll er fuer das Konto keine zweite Bestaetigungsmail und keine Freischaltung mehr durchlaufen
+      // (Entscheidung David). Der Token traegt keine lesbaren Daten; das Portal holt die Vorbefuellung
+      // damit serverseitig ueber GET /api/portal/auth/konto-start.
+      const kontoUrlMail = 'https://www.schroeder-scholz.de/portal/?registrieren&konto=' + kontoToken(t.id, t.kontakt_email);
       // Nur Inline-Elemente (a/br/span) -> gueltig, da portalMailHtml jedes absaetze-Element in ein <p> wrappt
       // (eine <table> darin waere ungueltiges HTML und bricht in Outlook). Konsistent mit der gastSeite-CTA.
       const kontoCtaMail = '<a href="' + escAttr(kontoUrlMail) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:13px 30px;font-size:15px;font-weight:700">Kundenkonto erstellen</a>'
@@ -471,9 +492,8 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       }
     } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
 
-    // "Konto erstellen"-CTA: E-Mail des bestaetigten Gastes vorbelegen. Backend behandelt Bestandskunden
-    // ohnehin sauber (Passwort-festlegen-Link statt Doppelkonto). encodeURIComponent -> URL-sicher.
-    const kontoUrl = 'https://www.schroeder-scholz.de/portal/?registrieren&email=' + encodeURIComponent(t.kontakt_email || '');
+    // "Konto erstellen"-CTA mit demselben signierten Token wie in der Mail (siehe oben).
+    const kontoUrl = 'https://www.schroeder-scholz.de/portal/?registrieren&konto=' + kontoToken(t.id, t.kontakt_email);
     const kontoCta = '<div style="margin-top:20px;padding-top:18px;border-top:1px solid #eee"><a href="' + escAttr(kontoUrl) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:12px 22px;font-size:15px;font-weight:700">Kundenkonto erstellen</a><p style="margin:12px 0 0;color:#777;font-size:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</p></div>';
     res.send(gastSeite('Termin bestätigt!', 'Vielen Dank — Ihr Termin ist jetzt verbindlich gebucht. Sie erhalten die Bestätigung zusätzlich per E-Mail.', kontoCta));
   } catch (e) { next(e); }
@@ -490,6 +510,13 @@ function stornoToken(terminId) {
   // ausschliesslich DIESEN einen Termin absagen kann und nur solange er 'bestaetigt' und noch nicht
   // innerhalb der Stornofrist ist (vergangene Termine sind dadurch automatisch ausgeschlossen).
   return jwt.sign({ tid: terminId, typ: 'gast-storno' }, process.env.JWT_SECRET, { expiresIn: '180d' });
+}
+// Nachweis "diese Person besitzt das Postfach dieses Gast-Termins" — Grundlage dafuer, dass die
+// Kontoanlage ohne zweite Bestaetigungsmail und ohne Freischaltung auskommt. Bewusst an den
+// konkreten Termin UND die Adresse gebunden: die Registrierung akzeptiert ihn nur, wenn die
+// angegebene E-Mail dazu passt. 14 Tage — lang genug, um sich das in Ruhe zu ueberlegen.
+function kontoToken(terminId, email) {
+  return jwt.sign({ tid: terminId, email: String(email || '').toLowerCase(), typ: 'gast-konto' }, process.env.JWT_SECRET, { expiresIn: '14d' });
 }
 function stornoLink(terminId) {
   return 'https://www.schroeder-scholz.de/api/gast/termin/absagen?token=' + stornoToken(terminId);
@@ -578,6 +605,15 @@ router.post('/termin/absagen', absageLimiter, async (req, res, next) => {
       "UPDATE termine SET status='storniert', storniert_am=NOW(), storniert_von='kunde (gast-online)', geaendert_am=NOW() WHERE id=$1 AND status='bestaetigt' AND fakturiert IS NOT TRUE AND rechnung_id IS NULL",
       [r.t.id]);
     if (!upd.rowCount) {
+      // Der Guard kann aus zwei Gruenden greifen — einmal nachladen, damit der Text stimmt:
+      // entweder war der Termin schon storniert, oder zwischen Pruefung und Update ist die
+      // Rechnung entstanden. "Bereits abgesagt" waere im zweiten Fall schlicht falsch.
+      const jetzt = (await query('SELECT status, fakturiert, rechnung_id FROM termine WHERE id=$1', [r.t.id])).rows[0];
+      if (jetzt && jetzt.status === 'bestaetigt' && (jetzt.fakturiert || jetzt.rechnung_id)) {
+        const tel = r.einst.telefon ? (' Bitte rufen Sie uns kurz an: ' + escAttr(r.einst.telefon) + '.') : ' Bitte melden Sie sich kurz telefonisch bei uns.';
+        return res.status(409).send(gastSeite('Bitte kurz anrufen',
+          'Für diesen Termin läuft bei uns inzwischen die Abrechnung, deshalb können wir ihn hier nicht mehr selbst absagen.' + tel));
+      }
       return res.status(409).send(gastSeite('Bereits abgesagt', 'Dieser Termin ist bereits abgesagt. Sie können jederzeit einen neuen Termin buchen.', neuBuchenCta));
     }
 

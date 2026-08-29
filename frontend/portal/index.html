@@ -164,6 +164,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="auth-sub" data-i18n="register_sub">Neues Kundenkonto erstellen</div>
     <div id="reg-err" class="auth-err hidden"></div>
     <div id="reg-ok" class="auth-ok hidden"></div>
+    <div id="reg-konto-hinweis" class="auth-ok hidden" data-i18n="reg_from_booking">Wir haben Ihre Daten aus der Terminbuchung übernommen. Vergeben Sie nur noch ein Passwort — Ihr Konto ist dann sofort nutzbar.</div>
+    <!-- Nach erfolgreicher Registrierung wird dieser Block ausgeblendet: die ausgefuellten Felder
+         sind dann erledigt und der Nutzer soll nur noch lesen, wie es weitergeht. -->
+    <div id="reg-form">
     <div class="g2">
       <div class="fg"><label data-i18n="firstname">Vorname</label><input id="reg-vorname"></div>
       <div class="fg"><label data-i18n="lastname">Nachname</label><input id="reg-nachname"></div>
@@ -195,6 +199,10 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div class="auth-switch" style="margin-top:8px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)">
       <span data-i18n="gewerbe_link_q">Sie sind Gewerbekunde?</span> <a onclick="zeigeScreen('gewerbe')" data-i18n="gewerbe_link">Zugang anfragen</a>
     </div>
+    </div><!-- /reg-form -->
+    <!-- Weg nach dem Erfolg: statt eines automatischen Sprungs nach 7 Sekunden entscheidet der
+         Nutzer selbst, wann er weitergeht — er soll die drei Schritte in Ruhe lesen koennen. -->
+    <button id="reg-weiter" class="btn btn-p hidden" style="margin-top:16px" onclick="zeigeScreen('login')" data-i18n="to_login">Zur Anmeldung</button>
   </div>
 </div>
 
@@ -403,6 +411,16 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         <div id="buchen-bestaetigung" class="hidden" style="margin-top:14px;padding:14px 16px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px">
           <div style="font-weight:700;margin-bottom:10px" data-i18n="confirm_booking_title">Bitte Buchung bestätigen</div>
           <div id="buchen-bestaetigung-inhalt" style="font-size:14px;line-height:1.7"></div>
+          <!-- Anschrift wird nur eingeblendet, wenn sie im Kundenkonto fehlt: sie ist fuer die
+               spaetere Rechnung Pflicht, wird bei der Registrierung aber bewusst nicht erhoben. -->
+          <div id="buchen-anschrift" class="hidden" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:8px" data-i18n="address_needed">Für die Rechnung brauchen wir noch Ihre Anschrift.</div>
+            <div class="fg"><label data-i18n="street">Straße und Hausnummer</label><input id="buchen-strasse"></div>
+            <div class="g2">
+              <div class="fg"><label data-i18n="zip">PLZ</label><input id="buchen-plz" inputmode="numeric"></div>
+              <div class="fg"><label data-i18n="city">Ort</label><input id="buchen-ort"></div>
+            </div>
+          </div>
           <div style="display:flex;gap:8px;margin-top:14px">
             <button class="btn btn-g btn-sm" onclick="terminBuchenAbbrechen()" data-i18n="back">Zurück</button>
             <button class="btn btn-p btn-sm" id="buchen-bestaetigen-btn" onclick="terminBuchenBestaetigen()" data-i18n="confirm_book_btn">Verbindlich buchen</button>
@@ -498,6 +516,8 @@ var I18N = {
     change_password: 'Passwort ändern', new_password: 'Neues Passwort', save: 'Speichern',
     password_repeat: 'Passwort wiederholen', password_mismatch: 'Passwörter stimmen nicht überein',
     accept_required: 'Bitte Datenschutz und AGB akzeptieren',
+    reg_success_sofort: 'Konto erstellt. Ihre E-Mail ist durch die Terminbestätigung bereits bestätigt — Sie können sich sofort anmelden.',
+    reg_from_booking: 'Wir haben Ihre Daten aus der Terminbuchung übernommen. Vergeben Sie nur noch ein Passwort — Ihr Konto ist dann sofort nutzbar.',
     reg_success: 'Registrierung erfolgreich. So geht es weiter: 1. Bestätigen Sie Ihre E-Mail über den Link, den wir Ihnen soeben gesendet haben. 2. Danach schalten wir Ihren Zugang frei — in der Regel innerhalb eines Werktags. Anschließend können Sie sich anmelden.',
     login_pending_confirm: 'Ihre E-Mail-Adresse ist noch nicht bestätigt. Bitte klicken Sie auf den Link in unserer Bestätigungsmail. Nicht erhalten? Lassen Sie sie unten erneut senden.',
     login_pending_approval: 'Ihre E-Mail ist bestätigt — jetzt schalten wir Ihren Zugang noch frei. Das erledigen wir in der Regel innerhalb eines Werktags und melden uns bei Ihnen.',
@@ -517,6 +537,7 @@ var I18N = {
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
     past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
     confirm_booking_title: 'Bitte Buchung bestätigen', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
@@ -559,6 +580,8 @@ var I18N = {
     change_password: 'Change password', new_password: 'New password', save: 'Save',
     password_mismatch: 'Passwords do not match',
     accept_required: 'Please accept privacy policy and terms',
+    reg_success_sofort: 'Account created. Your email is already confirmed through the appointment confirmation — you can sign in right away.',
+    reg_from_booking: 'We have taken your details from your booking. Just choose a password — your account is ready immediately.',
     reg_success: 'Registration successful. What happens next: 1. Confirm your email via the link we just sent you. 2. We then activate your access — usually within one business day. After that you can sign in.',
     login_pending_confirm: 'Your email address is not confirmed yet. Please click the link in our confirmation email. Did not receive it? Resend it below.',
     login_pending_approval: 'Your email is confirmed — we just need to activate your access. We usually do this within one business day and will get back to you.',
@@ -578,6 +601,7 @@ var I18N = {
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
     past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
     confirm_booking_title: 'Please confirm your booking', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
@@ -657,6 +681,25 @@ function zeigeScreen(s) {
   var ls = document.querySelector('.lang-switch');
   if (ls) ls.style.display = (s === 'app') ? 'none' : 'flex';
 }
+// Token aus dem "Kundenkonto erstellen"-Link der Terminbestaetigung (?konto=...)
+var KONTO_TOKEN = '';
+
+// Formular aus dem gebuchten Termin vorbefuellen. Schlaegt es fehl (Link abgelaufen, Termin schon
+// einem Konto zugeordnet), bleibt der normale Registrierungsweg -- ohne Fehlermeldung, denn der
+// Nutzer kann sich hier ganz regulaer anmelden.
+function kontoStartLaden() {
+  papi('GET', '/auth/konto-start?token=' + encodeURIComponent(KONTO_TOKEN)).then(function(d) {
+    if (!d) return;
+    var setz = function(id, wert) { var e = document.getElementById(id); if (e && wert) e.value = wert; };
+    setz('reg-vorname', d.vorname); setz('reg-nachname', d.nachname);
+    setz('reg-email', d.email); setz('reg-telefon', d.telefon);
+    var mail = document.getElementById('reg-email');
+    if (mail && d.email) { mail.readOnly = true; mail.style.opacity = '.7'; }   // gehoert zum Nachweis
+    var hin = document.getElementById('reg-konto-hinweis');
+    if (hin) hin.classList.remove('hidden');
+  }).catch(function() { KONTO_TOKEN = ''; });
+}
+
 function resetRegForm() {
   ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
     var e = document.getElementById(id); if (e) e.value = '';
@@ -666,6 +709,10 @@ function resetRegForm() {
   });
   var err = document.getElementById('reg-err'); if (err) err.classList.add('hidden');
   var ok = document.getElementById('reg-ok'); if (ok) ok.classList.add('hidden');
+  // Formular wieder zeigen und den Weiter-Knopf verstecken (sonst bliebe der Erfolgszustand
+  // stehen, wenn jemand spaeter erneut auf "Registrieren" geht).
+  var form = document.getElementById('reg-form'); if (form) form.classList.remove('hidden');
+  var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.add('hidden');
 }
 
 // ── AUTH ──
@@ -715,17 +762,21 @@ function portalRegister() {
 
   papi('POST', '/auth/registrieren', {
     vorname: vorname, nachname: nachname, email: email, telefon: telefon,
-    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung
-  }).then(function() {
-    okEl.textContent = t('reg_success'); okEl.classList.remove('hidden');
+    passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung,
+    konto_token: KONTO_TOKEN || undefined
+  }).then(function(antwort) {
+    // Kam der Kunde aus einer bestaetigten Terminbuchung, ist das Konto sofort nutzbar --
+    // dann waere der Hinweis auf E-Mail-Bestaetigung und Freischaltung schlicht falsch.
+    okEl.textContent = (antwort && antwort.sofort_anmelden) ? t('reg_success_sofort') : t('reg_success');
+    okEl.classList.remove('hidden');
     document.getElementById('reg-pass').value = '';
     document.getElementById('reg-pass2').value = '';
-    // Nach 7s zurueck zum Login — aber nur, wenn der Nutzer noch auf dem Register-Screen ist (kein Rauswurf aus aktiver Session)
-    if (REG_TIMER) clearTimeout(REG_TIMER);
-    REG_TIMER = setTimeout(function() {
-      REG_TIMER = null;
-      if (!document.getElementById('screen-register').classList.contains('hidden')) zeigeScreen('login');
-    }, 7000);
+    // Das ausgefuellte Formular hat seinen Zweck erfuellt -> ausblenden, damit nur die Information
+    // stehen bleibt, wie es weitergeht. Der Weg zur Anmeldung wird als Knopf angeboten (frueher
+    // sprang die Seite nach 7 Sekunden von selbst — zu hektisch zum Lesen).
+    var form = document.getElementById('reg-form'); if (form) form.classList.add('hidden');
+    var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.remove('hidden');
+    if (REG_TIMER) { clearTimeout(REG_TIMER); REG_TIMER = null; }
   }).catch(function(e) {
     errEl.textContent = e.message; errEl.classList.remove('hidden');
   });
@@ -1263,17 +1314,36 @@ function terminBuchen() {
   document.getElementById('buchen-bestaetigung-inhalt').innerHTML = inhalt;
   document.getElementById('buchen-btn').classList.add('hidden');
   document.getElementById('buchen-bestaetigung').classList.remove('hidden');
+  buchenAnschriftPruefen();   // Anschriftsfelder gleich mit anzeigen, falls sie im Konto fehlen
   document.getElementById('buchen-bestaetigung').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 // Schritt 2: verbindlich buchen (POST)
+// Fehlt im Konto die Anschrift, wird sie in der Buchungs-Zusammenfassung mit abgefragt --
+// dort, wo der Nutzer ohnehin gerade bestaetigt, statt ihn spaeter mit einer Fehlermeldung
+// zurueckzuschicken.
+function buchenAnschriftPruefen() {
+  var noetig = !(KUNDE && KUNDE.strasse && KUNDE.plz && KUNDE.ort);
+  var box = document.getElementById('buchen-anschrift');
+  if (box) box.classList.toggle('hidden', !noetig);
+  return noetig;
+}
+
 function terminBuchenBestaetigen() {
   if (!pendingBuchung || buchungLaeuft) return; // kein zweiter Versand waehrend laufender Buchung
   buchungLaeuft = true;
   var btn = document.getElementById('buchen-bestaetigen-btn');
   if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
   var sammel = pendingBuchung.sammel;
-  papi('POST', '/daten/termine', pendingBuchung.payload).then(function() {
+  var nutzlast = pendingBuchung.payload;
+  if (buchenAnschriftPruefen()) {
+    var gv = function(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
+    nutzlast = JSON.parse(JSON.stringify(nutzlast));
+    nutzlast.strasse = gv('buchen-strasse'); nutzlast.plz = gv('buchen-plz'); nutzlast.ort = gv('buchen-ort');
+  }
+  papi('POST', '/daten/termine', nutzlast).then(function() {
+    // Anschrift ist jetzt im Konto -> beim naechsten Mal nicht erneut abfragen
+    if (nutzlast.strasse) { KUNDE.strasse = nutzlast.strasse; KUNDE.plz = nutzlast.plz; KUNDE.ort = nutzlast.ort; }
     notify(sammel ? t('collective_requested') : t('booked'), 'ok');
     document.getElementById('buchen-notiz').value = '';
     var sammelCb = document.getElementById('buchen-sammel');
@@ -1539,6 +1609,7 @@ function initPortal() {
   var wantReg = _p.has('registrieren') || window.location.hash === '#registrieren';
   // E-Mail-Vorbelegung aus dem "Konto erstellen"-Link der Terminbestaetigungs-Mail (?email=...).
   // Nur ein simpler Feldwert (kein innerHTML -> keine XSS), aber auf Laenge/Plausibilitaet begrenzt.
+  KONTO_TOKEN = (_p.get('konto') || '').trim();
   var hatEmailParam = _p.has('email');
   var emailPrefill = (_p.get('email') || '').trim().slice(0, 160);
   if (emailPrefill && emailPrefill.indexOf('@') < 1) emailPrefill = '';
@@ -1559,9 +1630,13 @@ function initPortal() {
       var _re = document.getElementById('reg-email');
       if (_re) _re.value = emailPrefill;
     }
+    // Aus einer bestaetigten Terminbuchung heraus (?konto=<Token>): Daten serverseitig holen statt
+    // sie in der URL mitzuschleppen. Der Token ist der Nachweis, dass die Person das Postfach
+    // besitzt -- deshalb entfaellt spaeter die zweite Bestaetigungsmail.
+    if (KONTO_TOKEN) kontoStartLaden();
   }
-  // URL immer bereinigen, sobald ein email=-Param da war (auch bei ungueltigem Wert) -> keine E-Mail in Verlauf/Referrer.
-  if (hatEmailParam) window.history.replaceState({}, '', window.location.pathname + (wantReg ? '?registrieren' : ''));
+  // URL immer bereinigen, sobald ein email=- oder konto=-Param da war -> nichts davon in Verlauf/Referrer.
+  if (hatEmailParam || KONTO_TOKEN) window.history.replaceState({}, '', window.location.pathname + (wantReg ? '?registrieren' : ''));
 }
 initPortal();
 </script>

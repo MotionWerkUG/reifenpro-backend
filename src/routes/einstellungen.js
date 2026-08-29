@@ -3,6 +3,9 @@ const { query } = require('../db/index');
 const { authenticate, requireAdmin, requireStaff } = require('../middleware/auth');
 const { regenerate } = require('../lib/homepage-generate');
 const feiertage = require('../lib/feiertage');
+// Pruefung + Speichern der Woche kommen aus der gemeinsamen Bibliothek (dieselbe Quelle wie das
+// CMS-Panel) — sonst gibt es zwei Kopien der Sync-Logik, die sich gegenseitig ueberschreiben.
+const { pruefeWoche, wocheSpeichern } = require('../lib/oeffnung');
 
 // Editierbare Spalten (Whitelist). id und geaendert_am werden nie direkt gesetzt.
 // Spaltennamen stammen ausschliesslich aus dieser festen Liste -> keine SQL-Injection.
@@ -116,43 +119,14 @@ router.get('/oeffnungszeiten', authenticate, async (req, res, next) => {
 
 router.put('/oeffnungszeiten', authenticate, requireAdmin, async (req, res, next) => {
   try {
-    const woche = Array.isArray(req.body.woche) ? req.body.woche : [];
-    const t = (v) => (v === '' || v == null) ? null : v;
-    for (const d of woche) {
-      const wt = parseInt(d.wochentag, 10);
-      if (!(wt >= 0 && wt <= 6)) continue;
-      await query(
-        `INSERT INTO oeffnungszeiten (wochentag, geschlossen, von1, bis1, von2, bis2)
-         VALUES ($1,$2,$3,$4,$5,$6)
-         ON CONFLICT (wochentag) DO UPDATE SET geschlossen=$2, von1=$3, bis1=$4, von2=$5, bis2=$6`,
-        [wt, !!d.geschlossen, t(d.von1), t(d.bis1), t(d.von2), t(d.bis2)]
-      );
-    }
-    // Alt-Felder (mo_fr/sa/so/mittagspause) fuer die Homepage-Anzeige aus dem Wochenraster synchron
-    // halten -> der Homepage-Renderer (anderer Bereich) bleibt unveraendert und zeigt weiter die
-    // regulaeren Zeiten. Besondere Tage/Feiertage wirken separat ueber die Buchungslogik.
-    if (woche.length) {
-      const byWt = {}; woche.forEach((d) => { byWt[parseInt(d.wochentag, 10)] = d; });
-      const mo = byWt[0], sa = byWt[5], so = byWt[6];
-      const pause = (d) => d && !d.geschlossen && d.von2 && d.bis2;
-      const sync = {
-        mo_fr_von: mo && !mo.geschlossen ? t(mo.von1) : null,
-        mo_fr_bis: mo && !mo.geschlossen ? t(pause(mo) ? mo.bis2 : mo.bis1) : null,
-        mittagspause_von: pause(mo) ? t(mo.bis1) : null,
-        mittagspause_bis: pause(mo) ? t(mo.von2) : null,
-        sa_offen: sa ? !sa.geschlossen : false,
-        sa_von: sa && !sa.geschlossen ? t(sa.von1) : null,
-        sa_bis: sa && !sa.geschlossen ? t(sa.bis1) : null,
-        so_offen: so ? !so.geschlossen : false,
-        so_von: so && !so.geschlossen ? t(so.von1) : null,
-        so_bis: so && !so.geschlossen ? t(so.bis1) : null
-      };
-      const scols = Object.keys(sync);
-      await query(
-        'UPDATE einstellungen SET ' + scols.map((c, i) => c + '=$' + (i + 1)).join(', ') + ', geaendert_am=NOW() WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)',
-        scols.map((c) => sync[c])
-      );
-    }
+    // Erst pruefen: eine unvollstaendige Woche wuerde die fehlenden Tage stillschweigend auf
+    // „geschlossen" setzen und damit auch die Online-Buchung abschalten.
+    const fehler = pruefeWoche(req.body.woche);
+    if (fehler) return res.status(400).json({ error: fehler });
+    // wocheSpeichern() schreibt Raster + Alt-Feld-Sync (mo_fr/sa/so/mittagspause) in EINER
+    // Transaktion. Frueher stand hier eine eigene Kopie dieser Logik, die die Schliesszeit an
+    // Sa/So mit Mittagspause aus bis1 statt bis2 nahm -> falsche Anzeige auf der Website.
+    await wocheSpeichern(req.body.woche);
     if (req.body.bundesland) {
       await query('UPDATE einstellungen SET bundesland=$1, geaendert_am=NOW() WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)', [req.body.bundesland]);
     }
