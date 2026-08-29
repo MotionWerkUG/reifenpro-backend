@@ -30,6 +30,13 @@ Ansicht: `scp frontend/index.html …/var/www/reifenpro/index.html` (mit Admin a
 Keine Rechnung/kein Beleg löschen oder rückdatieren. Nummernkreis-Logik nicht „vereinfachen".
 Geteiltes Fundament nur nach Ankündigung. Keine echten Kundendaten in Tests.
 
+## Tests
+`npm run test:db` (einmalig / nach Schemaänderung) legt die Test-DB `reifenpro_test` an —
+Schema 1:1 aus der Produktiv-DB, ohne Daten. `npm test` fährt die Tests
+(`test/nummernkreis.test.js`, `test/pflichtangaben.test.js`). Tests laufen nie gegen die
+Produktiv-DB und schreiben PDFs nur in einen Temp-Ordner (`RECHNUNGEN_DIR`). Details:
+`test/README.md`. Nach jeder Änderung an `rechnungen.js` müssen die Tests grün sein.
+
 ## Werkzeuge
 `gobd-pruefer` (Pflicht bei jeder Änderung: Nummernkreis, § 14, Aufbewahrung, Rundung),
 `code-auditor`, `reviewer`, `test-autor` (Preis-/MwSt-Logik). Vor Deploy `/release-gate`.
