@@ -447,6 +447,7 @@ function kundenartWechsel(){
   if(!firma){ var f=document.getElementById('f-firma'); if(f) f.value=''; }
 }
 
+var ADR_BESTAETIGT = false; // Rueckfrage zur fehlenden Hausnummer nur einmal stellen
 function absenden(){
   var v=function(id){return (document.getElementById(id).value||'').trim();};
   var d={ main_ids: state.haupt.map(function(h){return h.artikel_id;}), zusatz_ids: state.zusatz.map(function(z){return z.artikel_id;}),
@@ -458,9 +459,15 @@ function absenden(){
     datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
   if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
   if(d.kundentyp==='firma'&&!d.firma){fehler('Bitte den Firmennamen angeben – er steht später auf der Rechnung.');return;}
-  // Gleiche Regel wie im Backend und in der Rechnung: eine Anschrift ohne Hausnummer ist
-  // unvollstaendig (§ 14 UStG). Postfach ist eine zulaessige Zustellanschrift ohne Nummer.
-  if(!/\d/.test(d.strasse)&&!/postfach/i.test(d.strasse)){fehler('Bitte die Hausnummer mit angeben (oder „Postfach" eintragen).');return;}
+  // Hausnummer fehlt: nachfragen statt sperren. Adressen ohne Hausnummer gibt es real
+  // (kleine Orte, „Am Markt"); ein echter Kunde darf daran nicht scheitern. Der haeufige
+  // Fall ist die vergessene Hausnummer — dafuer reicht die Rueckfrage.
+  if(!/\d/.test(d.strasse)&&!/postfach/i.test(d.strasse)&&!ADR_BESTAETIGT){
+    if(!confirm('In der Straße steht keine Hausnummer. Für Vertrag und Rechnung brauchen wir die vollständige Anschrift.\n\nTrotzdem so übernehmen?')){
+      document.getElementById('f-strasse').focus(); return;
+    }
+    ADR_BESTAETIGT = true;
+  }
   if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
   var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
   fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
