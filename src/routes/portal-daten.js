@@ -504,7 +504,11 @@ router.get('/dokumente', authKunde, async (req, res, next) => {
     const { rows } = await query(
       `SELECT id, typ, titel, einlagerung_id,
               to_char(erstellt_am,'YYYY-MM-DD') AS erstellt_am,
-              (unterschrift_kunde IS NOT NULL) AS unterschrieben
+              -- Seit dem Scan-Weg kann ein Schein auch auf Papier unterschrieben sein: dann ist
+              -- unterschrift_kunde leer und nur scan_pfad gesetzt. Beides zaehlt als unterschrieben.
+              -- Der Scan selbst wird im Portal bewusst NICHT ausgeliefert (Entscheidung David):
+              -- ein Foto faengt leicht mehr ein als das Blatt.
+              (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL) AS unterschrieben
        FROM kunden_dokumente WHERE kunden_id=$1 ORDER BY erstellt_am DESC`,
       [req.kunde.id]);
     res.json(rows);
