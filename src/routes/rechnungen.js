@@ -8,6 +8,7 @@ const { erzeugeRechnungPdf } = require('../lib/rechnung-pdf');
 const { resolvePreis } = require('../lib/preis');
 const { portalMailHtml } = require('../lib/mail-template');
 const { sendMail } = require('../lib/mailer');
+const kasse = require('../lib/kasse');
 
 router.use(authenticate, requireStaff);
 
@@ -916,6 +917,64 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
   }
+});
+
+// ── POST /:id/barzahlung ── Zahlung am Tresen: an die Kasse melden und die Rechnung
+// als bezahlt vermerken. Die Kasse bucht "Kasse an Forderungen" (Betragsart
+// rechnungsausgleich, 0 %) — KEIN zweiter Erloes, denn Umsatz und Steuer sind bereits mit
+// der Rechnung entstanden. Sie signiert den Vorgang (TSE) und gibt den Beleg aus.
+router.post('/:id/barzahlung', async (req, res, next) => {
+  try {
+    const r = (await query('SELECT * FROM rechnungen WHERE id=$1', [req.params.id])).rows[0];
+    if (!r) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
+    if (r.status !== 'festgeschrieben') return res.status(400).json({ error: 'Nur festgeschriebene Rechnungen können kassiert werden.' });
+    if (r.storno_von_id) return res.status(400).json({ error: 'Eine Stornorechnung wird nicht kassiert.' });
+    if (r.zahlungsstatus === 'bezahlt') return res.status(409).json({ error: 'Diese Rechnung ist bereits als bezahlt vermerkt.' });
+    if (!kasse.konfiguriert()) return res.status(503).json({ error: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+
+    const zahlart = ['bar', 'ec', 'stripe'].includes(String(req.body && req.body.zahlart || 'bar')) ? String(req.body.zahlart || 'bar') : null;
+    if (!zahlart) return res.status(400).json({ error: 'Unbekannte Zahlart. Erlaubt sind bar, ec und stripe.' });
+
+    let antwort;
+    try {
+      antwort = await kasse.meldeZahlung({
+        quelleBeleg: r.rechnungsnr,
+        ticket: r.rechnungsnr,
+        betragArt: 'rechnungsausgleich',
+        betrag: Number(r.brutto_summe),
+        zahlart: zahlart,
+        kunde: r.empfaenger_firma || r.empfaenger_name || null
+      });
+    } catch (e) {
+      // Bewusst NICHT als bezahlt markieren, wenn die Kasse den Vorgang nicht angenommen hat.
+      // Sonst stuende die Rechnung auf bezahlt, ohne dass das Geld im Kassenbuch auftaucht.
+      const text = e.code === 'NICHT_ERREICHBAR'
+        ? 'Die Kasse ist nicht erreichbar. Die Rechnung wurde NICHT als bezahlt markiert.'
+        : ('Die Kasse hat den Vorgang abgelehnt: ' + e.message);
+      return res.status(e.code === 'NICHT_ERREICHBAR' ? 502 : 400).json({ error: text });
+    }
+
+    // Bargeld ab 10.000 EUR verlangt eine Identifizierung nach dem Geldwaeschegesetz. Die
+    // Kasse laesst den Vorgang dann bewusst offen — hier darf nichts als bezahlt gelten.
+    if (antwort && antwort.gwgErforderlich) {
+      return res.status(409).json({ error: 'Betrag über der Geldwäsche-Schwelle: Der Vorgang liegt in der Kasse und muss dort mit Identitätsnachweis bestätigt werden.' });
+    }
+
+    const beleg = kasse.belegAus(antwort);
+    const upd = await query(
+      `UPDATE rechnungen SET zahlungsstatus='bezahlt', bezahlt_am=(now() AT TIME ZONE 'Europe/Berlin')::date,
+         kasse_beleg_nr=$1, kasse_beleg_datum=(now() AT TIME ZONE 'Europe/Berlin')::date, kasse_beleg_url=$2
+       WHERE id=$3 RETURNING *`,
+      [beleg, (antwort && antwort.belegUrl) || null, req.params.id]);
+
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.barzahlung', tabelle: 'rechnungen', datensatzId: r.id,
+      neueWerte: { zahlart: zahlart, kassenbeleg: beleg, bereits_verarbeitet: !!(antwort && antwort.bereitsVerarbeitet) }, req });
+    res.json(Object.assign({}, upd.rows[0], {
+      hinweis: beleg
+        ? 'In der Kasse gebucht, Kassenbeleg ' + beleg + '.'
+        : 'In der Kasse gebucht. Die Belegnummer wird beim nächsten Abgleich nachgetragen.'
+    }));
+  } catch (e) { next(e); }
 });
 
 // ── PATCH /:id/bezahlt ── Zahlungsstatus setzen

@@ -222,6 +222,7 @@ BEGIN
        OR NEW.empfaenger_strasse  IS DISTINCT FROM OLD.empfaenger_strasse
        OR NEW.empfaenger_plz      IS DISTINCT FROM OLD.empfaenger_plz
        OR NEW.empfaenger_ort      IS DISTINCT FROM OLD.empfaenger_ort
+       OR NEW.empfaenger_land     IS DISTINCT FROM OLD.empfaenger_land
        OR NEW.aussteller          IS DISTINCT FROM OLD.aussteller
        OR NEW.rechnungsdatum      IS DISTINCT FROM OLD.rechnungsdatum
        OR NEW.leistungsdatum      IS DISTINCT FROM OLD.leistungsdatum
