@@ -1541,10 +1541,12 @@ window.addEventListener('load', function() {
 });
 
 // ── API ──
-function api(method, path, body) {
+// opt.raw: Antwort als Datei (Blob) statt als JSON — fuer Scans und PDFs, die hinter der
+// Anmeldung liegen und deshalb nicht per einfachem Link geoeffnet werden koennen.
+function api(method, path, body, opt) {
   var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
-  if (body !== undefined) opts.body = JSON.stringify(body);
+  if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
   return fetch(API + path, opts).then(function(r) {
     if (r.status === 401) { doLogout('expired'); return null; }
     if (!r.ok) {
@@ -1554,6 +1556,7 @@ function api(method, path, body) {
         throw err;
       });
     }
+    if (opt && opt.raw) return r.blob();
     return r.json().catch(function() { return null; });
   });
 }
@@ -3467,9 +3470,12 @@ function ladeDocs(kid) {
       return '<div class="dok-item">' +
         '<span style="font-size:11px;font-weight:700;color:var(--muted);min-width:36px;text-align:center">[' + (icons[d.typ] || 'D') + ']</span>' +
         '<div class="dok-info"><div class="dok-title">' + d.titel + '</div>' +
-        '<div class="dok-meta">' + fd(d.erstellt_am) + (d.unterschrieben ? ' - Unterschrieben ' + fd(d.unterschrift_datum) : ' - Ausstehend') + '</div></div>' +
+        '<div class="dok-meta">' + fd(d.erstellt_am) +
+          (d.unterschrieben ? ' - Unterschrieben' + (d.unterschrift_datum ? ' ' + fd(d.unterschrift_datum) : '') +
+            (d.unterschrift_weg === 'scan' ? ' (Papier, eingescannt)' : '') : ' - Ausstehend') + '</div></div>' +
         '<div style="display:flex;gap:6px">' +
         '<button class="btn btn-g btn-sm" onclick="zeigeDok(\'' + d.id + '\')">Anzeigen</button>' +
+        (d.hat_scan ? '<button class="btn btn-g btn-sm" onclick="zeigeScan(\'' + d.id + '\')">Scan</button>' : '') +
         '<button class="btn btn-danger btn-sm" onclick="loescheDok(\'' + d.id + '\')">X</button>' +
         '</div></div>';
     }).join('');
@@ -4953,6 +4959,28 @@ function zeigeDok(did) {
     dokUngespeichert = false;
     initSig(); openModal('dok');
   }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Der Scan liegt ausserhalb des Web-Verzeichnisses und ist nur ueber die angemeldete API
+// erreichbar. Deshalb wird er hier geladen und als Objekt-URL geoeffnet, nicht per Link.
+function zeigeScan(did) {
+  if (!aktK) return;
+  // Das Fenster muss SOFORT beim Klick geoeffnet werden. Wird es erst nach dem Laden
+  // geoeffnet, gilt es dem Browser nicht mehr als Nutzeraktion und wird blockiert.
+  var w = window.open('', '_blank');
+  if (!w) { notify('Bitte Pop-ups für diese Seite erlauben.', 'err'); return; }
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Scan</title></head>'
+    + '<body style="margin:0;font-family:sans-serif;padding:20px;color:#444">Scan wird geladen …</body></html>');
+  w.document.close();
+  api('GET', '/kunden/' + aktK.id + '/dokumente/' + did + '/scan', null, { raw: true })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      w.location.href = url;
+      setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+    })
+    .catch(function(e) {
+      try { w.document.body.textContent = 'Der Scan konnte nicht geladen werden: ' + e.message; } catch (x) {}
+      notify(e.message, 'err');
+    });
 }
 function loescheDok(did) {
   if (!aktK || !confirm('Dokument löschen?')) return;

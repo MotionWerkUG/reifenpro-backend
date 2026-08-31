@@ -1,4 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
+const fs = require('fs');
+const path = require('path');
 const { query } = require('../db/index');
 const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
@@ -28,7 +30,8 @@ router.get('/', async (req, res, next) => {
     const { rows } = await query(
       `SELECT id,typ,titel,erstellt_am,einlagerung_id,gueltig_bis,version,
               unterschrift_datum,
-              CASE WHEN unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL THEN true ELSE false END AS unterschrieben
+              CASE WHEN unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL THEN true ELSE false END AS unterschrieben,
+              (scan_pfad IS NOT NULL) AS hat_scan, unterschrift_weg
        FROM kunden_dokumente WHERE kunden_id=$1 ORDER BY erstellt_am DESC`,
       [req.params.kundenId]
     );
@@ -169,6 +172,35 @@ router.delete('/:did', requireAdmin, async (req, res, next) => {
       alteWerte: { typ: d.typ, titel: d.titel }, req });
     res.json({ message: 'Gelöscht.' });
   } catch (err) { next(err); }
+});
+
+// ── GET /:did/scan ── das eingescannte, unterschriebene Blatt ausliefern
+// Ohne diesen Weg waere der Scan eine Sackgasse: Die Unterschrift laege als Datei auf dem
+// Server, waere aber nirgends einsehbar — der Beleg damit wertlos. Ablage liegt bewusst
+// ausserhalb des Web-Verzeichnisses, deshalb ist das hier die einzige Tuer dorthin.
+const SCAN_BASIS = path.resolve('/home/deploy/projekte/reifenpro/dokument-scans');
+const SCAN_TYPEN = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.pdf': 'application/pdf' };
+
+router.get('/:did/scan', async (req, res, next) => {
+  try {
+    const d = (await query(
+      'SELECT scan_pfad, typ FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2',
+      [req.params.did, req.params.kundenId])).rows[0];
+    if (!d) return res.status(404).json({ error: 'Dokument nicht gefunden.' });
+    if (!d.scan_pfad) return res.status(404).json({ error: 'Zu diesem Dokument gibt es keinen Scan.' });
+    // Der Pfad kommt zwar aus der eigenen Datenbank, wird aber trotzdem geprueft: eine
+    // fehlerhaft geschriebene Zeile duerfte sonst jede Datei des Servers ausliefern.
+    const datei = path.resolve(d.scan_pfad);
+    if (datei !== SCAN_BASIS && !datei.startsWith(SCAN_BASIS + path.sep))
+      return res.status(400).json({ error: 'Ungültiger Ablageort.' });
+    const typ = SCAN_TYPEN[path.extname(datei).toLowerCase()];
+    if (!typ) return res.status(400).json({ error: 'Unbekannte Dateiart.' });
+    if (!fs.existsSync(datei)) return res.status(404).json({ error: 'Die Scan-Datei fehlt auf dem Server.' });
+    res.setHeader('Content-Type', typ);
+    res.setHeader('Content-Disposition', 'inline; filename="' + d.typ + path.extname(datei).toLowerCase() + '"');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    fs.createReadStream(datei).pipe(res);
+  } catch (e) { next(e); }
 });
 
 module.exports = router;
