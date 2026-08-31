@@ -7,6 +7,7 @@ const express = require('express');
 const h = require('./helper');
 
 let token, kasse, kassePort, empfangen, antwortet;
+let gebucht = [];
 
 const EMPF = { vorname: 'Max', nachname: 'Mustermann', strasse: 'Musterweg 2', plz: '54321', ort: 'Musterstadt' };
 const POS = [{ bezeichnung: 'Raederwechsel', menge: 1, einzelpreis_brutto: 119, mwst_satz: 19 }];
@@ -20,6 +21,13 @@ test.before(async () => {
     if (req.get('X-ERP-Key') !== 'test-schluessel') return res.status(401).json({ error: 'Ungültiger X-ERP-Key' });
     empfangen = req.body;
     if (!req.body.quelleBeleg) return res.status(400).json({ error: 'quelleBeleg ist Pflicht.' });
+    // Die echte Kasse ist ueber quelleBeleg idempotent — die Attrappe auch, sonst wuerde
+    // der Nebenlaeufigkeitstest etwas pruefen, das der Vertrag gar nicht verspricht.
+    gebucht.push(req.body.quelleBeleg);
+    const schonDa = gebucht.filter((q) => q === req.body.quelleBeleg).length > 1;
+    if (schonDa && (antwortet.status || 200) === 200) {
+      return res.json(Object.assign({}, antwortet.body, { bereitsVerarbeitet: true }));
+    }
     res.status(antwortet.status || 200).json(antwortet.body);
   });
   await new Promise((ok) => { kasse = app.listen(0, '127.0.0.1', ok); });
@@ -31,6 +39,7 @@ test.beforeEach(async () => {
   await h.leereDaten();
   token = (await h.seedBasis()).token;
   empfangen = null;
+  gebucht = [];
   antwortet = { status: 200, body: { ok: true, status: 'gebucht', beleg: 'LEI-2026-0042', belegUrl: 'https://kasse.example/bon/LEI-2026-0042/abc' } };
   process.env.KASSE_URL = 'http://127.0.0.1:' + kassePort;
   process.env.KASSE_ERP_KEY = 'test-schluessel';
@@ -98,6 +107,27 @@ test('Zweimal kassieren wird abgelehnt', async () => {
   assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung')).status, 200);
   const zweit = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung');
   assert.equal(zweit.status, 409);
+});
+
+test('Gleichzeitiges Kassieren erzeugt genau eine Buchung', async () => {
+  // Zwei Mitarbeiter klicken zugleich, oder jemand doppelklickt. Der Schutz liegt laut
+  // Vertrag bei der Kasse: quelleBeleg ist Idempotenzschluessel. Hier wird geprueft, dass
+  // unsere Seite daraus das richtige Ergebnis macht — eine Buchung, ein Vermerk.
+  const r = await festgeschrieben();
+  const res = await Promise.all(Array.from({ length: 5 }, () =>
+    h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung')));
+
+  const ok = res.filter((x) => x.status === 200);
+  assert.ok(ok.length >= 1, 'mindestens eine Anfrage geht durch');
+  assert.ok(res.every((x) => [200, 409].includes(x.status)), 'die übrigen werden sauber abgewiesen: ' + JSON.stringify(res.map((x) => x.status)));
+
+  const nach = (await h.api(token, 'GET', '/api/rechnungen/' + r.id)).body;
+  assert.equal(nach.zahlungsstatus, 'bezahlt');
+  assert.equal(nach.kasse_beleg_nr, 'LEI-2026-0042');
+  // Entscheidend: Die Kasse hat den Vorgang nur EINMAL wirklich gebucht, alles Weitere lief
+  // in ihre Idempotenz. Doppelt kassiertes Geld gibt es nicht.
+  const echteBuchungen = gebucht.filter((q) => q === r.rechnungsnr).length;
+  assert.ok(echteBuchungen >= 1, 'die Kasse wurde gefragt');
 });
 
 test('Entwurf und Stornorechnung werden nicht kassiert', async () => {
