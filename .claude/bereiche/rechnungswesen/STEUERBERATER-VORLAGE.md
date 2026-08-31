@@ -1,0 +1,156 @@
+# Kontenplan und Betragsarten ReifenPro — Vorlage für den Steuerberater
+
+Stand 29.08.2026. Reifenservice und Fahrzeugtechnik, Einzelunternehmen in Gründung,
+Regelbesteuerung. Barzahlung ab dem ersten Tag, dazu EC-Karte und voraussichtlich Stripe.
+Preise sind Bruttoendpreise.
+
+Alles unten ist ein **Vorschlag zur Bestätigung**, keine Festlegung. Die Kontonummern der
+Unterkonten muss der Steuerberater vergeben — im Mandanten frei sind nur, was er weiß.
+
+## Kontenrahmen: SKR03
+
+Belegt aus vier unabhängigen Quellen im bestehenden Autohandel-Betrieb desselben Inhabers
+(Steuerberater-Unterlage, Kassencode, Datenbankvorgabe, ReifenPro-Export). Im Rechnungswesen
+sind bereits hinterlegt: Debitoren 1400, Erlöse 19 % 8400, Erlöse 7 % 8300.
+
+## Zuerst zu klären: ein Widerspruch bei 8300 und 8200
+
+Im Autohandel ist **8300 als „Ersatzteile/Zubehör 19 %"** und zusätzlich als Pfandkonto
+belegt, **8200 als „Werkstattleistung 19 %"**. Im SKR03-Standard ist 8300 dagegen das
+**7-%-Automatikkonto** und 8200 ein Erlöskonto ohne Steuerautomatik. In ReifenPro ist 8300
+heute der 7-%-Erlös.
+
+Da es zwei getrennte Firmen mit getrennter Buchführung sind, ist das für ReifenPro nicht
+akut — aber der Kontenplan des Autohandels darf nicht übernommen werden, und die Belegung
+dort sollte gegengeprüft werden. Eine 19-%-Buchung auf einem 7-%-Automatikkonto wird mit
+7 % versteuert.
+
+## Erlöskonten — Vorschlag: vier bis fünf, alle 19 %
+
+| Zweck | Konto | USt |
+|---|---|---|
+| Werkstattleistung (Räderwechsel, Montage, Auswuchten, Fahrwerk, Bremsen) | 8400 | 19 % |
+| Reifen- und Räderverkauf | Unterkonto, z. B. 8401 | 19 % |
+| Einlagerung / Saisonlager | Unterkonto, z. B. 8402 | 19 % |
+| Zubehör und Kleinteile (Ventile, Gewichte, RDKS) | Unterkonto, z. B. 8403 | 19 % |
+| Altreifenentsorgung | Unterkonto, z. B. 8404 | 19 % |
+| Erlöse 7 % (Auffangkonto, praktisch ungenutzt) | 8300 | 7 % |
+
+Warum trennen: Beim Reifenverkauf steht dem Erlös ein hoher Wareneinsatz gegenüber, bei der
+Montage fast keiner. In einem Sammelkonto ist die Rohertragsquote nicht mehr lesbar. Die
+Einlagerung ist wiederkehrender Umsatz und die interessanteste Kennzahl des Betriebs.
+Umsatzsteuerlich bringt die Trennung nichts — es ist reine Auswertungsqualität.
+
+Alle Unterkonten müssen **Automatikkonten mit 19 %** sein, sonst braucht der DATEV-Export
+je Konto einen BU-Schlüssel.
+
+## Geldkonten
+
+| Zweck | Konto |
+|---|---|
+| Kasse (Bargeld) | 1000 |
+| Bank | 1200 |
+| Geldtransit, auch EC-Zahlung bis zur Gutschrift | 1360 |
+| Forderungen aus Lieferungen und Leistungen | 1400 |
+| Erhaltene, versteuerte Anzahlungen 19 % | 1718 |
+
+EC-Zahlung: Verkauf gegen 1360, Gutschrift der Tagessumme 1200 an 1360, Gebühren als
+Aufwand. Am Monatsende läuft 1360 gegen null. Ein EC-Umsatz darf nie ins Kassenbuch —
+das ist bei einer Kassennachschau der erste Prüfpunkt.
+
+## Stripe
+
+Grundregel: eigenes Verrechnungskonto, das den Stripe-Kontostand abbildet. Bruttoprinzip.
+
+| Vorgang | Buchung |
+|---|---|
+| Kunde zahlt 119,00 € | Stripe-Verrechnungskonto an Erlöse, **volle** 119,00 € |
+| Stripe-Gebühr 2,50 € | Gebührenkonto an Stripe-Verrechnungskonto |
+| Auszahlung 116,50 € an die Bank | Bank an Stripe-Verrechnungskonto |
+
+Sammelauszahlungen sind damit unproblematisch: Die Auszahlung ist ein reiner
+Geldkontentausch, die Zuordnung passiert innerhalb des Stripe-Kontos. Der Steuerberater
+braucht monatlich den Stripe-Report (Bruttoumsatz, Gebühren, Auszahlungen, Rückerstattungen).
+
+**Zu klären:** Vertragspartner ist in der Regel Stripe Payments Europe in Irland. Dann ist
+die Gebühr eine sonstige Leistung aus dem EU-Ausland, für die der Leistungsempfänger die
+Umsatzsteuer schuldet (§ 13b UStG). Das braucht eine eigene USt-IdNr. und ein Aufwandskonto
+mit § 13b-Automatik statt des normalen Gebührenkontos.
+
+## Betragsarten für die Kassenschnittstelle
+
+| Betragsart | Konto | USt | Erlös? |
+|---|---|---|---|
+| montage | 8400 | 19 % | ja |
+| reifenkauf | Unterkonto | 19 % | ja |
+| einlagerung | Unterkonto | 19 % | ja |
+| zubehoer | Unterkonto | 19 % | ja |
+| entsorgung | Unterkonto | 19 % | ja |
+| anzahlung (auch Online-Vorkasse) | 1718 | 19 % | nein, aber sofort steuerpflichtig |
+| anzahlungsaufloesung | 1718 | 19 % | nein |
+| **rechnungsausgleich** | **1400** | **keine** | **nein — kein Erlös** |
+| rabatt, storno, retoure | wie Original, negativ | wie Original | negativer Erlös |
+| privatentnahme / privateinlage | 1800 / 1890 | keine | nein |
+| geldtransit | 1360 | keine | nein |
+
+Der kritische Fall ist der Zahlungseingang auf eine bereits gestellte Rechnung: **Kasse an
+Forderungen**, kein Erlöskonto, kein Steuerschlüssel. Umsatz und Steuer sind mit der
+Rechnungsstellung entstanden; ein zweites Mal gebucht stünde derselbe Umsatz doppelt in der
+Voranmeldung.
+
+## Steuerliche Besonderheiten
+
+**Altreifenentsorgung** ist steuerpflichtiger Umsatz mit 19 %, kein durchlaufender Posten.
+Offen: ob die Abgabe an einen Verwerter gegen Gutschrift unter § 13b UStG (Abfälle und
+Schrott) fällt.
+
+**Anzahlungen und Online-Vorkasse:** Die Steuer entsteht mit dem Geldeingang, nicht mit der
+Leistung. Die Anzahlungsrechnung muss die Steuer offen ausweisen, und die Schlussrechnung
+muss Anzahlung und darauf entfallende Steuer abziehen. Wird das vergessen, wird die Steuer
+doppelt geschuldet.
+
+**Gutscheine:** Was ReifenPro heute führt, sind Prozent-Rabattcodes — der Kunde zahlt nichts
+dafür. Das ist eine Entgeltminderung, kein Gutschein im Sinne des Umsatzsteuerrechts.
+Sobald aber ein bezahlter Wertgutschein verkauft wird, gilt: Da alle Leistungen im Inland mit
+19 % erbracht werden, stehen Steuersatz und Leistungsort fest — es wäre sehr wahrscheinlich
+ein **Einzweckgutschein**, also **sofort bei Verkauf zu versteuern**. Das wird häufig falsch
+gemacht.
+
+**Kleinbetragsrechnung** bis 250 € brutto ohne Empfängerangabe (§ 33 UStDV) — das prüft das
+System bereits. Davon zu unterscheiden ist die Belegausgabepflicht ab dem ersten Bargeschäft,
+unabhängig vom Betrag.
+
+**Einlagerung über den Jahreswechsel:** Bei Bilanzierung stellt sich die Frage der passiven
+Rechnungsabgrenzung, bei Einnahmen-Überschuss-Rechnung nicht.
+
+## Fragen an den Steuerberater
+
+1. SKR03 bestätigen, oder gibt es einen Grund für SKR04?
+2. Der Widerspruch bei 8300 und 8200 im Autohandel: gewollt oder Fehler? Welche Konten
+   gelten für ReifenPro?
+3. Bitte die freien Unterkonten für Werkstattleistung, Reifenverkauf, Einlagerung, Zubehör
+   und Entsorgung vergeben — oder ist ein einziges Erlöskonto lieber?
+4. Sind alle Erlöskonten Automatikkonten, sodass der DATEV-Export ohne BU-Schlüssel auskommt?
+5. Stripe: Welches freie Geldkonto als Verrechnungskonto? Gebühren auf ein normales
+   Gebührenkonto oder auf ein § 13b-Automatikkonto? Brauchen wir eine USt-IdNr.?
+6. Einnahmen-Überschuss-Rechnung oder Bilanz? Davon hängen Debitorenkonten und die
+   Abgrenzung der Einlagerung ab.
+7. Ist-Versteuerung nach § 20 UStG beantragen? Bei Neugründung möglich und liquiditätsschonend.
+8. Bezahlte Wertgutscheine: immer Einzweckgutscheine? Welches Konto, welche Steuerautomatik?
+9. Altreifen an den Verwerter gegen Gutschrift: § 13b UStG?
+10. Reifenbezug aus dem EU-Ausland: welches Konto, und was ist vor der ersten Bestellung zu
+    erledigen (USt-IdNr., Zusammenfassende Meldung)?
+11. Kautionen für Leihräder: eigenes Verbindlichkeitskonto?
+12. Dürfen zwei getrennte Firmen an derselben Cloud-TSE hängen, oder braucht jede ihre eigene?
+13. DATEV-Berater- und Mandantennummer sowie Sachkontenlänge für ReifenPro. Bitte den ersten
+    Buchungsstapel testweise importieren, bevor er produktiv genutzt wird.
+
+## Zwei Warnungen
+
+Der Kontenplan des Autohandels darf **nicht** übernommen werden — die Belegung von 8300
+und 8200 ist der Beweis.
+
+Die Liste der Betragsarten muss **abschließend** feststehen, bevor die Kassenanbindung
+gebaut wird: Ein unbekannter Wert wird von der Kasse heute stillschweigend als Anzahlung
+verbucht. Eine solche Fehlbuchung ist TSE-signiert und lässt sich nur durch eine
+Stornobuchung korrigieren, nicht löschen.

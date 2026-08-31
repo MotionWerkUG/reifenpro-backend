@@ -6,11 +6,21 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 let QRCode = null; try { QRCode = require('qrcode'); } catch (e) { /* optional */ }
 
-const PDF_DIR = path.join(__dirname, '..', '..', 'rechnungen');
+// Ablageort der Rechnungs-PDFs (aufbewahrungspflichtig). Die Umlenkung ueber RECHNUNGEN_DIR
+// greift AUSSCHLIESSLICH im Testbetrieb (NODE_ENV=test); produktiv ist der Projektordner
+// 'rechnungen/' fest verdrahtet und durch eine gesetzte Umgebungsvariable nicht zu verschieben.
+const PDF_DIR = (process.env.NODE_ENV === 'test' && process.env.RECHNUNGEN_DIR)
+  ? process.env.RECHNUNGEN_DIR
+  : path.join(__dirname, '..', '..', 'rechnungen');
 const ACCENT = '#eab308';
 const DARK = '#171717';
 
-function eur(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
+// Deutsche Betragsschreibweise inkl. Tausenderpunkt: 1.333,00 €
+function eur(n) {
+  return (Number(n) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+// Prozentwert mit deutschem Zwischenraum: 19 %
+function proz(n) { return (Number(n) || 0).toLocaleString('de-DE') + ' %'; }
 function datumDE(d) {
   if (!d) return '';
   const s = String(d);
@@ -83,8 +93,11 @@ async function erzeugeRechnungPdf(rech, positionen) {
       doc.fillColor('#000').font('Helvetica').fontSize(11);
       let ey = 130;
       if (rech.empfaenger_firma) { doc.text(rech.empfaenger_firma, left, ey); ey = doc.y; }
-      const empfZeile = [rech.empfaenger_anrede, rech.empfaenger_name].filter(Boolean).join(' ');
-      if (empfZeile) { doc.text(empfZeile, left, ey); ey = doc.y; }
+      // Bei einem Firmenkunden ist die Firma der Leistungsempfaenger; die Person darunter ist
+      // nur der Ansprechpartner. Ohne "z. Hd." liest sich der Beleg so, als ginge er an die Person.
+      const empfZeile = [rech.empfaenger_firma ? 'z. Hd. ' : '', rech.empfaenger_anrede, rech.empfaenger_name]
+        .filter(Boolean).join(' ').replace('z. Hd.  ', 'z. Hd. ');
+      if (empfZeile.trim() && empfZeile.trim() !== 'z. Hd.') { doc.text(empfZeile, left, ey); ey = doc.y; }
       if (rech.empfaenger_strasse) doc.text(rech.empfaenger_strasse, left);
       doc.text([rech.empfaenger_plz, rech.empfaenger_ort].filter(Boolean).join(' '), left);
 
@@ -106,16 +119,24 @@ async function erzeugeRechnungPdf(rech, positionen) {
 
       // ── Positionstabelle ──
       let y = 210;
-      const col = { pos: left, bez: left + 28, menge: left + 250, ep: left + 322, mwst: left + 412, sum: left + 458 };
-      const w = { bez: 218, menge: 64, ep: 84, mwst: 42, sum: rightEdge - (left + 458) };
+      // Spaltenraster: die Netto-Spalte muss auch negative Betraege (Storno, z. B. "-1.234,56 EUR")
+      // einzeilig fassen, sonst bricht der Wert um.
+      const col = { pos: left, bez: left + 28, menge: left + 232, ep: left + 300, mwst: left + 378, sum: left + 420 };
+      const w = { bez: 200, menge: 60, ep: 74, mwst: 38, sum: rightEdge - (left + 420) };
       doc.rect(left, y - 4, rightEdge - left, 18).fill('#f4f4f5');
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#444');
       doc.text('Pos', col.pos + 2, y, { width: 22 });
       doc.text('Bezeichnung', col.bez, y, { width: w.bez });
       doc.text('Menge', col.menge, y, { width: w.menge, align: 'right' });
-      doc.text('Einzel netto', col.ep, y, { width: w.ep, align: 'right' });
+      // Betrieb mit Endpreisen: Einzelpreis und Zeilensumme werden BRUTTO ausgewiesen. Sonst
+      // stuende dort ein gerundeter Nettopreis, der mit der Menge multipliziert einen Cent von
+      // der Zeilensumme abweichen kann (3 x 36,97 = 110,91 bei einer Zeile ueber 110,92).
+      // Das nach Steuersaetzen aufgeschluesselte Entgelt steht in jedem Fall im Summenblock
+      // darunter (§ 14 Abs. 4 Nr. 8 UStG).
+      const bruttoSpalten = !!rech.brutto_darstellung;
+      doc.text(bruttoSpalten ? 'Einzel brutto' : 'Einzel netto', col.ep, y, { width: w.ep, align: 'right' });
       doc.text('MwSt', col.mwst, y, { width: w.mwst, align: 'right' });
-      doc.text('Netto', col.sum, y, { width: w.sum, align: 'right' });
+      doc.text(bruttoSpalten ? 'Brutto' : 'Netto', col.sum, y, { width: w.sum, align: 'right' });
       doc.y = y + 18;
       doc.font('Helvetica').fontSize(9.5).fillColor('#000');
       (positionen || []).forEach(function (p) {
@@ -125,35 +146,48 @@ async function erzeugeRechnungPdf(rech, positionen) {
         doc.text(p.bezeichnung || '', col.bez, ry, { width: w.bez });
         const afterBezY = doc.y;
         doc.text(mengeStr(p), col.menge, ry, { width: w.menge, align: 'right' });
-        doc.text(eur(p.einzelpreis_netto), col.ep, ry, { width: w.ep, align: 'right' });
-        doc.text((Number(p.mwst_satz) || 0) + '%', col.mwst, ry, { width: w.mwst, align: 'right' });
-        doc.text(eur(p.zeilen_netto), col.sum, ry, { width: w.sum, align: 'right' });
+        const menge = Number(p.menge) || 0;
+        const zeileSumme = bruttoSpalten ? Number(p.zeilen_brutto) : Number(p.zeilen_netto);
+        const einzel = bruttoSpalten
+          ? (menge ? Math.round((Number(p.zeilen_brutto) / menge) * 100) / 100 : 0)
+          : Number(p.einzelpreis_netto);
+        doc.text(eur(einzel), col.ep, ry, { width: w.ep, align: 'right' });
+        doc.text(proz(p.mwst_satz), col.mwst, ry, { width: w.mwst, align: 'right' });
+        doc.text(eur(zeileSumme), col.sum, ry, { width: w.sum, align: 'right' });
         doc.y = Math.max(afterBezY, doc.y) + 4;
         doc.moveTo(left, doc.y).lineTo(rightEdge, doc.y).strokeColor('#eee').lineWidth(0.5).stroke();
       });
 
       // ── Summenblock rechts ──
       doc.moveDown(0.5);
-      const sLabelX = 330, sValX = 460, sValW = rightEdge - 460;
+      const sLabelX = 290, sValX = 460, sValW = rightEdge - 460;
       function sumLine(label, val, bold) {
         const yy = doc.y;
         doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9.5).fillColor(bold ? DARK : '#333');
-        doc.text(label, sLabelX, yy, { width: 125, align: 'left' });
+        doc.text(label, sLabelX, yy, { width: sValX - sLabelX - 5, align: 'left' });
         doc.text(val, sValX, yy, { width: sValW, align: 'right' });
         doc.moveDown(bold ? 0.2 : 0.3);
       }
       sumLine('Nettobetrag', eur(rech.netto_summe));
-      (rech.mwst_aufschluesselung || []).forEach(function (m) { sumLine('zzgl. ' + (Number(m.satz) || 0) + '% MwSt', eur(m.mwst)); });
+      // Entgelt und Steuer je Steuersatz getrennt ausweisen (§ 14 Abs. 4 Nr. 8 UStG).
+      // Je Steuersatz muessen BEIDE Angaben erscheinen: das darauf entfallende Entgelt und der Steuerbetrag.
+      (rech.mwst_aufschluesselung || []).forEach(function (m) {
+        sumLine((istStorno ? 'abzgl. ' : 'zzgl. ') + proz(m.satz) + ' MwSt auf ' + eur(m.netto), eur(m.mwst));
+      });
       const gy = doc.y;
       doc.moveTo(sLabelX, gy).lineTo(rightEdge, gy).strokeColor(ACCENT).lineWidth(1).stroke();
       doc.moveDown(0.3);
-      sumLine(istStorno ? 'Gesamtbetrag (Gutschrift)' : 'Gesamtbetrag', eur(rech.brutto_summe), true);
+      sumLine(istStorno ? 'Gutschriftbetrag' : 'Gesamtbetrag', eur(rech.brutto_summe), true);
 
       // ── Zahlungsbereich: Hinweis/Bank links, GiroCode rechts ──
       let py = Math.max(doc.y + 18, 640);
       if (istStorno) {
+        // Der Bezug zur Originalrechnung muss auf dem Beleg selbst stehen (eindeutige Zuordnung der Korrektur).
+        const bezug = rech.storno_von_nr
+          ? 'Rechnung ' + rech.storno_von_nr + (rech.storno_von_datum ? ' vom ' + datumDE(rech.storno_von_datum) : '')
+          : 'die ursprüngliche Rechnung';
         doc.font('Helvetica').fontSize(9).fillColor('#000')
-           .text('Diese Stornorechnung hebt die ursprüngliche Rechnung vollständig auf.', left, py, { width: rightEdge - left });
+           .text('Diese Stornorechnung hebt ' + bezug + ' vollständig auf.', left, py, { width: rightEdge - left });
       } else {
         const bankLines = [
           a.bank ? a.bank : null,
@@ -196,4 +230,5 @@ async function erzeugeRechnungPdf(rech, positionen) {
   });
 }
 
-module.exports = { erzeugeRechnungPdf, PDF_DIR };
+// epcPayload wird mit exportiert, damit der GiroCode-Inhalt automatisiert pruefbar ist.
+module.exports = { erzeugeRechnungPdf, PDF_DIR, epcPayload };
