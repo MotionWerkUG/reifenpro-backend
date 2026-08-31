@@ -360,7 +360,7 @@ router.delete('/:id', requireAdmin, async (req, res, next) => {
 
       // 2. Unterschriebene Dokumente (Einlagerungsvertrag/-schein) sind ebenfalls Belege.
       const dokUnt = (await client.query(
-        'SELECT COUNT(*)::int AS c FROM kunden_dokumente WHERE einlagerung_id=$1 AND unterschrift_kunde IS NOT NULL', [id])).rows[0].c;
+        'SELECT COUNT(*)::int AS c FROM kunden_dokumente WHERE einlagerung_id=$1 AND (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL)', [id])).rows[0].c;
       if (dokUnt)
         return { code: 409, body: { error: 'Nicht löschbar: ' + dokUnt + ' unterschriebene(s) Dokument(e) gehören zu dieser Einlagerung (Aufbewahrungspflicht).' } };
 

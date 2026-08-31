@@ -59,7 +59,7 @@ router.get('/dokumente-faellig', async (req, res, next) => {
     const ids = aktive.map((k) => k.id);
     const docs = (await query(
       `SELECT DISTINCT ON (kunden_id, typ) kunden_id, typ, version, gueltig_bis,
-              (unterschrift_kunde IS NOT NULL) AS signed
+              (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL) AS signed
        FROM kunden_dokumente WHERE kunden_id = ANY($1::uuid[]) AND typ IN ('datenschutzerklaerung','einlagerungsvertrag')
        ORDER BY kunden_id, typ, erstellt_am DESC`, [ids])).rows;
     const byK = {}; docs.forEach((d) => { (byK[d.kunden_id] = byK[d.kunden_id] || {})[d.typ] = d; });
@@ -92,7 +92,7 @@ router.get('/dokumente-faellig', async (req, res, next) => {
             SELECT 1 FROM kunden_dokumente d
              WHERE d.einlagerung_id = e.id
                AND d.typ = 'einlagerungsschein'
-               AND d.unterschrift_kunde IS NOT NULL)
+               AND (d.unterschrift_kunde IS NOT NULL OR d.scan_pfad IS NOT NULL))
         ORDER BY e.erstellt_am DESC`)).rows;
     offeneScheine.forEach(function (r) {
       out.push({

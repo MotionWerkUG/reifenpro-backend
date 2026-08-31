@@ -28,7 +28,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await query(
       `SELECT id,typ,titel,erstellt_am,einlagerung_id,gueltig_bis,version,
               unterschrift_datum,
-              CASE WHEN unterschrift_kunde IS NOT NULL THEN true ELSE false END AS unterschrieben
+              CASE WHEN unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL THEN true ELSE false END AS unterschrieben
        FROM kunden_dokumente WHERE kunden_id=$1 ORDER BY erstellt_am DESC`,
       [req.params.kundenId]
     );
@@ -81,8 +81,8 @@ router.post('/', async (req, res, next) => {
     // Duplikat-Sperre: bei Datenschutz/Vertrag kein zweites gueltiges, unterschriebenes Dokument anlegen
     if ((typ === 'datenschutzerklaerung' || typ === 'einlagerungsvertrag') && unterschrift_kunde) {
       const vorhanden = (await query(
-        `SELECT id,typ,gueltig_bis,version, (unterschrift_kunde IS NOT NULL) AS unterschrieben
-         FROM kunden_dokumente WHERE kunden_id=$1 AND typ=$2 AND unterschrift_kunde IS NOT NULL
+        `SELECT id,typ,gueltig_bis,version, (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL) AS unterschrieben
+         FROM kunden_dokumente WHERE kunden_id=$1 AND typ=$2 AND (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL)
          ORDER BY erstellt_am DESC LIMIT 1`, [req.params.kundenId, typ])).rows[0];
       if (vorhanden && istGueltig(vorhanden, version)) {
         return res.status(200).json(Object.assign({ bereits_vorhanden: true }, vorhanden));
@@ -128,11 +128,11 @@ router.patch('/:did/unterschrift', async (req, res, next) => {
     const { rows } = await query(
       `UPDATE kunden_dokumente
        SET unterschrift_kunde=$1, unterschrift_datum=NOW(), version=$4, gueltig_bis=$5
-       WHERE id=$2 AND kunden_id=$3 AND unterschrift_kunde IS NULL RETURNING *`,
+       WHERE id=$2 AND kunden_id=$3 AND unterschrift_kunde IS NULL AND scan_pfad IS NULL RETURNING *`,
       [unterschrift_kunde, req.params.did, req.params.kundenId, version, gueltigBis]
     );
     if (!rows.length) {
-      const da = (await query('SELECT (unterschrift_kunde IS NOT NULL) AS unterschrieben FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2', [req.params.did, req.params.kundenId])).rows[0];
+      const da = (await query('SELECT (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL) AS unterschrieben FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2', [req.params.did, req.params.kundenId])).rows[0];
       if (!da) return res.status(404).json({ error: 'Nicht gefunden.' });
       return res.status(409).json({
         error: 'Dieses Dokument ist bereits unterschrieben. Eine Unterschrift lässt sich nicht ersetzen — bitte ein neues Dokument anlegen.',
@@ -152,7 +152,7 @@ router.patch('/:did/unterschrift', async (req, res, next) => {
 router.delete('/:did', requireAdmin, async (req, res, next) => {
   try {
     const d = (await query(
-      'SELECT id, typ, titel, (unterschrift_kunde IS NOT NULL) AS unterschrieben FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2',
+      'SELECT id, typ, titel, (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL) AS unterschrieben FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2',
       [req.params.did, req.params.kundenId])).rows[0];
     if (!d) return res.status(404).json({ error: 'Nicht gefunden.' });
     if (d.unterschrieben) return res.status(409).json({
@@ -160,7 +160,7 @@ router.delete('/:did', requireAdmin, async (req, res, next) => {
       code: 'UNTERSCHRIEBEN_AUFBEWAHRUNGSPFLICHT'
     });
     const { rows } = await query(
-      'DELETE FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2 AND unterschrift_kunde IS NULL RETURNING id',
+      'DELETE FROM kunden_dokumente WHERE id=$1 AND kunden_id=$2 AND unterschrift_kunde IS NULL AND scan_pfad IS NULL RETURNING id',
       [req.params.did, req.params.kundenId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden.' });
