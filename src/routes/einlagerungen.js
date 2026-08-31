@@ -253,9 +253,26 @@ router.post('/', async (req, res, next) => {
 
 router.patch('/:id/status', async (req, res, next) => {
   try {
-    const { status } = req.body;
+    const { status, ohne_schein_bestaetigt } = req.body;
     if (!['Eingelagert','Abholbereit','Abgeholt'].includes(status))
       return res.status(400).json({ error: 'Ungültiger Status.' });
+    // Sobald eine Einlagerung auf "Abgeholt" steht, faellt sie aus der Meldung "Schein noch
+    // nicht unterschrieben" heraus. Ohne diese Rueckfrage koennte ein nie unterschriebener
+    // Schein still verschwinden — genau der Fall, den die Meldung verhindern soll. Der Weg
+    // bleibt offen (der Kunde steht am Tresen), aber er wird bewusst gegangen und protokolliert.
+    if (status === 'Abgeholt' && !ohne_schein_bestaetigt) {
+      const e = (await query(
+        `SELECT e.id, e.beleg_nr FROM einlagerungen e
+          WHERE (e.id::text=$1 OR e.beleg_nr=$1) AND e.status <> 'Abgeholt'
+            AND NOT EXISTS (SELECT 1 FROM kunden_dokumente d
+                             WHERE d.einlagerung_id = e.id AND d.typ = 'einlagerungsschein'
+                               AND (d.unterschrift_kunde IS NOT NULL OR d.scan_pfad IS NOT NULL))`,
+        [req.params.id])).rows[0];
+      if (e) return res.status(409).json({
+        error: 'Zu dieser Einlagerung gibt es keinen unterschriebenen Einlagerungsschein. '
+             + 'Nach der Abholung wird das nicht mehr gemeldet. Trotzdem als abgeholt buchen?',
+        code: 'SCHEIN_FEHLT', beleg_nr: e.beleg_nr });
+    }
     const now = new Date();
     const { rows } = await query(
       `UPDATE einlagerungen SET
@@ -268,6 +285,10 @@ router.patch('/:id/status', async (req, res, next) => {
       [status, now, req.user.id, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden.' });
+    if (status === 'Abgeholt' && ohne_schein_bestaetigt)
+      await auditLog({ userId: req.user.id, aktion: 'einlagerung.abgeholt_ohne_schein',
+        tabelle: 'einlagerungen', datensatzId: rows[0].id,
+        neueWerte: { beleg_nr: rows[0].beleg_nr, hinweis: 'bewusst ohne unterschriebenen Einlagerungsschein gebucht' }, req });
     await auditLog({ userId: req.user.id,
       aktion: `einlagerung.status.${status.toLowerCase()}`,
       tabelle: 'einlagerungen', datensatzId: req.params.id,

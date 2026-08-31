@@ -531,7 +531,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="pnl">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div class="ptitle" style="margin-bottom:0">Dokumente</div>
-            <label class="btn btn-g btn-sm" style="cursor:pointer">Scan hochladen<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadScan(this)"></label>
+            <span style="font-size:12px;color:var(--muted)">Auf Papier unterschrieben? Am jeweiligen Dokument „Scan" wählen.</span>
           </div>
           <div id="kd-docs"></div>
         </div>
@@ -3475,23 +3475,28 @@ function ladeDocs(kid) {
             (d.unterschrift_weg === 'scan' ? ' (Papier, eingescannt)' : '') : ' - Ausstehend') + '</div></div>' +
         '<div style="display:flex;gap:6px">' +
         '<button class="btn btn-g btn-sm" onclick="zeigeDok(\'' + d.id + '\')">Anzeigen</button>' +
-        (d.hat_scan ? '<button class="btn btn-g btn-sm" onclick="zeigeScan(\'' + d.id + '\')">Scan</button>' : '') +
+        (d.hat_scan
+          ? '<button class="btn btn-g btn-sm" onclick="zeigeScan(\'' + d.id + '\')">Scan</button>'
+          : (d.unterschrieben ? '' : '<label class="btn btn-g btn-sm" style="cursor:pointer">Scan<input type="file" accept="image/jpeg,image/png,application/pdf" style="display:none" onchange="uploadScan(this,\'' + d.id + '\')"></label>')) +
         '<button class="btn btn-danger btn-sm" onclick="loescheDok(\'' + d.id + '\')">X</button>' +
         '</div></div>';
     }).join('');
   }).catch(function() {});
 }
-function uploadScan(inp) {
-  if (!aktK) { notify('Kein Kunde ausgewählt.', 'err'); return; }
+// Der Scan haengt jetzt an genau dem Dokument, das unterschrieben wurde. Frueher entstand
+// daraus ein freistehendes Dokument ohne Bezug zum Vorgang: Das System hielt den Schein
+// weiter fuer unbeschrieben, die Meldung im Dashboard blieb stehen und die
+// Aufbewahrungssperre griff nicht — der Beleg war jederzeit loeschbar.
+function uploadScan(inp, did) {
+  if (!aktK || !did) { notify('Kein Dokument ausgewählt.', 'err'); return; }
   var f = inp.files[0]; if (!f) return;
+  inp.value = '';
+  if (f.size > 15 * 1024 * 1024) { notify('Die Datei ist zu groß (höchstens 15 MB).', 'err'); return; }
   var r = new FileReader();
   r.onload = function(e) {
-    api('POST', '/kunden/' + aktK.id + '/dokumente', {
-      typ: 'scan',
-      titel: 'Scan - ' + f.name + ' - ' + new Date().toLocaleDateString('de-DE'),
-      inhalt_html: '<img src="' + e.target.result + '" style="max-width:100%">',
-      unterschrift_kunde: null, unterschrift_datum: null
-    }).then(function() { notify('Scan hochgeladen!'); ladeDocs(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });
+    api('POST', '/kunden/' + aktK.id + '/dokumente/' + did + '/scan', { data: e.target.result })
+      .then(function(a) { notify((a && a.message) || 'Scan gespeichert.'); ladeDocs(aktK.id); loadDokFaellig(); })
+      .catch(function(err) { notify(err.message, 'err'); });
   };
   r.readAsDataURL(f);
 }
@@ -3612,14 +3617,19 @@ function renderE() {
       '<td>' + aktionen + '</td></tr>';
   }).join('');
 }
-function setS(id, status) {
-  api('PATCH', '/einlagerungen/' + id + '/status', { status: status }).then(function() {
+function setS(id, status, ohneSchein) {
+  api('PATCH', '/einlagerungen/' + id + '/status', { status: status, ohne_schein_bestaetigt: !!ohneSchein }).then(function() {
     var i = allE.findIndex(function(e) { return e.id === id; });
     if (i !== -1) allE[i].status = status;
     renderE(); renderDash(); renderLager();
     notify(status === 'Abgeholt' ? 'Abgeholt markiert' : status === 'Abholbereit' ? 'Als abholbereit markiert — Kunde wird benachrichtigt.' : 'Status aktualisiert');
     if (aktK) ladeDocs(aktK.id);
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    // Fehlender Einlagerungsschein: nach der Abholung wird er nicht mehr gemeldet, deshalb
+    // hier einmal nachfragen statt ihn still verschwinden zu lassen.
+    if (e.code === 'SCHEIN_FEHLT' && confirm(e.message)) { setS(id, status, true); return; }
+    notify(e.message, 'err');
+  });
 }
 // Lagerplatz einer bestehenden Einlagerung aendern (Modal statt prompt).
 var platzVorschlagWert = '';

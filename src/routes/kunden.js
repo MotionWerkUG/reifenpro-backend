@@ -182,7 +182,7 @@ router.post('/', async (req, res, next) => {
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.erstellt',
       tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: ohneGeheimnisse(rows[0]), req });
-    res.status(201).json(rows[0]);
+    res.status(201).json(ohneGeheimnisse(rows[0]));
   } catch (err) { next(err); }
 });
 
