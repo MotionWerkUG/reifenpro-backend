@@ -59,4 +59,21 @@ function pruefeRechnungEmail(v) {
   return EMAIL_RE.test(s) ? null : 'Die Rechnungs-E-Mail ist ungültig.';
 }
 
-module.exports = { KUNDENTYPEN, strasseHatHausnummer, plzGueltig, pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail };
+// Geheimnisse, die nie in eine API-Antwort gehoeren. Betroffen war bisher jede Antwort mit
+// "SELECT k.*": darin steckten der bcrypt-Hash des Portalkontos UND gueltige Einmal-Token
+// (Passwort-Reset, E-Mail-Bestaetigung, Einwilligung). Wer die Liste sehen konnte — jeder
+// angemeldete Mitarbeiter, jede zwischengespeicherte Antwort — haette damit ein fremdes
+// Kundenkonto uebernehmen koennen, ohne die E-Mail des Kunden zu lesen.
+const GEHEIM = ['portal_password', 'portal_reset_token', 'portal_reset_ablauf',
+  'portal_bestaetigung_token', 'portal_token_ablauf',
+  'einwilligung_token', 'einwilligung_token_ablauf'];
+
+function ohneGeheimnisse(zeile) {
+  if (!zeile) return zeile;
+  if (Array.isArray(zeile)) return zeile.map(ohneGeheimnisse);
+  const k = Object.assign({}, zeile);
+  GEHEIM.forEach(function (f) { delete k[f]; });
+  return k;
+}
+
+module.exports = { ohneGeheimnisse, KUNDENTYPEN, strasseHatHausnummer, plzGueltig, pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail };
