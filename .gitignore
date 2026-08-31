@@ -11,6 +11,8 @@ node_modules/
 rechnungen/
 protokoll-dateien/
 gewerbe-dokumente/
+# Eingescannte, unterschriebene Dokumente (Kundenunterschrift) — niemals ins Repo
+dokument-scans/
 # Muell
 *.bak
 *.bak.*
