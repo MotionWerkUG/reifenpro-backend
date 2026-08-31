@@ -1298,7 +1298,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <button class="btn btn-g btn-sm" onclick="gutscheinAnwenden()">Gutschein anwenden</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 70px 90px 100px 70px 32px;gap:6px;font-size:11px;color:var(--muted);margin-bottom:4px">
-      <div>Bezeichnung</div><div style="text-align:right">Menge</div><div>Einheit</div><div style="text-align:right">Einzel netto</div><div style="text-align:right">MwSt</div><div></div>
+      <div>Bezeichnung</div><div style="text-align:right">Menge</div><div>Einheit</div><div style="text-align:right" id="nr-preis-kopf">Einzel netto</div><div style="text-align:right">MwSt</div><div></div>
     </div>
     <div id="nr-positionen"></div>
     <div style="text-align:right;margin-top:12px;line-height:1.6">
@@ -1307,7 +1307,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div>MwSt: <strong id="nr-sum-mwst">0,00 €</strong></div>
       <div style="font-size:16px;color:var(--green)">Brutto: <strong id="nr-sum-brutto">0,00 €</strong></div>
     </div>
-    <div class="fg full" style="margin-top:12px"><label>Notiz (optional)</label><input id="nr-notizen"></div>
+    <div class="fg full" style="margin-top:12px"><label>Interne Notiz (erscheint nicht auf der Rechnung)</label><input id="nr-notizen"></div>
     <input type="hidden" id="nr-edit-id">
     <div class="mfoot"><button class="btn btn-g" onclick="closeModal('nr')">Abbrechen</button><button class="btn btn-p" onclick="saveRechnung()">Als Entwurf speichern</button></div>
   </div>
@@ -2091,9 +2091,11 @@ function gwAnfNeuerKunde(id) {
 var allRechnungen = [];
 function rEur(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function rDatum(d) { if (!d) return '-'; var t = new Date(d); return String(t.getDate()).padStart(2, '0') + '.' + String(t.getMonth() + 1).padStart(2, '0') + '.' + t.getFullYear(); }
-function rStatusBadge(s) {
+function rStatusBadge(s, istStorno) {
   var map = { entwurf: ['Entwurf', '#888'], festgeschrieben: ['Festgeschrieben', '#1a7f37'], storniert: ['Storniert', '#c0392b'] };
-  var m = map[s] || [s, '#888'];
+  // Eine Stornorechnung hat selbst den Status 'festgeschrieben' — ohne eigenes Kennzeichen
+  // waere sie in der Liste nicht von einer normalen Rechnung zu unterscheiden.
+  var m = istStorno ? ['Stornorechnung', '#c0392b'] : (map[s] || [s, '#888']);
   return '<span style="background:' + m[1] + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">' + m[0] + '</span>';
 }
 function loadRechnungen() {
@@ -2106,7 +2108,7 @@ function loadRechnungStatistik() {
     var eur = function(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; };
     el.innerHTML = '<div class="stats" style="margin-bottom:16px">' +
       '<div class="sc sc-g"><div class="sv">' + eur(s.umsatz_brutto) + '</div><div class="sl">Umsatz ' + s.jahr + ' (brutto)</div></div>' +
-      '<div class="sc sc-b"><div class="sv">' + s.anzahl + '</div><div class="sl">Rechnungen</div></div>' +
+      '<div class="sc sc-b"><div class="sv">' + s.anzahl + '</div><div class="sl">Abgerechnet ' + s.jahr + ' (ohne Storno)</div></div>' +
       '<div class="sc sc-y"><div class="sv">' + eur(s.offen_summe) + '</div><div class="sl">Offen (' + s.offen_anzahl + ')</div></div>' +
       '<div class="sc sc-a"><div class="sv">' + eur(s.ueberfaellig_summe) + '</div><div class="sl">Überfällig (' + s.ueberfaellig_anzahl + ')</div></div>' +
       '</div>';
@@ -2144,18 +2146,21 @@ function renderRechnungen() {
       akt += '<button class="btn btn-danger btn-sm" onclick="loescheRechnung(\'' + r.id + '\')">X</button>';
     } else {
       akt += '<button class="btn btn-g btn-sm" onclick="rechnungPdf(\'' + r.id + '\')">PDF</button>';
-      if (r.status === 'festgeschrieben') {
+      // Nur eine normale festgeschriebene Rechnung laesst sich bezahlen, mahnen und stornieren.
+      // Eine Stornorechnung ist der Korrekturbeleg selbst — sie wird nicht erneut storniert
+      // (das lehnt auch der Server ab) und nicht gemahnt.
+      if (r.status === 'festgeschrieben' && !r.storno_von_id) {
         akt += '<button class="btn btn-g btn-sm" onclick="toggleBezahlt(\'' + r.id + '\',' + (r.zahlungsstatus === 'bezahlt' ? 'false' : 'true') + ')">' + (r.zahlungsstatus === 'bezahlt' ? 'Als offen' : 'Als bezahlt') + '</button>';
         if (r.zahlungsstatus !== 'bezahlt') akt += '<button class="btn btn-g btn-sm" onclick="mahnen(\'' + r.id + '\')">Mahnen</button>';
         akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
-    var zahlung = r.status === 'festgeschrieben' ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
+    var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
       '<td>' + (r.kundenname || r.empfaenger_firma || r.empfaenger_name || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
       '<td>' + rEur(r.brutto_summe) + '</td>' +
-      '<td>' + rStatusBadge(r.status) + '</td>' +
+      '<td>' + rStatusBadge(r.status, !!r.storno_von_id) + '</td>' +
       '<td>' + zahlung + '</td>' +
       '<td style="white-space:nowrap">' + akt + '</td></tr>';
   });
@@ -2232,16 +2237,23 @@ function openNeueRechnung() {
   recalcRechnung();
   openModal('nr');
 }
-// Wandelt einen gespeicherten Artikel-/Kundenpreis (bei preise_inkl_mwst=true = Brutto) in Netto
-// fuer das Netto-Positionsfeld um. Default true (Preise sind Brutto), analog gast.js. satz = MwSt-Satz.
-function nrNetto(preis, satz) {
-  if (preis == null || preis === '') return preis;
-  var s = parseFloat(satz); if (!isFinite(s)) s = 19;
-  return (EINST.preise_inkl_mwst !== false) ? (Number(preis) / (1 + s / 100)) : Number(preis);
+// Preisrichtung des Betriebs: bei preise_inkl_mwst=true sind die gepflegten Artikelpreise
+// BRUTTO-Endpreise. Diese bleiben auf der Rechnung exakt erhalten, die Steuer wird
+// herausgerechnet — der Server rechnet identisch (rechnungen.js, berechneSummen).
+function nrBruttoModus() { return EINST.preise_inkl_mwst !== false; }
+// Zeilenwerte aus einem Einzelpreis: im Brutto-Modus ist der Bruttobetrag die feste Groesse.
+function nrZeile(menge, preis, satz) {
+  var m = Number(menge) || 0, p = Number(preis) || 0, sz = Number(satz) || 0;
+  if (nrBruttoModus()) {
+    var brutto = Math.round(m * p * 100) / 100;
+    var steuer = Math.round(brutto * sz / (100 + sz) * 100) / 100;
+    return { netto: Math.round((brutto - steuer) * 100) / 100, brutto: brutto };
+  }
+  var netto = Math.round(m * p * 100) / 100;
+  return { netto: netto, brutto: Math.round(netto * (1 + sz / 100) * 100) / 100 };
 }
-// preisBrutto=true: art.preis ist ein gespeicherter (ggf. Brutto-)Preis -> in Netto umrechnen.
-// Ohne das Flag (Gutschein, freie Position, aus-Termin-Uebernahme) wird der Wert als Netto behandelt.
-function addPositionRow(art, preisBrutto) {
+
+function addPositionRow(art) {
   var c = document.getElementById('nr-positionen');
   var row = document.createElement('div');
   row.className = 'nr-pos-row';
@@ -2250,14 +2262,15 @@ function addPositionRow(art, preisBrutto) {
     '<input class="nr-p-bez" placeholder="Bezeichnung">' +
     '<input class="nr-p-menge" type="number" step="0.01" value="1" oninput="recalcRechnung()" style="text-align:right">' +
     '<input class="nr-p-einheit" placeholder="Einheit">' +
-    '<input class="nr-p-preis" type="number" step="0.01" placeholder="netto" oninput="recalcRechnung()" style="text-align:right">' +
+    '<input class="nr-p-preis" type="number" step="0.01" placeholder="' + (nrBruttoModus() ? 'brutto' : 'netto') + '" oninput="recalcRechnung()" style="text-align:right">' +
     '<select class="nr-p-mwst" onchange="recalcRechnung()"><option value="19">19%</option><option value="7">7%</option><option value="0">0%</option></select>' +
     '<button class="btn btn-danger btn-sm" onclick="this.closest(\'.nr-pos-row\').remove();recalcRechnung()">x</button>';
   c.appendChild(row);
   if (art) {
     row.querySelector('.nr-p-bez').value = art.name || '';
     row.querySelector('.nr-p-einheit').value = art.einheit || '';
-    var pInit = preisBrutto ? nrNetto(art.preis, art.mwst_satz) : art.preis;
+    // Im Brutto-Modus wird der gepflegte Endpreis unveraendert uebernommen (keine Umrechnung).
+    var pInit = art.preis;
     row.querySelector('.nr-p-preis').value = pInit != null ? Number(pInit).toFixed(2) : '';
     row.querySelector('.nr-p-mwst').value = String(parseInt(art.mwst_satz) || 19);
   }
@@ -2265,12 +2278,10 @@ function addPositionRow(art, preisBrutto) {
 function gutscheinAnwenden() {
   var code = (document.getElementById('nr-gutschein').value || '').trim();
   if (!code) { notify('Bitte einen Gutschein-Code eingeben.', 'err'); return; }
-  var pos = nrSammlePositionen();
-  var netto = 0;
-  pos.forEach(function(p) { netto += Math.round(p.menge * p.einzelpreis_netto * 100) / 100; });
-  if (netto <= 0) { notify('Bitte zuerst Positionen erfassen, bevor ein Rabatt angewendet wird.', 'err'); return; }
+  var basis = nrPositionsBasis();
+  if (basis <= 0) { notify('Bitte zuerst Positionen erfassen, bevor ein Rabatt angewendet wird.', 'err'); return; }
   api('GET', '/gutscheine/pruefen/' + encodeURIComponent(code)).then(function(g) {
-    var rabatt = Math.round(netto * (g.rabatt_prozent / 100) * 100) / 100;
+    var rabatt = Math.round(basis * (g.rabatt_prozent / 100) * 100) / 100;
     addPositionRow({ name: 'Gutschein ' + g.code + ' (-' + g.rabatt_prozent + '%)', einheit: '', preis: -rabatt, mwst_satz: 19 });
     recalcRechnung();
     document.getElementById('nr-gutschein').value = '';
@@ -2281,37 +2292,55 @@ function nrArtikelAdd(sel) {
   var id = sel.value; if (!id) return;
   var a = (allArtikel || []).find(function(x) { return x.id === id; });
   if (a) {
-    addPositionRow(a, true);
-    // Gewerbe-Konditionen: festen Kundenpreis bzw. Rabatt vorbefuellen (ebenfalls Brutto -> Netto)
+    addPositionRow(a);
+    // Gewerbe-Konditionen: festen Kundenpreis bzw. Rabatt vorbefuellen (gleiche Preisrichtung wie der Artikel)
     var p = NR_KOND.preise[a.id];
     if (p == null && NR_KOND.rabatt > 0 && a.preis != null) p = Math.round(Number(a.preis) * (1 - NR_KOND.rabatt / 100) * 100) / 100;
     if (p != null) {
       var rows = document.querySelectorAll('#nr-positionen .nr-pos-row');
       var row = rows[rows.length - 1];
-      if (row) row.querySelector('.nr-p-preis').value = Number(nrNetto(p, a.mwst_satz)).toFixed(2);
+      if (row) row.querySelector('.nr-p-preis').value = Number(p).toFixed(2);
     }
   }
   sel.value = '';
   recalcRechnung();
 }
 function nrSammlePositionen() {
+  var brutto = nrBruttoModus();
   return Array.prototype.map.call(document.querySelectorAll('#nr-positionen .nr-pos-row'), function(row) {
-    return {
+    var feld = row.querySelector('.nr-p-preis');
+    // Unveraenderte Zeile: den exakten Ausgangswert senden, nicht den gerundeten Anzeigewert.
+    var preis = (feld.dataset.exakt && feld.value === feld.dataset.anzeige)
+      ? Number(feld.dataset.exakt)
+      : (parseFloat(feld.value) || 0);
+    var p = {
       bezeichnung: row.querySelector('.nr-p-bez').value.trim(),
       menge: parseFloat(row.querySelector('.nr-p-menge').value) || 0,
       einheit: row.querySelector('.nr-p-einheit').value.trim() || null,
-      einzelpreis_netto: parseFloat(row.querySelector('.nr-p-preis').value) || 0,
       mwst_satz: parseInt(row.querySelector('.nr-p-mwst').value) || 0
     };
+    // Der Server entscheidet anhand des Feldnamens, welche Preisrichtung gilt.
+    if (brutto) p.einzelpreis_brutto = preis; else p.einzelpreis_netto = preis;
+    return p;
   }).filter(function(p) { return p.bezeichnung; });
 }
+// Summe, auf die sich ein Rabatt bezieht: im Brutto-Modus der Endpreis, sonst das Netto.
+function nrPositionsBasis() {
+  var summe = 0;
+  nrSammlePositionen().forEach(function(p) {
+    var z = nrZeile(p.menge, nrBruttoModus() ? p.einzelpreis_brutto : p.einzelpreis_netto, p.mwst_satz);
+    summe += nrBruttoModus() ? z.brutto : z.netto;
+  });
+  return Math.round(summe * 100) / 100;
+}
 function recalcRechnung() {
+  var kopf = document.getElementById('nr-preis-kopf');
+  if (kopf) kopf.textContent = nrBruttoModus() ? 'Einzel brutto' : 'Einzel netto';
   var pos = nrSammlePositionen();
   var netto = 0, brutto = 0;
   pos.forEach(function(p) {
-    var zn = Math.round(p.menge * p.einzelpreis_netto * 100) / 100;
-    var zb = Math.round(zn * (1 + p.mwst_satz / 100) * 100) / 100;
-    netto += zn; brutto += zb;
+    var z = nrZeile(p.menge, nrBruttoModus() ? p.einzelpreis_brutto : p.einzelpreis_netto, p.mwst_satz);
+    netto += z.netto; brutto += z.brutto;
   });
   netto = Math.round(netto * 100) / 100; brutto = Math.round(brutto * 100) / 100;
   document.getElementById('nr-sum-netto').textContent = rEur(netto);
@@ -2323,8 +2352,7 @@ function recalcRechnung() {
     var rabattBrutto = 0, gcode = '';
     pos.forEach(function(p) {
       if (/^Gutschein/i.test(p.bezeichnung || '')) {
-        var zn = Math.round(p.menge * p.einzelpreis_netto * 100) / 100;
-        rabattBrutto += Math.round(zn * (1 + p.mwst_satz / 100) * 100) / 100;
+        rabattBrutto += nrZeile(p.menge, nrBruttoModus() ? p.einzelpreis_brutto : p.einzelpreis_netto, p.mwst_satz).brutto;
         gcode = (p.bezeichnung || '').replace(/\s*\(-.*$/, '').trim();
       }
     });
@@ -2430,7 +2458,17 @@ function editRechnung(id) {
       row.querySelector('.nr-p-bez').value = p.bezeichnung || '';
       row.querySelector('.nr-p-menge').value = p.menge;
       row.querySelector('.nr-p-einheit').value = p.einheit || '';
-      row.querySelector('.nr-p-preis').value = Number(p.einzelpreis_netto).toFixed(2);
+      // Im Brutto-Modus zeigt das Feld den Endpreis je Einheit (aus dem gespeicherten Zeilenbrutto).
+      var anzeige = nrBruttoModus() && p.zeilen_brutto != null && Number(p.menge)
+        ? Number(p.zeilen_brutto) / Number(p.menge)
+        : Number(p.einzelpreis_netto);
+      var feld = row.querySelector('.nr-p-preis');
+      feld.value = Number(anzeige).toFixed(2);
+      // Der Wert je Einheit ist bei Menge groesser eins oft nicht auf zwei Stellen darstellbar
+      // (11,89 EUR auf 3 Stueck). Wird die Zeile nicht angefasst, muss beim Speichern der exakte
+      // Wert zurueckgehen — sonst wanderte der Zeilenbetrag bei jedem Oeffnen um einen Cent.
+      feld.dataset.exakt = String(anzeige);
+      feld.dataset.anzeige = feld.value;
       row.querySelector('.nr-p-mwst').value = String(parseInt(p.mwst_satz) || 0);
     });
     if (!(r.positionen || []).length) addPositionRow(null);

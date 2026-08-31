@@ -30,6 +30,28 @@ Ansicht: `scp frontend/index.html …/var/www/reifenpro/index.html` (mit Admin a
 Keine Rechnung/kein Beleg löschen oder rückdatieren. Nummernkreis-Logik nicht „vereinfachen".
 Geteiltes Fundament nur nach Ankündigung. Keine echten Kundendaten in Tests.
 
+## Tests
+`npm run test:db` (einmalig / nach Schemaänderung) legt die Test-DB `reifenpro_test` an —
+Schema 1:1 aus der Produktiv-DB, ohne Daten. `npm test` fährt die Tests
+(`test/nummernkreis.test.js`, `test/pflichtangaben.test.js`). Tests laufen nie gegen die
+Produktiv-DB und schreiben PDFs nur in einen Temp-Ordner (`RECHNUNGEN_DIR`). Details:
+`test/README.md`. Nach jeder Änderung an `rechnungen.js` müssen die Tests grün sein.
+
+## Konsistenzprüfungen (nach Löschläufen, vor Jahresabschluss)
+
+Zwei Abfragen, die beide leer sein müssen. Wenn nicht, stimmt etwas mit der Belegkette nicht:
+
+```bash
+sudo -u postgres psql -d reifenpro -c "SELECT r.rechnungsnr, t.id AS termin FROM rechnungen r JOIN termine t ON t.rechnung_id = r.id WHERE t.beschreibung = '(anonymisiert nach Aufbewahrungsfrist)';"
+```
+Rechnung, deren Termin anonymisiert wurde — ein Beleg ohne nachvollziehbare Grundlage.
+
+```bash
+sudo -u postgres psql -d reifenpro -c "SELECT id, datum, kennzeichen FROM termine WHERE fakturiert = true AND rechnung_id IS NULL;"
+```
+Termin gilt als abgerechnet, hat aber keine Rechnung. Solche Zeilen fallen durch jedes
+Raster: nicht unter „Abzurechnen", nicht unter die Löschfristen.
+
 ## Werkzeuge
 `gobd-pruefer` (Pflicht bei jeder Änderung: Nummernkreis, § 14, Aufbewahrung, Rundung),
 `code-auditor`, `reviewer`, `test-autor` (Preis-/MwSt-Logik). Vor Deploy `/release-gate`.

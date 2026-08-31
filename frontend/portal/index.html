@@ -545,6 +545,7 @@ var I18N = {
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
     past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
     confirm_booking_title: 'Bitte Buchung bestätigen', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
@@ -610,6 +611,7 @@ var I18N = {
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
     past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
     confirm_booking_title: 'Please confirm your booking', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
@@ -1019,7 +1021,13 @@ function ladeUeberblick() {
 function ladeEinlagerungen() {
   var el = document.getElementById('einlagerungen-liste');
   el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
-  papi('GET', '/daten/einlagerungen').then(function(rows) {
+  // Dokumente mitladen: der Einlagerungsschein haengt an der Einlagerung und soll dort stehen,
+  // wo der Kunde ohnehin nach seinen Raedern schaut. allSettled -> ein Fehler bei den Dokumenten
+  // darf die Einlagerungen nicht verschlucken.
+  Promise.allSettled([papi('GET', '/daten/einlagerungen'), papi('GET', '/daten/dokumente')]).then(function(res) {
+    if (res[0].status !== 'fulfilled') throw (res[0].reason || new Error(t('error_loading')));
+    var rows = res[0].value || [];
+    var dokumente = res[1].status === 'fulfilled' ? (res[1].value || []) : [];
     if (!rows || !rows.length) { el.innerHTML = '<div class="card"><div class="empty">' + t('no_storage') + '</div><div style="font-size:13px;color:var(--muted);text-align:center;line-height:1.5;padding:0 16px 18px">' + t('no_storage_hint') + '</div></div>'; return; }
     el.innerHTML = rows.map(function(e) {
       var html = '<div class="card">';
@@ -1042,12 +1050,39 @@ function ladeEinlagerungen() {
       if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pt.join(', ') + ' mm</div></div>';
       html += '</div>';
       if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + pEsc(e.bemerkungen) + '</div></div>';
+      // Scheine zu genau dieser Einlagerung. Es erscheint nur, was im Betrieb gespeichert wurde --
+      // ein bloss gedruckter Schein existiert nirgends, deshalb hier auch kein leerer Platzhalter.
+      var docs = dokumente.filter(function(d) { return d.einlagerung_id === e.id; });
+      if (docs.length) {
+        html += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border2);display:flex;flex-wrap:wrap;gap:10px">';
+        html += docs.map(function(d) {
+          return '<a onclick="dokumentOeffnen(\'' + d.id + '\')" style="color:var(--accent-text);font-size:13px;font-weight:600;cursor:pointer">' + pEsc(dokumentLabel(d)) + '</a>';
+        }).join('');
+        html += '</div>';
+      }
       html += '</div>';
       return html;
     }).join('');
   }).catch(function(e) {
     el.innerHTML = '<div class="card"><div class="empty">' + e.message + '</div></div>';
   });
+}
+
+// Beschriftung eines Dokuments: bevorzugt der im Betrieb vergebene Titel, sonst nach Typ.
+function dokumentLabel(d) {
+  if (d.titel) return d.titel;
+  var namen = { einlagerungsschein: t('doc_storage'), auslagerungsschein: t('doc_release'),
+                einlagerungsvertrag: t('doc_contract'), datenschutzerklaerung: t('doc_privacy') };
+  return namen[d.typ] || t('doc_generic');
+}
+
+// Dokument in einem eigenen Tab oeffnen. Gleiches Muster wie beim Rechnungs-PDF: mit Token holen
+// und als Blob anzeigen -- ein einfacher Link koennte den Authorization-Kopf nicht mitschicken.
+function dokumentOeffnen(id) {
+  fetch(API + '/daten/dokumente/' + id, { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+    .then(function(r) { if (!r.ok) throw new Error(t('doc_missing')); return r.blob(); })
+    .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
+    .catch(function(e) { notify(e.message, 'err'); });
 }
 
 // Rendert eine Terminkarte. mitAktionen=true nur fuer die Sektion "kommende Termine".

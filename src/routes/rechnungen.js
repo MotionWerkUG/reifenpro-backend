@@ -13,17 +13,84 @@ router.use(authenticate, requireStaff);
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 
+// Rechtsformen, bei denen der Firmenname selbst den Unternehmer benennt (Handelsregister).
+// Bei allen anderen (Einzelunternehmen, GbR) ist der Inhabername Pflichtangabe (§ 14 UStG).
+const REGISTER_RECHTSFORMEN = ['GmbH', 'UG (haftungsbeschränkt)', 'UG', 'AG', 'OHG', 'KG', 'GmbH & Co. KG', 'e.K.', 'eG'];
+
+// Obergrenze fuer Positionen je Rechnung. Schuetzt den gemeinsamen DB-Pool vor Massen-Inserts
+// und ist fuer den Werkstattbetrieb weit ueber jedem realistischen Beleg.
+const MAX_POSITIONEN = 200;
+
+// Mindestabstand zwischen zwei Mahnstufen (Tage).
+const MAHN_ABSTAND_TAGE = 7;
+
+// Tabellenkalkulationen werten Zellen, die mit = + @ oder einem Steuerzeichen beginnen, als
+// FORMEL aus. Empfaengernamen stammen teils aus der oeffentlichen Terminbuchung, landen im
+// Journal- und DATEV-Export und werden dort vom Steuerberater geoeffnet — deshalb wird ein
+// solcher Zellinhalt mit einem Apostroph als Text markiert. Zahlen (auch negative Storno-
+// Betraege) bleiben unangetastet, sonst waere der Export unbrauchbar.
+function csvEntschaerft(v) {
+  const s = (v == null ? '' : String(v));
+  const istZahl = /^-?\d+(?:[.,]\d+)?$/.test(s);
+  return (/^[=+@\t\r]/.test(s) || (s.startsWith('-') && !istZahl)) ? "'" + s : s;
+}
+
+// Zahl aus dem Client pruefen: endlich und in einem kaufmaennisch sinnvollen Rahmen.
+function zahlOk(v, min, max) {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min && n <= max;
+}
+
+// Positionen aus dem Client pruefen. Liefert eine Fehlermeldung oder null.
+// Faengt ab: fehlende Bezeichnung (§ 14 Abs. 4 Nr. 5 UStG), unsinnige/unendliche Zahlen und
+// Massen-Positionen, die den gemeinsamen Datenbank-Pool blockieren wuerden.
+function pruefePositionen(positionen) {
+  if (!Array.isArray(positionen) || !positionen.length) return 'Mindestens eine Position erforderlich.';
+  if (positionen.length > MAX_POSITIONEN) return 'Zu viele Positionen (maximal ' + MAX_POSITIONEN + ' je Rechnung).';
+  for (let i = 0; i < positionen.length; i++) {
+    const p = positionen[i] || {};
+    const nr = 'Position ' + (i + 1) + ': ';
+    if (!String(p.bezeichnung == null ? '' : p.bezeichnung).trim()) return nr + 'Bezeichnung fehlt (Art der Leistung ist Pflichtangabe).';
+    if (String(p.bezeichnung).length > 200) return nr + 'Bezeichnung ist zu lang (maximal 200 Zeichen).';
+    // Steuerzeichen (inklusive NUL) kann PostgreSQL nicht speichern — sonst endet die Anfrage
+    // in einem Serverfehler statt in einer verstaendlichen Meldung.
+    if (/[\x00-\x08\x0B\x0C\x0E-\x1F]/.test(String(p.bezeichnung) + String(p.einheit == null ? '' : p.einheit))) {
+      return nr + 'Bezeichnung oder Einheit enthält unerlaubte Steuerzeichen.';
+    }
+    if (p.einheit != null && String(p.einheit).length > 30) return nr + 'Einheit ist zu lang (maximal 30 Zeichen).';
+    if (!zahlOk(p.menge, 0, 100000)) return nr + 'Menge ist keine gültige Zahl.';
+    const preis = (p.einzelpreis_netto != null) ? p.einzelpreis_netto : p.einzelpreis_brutto;
+    if (!zahlOk(preis, -1000000, 1000000)) return nr + 'Einzelpreis ist keine gültige Zahl.';
+    // Die Betragsspalten sind numeric(10,2): das Produkt muss ebenfalls hineinpassen.
+    if (!zahlOk(Number(p.menge) * Number(preis), -99999999.99, 99999999.99)) return nr + 'Zeilenbetrag ist zu groß.';
+    if (p.mwst_satz != null && !zahlOk(p.mwst_satz, 0, 100)) return nr + 'Steuersatz ist keine gültige Zahl.';
+  }
+  return null;
+}
+
 // Summen + normalisierte Positionen serverseitig berechnen (Client-Werte werden NICHT vertraut)
 function berechneSummen(positionen) {
   let netto = 0, brutto = 0;
   const proSatz = {};
   const norm = (positionen || []).map(function (p, i) {
     const menge = Number(p.menge) || 0;
-    const ep = Number(p.einzelpreis_netto) || 0;
     const satz = Number(p.mwst_satz);
     const mwst = Number.isFinite(satz) ? satz : 19;
-    const zNetto = round2(menge * ep);
-    const zBrutto = round2(zNetto * (1 + mwst / 100));
+    // Zwei Preisrichtungen:
+    // a) einzelpreis_brutto gesetzt -> der Bruttopreis ist der zugesagte Endpreis und bleibt exakt;
+    //    die Steuer wird herausgerechnet (brutto * satz / (100 + satz)). Betrieb mit Endpreisen.
+    // b) sonst wie bisher: Nettopreis ist die Basis, Brutto wird aufgeschlagen.
+    const epBrutto = Number(p.einzelpreis_brutto);
+    let ep, zNetto, zBrutto;
+    if (p.einzelpreis_netto == null && Number.isFinite(epBrutto)) {
+      zBrutto = round2(menge * epBrutto);
+      zNetto = round2(zBrutto - round2(zBrutto * mwst / (100 + mwst)));
+      ep = menge ? round2(zNetto / menge) : 0;
+    } else {
+      ep = Number(p.einzelpreis_netto) || 0;
+      zNetto = round2(menge * ep);
+      zBrutto = round2(zNetto * (1 + mwst / 100));
+    }
     netto = round2(netto + zNetto);
     brutto = round2(brutto + zBrutto);
     if (!proSatz[mwst]) proSatz[mwst] = { satz: mwst, netto: 0, mwst: 0 };
@@ -52,12 +119,13 @@ function berechneSummen(positionen) {
 
 const LEER_EMPF = {
   empfaenger_anrede: null, empfaenger_vorname: null, empfaenger_nachname: null,
-  empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null
+  empfaenger_name: null, empfaenger_firma: null, empfaenger_strasse: null, empfaenger_plz: null, empfaenger_ort: null,
+  empfaenger_land: null
 };
 
 async function ladeEmpfaenger(kunden_id) {
   if (!kunden_id) return Object.assign({}, LEER_EMPF);
-  const { rows } = await query('SELECT anrede,vorname,nachname,firma,strasse,plz,ort FROM kunden WHERE id=$1', [kunden_id]);
+  const { rows } = await query('SELECT anrede,vorname,nachname,firma,strasse,plz,ort,land FROM kunden WHERE id=$1', [kunden_id]);
   if (!rows.length) return Object.assign({}, LEER_EMPF);
   const k = rows[0];
   return {
@@ -68,7 +136,9 @@ async function ladeEmpfaenger(kunden_id) {
     empfaenger_firma: k.firma || null,
     empfaenger_strasse: k.strasse || null,
     empfaenger_plz: k.plz || null,
-    empfaenger_ort: k.ort || null
+    empfaenger_ort: k.ort || null,
+    // Laendercode als Snapshot: die Rechnung soll den Stand bei Ausstellung festhalten.
+    empfaenger_land: k.land || null
   };
 }
 
@@ -88,7 +158,8 @@ function empfaengerAusBody(body) {
     empfaenger_firma: firma,
     empfaenger_strasse: s(e.strasse),
     empfaenger_plz: s(e.plz),
-    empfaenger_ort: s(e.ort)
+    empfaenger_ort: s(e.ort),
+    empfaenger_land: s(e.land)
   };
 }
 
@@ -186,7 +257,7 @@ router.get('/export', requireAdmin, async (req, res, next) => {
     );
     const sep = ';';
     const num = (n) => (Number(n) || 0).toFixed(2).replace('.', ',');
-    const cell = (v) => { const s = (v == null ? '' : String(v)); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    const cell = (v) => { const s = csvEntschaerft(v); return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
     const kopf = ['Rechnungsnr', 'Status', 'Rechnungsdatum', 'Leistungsdatum', 'Faelligkeit', 'Empfaenger', 'Firma', 'PLZ', 'Ort', 'Netto', 'MwSt', 'Brutto', 'Zahlungsstatus', 'Bezahlt am', 'Storno', 'Festgeschrieben am'];
     const zeilen = rows.map((r) => [r.rechnungsnr, r.status, r.rechnungsdatum, r.leistungsdatum, r.faelligkeit,
       r.empfaenger_name, r.empfaenger_firma, r.empfaenger_plz, r.empfaenger_ort,
@@ -221,7 +292,7 @@ router.get('/export-datev', requireAdmin, async (req, res, next) => {
        FROM rechnungen WHERE status IN ('festgeschrieben','storniert') AND EXTRACT(YEAR FROM rechnungsdatum)=$1 ORDER BY rechnungsnr`,
       [jahr]);
     const dec = (n) => (Math.abs(Number(n) || 0)).toFixed(2).replace('.', ',');
-    const q = (s) => '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"';
+    const q = (s) => '"' + csvEntschaerft(s).replace(/"/g, '""') + '"';
     const p = (n, l) => String(n).padStart(l, '0');
     const d = new Date();
     const created = '' + d.getFullYear() + p(d.getMonth() + 1, 2) + p(d.getDate(), 2) + p(d.getHours(), 2) + p(d.getMinutes(), 2) + p(d.getSeconds(), 2) + '000';
@@ -288,6 +359,10 @@ router.get('/:id/xrechnung', async (req, res, next) => {
       '<cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:ClassifiedTaxCategory></cac:Item>\n' +
       '    <cac:Price><cbc:PriceAmount' + cur + '>' + m(Math.abs(Number(p.einzelpreis_netto) || 0)) + '</cbc:PriceAmount></cac:Price>\n' +
       '  </cac:InvoiceLine>').join('\n');
+    // Laendercode des Empfaengers aus dem Rechnungs-Snapshot. Fehlt er (Altbestand oder nie
+    // erfasst), gilt Deutschland — der Betrieb rechnet im Inland ab. Der Aussteller bleibt
+    // fest DE: er sitzt in Deutschland, das ist keine variable Groesse.
+    const empfLand = String(r.empfaenger_land || 'DE').trim().toUpperCase().slice(0, 2) || 'DE';
     // Verkaeufer-Steuer-IDs (USt-IdNr und/oder Steuernummer)
     let sellerTax = '';
     if (a.ust_id) sellerTax += '      <cac:PartyTaxScheme><cbc:CompanyID>' + x(a.ust_id) + '</cbc:CompanyID><cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme></cac:PartyTaxScheme>\n';
@@ -312,7 +387,7 @@ sellerTax +
 '  </cac:Party></cac:AccountingSupplierParty>\n' +
 '  <cac:AccountingCustomerParty><cac:Party>\n' +
 buyerEP +
-'      <cac:PostalAddress><cbc:StreetName>' + x(r.empfaenger_strasse) + '</cbc:StreetName><cbc:CityName>' + x(r.empfaenger_ort) + '</cbc:CityName><cbc:PostalZone>' + x(r.empfaenger_plz) + '</cbc:PostalZone><cac:Country><cbc:IdentificationCode>DE</cbc:IdentificationCode></cac:Country></cac:PostalAddress>\n' +
+'      <cac:PostalAddress><cbc:StreetName>' + x(r.empfaenger_strasse) + '</cbc:StreetName><cbc:CityName>' + x(r.empfaenger_ort) + '</cbc:CityName><cbc:PostalZone>' + x(r.empfaenger_plz) + '</cbc:PostalZone><cac:Country><cbc:IdentificationCode>' + x(empfLand) + '</cbc:IdentificationCode></cac:Country></cac:PostalAddress>\n' +
 '      <cac:PartyLegalEntity><cbc:RegistrationName>' + x(empfName) + '</cbc:RegistrationName></cac:PartyLegalEntity>\n' +
 '  </cac:Party></cac:AccountingCustomerParty>\n' +
 (a.iban ? '  <cac:PaymentMeans><cbc:PaymentMeansCode>58</cbc:PaymentMeansCode><cac:PayeeFinancialAccount><cbc:ID>' + x(a.iban) + '</cbc:ID></cac:PayeeFinancialAccount></cac:PaymentMeans>\n' : '') +
@@ -353,7 +428,7 @@ router.get('/verfahrensdokumentation', async (req, res, next) => {
       '<h2>3. Festschreibung und Unveränderbarkeit</h2><p>Eine Rechnung ist zunächst ein <em>Entwurf</em> und änderbar. Mit dem <em>Festschreiben</em> erhält sie die Rechnungsnummer, ein eingefrorenes Aussteller- und Empfänger-Abbild sowie ein erzeugtes PDF; danach ist sie technisch gegen Änderung und Löschung gesperrt. Pflichtangaben nach § 14 UStG (Empfänger, ab 250 € vollständige Anschrift, Steuernr./USt-IdNr.) werden vor dem Festschreiben geprüft.</p>' +
       '<h2>4. Korrekturen / Storno</h2><p>Festgeschriebene Rechnungen werden nicht gelöscht oder geändert. Korrekturen erfolgen ausschließlich über eine <strong>Stornorechnung</strong> mit eigener fortlaufender Nummer und negativen Beträgen, die auf die Originalrechnung verweist. Das Original bleibt erhalten und wird als „storniert" gekennzeichnet.</p>' +
       '<h2>5. Protokollierung (Nachvollziehbarkeit)</h2><p>Alle relevanten Vorgänge (Entwurf anlegen/ändern, Festschreiben, Storno, Zahlungsstatus, Mahnung, Export) werden mit Benutzer, Zeitpunkt und Vorgang in einem Änderungs-/Audit-Protokoll erfasst.</p>' +
-      '<h2>6. Aufbewahrung</h2><p>Rechnungen (Datensatz und PDF) werden gemäß § 147 AO / § 14b UStG <strong>10 Jahre</strong> aufbewahrt und maschinell auswertbar vorgehalten. Ein Export des Rechnungsjournals als CSV steht für die Betriebsprüfung zur Verfügung.</p>' +
+      '<h2>6. Aufbewahrung</h2><p>Rechnungen (Datensatz und PDF) werden gemäß § 147 Abs. 3 AO / § 14b Abs. 1 UStG <strong>8 Jahre</strong> aufbewahrt und maschinell auswertbar vorgehalten. Ein Export des Rechnungsjournals als CSV steht für die Betriebsprüfung zur Verfügung.</p>' +
       '<h2>7. Technik und Datensicherung</h2><p>Betrieb auf einem Server (PostgreSQL-Datenbank, Node.js-Anwendung). <span class="muted">Hinweis: Das Datensicherungskonzept (regelmäßige Backups, Aufbewahrung der Sicherungen) ist organisatorisch festzulegen und hier zu ergänzen.</span></p>' +
       '<h2>8. Verantwortlich</h2><p>' + esc(e.inhaber || firma) + '</p>' +
       '<p class="muted" style="margin-top:30px">Diese Dokumentation ist eine Vorlage. Bitte durch Steuerberater prüfen und um das individuelle Datensicherungs- und Zugriffskonzept ergänzen.</p>' +
@@ -381,7 +456,8 @@ router.get('/:id', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
-    if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    const posFehler = pruefePositionen(positionen);
+    if (posFehler) return res.status(400).json({ error: posFehler });
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
@@ -422,10 +498,10 @@ router.post('/', async (req, res, next) => {
       const ins = await client.query(
         `INSERT INTO rechnungen
            (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
-            rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
-         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+            empfaenger_land, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$18,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
         [kunden_id || null, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
-         rdatum, ldatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.user.id]
+         rdatum, ldatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.user.id, emp.empfaenger_land]
       );
       await insertPositionen(client, ins.rows[0].id, s.positionen);
       return ins.rows[0];
@@ -479,17 +555,30 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     let leist = t.leistungen; if (typeof leist === 'string') { try { leist = JSON.parse(leist); } catch (e) { leist = null; } }
     let positionen;
     if (Array.isArray(leist) && leist.length) {
-      positionen = leist.map((p) => ({
-        bezeichnung: (p.bezeichnung || 'Leistung') + (t.kennzeichen ? ' — ' + t.kennzeichen : '') + (p.zuschlag_netto > 0 && p.fahrzeugtyp ? ' (' + p.fahrzeugtyp + ')' : ''),
-        menge: 1, einheit: null,
-        einzelpreis_netto: round2((Number(p.grundpreis_netto) || 0) + (Number(p.zuschlag_netto) || 0)),
-        mwst_satz: p.mwst_satz != null ? p.mwst_satz : 19,
-        artikel_id: p.artikel_id || null
-      }));
+      positionen = leist.map((p) => {
+        const pos = {
+          bezeichnung: (p.bezeichnung || 'Leistung') + (t.kennzeichen ? ' — ' + t.kennzeichen : '') + (p.zuschlag_netto > 0 && p.fahrzeugtyp ? ' (' + p.fahrzeugtyp + ')' : ''),
+          menge: 1, einheit: null,
+          mwst_satz: p.mwst_satz != null ? p.mwst_satz : 19,
+          artikel_id: p.artikel_id || null
+        };
+        // Der Betrag, den der Kunde bei der Buchung gesehen hat, ist der BRUTTO-Zeilenbetrag.
+        // Er wird unveraendert uebernommen. Wuerde man stattdessen die gespeicherten
+        // Nettowerte addieren und wieder hochrechnen, verlaere jede Zeile bis zu einem Cent
+        // (44,00 -> 36,97 -> 43,99), und bei mehreren Leistungen summiert sich das sichtbar.
+        // Der Nettowert ist nur der Rueckfall fuer alte Buchungen ohne zeilen_brutto.
+        const brutto = Number(p.zeilen_brutto);
+        if (Number.isFinite(brutto) && brutto !== 0) pos.einzelpreis_brutto = round2(brutto);
+        else pos.einzelpreis_netto = round2((Number(p.grundpreis_netto) || 0) + (Number(p.zuschlag_netto) || 0));
+        return pos;
+      });
     } else {
-      // R4: der (ggf. Brutto-)Artikel-/Kundenpreis der Hauptleistung wird bei inkl. auf Netto umgerechnet
-      const einzelNetto = inkl ? round2(preis / (1 + (Number(mwst) || 0) / 100)) : round2(preis);
-      positionen = [{ bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, einzelpreis_netto: einzelNetto, mwst_satz: mwst, artikel_id: t.aid || null }];
+      // Bei preise_inkl_mwst=true ist der Artikel-/Kundenpreis der zugesagte Endpreis: er wird als
+      // Bruttopreis uebergeben und bleibt damit exakt erhalten (44,00 EUR bleiben 44,00 EUR).
+      const basis = { bezeichnung: bez, menge: 1, einheit: t.artikel_einheit || null, mwst_satz: mwst, artikel_id: t.aid || null };
+      positionen = [inkl
+        ? Object.assign({}, basis, { einzelpreis_brutto: round2(preis) })
+        : Object.assign({}, basis, { einzelpreis_netto: round2(preis) })];
     }
     // Gutschein/Rabatt als MwSt-korrekte Position (je Steuersatz gemindert -> korrekter Steuerausweis).
     // Vorrang: 1) manueller Staff-Override im Body (Live-Validierung gegen gutscheine),
@@ -520,6 +609,11 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         einzelpreis_netto: -round2(r.netto * rabattProzent / 100), mwst_satz: r.satz
       })));
     }
+    // Auch die serverseitig gebauten Positionen laufen durch die Pruefung. Sie stammen aus
+    // termine.leistungen bzw. dem Artikelstamm — sollte dort je etwas Unsinniges stehen, soll
+    // daraus keine Rechnung entstehen (Sicherheitsnetz, kein erwarteter Fall).
+    const terminPosFehler = pruefePositionen(positionen);
+    if (terminPosFehler) return res.status(400).json({ error: 'Termin lässt sich nicht abrechnen — ' + terminPosFehler });
     const s = berechneSummen(positionen);
     // Empfaenger: bei Kundenkonto aus dem Stamm; sonst (Gast-Termin) Snapshot aus den Termin-Kontaktdaten,
     // OHNE einen Kundenstamm anzulegen ("nur Rechnungsempfaenger"). Die §14-Vollstaendigkeit (ab 250 EUR
@@ -540,13 +634,19 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     }
     const rdatum = heute();
     const result = await withTransaction(async (client) => {
+      // Doppelabrechnung sicher ausschliessen: Die Vorpruefung oben liest ohne Sperre, zwischen
+      // ihr und dem Schreiben liegen mehrere Abfragen. Deshalb den Termin hier sperren und die
+      // Verknuepfung erneut pruefen — parallele Anfragen warten und laufen dann in den 409.
+      const sperre = await client.query('SELECT rechnung_id FROM termine WHERE id=$1 FOR UPDATE', [t.id]);
+      if (!sperre.rows.length) { const e = new Error('Termin nicht gefunden.'); e.status = 404; throw e; }
+      if (sperre.rows[0].rechnung_id) { const e = new Error('Für diesen Termin wurde bereits eine Rechnung erstellt.'); e.status = 409; throw e; }
       const ins = await client.query(
         `INSERT INTO rechnungen
            (status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
-            rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
-         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
+            empfaenger_land, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung, notizen, erstellt_von)
+         VALUES ('entwurf',$1,$2,$3,$4,$5,$6,$7,$8,$9,$18,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *`,
         [t.kunden_id, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
-         rdatum, t.datum || rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), 'Aus Termin vom ' + (t.datum || ''), req.user.id]
+         rdatum, t.datum || rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), 'Aus Termin vom ' + (t.datum || ''), req.user.id, emp.empfaenger_land]
       );
       await insertPositionen(client, ins.rows[0].id, s.positionen);
       // Termin mit der Rechnung verknuepfen -> verhindert Doppelabrechnung
@@ -555,7 +655,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.aus_termin', tabelle: 'rechnungen', datensatzId: result.id, neueWerte: { termin_id: t.id, rabatt_quelle: rabattQuelle, rabatt_prozent: rabattProzent, rabatt_label: rabattLabel }, req });
     res.status(201).json(result);
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
 });
 
 // ── PUT /:id ── Entwurf aendern (nur Entwurf)
@@ -565,7 +668,8 @@ router.put('/:id', async (req, res, next) => {
     if (!cur.rows.length) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
     if (cur.rows[0].status !== 'entwurf') return res.status(400).json({ error: 'Nur Entwuerfe koennen bearbeitet werden.' });
     const { kunden_id, rechnungsdatum, leistungsdatum, notizen, positionen } = req.body;
-    if (!positionen || !positionen.length) return res.status(400).json({ error: 'Mindestens eine Position erforderlich.' });
+    const posFehler = pruefePositionen(positionen);
+    if (posFehler) return res.status(400).json({ error: posFehler });
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // kunden_id ist explizit setzbar (auch auf null); fehlt das Feld ganz, bleibt die bisherige Verknuepfung
@@ -583,7 +687,8 @@ router.put('/:id', async (req, res, next) => {
         emp = {
           empfaenger_anrede: c.empfaenger_anrede, empfaenger_vorname: c.empfaenger_vorname, empfaenger_nachname: c.empfaenger_nachname,
           empfaenger_name: c.empfaenger_name, empfaenger_firma: c.empfaenger_firma,
-          empfaenger_strasse: c.empfaenger_strasse, empfaenger_plz: c.empfaenger_plz, empfaenger_ort: c.empfaenger_ort
+          empfaenger_strasse: c.empfaenger_strasse, empfaenger_plz: c.empfaenger_plz, empfaenger_ort: c.empfaenger_ort,
+          empfaenger_land: c.empfaenger_land
         };
       }
     }
@@ -594,12 +699,12 @@ router.put('/:id', async (req, res, next) => {
       await client.query(
         `UPDATE rechnungen SET kunden_id=$1, empfaenger_anrede=$2, empfaenger_vorname=$3, empfaenger_nachname=$4,
            empfaenger_name=$5, empfaenger_firma=$6, empfaenger_strasse=$7, empfaenger_plz=$8, empfaenger_ort=$9,
-           rechnungsdatum=$10, leistungsdatum=$11,
+           empfaenger_land=$18, rechnungsdatum=$10, leistungsdatum=$11,
            netto_summe=$12, mwst_summe=$13, brutto_summe=$14, mwst_aufschluesselung=$15, notizen=$16
          WHERE id=$17`,
         [kid, emp.empfaenger_anrede, emp.empfaenger_vorname, emp.empfaenger_nachname, emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse, emp.empfaenger_plz, emp.empfaenger_ort,
          rechnungsdatum || cur.rows[0].rechnungsdatum, leistungsdatum || cur.rows[0].leistungsdatum,
-         s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.params.id]
+         s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung), notizen || null, req.params.id, emp.empfaenger_land]
       );
       await client.query('DELETE FROM rechnung_positionen WHERE rechnung_id=$1', [req.params.id]);
       await insertPositionen(client, req.params.id, s.positionen);
@@ -616,7 +721,17 @@ router.delete('/:id', async (req, res, next) => {
     const cur = await query('SELECT status FROM rechnungen WHERE id=$1', [req.params.id]);
     if (!cur.rows.length) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
     if (cur.rows[0].status !== 'entwurf') return res.status(400).json({ error: 'Nur Entwuerfe koennen geloescht werden.' });
-    await query('DELETE FROM rechnungen WHERE id=$1', [req.params.id]); // Positionen via ON DELETE CASCADE
+    // Ein aus einem Termin erzeugter Entwurf haengt per termine.rechnung_id am Termin (FK RESTRICT).
+    // Beim Verwerfen des Entwurfs wird die Verknuepfung geloest, damit der Termin wieder abrechenbar ist.
+    await withTransaction(async (client) => {
+      // Auch das Kennzeichen 'fakturiert' zuruecknehmen: Das Frontend setzt es beim Erzeugen
+      // der Rechnung. Bliebe es stehen, waere der Termin nach dem Verwerfen des Entwurfs als
+      // abgerechnet markiert, ohne dass eine Rechnung existiert — er taucht dann weder in
+      // "Abzurechnen" auf noch faellt er unter die Loeschfristen (die abgerechnete Termine
+      // bewusst verschonen).
+      await client.query('UPDATE termine SET rechnung_id=NULL, fakturiert=false WHERE rechnung_id=$1', [req.params.id]);
+      await client.query('DELETE FROM rechnungen WHERE id=$1', [req.params.id]); // Positionen via ON DELETE CASCADE
+    });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.entwurf_geloescht', tabelle: 'rechnungen', datensatzId: req.params.id, req });
     res.json({ message: 'Entwurf geloescht.' });
   } catch (e) { next(e); }
@@ -640,7 +755,8 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       const emp = {
         empfaenger_anrede: rech.empfaenger_anrede, empfaenger_vorname: rech.empfaenger_vorname, empfaenger_nachname: rech.empfaenger_nachname,
         empfaenger_name: rech.empfaenger_name, empfaenger_firma: rech.empfaenger_firma,
-        empfaenger_strasse: rech.empfaenger_strasse, empfaenger_plz: rech.empfaenger_plz, empfaenger_ort: rech.empfaenger_ort
+        empfaenger_strasse: rech.empfaenger_strasse, empfaenger_plz: rech.empfaenger_plz, empfaenger_ort: rech.empfaenger_ort,
+        empfaenger_land: rech.empfaenger_land
       };
 
       // ── § 14 UStG: Pflichtangaben vor dem Festschreiben prüfen ──
@@ -650,8 +766,30 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       if (!aussteller.steuernummer && !aussteller.ust_id) {
         const e = new Error('Bitte zuerst Steuernummer oder USt-IdNr. in den Einstellungen hinterlegen (§ 14 UStG).'); e.status = 400; throw e;
       }
+      // Name und Anschrift des Ausstellers sind IMMER Pflicht (§ 14 Abs. 4 Nr. 1 UStG) —
+      // die Kleinbetragsregelung (§ 33 UStDV) lockert nur die Empfaengerangaben.
+      if (!aussteller.firmenname || !aussteller.strasse || !aussteller.plz || !aussteller.ort) {
+        const e = new Error('Firmenname und vollständige Anschrift des Ausstellers fehlen — bitte in den Einstellungen vervollständigen (§ 14 UStG).'); e.status = 400; throw e;
+      }
+      // Bei nicht im Handelsregister eingetragenen Rechtsformen (Einzelunternehmen, GbR) genuegt die
+      // Geschaeftsbezeichnung nicht — der buergerliche Name des Inhabers gehoert auf die Rechnung.
+      // Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde z. B. in
+      // "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
+      if (!REGISTER_RECHTSFORMEN.includes(String(aussteller.rechtsform || '').trim()) && !aussteller.inhaber) {
+        const e = new Error('Name des Inhabers fehlt — bitte in den Einstellungen eintragen. Er ist der Name des leistenden Unternehmers (§ 14 UStG) und wird bei jeder Rechtsform verlangt, die nicht im Handelsregister eingetragen ist (Einzelunternehmen, GbR). Auch bei einer ungewöhnlichen Schreibweise der Rechtsform wird er sicherheitshalber verlangt.'); e.status = 400; throw e;
+      }
       if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
         const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
+      }
+      // Regelbesteuerung: nur 19 % und 7 %. Ein Satz von 0 % (oder ein unbekannter Satz) braucht
+      // den Hinweis auf den Grund der Steuerbefreiung (§ 14 Abs. 4 Nr. 8 UStG), den das System
+      // nicht fuehrt — solche Rechnungen werden daher nicht festgeschrieben.
+      if (pos.some(function (p) { return !String(p.bezeichnung || '').trim(); })) {
+        const e = new Error('Jede Position braucht eine Bezeichnung (Art der Leistung — § 14 Abs. 4 Nr. 5 UStG).'); e.status = 400; throw e;
+      }
+      const unzulaessig = pos.map(function (p) { return Number(p.mwst_satz); }).filter(function (x) { return x !== 19 && x !== 7; });
+      if (unzulaessig.length) {
+        const e = new Error('Unzulässiger Steuersatz (' + unzulaessig[0] + ' %). Vorgesehen sind 19 % und 7 %; für steuerfreie Leistungen fehlt der Pflichthinweis nach § 14 Abs. 4 Nr. 8 UStG.'); e.status = 400; throw e;
       }
       // Eine Rechnung über 0,00 € hat keinen Zweck und soll nicht festgeschrieben werden (Stornos laufen ueber /storno).
       if (Number(rech.brutto_summe) <= 0 && !rech.storno_von_id) {
@@ -664,7 +802,10 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       // ersetzt. Dadurch ist die Reihenfolge Rechnungsnummer <-> Rechnungsdatum immer
       // monoton (spaetere Nummer nie aelteres Datum). Datumsmathematik in Postgres, um
       // die Zeitzonen-Verschiebung von new Date()/toISOString() zu vermeiden.
-      const zzt = parseInt(einst.zahlungsziel_tage) || 14;
+      // Zahlungsziel 0 (sofort faellig, z. B. Barzahlung) ist eine gueltige Einstellung —
+      // deshalb kein "|| 14", das die 0 stillschweigend in 14 Tage verwandeln wuerde.
+      const zztRoh = parseInt(einst.zahlungsziel_tage, 10);
+      const zzt = Number.isFinite(zztRoh) && zztRoh >= 0 ? zztRoh : 14;
       const dq = await client.query(
         `SELECT to_char((now() AT TIME ZONE 'Europe/Berlin')::date,'YYYY-MM-DD') AS rdatum,
                 EXTRACT(YEAR FROM (now() AT TIME ZONE 'Europe/Berlin')::date)::int AS jahr,
@@ -685,8 +826,14 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       );
       const nr = 'RE-' + jahr + '-' + String(cnt.rows[0].letzte_nr).padStart(4, '0');
 
+      // Hinweis (bewusst so): Die PDF-Datei wird VOR dem abschliessenden UPDATE geschrieben.
+      // Scheitert die Transaktion danach, wird die Nummer samt Zaehler zurueckgerollt, die
+      // Datei bleibt aber unreferenziert liegen und wird beim naechsten Versuch derselben
+      // Rechnung unter demselben Namen ueberschrieben. Kein Datenverlust und kein Beleg zu
+      // wenig; der umgekehrte Weg (erst DB, dann PDF) koennte dagegen eine festgeschriebene
+      // Rechnung ohne Beleg hinterlassen.
       const pdfPfad = await erzeugeRechnungPdf(
-        Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller }, emp),
+        Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller, brutto_darstellung: einst.preise_inkl_mwst !== false }, emp),
         pos
       );
 
@@ -743,19 +890,22 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
 
       const ins = await client.query(
         `INSERT INTO rechnungen
-           (rechnungsnr, status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort,
+           (rechnungsnr, status, kunden_id, empfaenger_anrede, empfaenger_vorname, empfaenger_nachname, empfaenger_name, empfaenger_firma, empfaenger_strasse, empfaenger_plz, empfaenger_ort, empfaenger_land,
             aussteller, rechnungsdatum, leistungsdatum, netto_summe, mwst_summe, brutto_summe, mwst_aufschluesselung,
             zahlungsstatus, storno_von_id, festgeschrieben_am, erstellt_von, notizen)
-         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$20,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
+         VALUES ($1,'festgeschrieben',$2,$3,$4,$5,$6,$7,$8,$9,$10,$21,$11,$12,$20,$13,$14,$15,$16,'bezahlt',$17,NOW(),$18,$19) RETURNING *`,
         [nr, orig.kunden_id, orig.empfaenger_anrede, orig.empfaenger_vorname, orig.empfaenger_nachname, orig.empfaenger_name, orig.empfaenger_firma, orig.empfaenger_strasse, orig.empfaenger_plz, orig.empfaenger_ort,
          JSON.stringify(aussteller), rdatum, s.netto_summe, s.mwst_summe, s.brutto_summe, JSON.stringify(s.mwst_aufschluesselung),
          orig.id, req.user.id, 'Storno zu ' + orig.rechnungsnr,
          // Leistungsdatum der Stornorechnung = Leistungszeitraum der Originalrechnung (nicht das Storno-Ausstellungsdatum)
-         orig.leistungsdatum || rdatum]
+         orig.leistungsdatum || rdatum, orig.empfaenger_land]
       );
       const storno = ins.rows[0];
       await insertPositionen(client, storno.id, s.positionen);
-      const pdfPfad = await erzeugeRechnungPdf(Object.assign({}, storno, { aussteller: aussteller }), s.positionen);
+      // Eindeutiger Bezug zur Originalrechnung auf dem Beleg (Nummer + Datum), nicht nur als interne Notiz.
+      const pdfPfad = await erzeugeRechnungPdf(
+        Object.assign({}, storno, { aussteller: aussteller, storno_von_nr: orig.rechnungsnr, storno_von_datum: orig.rechnungsdatum, brutto_darstellung: einst.preise_inkl_mwst !== false }),
+        s.positionen);
       await client.query('UPDATE rechnungen SET pdf_pfad=$1 WHERE id=$2', [pdfPfad, storno.id]);
       await client.query("UPDATE rechnungen SET status='storniert' WHERE id=$1", [orig.id]);
       return Object.assign({}, storno, { pdf_pfad: pdfPfad });
@@ -797,7 +947,7 @@ router.get('/:id/pdf', async (req, res, next) => {
 router.post('/:id/mahnung', async (req, res, next) => {
   try {
     const r = (await query(
-      `SELECT r.*, k.email AS k_email, k.portal_email, k.vorname
+      `SELECT r.*, k.rechnung_email AS k_rechnung_email, k.email AS k_email, k.portal_email, k.vorname
        FROM rechnungen r LEFT JOIN kunden k ON k.id = r.kunden_id WHERE r.id = $1`,
       [req.params.id]
     )).rows[0];
@@ -805,8 +955,19 @@ router.post('/:id/mahnung', async (req, res, next) => {
     if (r.status !== 'festgeschrieben' || r.zahlungsstatus !== 'offen') {
       return res.status(400).json({ error: 'Nur offene, festgeschriebene Rechnungen können gemahnt werden.' });
     }
-    const mail = r.k_email || r.portal_email;
+    // Mahnungen gehen an die Rechnungsadresse, wenn es eine gibt — sonst an die allgemeine.
+    const mail = r.k_rechnung_email || r.k_email || r.portal_email;
     if (!mail) return res.status(400).json({ error: 'Für diesen Kunden ist keine E-Mail hinterlegt.' });
+
+    // Gemahnt wird erst nach Faelligkeit und mit Mindestabstand zwischen den Stufen — sonst koennte
+    // ein versehentlicher Doppelklick den Kunden mehrfach anschreiben und die Mahnstufe hochtreiben.
+    const frist = (await query(
+      `SELECT COALESCE(CURRENT_DATE < faelligkeit, false) AS zu_frueh,
+              COALESCE(CURRENT_DATE < mahnung_am + ($1 * INTERVAL '1 day'), false) AS zu_dicht,
+              to_char((mahnung_am + ($1 * INTERVAL '1 day'))::date, 'DD.MM.YYYY') AS naechste
+       FROM rechnungen WHERE id=$2`, [MAHN_ABSTAND_TAGE, req.params.id])).rows[0];
+    if (frist.zu_frueh) return res.status(400).json({ error: 'Die Rechnung ist noch nicht fällig.' });
+    if (frist.zu_dicht) return res.status(400).json({ error: 'Zuletzt wurde bereits gemahnt. Die nächste Mahnung ist ab ' + frist.naechste + ' möglich.' });
 
     const einst = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
     const stufe = (r.mahnstufe || 0) + 1;
@@ -842,8 +1003,9 @@ router.post('/:id/senden', async (req, res, next) => {
     if (r.status !== 'festgeschrieben') return res.status(400).json({ error: 'Nur festgeschriebene Rechnungen können versendet werden.' });
     let mail = (req.body && req.body.email) ? String(req.body.email).trim() : null;
     if (!mail && r.kunden_id) {
-      const k = (await query('SELECT email, portal_email FROM kunden WHERE id=$1', [r.kunden_id])).rows[0];
-      mail = k ? (k.email || k.portal_email) : null;
+      // Vorrang: eigene Rechnungsadresse (Buchhaltung), dann die allgemeine Adresse.
+      const k = (await query('SELECT rechnung_email, email, portal_email FROM kunden WHERE id=$1', [r.kunden_id])).rows[0];
+      mail = k ? (k.rechnung_email || k.email || k.portal_email) : null;
     }
     if (!mail) return res.status(400).json({ error: 'Keine E-Mail-Adresse für den Empfänger hinterlegt.' });
     if (!r.pdf_pfad || !fs.existsSync(r.pdf_pfad)) return res.status(400).json({ error: 'Rechnungs-PDF nicht gefunden.' });

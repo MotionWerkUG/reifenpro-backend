@@ -35,6 +35,17 @@ Backend nach `src/…`, dann `pm2 restart reifenpro`.
   Die Alt-Felder `mo_fr_*`/`sa_*`/`so_*` sind nur Rückfallebene (ein Mo–Fr-Block, keine Sa/So-Pause);
   ist die Tabelle `oeffnungszeiten` leer, liefern die Portal-Endpunkte `woche: null`.
 
+## Löschkonzept (cron-erinnerungen.js, `loeschkonzept()`)
+Läuft täglich 08:00 per Cron aus dem Hauptordner. **Standard ist TROCKENLAUF** — zählt und
+protokolliert nur nach `/var/log/reifenpro-cron.log`; scharf erst mit `LOESCHLAUF_SCHARF=1` in
+der `.env`. Fristen (David freigegeben 29.08.2026): stornierte/abgesagte Gast-Termine 12 Monate
+und übrige Gast-Termine 24 Monate → anonymisieren (Statistikzeile bleibt); folgenlose
+Kontaktanfragen 12 Monate → löschen (wurde daraus ein Kunde, bleiben sie).
+**Termine mit `rechnung_id` oder `fakturiert` werden NIE angefasst** — Aufbewahrungspflicht
+schlägt Löschpflicht. Vor dem Scharfschalten das Rechnungswesen informieren: es prüft am selben
+Tag auf anonymisierte Termine an bestehenden Rechnungen und auf `fakturiert=true` ohne Rechnung.
+Gewerbeanfragen gehören NICHT hierher (Admin: Datei auf der Platte muss mitgelöscht werden).
+
 ## Tabus
 Admin-/CMS-/Rechnungs-Dateien nicht anfassen; geteiltes Fundament nur nach Ankündigung.
 Keine echten Kundendaten/-Mails in Tests; Test-Portalkonten danach löschen.
