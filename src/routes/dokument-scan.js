@@ -131,7 +131,8 @@ router.get('/seite', limiter, async (req, res, next) => {
     const label = DOK_LABEL[t.dokumentTyp] || 'Dokument';
     // Bewusst ohne Kunden-, Fahrzeug- oder Belegbezug.
     const formular =
-      '<label class="f">Unterschriebenes Blatt fotografieren<input type="file" id="f" accept="image/*,application/pdf" capture="environment"></label>' +
+      '<label class="f">Unterschriebenes Blatt aufnehmen<input type="file" id="f" accept="image/*,application/pdf"></label>' +
+      '<p style="font-size:13px;color:#777;margin:12px 0 0">Am iPhone am besten über <b>Dateien durchsuchen</b> und dort <b>Dokumente scannen</b>: Das begradigt das Blatt und liefert ein sauberes PDF. Ein einfaches Foto geht ebenso.</p>' +
       '<div id="st"></div>' +
       '<scr' + 'ipt>' +
       'var tk=' + JSON.stringify(String(req.query.token)) + ';' +
@@ -145,7 +146,7 @@ router.get('/seite', limiter, async (req, res, next) => {
       '.catch(function(err){st.className="err";st.textContent=err.message;});};' +
       'r.readAsDataURL(d);});' +
       '</scr' + 'ipt>';
-    res.send(seite(label, 'Bitte das unterschriebene Blatt vollständig und gut lesbar fotografieren.', formular));
+    res.send(seite(label, 'Bitte das unterschriebene Blatt vollständig und gut lesbar aufnehmen.', formular));
   } catch (e) { next(e); }
 });
 
