@@ -14,3 +14,9 @@ CREATE TABLE IF NOT EXISTS dokument_scan_token (
 );
 -- Offene Token je Dokument finden (beim Neuausstellen werden sie entwertet).
 CREATE INDEX IF NOT EXISTS idx_scan_token_dokument ON dokument_scan_token (dokument_id) WHERE verbraucht_am IS NULL;
+
+-- Eigentuemer wie alle anderen Tabellen: die Anwendung verbindet sich als reifenpro_user.
+-- Wird die Migration als postgres eingespielt (der uebliche Weg auf diesem Server), gehoert
+-- die Tabelle sonst postgres und die Anwendung bekommt "permission denied" — im Test genau
+-- so passiert.
+ALTER TABLE dokument_scan_token OWNER TO reifenpro_user;

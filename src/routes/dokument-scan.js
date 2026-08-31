@@ -63,7 +63,8 @@ async function tokenPruefen(token) {
   catch (e) { return null; }
   if (!p || p.typ !== 'dok-scan' || !p.jti || !p.did) return null;
   const { rows } = await query(
-    `SELECT t.id, t.dokument_id, t.verbraucht_am, t.gueltig_bis, d.typ AS dokument_typ, d.unterschrift_kunde IS NOT NULL AS signiert
+    `SELECT t.id, t.dokument_id, t.verbraucht_am, t.gueltig_bis, d.typ AS dokument_typ,
+            (d.unterschrift_kunde IS NOT NULL OR d.scan_pfad IS NOT NULL) AS signiert
        FROM dokument_scan_token t JOIN kunden_dokumente d ON d.id = t.dokument_id
       WHERE t.jti = $1 AND t.dokument_id = $2`, [p.jti, p.did]);
   const t = rows[0];
@@ -84,8 +85,14 @@ router.post('/token', authenticate, requireStaff, async (req, res, next) => {
   try {
     const dokumentId = String((req.body && req.body.dokument_id) || '');
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dokumentId)) return res.status(400).json({ error: 'Dokument-ID fehlt oder ist ungültig.' });
-    const dok = (await query('SELECT id FROM kunden_dokumente WHERE id=$1', [dokumentId])).rows[0];
+    const dok = (await query(
+      'SELECT id, (unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL) AS signiert FROM kunden_dokumente WHERE id=$1',
+      [dokumentId])).rows[0];
     if (!dok) return res.status(404).json({ error: 'Dokument nicht gefunden.' });
+    // Erste Unterschrift gewinnt (gleiche Regel wie im Admin-Upload). Ohne diese Pruefung
+    // liefe der spaetere Upload in die Aufbewahrungssperre und der Nutzer saehe einen
+    // nichtssagenden Serverfehler, statt vorher zu erfahren, dass nichts zu tun ist.
+    if (dok.signiert) return res.status(409).json({ error: 'Dieses Dokument ist bereits unterschrieben.' });
 
     let tage = parseInt(req.body && req.body.tage, 10);
     if (!(tage >= 1)) tage = TAGE_STANDARD;
@@ -157,6 +164,9 @@ router.post('/upload', limiter, async (req, res, next) => {
   try {
     const t = await tokenPruefen(req.body && req.body.token);
     if (!t) return res.status(410).json({ error: 'Dieser Link ist abgelaufen oder wurde bereits benutzt.' });
+
+    // Zwischen Ausdruck und Upload kann am Bildschirm unterschrieben worden sein.
+    if (t.signiert) return res.status(409).json({ error: 'Dieses Dokument ist bereits unterschrieben. Es ist nichts mehr zu tun.' });
 
     const m = /^data:[^;,]*;base64,(.+)$/.exec(String((req.body && req.body.data) || ''));
     if (!m) return res.status(400).json({ error: 'Keine Datei erkannt. Bitte erneut fotografieren.' });
