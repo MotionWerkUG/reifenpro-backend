@@ -35,6 +35,16 @@ Backend nach `src/…`, dann `pm2 restart reifenpro`.
   Die Alt-Felder `mo_fr_*`/`sa_*`/`so_*` sind nur Rückfallebene (ein Mo–Fr-Block, keine Sa/So-Pause);
   ist die Tabelle `oeffnungszeiten` leer, liefern die Portal-Endpunkte `woche: null`.
 
+## Offen: nachziehen, sobald `kunden_dokumente.scan_pfad` existiert
+Scheine können künftig auf Papier unterschrieben und abfotografiert werden (Spalten `scan_pfad`,
+`unterschrift_weg`; Migration kommt vom Admin). Dann in `portal-daten.js` das Feld
+`(unterschrift_kunde IS NOT NULL) AS unterschrieben` auf
+`(unterschrift_kunde IS NOT NULL OR scan_pfad IS NOT NULL)` umstellen — sonst gilt ein auf Papier
+unterschriebener Schein im Portal als nicht unterschrieben. **Der Scan selbst wird im Portal NICHT
+ausgeliefert** (Entscheidung David 31.08.2026: „nur den erzeugten Schein"): Ein Foto fängt leicht
+mehr ein als das Blatt. Also KEIN Portal-Endpunkt für Scans bauen — die Datei bleibt allein über
+den Admin erreichbar.
+
 ## Löschkonzept (cron-erinnerungen.js, `loeschkonzept()`)
 Läuft täglich 08:00 per Cron aus dem Hauptordner. **Standard ist TROCKENLAUF** — zählt und
 protokolliert nur nach `/var/log/reifenpro-cron.log`; scharf erst mit `LOESCHLAUF_SCHARF=1` in
