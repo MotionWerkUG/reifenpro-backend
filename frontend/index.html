@@ -5022,8 +5022,20 @@ function zeigeScan(did) {
   api('GET', '/kunden/' + aktK.id + '/dokumente/' + did + '/scan', null, { raw: true })
     .then(function(blob) {
       var url = URL.createObjectURL(blob);
-      w.location.href = url;
-      setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
+      // Ein mit der Dokumentenerfassung des iPhone gescannter Beleg ist ein PDF, kein Bild.
+      // Beides wird eingebettet statt angesteuert: Ob ein Browser ein PDF selbst anzeigt,
+      // ist nicht verlaesslich — der Link darunter bleibt in jedem Fall.
+      var inhalt = blob.type === 'application/pdf'
+        ? '<embed src="' + url + '" type="application/pdf" style="width:100%;height:calc(100vh - 42px);border:0">'
+        : '<img src="' + url + '" style="max-width:100%;height:auto;display:block;margin:0 auto">';
+      w.document.open();
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Scan</title></head>'
+        + '<body style="margin:0;background:#f3f2ef">'
+        + '<div style="padding:10px 14px;font-family:sans-serif;font-size:13px;background:#fff;border-bottom:1px solid #ddd">'
+        + '<a href="' + url + '" target="_blank" style="color:#e8502a">Scan in eigenem Fenster öffnen</a></div>'
+        + inhalt + '</body></html>');
+      w.document.close();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 300000);
     })
     .catch(function(e) {
       try { w.document.body.textContent = 'Der Scan konnte nicht geladen werden: ' + e.message; } catch (x) {}
