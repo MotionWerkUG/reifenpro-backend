@@ -29,7 +29,7 @@ const { verarbeite } = require('../lib/bildverarbeitung');
 // Ausserhalb des Web-Verzeichnisses: ein unterschriebenes Dokument darf nie ueber eine
 // ratbare URL erreichbar sein. Ausgeliefert wird es nur von Admin und Kundenportal ueber
 // deren authentifizierte Endpunkte (Muster: pdf_pfad der Rechnungen).
-const SCAN_DIR = path.join(__dirname, '..', '..', 'dokument-scans');
+const SCAN_DIR = '/home/deploy/projekte/reifenpro/dokument-scans';
 const TAGE_STANDARD = 3;
 const TAGE_MAX = 7;
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -177,6 +177,9 @@ router.post('/upload', limiter, async (req, res, next) => {
     if (!fs.existsSync(SCAN_DIR)) fs.mkdirSync(SCAN_DIR, { recursive: true, mode: 0o750 });
     const ziel = path.join(SCAN_DIR, t.dokumentId + '-' + Date.now() + '.' + art.ext);
     fs.writeFileSync(ziel, daten, { mode: 0o640 });
+    // Der Dienst laeuft als root, die Projektdateien gehoeren deploy. Eigentuemer vom
+    // Ablageordner uebernehmen, damit Sicherung und Aufraeumen ohne sudo moeglich bleiben.
+    try { const v = fs.statSync(SCAN_DIR); fs.chownSync(ziel, v.uid, v.gid); } catch (e) { /* nicht kritisch */ }
 
     // req.ip statt X-Forwarded-For selbst zu lesen: nginx haengt den Header nur an einen
     // vom Client mitgeschickten Wert an, der erste Eintrag waere also frei erfindbar.
