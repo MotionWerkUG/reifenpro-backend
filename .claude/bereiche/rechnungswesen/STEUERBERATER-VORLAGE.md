@@ -131,18 +131,24 @@ Rechnungsabgrenzung, bei Einnahmen-Überschuss-Rechnung nicht.
 3. Bitte die freien Unterkonten für Werkstattleistung, Reifenverkauf, Einlagerung, Zubehör
    und Entsorgung vergeben — oder ist ein einziges Erlöskonto lieber?
 4. Sind alle Erlöskonten Automatikkonten, sodass der DATEV-Export ohne BU-Schlüssel auskommt?
-5. Stripe: Welches freie Geldkonto als Verrechnungskonto? Gebühren auf ein normales
-   Gebührenkonto oder auf ein § 13b-Automatikkonto? Brauchen wir eine USt-IdNr.?
-6. Einnahmen-Überschuss-Rechnung oder Bilanz? Davon hängen Debitorenkonten und die
+5. **Stripe, Teil a — bitte zuerst beantworten, das hält die Kasse auf:** Welches freie
+   Geldkonto nehmen wir als **Verrechnungskonto**, auf dem die Kundenzahlung landet? Mehr
+   braucht die Kasse nicht.
+6. **Stripe, Teil b — betrifft nur die Buchhaltung, nicht die Kasse:** Auf welches Konto
+   gehören die **Stripe-Gebühren**? Vertragspartner ist in der Regel Stripe Payments Europe
+   in Irland; dann greift § 13b UStG und es braucht ein Aufwandskonto mit Reverse-Charge-
+   Automatik statt eines normalen Gebührenkontos — und eine eigene USt-IdNr. Die Gebühr wird
+   erst bei der Auszahlung gebucht, nicht beim Verkauf.
+7. Einnahmen-Überschuss-Rechnung oder Bilanz? Davon hängen Debitorenkonten und die
    Abgrenzung der Einlagerung ab.
-7. Ist-Versteuerung nach § 20 UStG beantragen? Bei Neugründung möglich und liquiditätsschonend.
-8. Bezahlte Wertgutscheine: immer Einzweckgutscheine? Welches Konto, welche Steuerautomatik?
-9. Altreifen an den Verwerter gegen Gutschrift: § 13b UStG?
-10. Reifenbezug aus dem EU-Ausland: welches Konto, und was ist vor der ersten Bestellung zu
+8. Ist-Versteuerung nach § 20 UStG beantragen? Bei Neugründung möglich und liquiditätsschonend.
+9. Bezahlte Wertgutscheine: immer Einzweckgutscheine? Welches Konto, welche Steuerautomatik?
+10. Altreifen an den Verwerter gegen Gutschrift: § 13b UStG?
+11. Reifenbezug aus dem EU-Ausland: welches Konto, und was ist vor der ersten Bestellung zu
     erledigen (USt-IdNr., Zusammenfassende Meldung)?
-11. Kautionen für Leihräder: eigenes Verbindlichkeitskonto?
-12. Dürfen zwei getrennte Firmen an derselben Cloud-TSE hängen, oder braucht jede ihre eigene?
-13. DATEV-Berater- und Mandantennummer sowie Sachkontenlänge für ReifenPro. Bitte den ersten
+12. Kautionen für Leihräder: eigenes Verbindlichkeitskonto?
+13. Dürfen zwei getrennte Firmen an derselben Cloud-TSE hängen, oder braucht jede ihre eigene?
+14. DATEV-Berater- und Mandantennummer sowie Sachkontenlänge für ReifenPro. Bitte den ersten
     Buchungsstapel testweise importieren, bevor er produktiv genutzt wird.
 
 ## Zwei Warnungen
