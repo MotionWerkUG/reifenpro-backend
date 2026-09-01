@@ -948,10 +948,21 @@ router.post('/:id/barzahlung', async (req, res, next) => {
     } catch (e) {
       // Bewusst NICHT als bezahlt markieren, wenn die Kasse den Vorgang nicht angenommen hat.
       // Sonst stuende die Rechnung auf bezahlt, ohne dass das Geld im Kassenbuch auftaucht.
-      const text = e.code === 'NICHT_ERREICHBAR'
-        ? 'Die Kasse ist nicht erreichbar. Die Rechnung wurde NICHT als bezahlt markiert.'
-        : ('Die Kasse hat den Vorgang abgelehnt: ' + e.message);
-      return res.status(e.code === 'NICHT_ERREICHBAR' ? 502 : 400).json({ error: text });
+      if (e.code === 'NICHT_ERREICHBAR') {
+        return res.status(502).json({ error: 'Die Kasse ist nicht erreichbar. Die Rechnung wurde NICHT als bezahlt markiert.' });
+      }
+      // 409: In der Kasse liegt bereits ein offener Vorgang zu dieser Rechnung, mit anderen
+      // Daten — etwa weil zuerst bar versucht wurde und jetzt mit Karte. Die Kasse laesst
+      // das bewusst nicht still ueberschreiben. Der Vorgang muss dort abgeschlossen oder
+      // abgelehnt werden.
+      if (e.status === 409) {
+        return res.status(409).json({ error: 'Zu dieser Rechnung liegt in der Kasse bereits ein offener Vorgang mit anderen Angaben. Bitte ihn dort abschließen oder ablehnen und danach erneut kassieren.' });
+      }
+      // 403: Die Kasse laesst die Betragsart nicht zu, weil das noetige Modul fehlt.
+      if (e.status === 403) {
+        return res.status(400).json({ error: 'Die Kasse nimmt den Forderungsausgleich nicht an — das Modul „Forderungen" ist dort nicht aktiv. Das ist eine Einstellung der Kasse.' });
+      }
+      return res.status(400).json({ error: 'Die Kasse hat den Vorgang abgelehnt: ' + e.message });
     }
 
     // Bargeld ab 10.000 EUR verlangt eine Identifizierung nach dem Geldwaeschegesetz. Die

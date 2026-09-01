@@ -93,6 +93,39 @@ test('Lehnt die Kasse ab, bleibt die Rechnung offen', async () => {
   assert.equal((await h.api(token, 'GET', '/api/rechnungen/' + r.id)).body.zahlungsstatus, 'offen');
 });
 
+test('Liegt in der Kasse ein abweichender offener Vorgang, sagt die Meldung was zu tun ist', async () => {
+  // Die Kasse lehnt eine Wiederholung mit gleichem Schluessel, aber anderen Daten mit 409 ab
+  // (kein stilles Ueberschreiben des Betrags). Typischer Fall: erst bar versucht, dann Karte.
+  const r = await festgeschrieben();
+  antwortet = { status: 409, body: { error: 'Abweichende Daten zu einem offenen Vorgang.' } };
+  const z = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'ec' });
+  assert.equal(z.status, 409);
+  assert.match(z.body.error, /abschließen oder ablehnen/);
+  assert.equal((await h.api(token, 'GET', '/api/rechnungen/' + r.id)).body.zahlungsstatus, 'offen');
+});
+
+test('Fehlt in der Kasse das Modul fuer Forderungen, ist die Meldung eindeutig', async () => {
+  const r = await festgeschrieben();
+  antwortet = { status: 403, body: { error: 'Modul forderung nicht aktiv.' } };
+  const z = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung');
+  assert.equal(z.status, 400);
+  assert.match(z.body.error, /Forderungen/);
+  assert.equal((await h.api(token, 'GET', '/api/rechnungen/' + r.id)).body.zahlungsstatus, 'offen');
+});
+
+test('Der echte Kundenname geht mit, nicht ein Platzhalter', async () => {
+  // Fehlen Vorgangsnummer und Referenz, aggregiert die Kasse die Geldwaesche-Schwelle ueber
+  // den Kundennamen. Ein Sammelbegriff wuerde fremde Kunden zusammenrechnen.
+  const e = await h.api(token, 'POST', '/api/rechnungen', {
+    empfaenger: { vorname: 'Erika', nachname: 'Musterfrau', firma: 'Musterfuhrpark GmbH', strasse: 'Weg 9', plz: '12345', ort: 'Musterstadt' },
+    positionen: POS
+  });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.body.id + '/festschreiben');
+  await h.api(token, 'POST', '/api/rechnungen/' + f.body.id + '/barzahlung');
+  assert.equal(empfangen.kunde, 'Musterfuhrpark GmbH');
+  assert.ok(empfangen.ticket, 'zusaetzlich die Rechnungsnummer als Vorgangsschluessel');
+});
+
 test('Ueber der Geldwaesche-Schwelle gilt die Rechnung nicht als bezahlt', async () => {
   const r = await festgeschrieben();
   antwortet = { status: 200, body: { ok: true, gwgErforderlich: true, status: 'offen' } };
