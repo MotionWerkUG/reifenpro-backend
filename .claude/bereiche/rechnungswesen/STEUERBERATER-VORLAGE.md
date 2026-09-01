@@ -52,7 +52,6 @@ je Konto einen BU-Schlüssel.
 | Bank | 1200 |
 | Geldtransit, auch EC-Zahlung bis zur Gutschrift | 1360 |
 | Forderungen aus Lieferungen und Leistungen | 1400 |
-| Erhaltene, versteuerte Anzahlungen 19 % | 1718 |
 
 EC-Zahlung: Verkauf gegen 1360, Gutschrift der Tagessumme 1200 an 1360, Gebühren als
 Aufwand. Am Monatsende läuft 1360 gegen null. Ein EC-Umsatz darf nie ins Kassenbuch —
@@ -86,8 +85,6 @@ mit § 13b-Automatik statt des normalen Gebührenkontos.
 | einlagerung | Unterkonto | 19 % | ja |
 | zubehoer | Unterkonto | 19 % | ja |
 | entsorgung | Unterkonto | 19 % | ja |
-| anzahlung (auch Online-Vorkasse) | 1718 | 19 % | nein, aber sofort steuerpflichtig |
-| anzahlungsaufloesung | 1718 | 19 % | nein |
 | **rechnungsausgleich** | **1400** | **keine** | **nein — kein Erlös** |
 | rabatt, storno, retoure | wie Original, negativ | wie Original | negativer Erlös |
 | privatentnahme / privateinlage | 1800 / 1890 | keine | nein |
@@ -104,10 +101,11 @@ Voranmeldung.
 Offen: ob die Abgabe an einen Verwerter gegen Gutschrift unter § 13b UStG (Abfälle und
 Schrott) fällt.
 
-**Anzahlungen und Online-Vorkasse:** Die Steuer entsteht mit dem Geldeingang, nicht mit der
-Leistung. Die Anzahlungsrechnung muss die Steuer offen ausweisen, und die Schlussrechnung
-muss Anzahlung und darauf entfallende Steuer abziehen. Wird das vergessen, wird die Steuer
-doppelt geschuldet.
+**Anzahlungen gibt es nicht** (Stand 31.08.2026, Entscheidung des Inhabers). Der Punkt wäre
+nur relevant, wenn später eine Online-Vorkasse bei der Terminbuchung dazukommt: Dann
+entsteht die Steuer bereits mit dem Geldeingang, die Anzahlungsrechnung muss sie offen
+ausweisen und die Schlussrechnung sie abziehen. Wird das vergessen, wird die Steuer doppelt
+geschuldet.
 
 **Gutscheine:** Was ReifenPro heute führt, sind Prozent-Rabattcodes — der Kunde zahlt nichts
 dafür. Das ist eine Entgeltminderung, kein Gutschein im Sinne des Umsatzsteuerrechts.
