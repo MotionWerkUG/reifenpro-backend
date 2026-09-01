@@ -104,6 +104,29 @@ test('Liegt in der Kasse ein abweichender offener Vorgang, sagt die Meldung was 
   assert.equal((await h.api(token, 'GET', '/api/rechnungen/' + r.id)).body.zahlungsstatus, 'offen');
 });
 
+test('Nach einer Ablehnung in der Kasse bleibt die Rechnung kassierbar', async () => {
+  // Der ganze Ablauf: bar über der Geldwaesche-Schwelle -> Vorgang bleibt offen -> Versuch
+  // mit Karte trifft auf abweichende Daten (409) -> der Vorgang wird in der Kasse abgelehnt
+  // -> zweiter Versuch mit Karte geht durch. Genau EIN Zahlungsvermerk am Ende.
+  const r = await festgeschrieben();
+
+  antwortet = { status: 200, body: { ok: true, gwgErforderlich: true, status: 'offen' } };
+  assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung')).status, 409);
+
+  antwortet = { status: 409, body: { error: 'Abweichende Daten zu einem offenen Vorgang.' } };
+  assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'ec' })).status, 409);
+
+  // Die Kasse hat den Versuch abgelehnt; ein erneutes Kassieren eroeffnet ihn neu und bucht.
+  gebucht = [];
+  antwortet = { status: 200, body: { ok: true, status: 'gebucht', beleg: 'LEI-2026-0099' } };
+  const z = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'ec' });
+  assert.equal(z.status, 200, JSON.stringify(z.body));
+  assert.equal(z.body.kasse_beleg_nr, 'LEI-2026-0099');
+  assert.equal(empfangen.zahlart, 'ec');
+  assert.equal(empfangen.quelleBeleg, r.rechnungsnr, 'weiterhin die Rechnungsnummer, keine Suffix-Variante');
+  assert.equal((await h.api(token, 'GET', '/api/rechnungen/' + r.id)).body.zahlungsstatus, 'bezahlt');
+});
+
 test('Fehlt in der Kasse das Modul fuer Forderungen, ist die Meldung eindeutig', async () => {
   const r = await festgeschrieben();
   antwortet = { status: 403, body: { error: 'Modul forderung nicht aktiv.' } };
