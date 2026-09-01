@@ -44,6 +44,27 @@ Umsatzsteuerlich bringt die Trennung nichts — es ist reine Auswertungsqualitä
 Alle Unterkonten müssen **Automatikkonten mit 19 %** sein, sonst braucht der DATEV-Export
 je Konto einen BU-Schlüssel.
 
+## Die acht Konten, mit denen die Kasse startet
+
+Vom Inhaber am 31.08.2026 festgelegt. Alle acht sind SKR03-Standardkonten, keines ist
+erfunden — bitte trotzdem bestätigen oder korrigieren.
+
+| Konto | Zweck | Satz |
+|---|---|---|
+| 1000 | Kasse (Bargeld) | — |
+| 1360 | Geldtransit: EC-Zahlung bis zur Gutschrift, Bargeld zur Bank | — |
+| 1400 | Forderungen — Zahlung auf eine offene Rechnung | 0 % |
+| 8400 | Erlöse 19 % — alle Leistungen und Warenverkäufe | 19 % |
+| 8300 | Erlöse 7 % — Auffangkonto, praktisch ungenutzt | 7 % |
+| 1800 | Privatentnahme aus der Kasse | — |
+| 1890 | Privateinlage in die Kasse | — |
+| 4900 | Sonstige betriebliche Aufwendungen — Sammelkonto für bar bezahlte Kleinigkeiten | 19 % Vorsteuer |
+
+Bewusst NICHT dabei: Unterkonten je Leistungsart (die Betragsart steht im Buchungstext),
+Anzahlungen, Differenzbesteuerung, Pfand, Trinkgeld, Gutscheine, ein eigenes Stornokonto.
+Nichts davon kommt im Betrieb vor. Ein Konto lässt sich in einer Minute nachtragen; eine
+Fehlbuchung auf einem überflüssigen Konto ist TSE-signiert und nur per Storno zu korrigieren.
+
 ## Geldkonten
 
 | Zweck | Konto |
