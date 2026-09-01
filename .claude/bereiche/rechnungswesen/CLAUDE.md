@@ -52,6 +52,16 @@ sudo -u postgres psql -d reifenpro -c "SELECT id, datum, kennzeichen FROM termin
 Termin gilt als abgerechnet, hat aber keine Rechnung. Solche Zeilen fallen durch jedes
 Raster: nicht unter „Abzurechnen", nicht unter die Löschfristen.
 
+Nach Kassenzahlungen zusätzlich der Abgleich mit der Kasse. Jede Kassenbuchung mit der
+Vorgangsart `zahlungseingang` muss eine Rechnung mit passender `kasse_beleg_nr` haben, und
+umgekehrt. Buchungen der Kasse holt man über `GET /api/export/verkaeufe` mit dem Kopf
+`X-ERP-Key`.
+
+Wichtig bei der Auswertung: Eine Rechnung mit `zahlungsstatus='bezahlt'` OHNE Kassenbeleg
+ist **kein** Fehler — sie kann per Überweisung bezahlt oder von Hand als bezahlt markiert
+worden sein, und jede Stornorechnung trägt den Status ohnehin. Aussagekräftig ist nur der
+Abgleich über die Belegnummern in beide Richtungen.
+
 ## Werkzeuge
 `gobd-pruefer` (Pflicht bei jeder Änderung: Nummernkreis, § 14, Aufbewahrung, Rundung),
 `code-auditor`, `reviewer`, `test-autor` (Preis-/MwSt-Logik). Vor Deploy `/release-gate`.

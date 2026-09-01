@@ -52,6 +52,17 @@ async function festgeschrieben() {
   return f.body;
 }
 
+test('Die Oberflaeche kann abfragen, ob die Kasse eingerichtet ist', async () => {
+  // Ohne diese Auskunft wuerde die Oberflaeche Knoepfe anbieten, die nur Fehler erzeugen.
+  const an = await h.api(token, 'GET', '/api/rechnungen/kassenstatus');
+  assert.equal(an.status, 200);
+  assert.equal(an.body.konfiguriert, true);
+
+  delete process.env.KASSE_ERP_KEY;
+  const aus = await h.api(token, 'GET', '/api/rechnungen/kassenstatus');
+  assert.equal(aus.body.konfiguriert, false);
+});
+
 test('Barzahlung wird an die Kasse gemeldet und an der Rechnung vermerkt', async () => {
   const r = await festgeschrieben();
   const z = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'bar' });

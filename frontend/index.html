@@ -2045,9 +2045,15 @@ function rStatusBadge(s, istStorno) {
   var m = istStorno ? ['Stornorechnung', '#c0392b'] : (map[s] || [s, '#888']);
   return '<span style="background:' + m[1] + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">' + m[0] + '</span>';
 }
+var KASSE_DA = false;   // Kassenanbindung auf diesem Server eingerichtet?
 function loadRechnungen() {
   api('GET', '/rechnungen').then(function(r) { allRechnungen = r || []; renderRechnungen(); }).catch(function() {});
   loadRechnungStatistik();
+  // Ohne eingerichtete Kasse werden die Kassieren-Knoepfe gar nicht erst angeboten.
+  api('GET', '/rechnungen/kassenstatus').then(function(k) {
+    var neu = !!(k && k.konfiguriert);
+    if (neu !== KASSE_DA) { KASSE_DA = neu; renderRechnungen(); }
+  }).catch(function() {});
 }
 function loadRechnungStatistik() {
   api('GET', '/rechnungen/statistik').then(function(s) {
@@ -2097,12 +2103,24 @@ function renderRechnungen() {
       // Eine Stornorechnung ist der Korrekturbeleg selbst — sie wird nicht erneut storniert
       // (das lehnt auch der Server ab) und nicht gemahnt.
       if (r.status === 'festgeschrieben' && !r.storno_von_id) {
+        // Kassieren: meldet die Zahlung an die Kasse, die bucht und signiert sie und gibt
+        // den Beleg aus. Erst danach gilt die Rechnung als bezahlt.
+        if (r.zahlungsstatus !== 'bezahlt' && KASSE_DA) {
+          akt += '<button class="btn btn-p btn-sm" onclick="kassieren(\'' + r.id + '\',\'bar\')">Bar kassieren</button>';
+          akt += '<button class="btn btn-g btn-sm" onclick="kassieren(\'' + r.id + '\',\'ec\')">Karte</button>';
+        }
         akt += '<button class="btn btn-g btn-sm" onclick="toggleBezahlt(\'' + r.id + '\',' + (r.zahlungsstatus === 'bezahlt' ? 'false' : 'true') + ')">' + (r.zahlungsstatus === 'bezahlt' ? 'Als offen' : 'Als bezahlt') + '</button>';
         if (r.zahlungsstatus !== 'bezahlt') akt += '<button class="btn btn-g btn-sm" onclick="mahnen(\'' + r.id + '\')">Mahnen</button>';
         akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
     var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
+    // Beleg der Kasse sichtbar machen: Das ist die Verknuepfung, die belegt, dass der Umsatz
+    // nur einmal gebucht wurde — Rechnung hier, Zahlung dort.
+    if (r.kasse_beleg_nr) {
+      zahlung += '<div style="font-size:10px;color:var(--muted)">Kassenbeleg ' +
+        (r.kasse_beleg_url ? '<a href="' + kEsc(r.kasse_beleg_url) + '" target="_blank" rel="noopener">' + kEsc(r.kasse_beleg_nr) + '</a>' : kEsc(r.kasse_beleg_nr)) + '</div>';
+    }
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
       '<td>' + (r.kundenname || r.empfaenger_firma || r.empfaenger_name || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
@@ -2434,6 +2452,16 @@ function loescheRechnung(id) {
 function stornoRechnung(id) {
   if (!confirm('Diese Rechnung stornieren? Es wird eine Stornorechnung erzeugt; das Original bleibt erhalten.')) return;
   api('POST', '/rechnungen/' + id + '/storno').then(function(r) { if (r) { notify('Storniert. Stornorechnung: ' + r.rechnungsnr); loadRechnungen(); } }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Zahlung am Tresen an die Kasse melden. Wichtig fuer den Bediener: Schlaegt es fehl, bleibt
+// die Rechnung offen — es gibt keinen Zwischenzustand "bezahlt, aber nicht in der Kasse".
+function kassieren(id, zahlart) {
+  var wort = zahlart === 'bar' ? 'bar' : 'mit Karte';
+  if (!confirm('Zahlung ' + wort + ' erhalten?\n\nDie Zahlung wird in der Kasse gebucht und der Kassenbeleg ausgegeben. Erst danach gilt die Rechnung als bezahlt.')) return;
+  api('POST', '/rechnungen/' + id + '/barzahlung', { zahlart: zahlart }).then(function(r) {
+    notify((r && r.hinweis) || 'In der Kasse gebucht.');
+    loadRechnungen();
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function toggleBezahlt(id, bezahlt) {
   api('PATCH', '/rechnungen/' + id + '/bezahlt', { bezahlt: bezahlt }).then(function() { notify('Aktualisiert.'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });

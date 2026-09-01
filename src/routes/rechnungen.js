@@ -241,6 +241,13 @@ router.get('/statistik', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── GET /kassenstatus ── Ist die Kassenanbindung auf diesem Server eingerichtet?
+// Die Oberflaeche fragt das ab und blendet die Kassieren-Knoepfe sonst gar nicht erst ein:
+// Ein Knopf, der nur eine Fehlermeldung erzeugen kann, ist eine Sackgasse.
+router.get('/kassenstatus', async (req, res) => {
+  res.json({ konfiguriert: kasse.konfiguriert() });
+});
+
 // ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
 router.get('/export', requireAdmin, async (req, res, next) => {
   try {
