@@ -548,7 +548,9 @@ function strassenLookup(){
 function strassePick(i){
   var s=_strCache[i]; if(!s) return;
   var el=document.getElementById('f-strasse');
-  var hn=_hausnr(el.value); // vom Nutzer getippte Hausnummer erhalten
+  // Getipptes gewinnt; nur wenn der Besucher noch keine Hausnummer geschrieben hat, kommt die
+  // aus dem Vorschlag. Gleiche Regel wie in frontend/portal/index.html (pfStrassePick).
+  var hn=_hausnr(el.value)||(s.hausnr?String(s.hausnr).trim():'');
   el.value=(s.strasse||'')+(hn?' '+hn:'');
   if(s.plz) document.getElementById('f-plz').value=s.plz;
   if(s.ort) document.getElementById('f-ort').value=s.ort;
