@@ -109,7 +109,12 @@ function render() {
       '<p>Sie haben das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch (Art. 21). Sie können eine erteilte Einwilligung jederzeit widerrufen.</p>' +
       '<h2>7. Beschwerderecht</h2>' +
       '<p>Sie haben das Recht, sich bei einer Aufsichtsbehörde zu beschweren. Zuständig ist:<br>' +
-      'Bayerisches Landesamt für Datenschutzaufsicht (BayLDA)<br>Promenade 18, 91522 Ansbach<br>Telefon: 0981 53 1300<br>E-Mail: poststelle@lda.bayern.de</p>';
+      // Zustaendig ist die Behoerde am Sitz des Betriebs -- Leipzig, also Sachsen. Hier stand das
+      // bayerische Landesamt; eine falsche Aufsichtsbehoerde schickt Beschwerdefuehrer in die Irre
+      // (Art. 13 Abs. 2 lit. d DSGVO). Angaben an der Quelle geprueft (datenschutz.sachsen.de):
+      // Die Behoerde heisst seit einiger Zeit "Datenschutz- UND Transparenzbeauftragte", und fuer
+      // Post gilt das Postfach, nicht die Hausanschrift.
+      'Die Sächsische Datenschutz- und Transparenzbeauftragte<br>Postfach 11 01 32, 01330 Dresden<br>Telefon: +49 351 85471-101<br>E-Mail: post@sdtb.sachsen.de<br>www.datenschutz.sachsen.de</p>';
   } else {
     document.getElementById('ds-content').innerHTML =
       '<h1>Privacy Policy</h1>' +
@@ -147,7 +152,7 @@ function render() {
       '<p>You have the right to access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection (Art. 21). You can withdraw consent at any time.</p>' +
       '<h2>7. Right to complain</h2>' +
       '<p>You have the right to lodge a complaint with a supervisory authority. The competent authority is:<br>' +
-      'Bavarian State Office for Data Protection Supervision (BayLDA)<br>Promenade 18, 91522 Ansbach, Germany<br>Phone: +49 981 53 1300<br>Email: poststelle@lda.bayern.de</p>';
+      'Saxon Commissioner for Data Protection and Transparency<br>Postfach 11 01 32, 01330 Dresden, Germany<br>Phone: +49 351 85471-101<br>Email: post@sdtb.sachsen.de<br>www.datenschutz.sachsen.de</p>';
   }
 }
 lade();
