@@ -2529,7 +2529,8 @@ function notify(msg, t) {
 }
 function openModal(n, resetForm) {
   if (n === 'ne') fillNeForm();
-  if (n === 'nt') fillNtForm();
+  // resetForm===false: Formular ist bereits befuellt (Bearbeiten) und darf nicht geleert werden.
+  if (n === 'nt' && resetForm !== false) fillNtForm();
   if (n === 'nk' && resetForm !== false) NK_FROM_ANFRAGE = null;
   var el = document.getElementById('m-' + n);
   if (el) el.classList.add('open');
@@ -3990,7 +3991,13 @@ function loadHeute() {
       allTermine = allTermine.filter(function(t) { return !t.datum || t.datum.substring(0, 10) !== d; }).concat(rows);
     }
     var list = rows.slice().sort(function(a, b) { return (a.uhrzeit_von || '').localeCompare(b.uhrzeit_von || ''); });
-    if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;margin-bottom:18px">Heute keine Termine.</div>'; return; }
+    // Auch ohne heutige Termine muss der Hinweis auf wartende Online-Buchungen erscheinen —
+    // sonst sieht das Team eingehende Buchungen nie (bis zur Eroeffnung ist das der Normalfall).
+    if (!list.length) {
+      el.innerHTML = '<div id="dash-unbestaetigt"></div>' +
+        '<div style="color:var(--muted);font-size:13px;margin-bottom:18px">Heute keine Termine.</div>';
+      return;
+    }
     var badge = function(s) {
       if (s === 'abgeschlossen') return '<span style="font-size:10px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>';
       if (s === 'storniert' || s === 'abgesagt') return '<span style="font-size:10px;color:#c0392b">Abgesagt</span>';
@@ -4515,7 +4522,9 @@ function ntBearbeiten(id) {
   document.getElementById('nt-kz4').value = t3m ? t3m[2] : '';
   document.getElementById('nt-bez').value = t.beschreibung || '';
   document.getElementById('nt-int').value = t.notizen_intern || '';
-  openModal('nt');
+  // Ohne das zweite Argument wuerde openModal fillNtForm() erneut aufrufen und alle gerade
+  // gesetzten Werte samt ntEditId verwerfen — Speichern legte dann einen zweiten Termin an.
+  openModal('nt', false);
 }
 function saveNT() {
   var datum = gv('nt-datum'), von = gv('nt-von');
