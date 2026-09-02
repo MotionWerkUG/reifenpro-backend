@@ -122,7 +122,8 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
         'Art. 20 DSGVO - Recht auf Datenübertragbarkeit',
         'Art. 21 DSGVO - Widerspruchsrecht',
         'Art. 7 Abs. 3 DSGVO - Widerruf der Einwilligung',
-        'Art. 77 DSGVO - Beschwerderecht bei BayLDA (www.lda.bayern.de)',
+        'Art. 77 DSGVO - Beschwerderecht bei der Sächsischen Datenschutz- und '
+          + 'Transparenzbeauftragten (www.datenschutz.sachsen.de)',
       ],
     };
 
