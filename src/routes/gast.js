@@ -73,6 +73,12 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
 }
 
 const limiter = rateLimit({ windowMs: 900000, max: 30, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
+// Stoebern ist keine Last, sondern normales Verhalten: Wer Zusatzleistungen an- und abwaehlt und
+// im Kalender blaettert, loest je Klick eine Anfrage aus. Mit dem gemeinsamen 30er-Limit sperrte
+// sich ein Kunde mitten in der Buchung selbst aus -- hinter Firmen-Anschluessen sogar mehrere
+// gleichzeitig. Preisvorschau und Slots bekommen deshalb ein eigenes, grosszuegiges Limit;
+// die verbindliche Buchung bleibt beim engen bookLimiter.
+const stoeberLimiter = rateLimit({ windowMs: 900000, max: 240, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
 const bookLimiter = rateLimit({ windowMs: 900000, max: 8, message: { error: 'Zu viele Buchungen. Bitte später erneut versuchen.' } });
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -115,7 +121,7 @@ async function freieSlots(datum, dauer) {
 }
 
 // Konfigurierte Buchungs-Leistungen (Haupt + Zusatz) inkl. Bild/Text/Dauer
-router.get('/leistungen', limiter, async (req, res, next) => {
+router.get('/leistungen', stoeberLimiter, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT bl.artikel_id, bl.rolle, COALESCE(NULLIF(bl.titel,''), a.name) AS titel,
@@ -153,7 +159,7 @@ router.get('/leistungen', limiter, async (req, res, next) => {
 // Oeffentliche Gutschein-Pruefung fuer die /termin/-Buchung (ohne Login). 200 AUCH bei ungueltig
 // (gueltig:false), damit das Frontend die Feld-Validierung sauber als "ungueltig" anzeigen kann.
 // Gueltig nur bei aktiv + nicht abgelaufen + rabatt_prozent > 0.
-router.get('/gutschein/:code', limiter, async (req, res, next) => {
+router.get('/gutschein/:code', stoeberLimiter, async (req, res, next) => {
   try {
     const code = normGutschein(req.params.code);
     if (!code) return res.json({ gueltig: false });
@@ -166,7 +172,7 @@ router.get('/gutschein/:code', limiter, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.get('/kalkulation', limiter, async (req, res, next) => {
+router.get('/kalkulation', stoeberLimiter, async (req, res, next) => {
   try {
     const split = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
     const mainIds = split(req.query.main_ids || req.query.artikel_id);
@@ -178,7 +184,7 @@ router.get('/kalkulation', limiter, async (req, res, next) => {
 });
 
 // Freie Slots fuer ein Datum und eine Gesamtdauer (Minuten)
-router.get('/slots', limiter, async (req, res, next) => {
+router.get('/slots', stoeberLimiter, async (req, res, next) => {
   try {
     const { datum } = req.query;
     if (!datum || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return res.status(400).json({ error: 'Gültiges datum (YYYY-MM-DD) erforderlich' });
@@ -255,6 +261,13 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
+    // Notaus: `buchung_aktiv=false` steuerte bisher NUR, ob das Widget auf der Homepage erscheint --
+    // die Route nahm weiter verbindliche Buchungen an. Wer bei Stoerung oder Ueberlastung abschaltet,
+    // muss sich darauf verlassen koennen, dass wirklich nichts mehr hereinkommt.
+    const _aktiv = (await query('SELECT buchung_aktiv FROM einstellungen ORDER BY id LIMIT 1')).rows[0];
+    if (_aktiv && _aktiv.buchung_aktiv === false) {
+      return res.status(409).json({ error: 'Die Online-Buchung ist derzeit nicht möglich. Bitte rufen Sie uns an — wir finden gemeinsam einen Termin.' });
+    }
     if (kundentyp === 'firma' && !String(b.firma || '').trim()) return res.status(400).json({ error: 'Bitte geben Sie den Firmennamen an.' });
     // Sanftes Cool-down gegen Mail-Bombing einer fremden Adresse: max. 2 OFFENE (unbestaetigte) Anfragen
     // je Ziel-E-Mail. KEIN 24h-Hard-Lock -> bestaetigte Termine zaehlen nicht (nach Bestaetigung sofort
