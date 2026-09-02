@@ -117,6 +117,20 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Buchungsstart durchsetzen: vor `einstellungen.buchbar_ab` ist keine Online-Buchung moeglich.
+// Galt bisher NUR fuer die Gaeste-Buchung -- angemeldete Kunden konnten die Sperre umgehen und
+// Termine vor der Eroeffnung legen, an Tagen, an denen gar nicht gearbeitet wird. Rueckgabe:
+// Fehlertext oder null. (db/index.js liefert DATE als 'YYYY-MM-DD'-String; der Date-Zweig ist
+// nur defensive Absicherung, falls der Typ-Parser je entfernt wird.)
+function vorBuchungsstart(buchbarAb, datum) {
+  if (!buchbarAb) return null;
+  const bStr = (buchbarAb instanceof Date)
+    ? buchbarAb.getFullYear() + '-' + String(buchbarAb.getMonth() + 1).padStart(2, '0') + '-' + String(buchbarAb.getDate()).padStart(2, '0')
+    : String(buchbarAb).slice(0, 10);
+  if (datum < bStr) return 'Online-Buchungen sind erst ab dem ' + bStr.split('-').reverse().join('.') + ' möglich.';
+  return null;
+}
+
 // Anschrift-Pruefung. Bewusst locker: eine Ziffer in der Strasse (Hausnummer) ODER "Postfach"
 // als zulaessige Zustellanschrift. Wortgleich mit der Regel im Rechnungswesen und auf der
 // Gaeste-Buchungsseite -- dieselbe Adresse darf nicht an einer Stelle durchgehen und an der
@@ -171,6 +185,8 @@ router.post('/termine', authKunde, async (req, res, next) => {
     // Datum/Uhrzeit serverseitig validieren (wie bei der Gastbuchung) — sonst per direktem Request umgehbar.
     const heuteStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
+    const _sperre = vorBuchungsstart(einst && einst.buchbar_ab, datum);
+    if (_sperre) return res.status(409).json({ error: _sperre });
     const _bu = await query('SELECT 1 FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
     if (_bu.rows.length) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Betriebsurlaub).' });
     // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die Woche; Slot muss in eine Spanne fallen.
@@ -322,6 +338,9 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
     // Öffnungszeiten/Feiertage/Betriebsurlaub/Vergangenheit komplett (Buchung -> Feiertag/Pause/Vergangenheit).
     const heuteStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
+    // Auch beim Verschieben -- sonst waere der Buchungsstart durch Umbuchen eines Termins umgehbar.
+    const _sperreV = vorBuchungsstart(einst && einst.buchbar_ab, datum);
+    if (_sperreV) return res.status(409).json({ error: _sperreV });
     if (datum === heuteStr) {
       const jetzt = zeitZuMin(new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' }));
       if (zeitZuMin(uhrzeit_von) <= jetzt) return res.status(400).json({ error: 'Die gewählte Uhrzeit liegt in der Vergangenheit.' });
