@@ -27,6 +27,37 @@ test('Ohne Steuernummer und ohne USt-IdNr. kann nicht festgeschrieben werden', a
   assert.match(f.body.error, /Steuernummer|USt-IdNr/);
 });
 
+test('UG in Gruendung: Geschaeftsfuehrer ist Pflicht und wird so benannt', async () => {
+  // Vor der Eintragung benennt die Firma allein den Unternehmer nicht. Und eine
+  // Kapitalgesellschaft hat keinen Inhaber, sondern einen Geschaeftsfuehrer.
+  const { token } = await h.seedBasis();
+  await h.query("UPDATE einstellungen SET rechtsform='UG (haftungsbeschränkt) i.G.', inhaber='', firmenname='Schröder & Scholz UG (haftungsbeschränkt) i.G.'");
+  const e = await entwurf(token, { empfaenger: EMPF_VOLL, positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 100, mwst_satz: 19 }] });
+  const ohne = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  assert.equal(ohne.status, 400);
+  assert.match(ohne.body.error, /vertretungsberechtigten/);
+
+  await h.query("UPDATE einstellungen SET inhaber='Marko Scholz'");
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+  const text = h.pdfText(f.body.pdf_pfad);
+  if (text === null) return;
+  assert.ok(text.includes('Geschäftsführer: Marko Scholz'), 'bei einer UG steht Geschäftsführer, nicht Inhaber');
+  assert.ok(!text.includes('Inhaber: Marko Scholz'));
+  assert.ok(!/HRB/.test(text), 'ohne Eintragung darf keine Registernummer auf dem Beleg stehen');
+});
+
+test('Einzelunternehmen behaelt die Beschriftung Inhaber', async () => {
+  const { token } = await h.seedBasis();
+  await h.query("UPDATE einstellungen SET rechtsform='Einzelunternehmen', inhaber='Max Beispiel'");
+  const e = await entwurf(token, { empfaenger: EMPF_VOLL, positionen: [{ bezeichnung: 'Leistung', menge: 1, einzelpreis_netto: 100, mwst_satz: 19 }] });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + e.id + '/festschreiben');
+  assert.equal(f.status, 200);
+  const text = h.pdfText(f.body.pdf_pfad);
+  if (text === null) return;
+  assert.ok(text.includes('Inhaber: Max Beispiel'));
+});
+
 test('Eine formal ungueltige USt-IdNr. wird abgelehnt', async () => {
   // Ein Platzhalter wie DE123456 hat nur sechs Ziffern und waere auf jeder Rechnung eine
   // falsche Pflichtangabe. Besser gar keine Angabe als eine erfundene.

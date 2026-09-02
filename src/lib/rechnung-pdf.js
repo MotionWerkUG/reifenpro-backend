@@ -212,7 +212,9 @@ async function erzeugeRechnungPdf(rech, positionen) {
       // ── Fusszeile mit Pflichtangaben (§ 14 UStG) – eine Seite garantiert ──
       const fuss = [
         a.firmenname, a.rechtsform,
-        a.inhaber ? 'Inhaber: ' + a.inhaber : null,
+        // Eine Kapitalgesellschaft hat keinen Inhaber, sondern einen Geschaeftsfuehrer.
+        // Das Feld ist dasselbe, die Beschriftung richtet sich nach der Rechtsform.
+        a.inhaber ? (/\b(UG|GmbH|AG|SE|KGaA)\b/i.test(String(a.rechtsform || '')) ? 'Geschäftsführer: ' : 'Inhaber: ') + a.inhaber : null,
         // Die Registernummer wird oft schon mit Praefix erfasst ("HRB 12345") — dann darf
         // nicht noch einmal "HRB " davorgesetzt werden.
         a.handelsreg_nr ? (/^(HRA|HRB|VR|GnR)\b/i.test(String(a.handelsreg_nr).trim()) ? String(a.handelsreg_nr).trim() : 'HRB ' + a.handelsreg_nr) : null,

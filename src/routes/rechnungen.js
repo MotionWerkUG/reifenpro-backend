@@ -785,12 +785,13 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       if (aussteller.ust_id && !/^DE\s?\d{9}$/.test(String(aussteller.ust_id).replace(/\s/g, ' ').trim())) {
         const e = new Error('Die hinterlegte USt-IdNr. ist keine gültige deutsche Nummer (Format DE gefolgt von neun Ziffern). Bitte in den Einstellungen korrigieren oder das Feld leer lassen.'); e.status = 400; throw e;
       }
-      // Bei nicht im Handelsregister eingetragenen Rechtsformen (Einzelunternehmen, GbR) genuegt die
-      // Geschaeftsbezeichnung nicht — der buergerliche Name des Inhabers gehoert auf die Rechnung.
-      // Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde z. B. in
-      // "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
+      // Solange eine Gesellschaft nicht im Handelsregister eingetragen ist — Einzelunternehmen,
+      // GbR, oder eine Kapitalgesellschaft "i.G." vor der Eintragung — benennt die Firma allein
+      // den Unternehmer nicht. Dann gehoert der Name der vertretungsberechtigten Person auf die
+      // Rechnung. Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde
+      // z. B. in "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
       if (!REGISTER_RECHTSFORMEN.includes(String(aussteller.rechtsform || '').trim()) && !aussteller.inhaber) {
-        const e = new Error('Name des Inhabers fehlt — bitte in den Einstellungen eintragen. Er ist der Name des leistenden Unternehmers (§ 14 UStG) und wird bei jeder Rechtsform verlangt, die nicht im Handelsregister eingetragen ist (Einzelunternehmen, GbR). Auch bei einer ungewöhnlichen Schreibweise der Rechtsform wird er sicherheitshalber verlangt.'); e.status = 400; throw e;
+        const e = new Error('Name der vertretungsberechtigten Person fehlt (Inhaber bzw. Geschäftsführer) — bitte in den Einstellungen eintragen. Er ist der Name des leistenden Unternehmers (§ 14 UStG) und wird bei jeder Rechtsform verlangt, die nicht im Handelsregister eingetragen ist (Einzelunternehmen, GbR). Auch bei einer ungewöhnlichen Schreibweise der Rechtsform wird er sicherheitshalber verlangt.'); e.status = 400; throw e;
       }
       if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
         const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
