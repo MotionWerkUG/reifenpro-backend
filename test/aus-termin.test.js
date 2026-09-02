@@ -90,6 +90,59 @@ test('Alte Buchungen ohne Bruttowert werden weiterhin uebernommen', async () => 
   assert.equal(Number(r.body.brutto_summe), 119);
 });
 
+test('Gestaffelter Gutschein: jede Leistung behaelt ihren zugesagten Satz', async () => {
+  // Nachgestellter Fall aus dem Portal: 25 % auf die Einlagerung, 10 % auf den Rest.
+  // Ein einzelner Prozentsatz fuer den ganzen Beleg kann das nicht abbilden.
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  const leistungen = [
+    { bezeichnung: 'Reifeneinlagerung', mwst_satz: 19, zeilen_brutto: 40,   zeilen_netto: 33.61, grundpreis_netto: 33.61, zuschlag_netto: 0, rabatt_prozent: 25 },
+    { bezeichnung: 'Auswuchten',        mwst_satz: 19, zeilen_brutto: 25,   zeilen_netto: 21.01, grundpreis_netto: 21.01, zuschlag_netto: 0, rabatt_prozent: 10 },
+    { bezeichnung: 'Raederwaesche',     mwst_satz: 19, zeilen_brutto: 17.9, zeilen_netto: 15.04, grundpreis_netto: 15.04, zuschlag_netto: 0, rabatt_prozent: 10 }
+  ];
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen, gutschein_code, gutschein_rabatt)
+     VALUES (CURRENT_DATE, '09:00', '10:00', 'Raederwechsel', 'abgeschlossen', $1, $2, 'WINTER2026', 17) RETURNING id`,
+    [kunde, JSON.stringify(leistungen)]);
+
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  // 82,90 abzueglich 25 % von 40,00 (= 10,00) und 10 % von 42,90 (= 4,29) ergibt 68,61.
+  assert.equal(Number(r.body.brutto_summe), 68.61, 'gestaffelt gerechnet, nicht pauschal');
+
+  const pos = (await h.query('SELECT bezeichnung, zeilen_brutto FROM rechnung_positionen WHERE rechnung_id=$1 ORDER BY position', [r.body.id])).rows;
+  const nachlass = pos.filter((p) => /Nachlass/.test(p.bezeichnung));
+  assert.equal(nachlass.length, 2, 'je Rabattsatz eine eigene Minusposition');
+  assert.deepEqual(nachlass.map((p) => Number(p.zeilen_brutto)).sort((a, b) => a - b), [-10, -4.29]);
+  assert.ok(nachlass.every((p) => p.bezeichnung.includes('WINTER2026')), 'der Code steht auf dem Beleg');
+});
+
+test('Kein zweiter Gutschein auf einen Termin, der schon einen Nachlass traegt', async () => {
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  await h.query("INSERT INTO gutscheine (code, rabatt_prozent, aktiv) VALUES ('EXTRA10', 10, true)");
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen, gutschein_code)
+     VALUES (CURRENT_DATE, '09:00', '09:30', 'Raederwechsel', 'abgeschlossen', $1, $2, 'WINTER2026') RETURNING id`,
+    [kunde, JSON.stringify([{ bezeichnung: 'Einlagerung', mwst_satz: 19, zeilen_brutto: 40, rabatt_prozent: 25 }])]);
+
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id, { gutschein_code: 'EXTRA10' });
+  assert.equal(r.status, 400, 'kein doppelter Nachlass');
+  assert.match(r.body.error, /bereits ein Nachlass/);
+});
+
+test('Ohne Saetze je Leistung greift weiterhin der pauschale Satz vom Termin', async () => {
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen, gutschein_code, gutschein_rabatt)
+     VALUES (CURRENT_DATE, '09:00', '09:30', 'Alt', 'abgeschlossen', $1, $2, 'ALT10', 10) RETURNING id`,
+    [kunde, JSON.stringify([{ bezeichnung: 'Altbestand', mwst_satz: 19, zeilen_brutto: 100 }])]);
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(Number(r.body.brutto_summe), 90.00, '10 % pauschal auf 100,00');
+});
+
 test('Fuer denselben Termin entsteht keine zweite Rechnung', async () => {
   const { token } = await h.seedBasis({ preise_inkl_mwst: true });
   const terminId = await terminMitArtikel(44.00, 19, await h.seedKunde());

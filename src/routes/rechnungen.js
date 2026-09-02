@@ -53,7 +53,7 @@ function zahlOk(v, min, max) {
 // unterschiedlich besteuerte Leistungen denselben Nachlass bekommen. Gerundet wird EINMAL je
 // Gruppe auf die Summe, nicht je Zeile; sonst laeuft die Summe um Cents von dem weg, was der
 // Kunde bei der Buchung gesehen hat.
-function nachlassPositionen(positionen) {
+function nachlassPositionen(positionen, quelle) {
   const gruppen = new Map();
   (positionen || []).forEach(function (p) {
     const rab = Number(p.rabatt_prozent);
@@ -75,7 +75,7 @@ function nachlassPositionen(positionen) {
     // Bezeichnung: Bei genau einer betroffenen Leistung wird sie benannt, sonst zusammengefasst.
     const was = g.namen.length === 1 ? g.namen[0] : 'übrige Leistungen';
     const betrag = -round2(g.basis * g.rabatt / 100);
-    const pos = { bezeichnung: 'Nachlass ' + was + ' (' + g.rabatt + ' %)', menge: 1, einheit: null, mwst_satz: g.satz };
+    const pos = { bezeichnung: 'Nachlass ' + was + ' (' + g.rabatt + ' %)' + (quelle ? ' — ' + quelle : ''), menge: 1, einheit: null, mwst_satz: g.satz };
     if (g.brutto) pos.einzelpreis_brutto = betrag; else pos.einzelpreis_netto = betrag;
     return pos;
   });
@@ -625,6 +625,11 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         const brutto = Number(p.zeilen_brutto);
         if (Number.isFinite(brutto) && brutto !== 0) pos.einzelpreis_brutto = round2(brutto);
         else pos.einzelpreis_netto = round2((Number(p.grundpreis_netto) || 0) + (Number(p.zuschlag_netto) || 0));
+        // Der beim Buchen zugesagte Nachlasssatz ist je Leistung eingefroren. Er kann je
+        // Position unterschiedlich sein (Flyer: 25 % auf die Einlagerung, 10 % auf den Rest) —
+        // ein einziger Satz fuer den ganzen Beleg kann das nicht abbilden.
+        const rab = Number(p.rabatt_prozent);
+        if (Number.isFinite(rab) && rab > 0) pos.rabatt_prozent = rab;
         return pos;
       });
     } else {
@@ -635,17 +640,26 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         ? Object.assign({}, basis, { einzelpreis_brutto: round2(preis) })
         : Object.assign({}, basis, { einzelpreis_netto: round2(preis) })];
     }
-    // Gutschein/Rabatt als MwSt-korrekte Position (je Steuersatz gemindert -> korrekter Steuerausweis).
-    // Vorrang: 1) manueller Staff-Override im Body (Live-Validierung gegen gutscheine),
-    //          2) sonst der auf dem Termin gespeicherte Rabatt (termine.gutschein_rabatt,
-    //             dokumentiert mit termine.gutschein_code). Diesen Wert setzt der Buchungs-Flow
-    //             (Portal, Branch portal/gutschein-pruef — noch NICHT in main); bis zu dessen Merge
-    //             ist dieser Zweig inaktiv (NULL/0 -> kein Rabatt). Bewusst KEINE erneute
-    //             Live-Validierung, damit der beim Buchen zugesagte Rabatt erhalten bleibt (analog
-    //             Aussteller-Snapshot), auch wenn der Gutschein spaeter ablaeuft/geaendert wird.
+    // Nachlass. Vorrang, von oben nach unten:
+    //  1) Saetze, die je Leistung im Termin EINGEFROREN sind (leistungen[].rabatt_prozent).
+    //     Nur die koennen einen gestaffelten Gutschein abbilden (25 % auf die Einlagerung,
+    //     10 % auf den Rest). Sie stammen aus dem Buchungsvorgang und sind eine Zusage an den
+    //     Kunden — deshalb wird NICHT erneut live gegen die Gutscheintabelle geprueft.
+    //  2) sonst ein manuell im Body mitgegebener Code (Kunde legt den Gutschein erst am Tresen
+    //     vor). Der wird live geprueft und wirkt pauschal.
+    //  3) sonst der pauschale Satz am Termin (termine.gutschein_rabatt) — Rueckfall fuer
+    //     Buchungen, die noch keine Saetze je Position mitfuehren.
     const gCode = (req.body && req.body.gutschein_code || '').toString().trim();
+    const eingefroren = nachlassPositionen(positionen, t.gutschein_code ? 'Gutschein ' + t.gutschein_code : null);
     let rabattProzent = 0, rabattLabel = null, rabattQuelle = null;
-    if (gCode) {
+    if (eingefroren.length) {
+      // Ein zweiter Gutschein wuerde den Nachlass verdoppeln. Lieber klar ablehnen als still
+      // eine der beiden Zusagen unterschlagen.
+      if (gCode) return res.status(400).json({ error: 'Für diesen Termin ist bereits ein Nachlass hinterlegt. Ein weiterer Gutschein lässt sich nicht zusätzlich anwenden.' });
+      positionen = positionen.concat(eingefroren);
+      rabattQuelle = 'positionen';
+      rabattLabel = t.gutschein_code ? 'Gutschein ' + t.gutschein_code : 'Nachlass';
+    } else if (gCode) {
       const g = (await query("SELECT code, rabatt_prozent FROM gutscheine WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)", [gCode])).rows[0];
       if (!g) return res.status(400).json({ error: 'Gutschein ungültig oder abgelaufen.' });
       rabattProzent = Number(g.rabatt_prozent) || 0;
