@@ -9,6 +9,7 @@ const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
+const gutschein = require('../lib/gutschein');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
@@ -83,32 +84,12 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   //  (3) Gruppiert wird nach Rabattsatz UND Steuersatz (heute alles 19 %, der Aufbau muss
   //      aber mehrere Saetze aushalten).
   let rabattSumme = 0, gutscheinInfo = null;
-  const gc = normGutschein(gutscheinCode);
-  if (gc && positionen.length) {
-    const g = (await query(
-      `SELECT id, code, rabatt_prozent FROM gutscheine
-        WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)`,
-      [gc])).rows[0];
+  if (gutscheinCode && positionen.length) {
+    const g = await gutschein.ladeGutschein(gutscheinCode);
     if (g) {
-      const regeln = (await query('SELECT artikel_id, rabatt_prozent FROM gutschein_regeln WHERE gutschein_id=$1', [g.id])).rows;
-      const jeArtikel = {}; let auffang = null;
-      regeln.forEach((r) => { if (r.artikel_id) jeArtikel[r.artikel_id] = Number(r.rabatt_prozent); else auffang = Number(r.rabatt_prozent); });
-      const standard = auffang != null ? auffang : (Number(g.rabatt_prozent) || 0);
-      positionen.forEach((pos) => {
-        const satz = jeArtikel[pos.artikel_id] != null ? jeArtikel[pos.artikel_id] : standard;
-        pos.rabatt_prozent = Math.min(Math.max(satz, 0), 100);
-      });
-      // Gruppen bilden und je Gruppe EINMAL runden
-      const gruppen = {};
-      positionen.forEach((pos) => {
-        if (!pos.rabatt_prozent) return;
-        const key = pos.rabatt_prozent + '|' + pos.mwst_satz;
-        gruppen[key] = (gruppen[key] || 0) + Number(pos.zeilen_brutto || 0);
-      });
-      Object.keys(gruppen).forEach((key) => {
-        const satz = Number(key.split('|')[0]);
-        rabattSumme = round2(rabattSumme + round2(gruppen[key] * satz / 100));
-      });
+      const saetze = await gutschein.saetzeFuer(g, positionen.map((p) => p.artikel_id));
+      positionen.forEach((pos) => { pos.rabatt_prozent = saetze[pos.artikel_id] || 0; });
+      rabattSumme = gutschein.rabattAusPositionen(positionen).summe;
       // Effektiver Gesamtsatz nur als Anzeige- und Rueckfallwert (termine.gutschein_rabatt ist
       // ein einzelner Integer und kann die Staffelung nicht abbilden -- massgeblich ist der
       // Satz je Position oben).
@@ -540,19 +521,10 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       // das Rechnungswesen den Beleg baut: Was hier steht, muss dort wieder herauskommen.
       // Ein einzelner Prozentsatz taugt dafuer nicht mehr -- bei 25 % auf die Einlagerung und
       // 10 % auf alles andere waere jede einzelne Zahl falsch.
-      const rabattGruppen = {};
-      pos.forEach((p) => {
-        const satz = Number(p.rabatt_prozent || 0);
-        if (!satz) return;
-        const key = satz + '|' + Number(p.mwst_satz != null ? p.mwst_satz : 19);
-        rabattGruppen[key] = (rabattGruppen[key] || 0) + posBrutto(p);
-      });
-      const rabattZeilen = Object.keys(rabattGruppen).map((key) => {
-        const satz = Number(key.split('|')[0]);
-        const betrag = round2(rabattGruppen[key] * satz / 100);
-        return { satz: satz, betrag: betrag };
-      }).sort((a, b) => b.satz - a.satz);
-      const rabattGesamt = round2(rabattZeilen.reduce((s, r) => s + r.betrag, 0));
+      const _r = gutschein.rabattAusPositionen(pos.map((p) => ({
+        zeilen_brutto: posBrutto(p), mwst_satz: p.mwst_satz, rabatt_prozent: p.rabatt_prozent
+      })));
+      const rabattZeilen = _r.zeilen, rabattGesamt = _r.summe;
       const rabattHtml = rabattZeilen.length
         ? rabattZeilen.map(r => 'Nachlass ' + r.satz + ' %: −' + eur(r.betrag)).join('<br>')
           + '<br><strong>Summe nach Abzug: ab ' + eur(round2(summeBrutto - rabattGesamt)) + '</strong>'

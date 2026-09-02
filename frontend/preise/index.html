@@ -34,7 +34,13 @@
   .akt-code{background:#171717;color:var(--accent);border-radius:6px;padding:4px 10px;font-family:ui-monospace,Menlo,monospace;letter-spacing:1px}
   .akt-cta{background:#171717;color:#fff;text-decoration:none;border-radius:8px;padding:8px 16px;font-weight:700}
   @media(max-width:760px){
-    .nav-burger{display:inline-flex}
+    .nav-in{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;gap:10px;padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right))}
+    .nav-burger{display:inline-flex;justify-content:center;width:46px;height:46px;padding:0;justify-self:start}
+    .wm{justify-self:center}.wm svg{height:30px;width:auto}
+    .nav-right{gap:0;justify-self:end}
+    .nav-tel{width:46px;height:46px;padding:0;justify-content:center;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+    .nav-tel svg{width:21px;height:21px;color:var(--accent-ink)}
+    .nav-tel .tel-nr{display:none}
     .nav-links{position:absolute;left:0;right:0;top:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--dark);border-top:1px solid rgba(255,255,255,.12);padding:6px 24px 18px;display:none;z-index:60}
     .nav-links.offen{display:flex}
     .nav-links a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.09);font-size:16px}
@@ -94,6 +100,10 @@
 <body>
 <div id="aktionsbanner"></div>
 <header class="nav"><div class="nav-in">
+  <button class="nav-burger" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="hauptmenue" onclick="menueUmschalten(this)">
+    <span class="b-auf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
+    <span class="b-zu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+  </button>
   <a href="/" class="wm" aria-label="Schröder &amp; Scholz">
     <svg viewBox="0 0 300 44" xmlns="http://www.w3.org/2000/svg" role="img">
       <text x="0" y="30" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-.9" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text>
@@ -110,10 +120,6 @@
       <a class="btn-sm" href="/portal/">Kundenportal</a>
     </nav>
     <a class="nav-tel" id="nav-tel" href="#" style="display:none"></a>
-    <button class="nav-burger" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="hauptmenue" onclick="menueUmschalten(this)">
-      <span class="b-auf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
-      <span class="b-zu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
-    </button>
   </div>
 </div></header>
 
@@ -211,7 +217,7 @@
       var t=document.getElementById('nav-tel');
       var ziel=String(d.telefon).replace(/[^\d+]/g,'');
       if(t&&ziel){ t.href='tel:'+ziel; t.setAttribute('aria-label','Anrufen: '+d.telefon);
-        t.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z"/></svg><span>'+esc(d.telefon)+'</span>';
+        t.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z"/></svg><span class="tel-nr">'+esc(d.telefon)+'</span>';
         t.style.display='inline-flex'; }
     }
     if(d.aktion&&d.aktion.text){
