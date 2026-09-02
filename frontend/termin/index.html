@@ -303,7 +303,7 @@ function pick(rolle, id){
   markSel(); preisLive();
 }
 // Mitlaufender Preis: bei jeder Auswahl neu berechnen
-var _pvTimer=null, _pvSeq=0;
+var _pvTimer=null, _pvSeq=0, _sumSeq=0, _gsSeq=0;
 function setZoll(v){
   state.zoll=v;
   var a=document.getElementById('fz-zoll');
@@ -326,7 +326,7 @@ function updateLeiste(){
 function preisLive(){
   updateLeiste();
   var el=document.getElementById('pb-total'); if(!el)return;
-  if(!state.haupt.length){ el.innerHTML='<span class="ab">ab</span>—'; return; }
+  if(!state.haupt.length){ el.innerHTML='<span class="ab">ab</span>—'; gsMeldung(null); return; }
   clearTimeout(_pvTimer);
   _pvTimer=setTimeout(function(){
     var seq=++_pvSeq;
@@ -336,6 +336,7 @@ function preisLive(){
       if(seq!==_pvSeq) return; // veraltete Antwort -> ignorieren
       var pre = zollReq ? '' : '<span class="ab">ab</span>';
       var g=gsBrutto(k);
+      gsMeldung(g);
       el.innerHTML = g ? (pre+'<span class="preis-alt">'+eur(g.alt)+'</span>'+eur(g.neu)) : (pre + eur(k.brutto));
     }).catch(function(){ if(seq===_pvSeq) el.textContent='—'; });
   }, 180);
@@ -372,16 +373,34 @@ function idsCsv(arr){ return arr.map(function(a){return a.artikel_id;}).join(','
 function gutscheinAnwenden(){
   var code=(document.getElementById('gs-code').value||'').trim().toUpperCase();
   var msg=document.getElementById('gs-msg');
-  if(!code){ state.gutschein=null; msg.className='gs-msg'; msg.textContent=''; renderSum(); preisLive(); return; }
+  if(!code){ _gsSeq++; state.gutschein=null; msg.className='gs-msg'; msg.textContent=''; renderSum(); preisLive(); return; }
   msg.className='gs-msg'; msg.textContent='Prüfe …';
+  var seq=++_gsSeq;
   fetch(API+'/gutschein/'+encodeURIComponent(code)).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(gd){
+    // Zwischenzeitlich anderer Code eingegeben oder Feld geleert -> diese Antwort verwerfen,
+    // sonst springt ein bereits entfernter Gutschein von selbst wieder an.
+    if(seq!==_gsSeq) return;
     if(gd && gd.gueltig===false) throw 0;
     var rab=Number(gd&&gd.rabatt_prozent)||0;
     if(!(rab>0)) throw 0;
     state.gutschein={ code:(gd.code||code), rabatt:rab };
-    msg.className='gs-msg gs-ok'; msg.textContent='Gutschein '+state.gutschein.code+' aktiv: −'+rab+' % (endgültige Anrechnung bei der Rechnung).';
+    // Kein Prozentsatz in der Meldung: bei gestaffelten Gutscheinen gilt er nicht fuer alles.
+    // Den tatsaechlichen Abzug traegt gsMeldung() nach, sobald die Kalkulation da ist.
+    msg.className='gs-msg gs-ok';
+    msg.textContent=state.haupt.length ? 'Gutschein '+state.gutschein.code+' aktiv – Abzug wird berechnet …'
+                                       : 'Gutschein '+state.gutschein.code+' aktiv – der Abzug erscheint, sobald du eine Leistung gewählt hast.';
     renderSum(); preisLive();
-  }).catch(function(){ state.gutschein=null; msg.className='gs-msg gs-bad'; msg.textContent='Code ungültig oder abgelaufen.'; renderSum(); preisLive(); });
+  }).catch(function(){ if(seq!==_gsSeq) return; state.gutschein=null; msg.className='gs-msg gs-bad'; msg.textContent='Code ungültig oder abgelaufen.'; renderSum(); preisLive(); });
+}
+// Meldung unter dem Gutscheinfeld: der tatsaechliche Abzug in Euro (Serverwert), nie ein
+// Prozentsatz — bei gestaffelten Gutscheinen gaebe es sonst eine Zahl, die nirgends steht.
+function gsMeldung(g){
+  var msg=document.getElementById('gs-msg'); if(!msg||!state.gutschein) return;
+  msg.className='gs-msg gs-ok';
+  msg.textContent = g
+    ? 'Gutschein '+state.gutschein.code+' aktiv: −'+eur(g.rabatt)+' auf deine Auswahl (endgültige Anrechnung bei der Rechnung).'
+    : (state.haupt.length ? 'Gutschein '+state.gutschein.code+' aktiv – auf diese Auswahl gibt es keinen Abzug.'
+                          : 'Gutschein '+state.gutschein.code+' aktiv – der Abzug erscheint, sobald du eine Leistung gewählt hast.');
 }
 // Wendet den aktiven Gutschein-Rabatt auf einen Bruttobetrag an (nur Anzeige/Schaetzung).
 // Der Rabatt wird NICHT mehr hier gerechnet. Ein Gutschein kann je Leistung einen eigenen
@@ -400,9 +419,11 @@ function gsBrutto(k){
 }
 function renderSum(){
   var box=document.getElementById('sum-box');
+  var seq=++_sumSeq;   // veraltete Antwort darf die Summe nicht ueberschreiben
   box.innerHTML='<h3>Deine Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
   var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'')+(state.gutschein?'&gutschein='+encodeURIComponent(state.gutschein.code):'');
   fetch(url).then(function(r){return r.json();}).then(function(k){
+    if(seq!==_sumSeq) return;
     var rows='';
     (k.positionen||[]).forEach(function(p){
       var satz=Number(p.mwst_satz!=null?p.mwst_satz:19);
@@ -507,7 +528,12 @@ function absenden(){
       fehlerWeg();
       document.querySelectorAll('.steps,#navbar,#pricebar').forEach(function(x){x.classList.add('hidden');});
       [1,2,3,4].forEach(function(i){document.getElementById('p'+i).classList.add('hidden');});
-      var betrag = (j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '';
+      // Mit Gutschein den Betrag NACH Abzug nennen (der Server liefert ihn mit). Sonst stuende
+      // hier direkt nach dem Buchen eine hoehere Zahl als in der Zusammenfassung davor.
+      var rab=Number(j.rabatt_summe||0);
+      var betrag = (rab>0 && j.summe_nach_rabatt!=null)
+        ? ' Voraussichtlicher Betrag: '+eur(j.summe_nach_rabatt)+' (Gutschein bereits abgezogen: −'+eur(rab)+').'
+        : ((j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '');
       var dat=String(j.datum||'').split('-').reverse().join('.'), zeit=(j.uhrzeit_von||'');
       // Meldung richtet sich nach der Backend-Antwort -> deploy-reihenfolge-unabhaengig:
       // 'bestaetigung_noetig' (Double-Opt-in) vs. direkte Bestaetigung.
