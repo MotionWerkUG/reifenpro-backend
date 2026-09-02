@@ -445,6 +445,12 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         <div class="card-titel" data-i18n="edit_contact">Kontaktdaten</div>
         <div class="g2">
           <div class="fg"><label data-i18n="phone">Telefon</label><input id="pf-tel" autocomplete="tel"></div>
+          <!-- Anschrift gehoert ins Profil: Sie wird spaetestens bei der Buchung Pflicht (Rechnung),
+               und ohne diese Felder waere die Buchung der einzige Ort, an dem sie sich eintragen
+               oder korrigieren laesst -- ein Umzug waere fuer den Kunden sonst nicht abbildbar. -->
+          <div class="fg"><label data-i18n="street">Straße und Hausnummer</label><input id="pf-strasse" autocomplete="street-address"></div>
+          <div class="fg"><label data-i18n="zip">PLZ</label><input id="pf-plz" inputmode="numeric" autocomplete="postal-code"></div>
+          <div class="fg"><label data-i18n="city">Ort</label><input id="pf-ort" autocomplete="address-level2"></div>
           <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="pf-kz"></div>
           <div class="fg"><label data-i18n="brand">Marke</label><input id="pf-marke"></div>
           <div class="fg"><label data-i18n="model">Modell</label><input id="pf-modell"></div>
@@ -545,6 +551,7 @@ var I18N = {
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
     past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    address_incomplete: 'Bitte Straße, PLZ und Ort vollständig angeben.', address_no_number: 'Bitte die Hausnummer mit angeben (oder ein Postfach).', address_zip: 'Die PLZ besteht aus fünf Ziffern.',
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
@@ -611,6 +618,7 @@ var I18N = {
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
     past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    address_incomplete: 'Please provide street, postcode and city.', address_no_number: 'Please include the house number (or a PO box).', address_zip: 'The postcode has five digits.',
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
@@ -1450,6 +1458,9 @@ function ladeProfil() {
     el.innerHTML = html;
     var g = function(id) { return document.getElementById(id); };
     if (g('pf-tel')) g('pf-tel').value = k.telefon || '';
+    if (g('pf-strasse')) g('pf-strasse').value = k.strasse || '';
+    if (g('pf-plz')) g('pf-plz').value = k.plz || '';
+    if (g('pf-ort')) g('pf-ort').value = k.ort || '';
     if (g('pf-kz')) g('pf-kz').value = k.kennzeichen || '';
     if (g('pf-marke')) g('pf-marke').value = k.fahrzeug_marke || '';
     if (g('pf-modell')) g('pf-modell').value = k.fahrzeug_modell || '';
@@ -1460,7 +1471,17 @@ function ladeProfil() {
 
 function profilSpeichern() {
   var v = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell') })
+  // Nur pruefen, wenn ueberhaupt etwas eingetragen ist -- ein leeres Profil bleibt erlaubt,
+  // Pflicht wird die Anschrift erst bei der Buchung. Gleiche Regel wie dort: Hausnummer oder
+  // Postfach, PLZ fuenfstellig. Sonst haette der Kunde hier gespeichert und bekaeme beim
+  // Buchen dieselbe Adresse zurueckgewiesen.
+  var str = v('pf-strasse'), plz = v('pf-plz'), ort = v('pf-ort');
+  if (str || plz || ort) {
+    if (!str || !plz || !ort) { notify(t('address_incomplete'), 'err'); return; }
+    if (!/\d/.test(str) && !/postfach/i.test(str)) { notify(t('address_no_number'), 'err'); return; }
+    if (!/^\d{5}$/.test(plz)) { notify(t('address_zip'), 'err'); return; }
+  }
+  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell'), strasse: str, plz: plz, ort: ort })
     .then(function() { notify(t('contact_saved'), 'ok'); ladeProfil(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
