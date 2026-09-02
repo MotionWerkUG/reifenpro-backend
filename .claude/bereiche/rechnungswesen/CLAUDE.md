@@ -20,7 +20,12 @@ und logisch abgegrenzt. `DESIGN.md` gilt für die Optik.
   Leistungszeitraum, Menge/Art, Netto/MwSt-Satz/Betrag, Steuernummer/USt-IdNr).
 - **Rechnungsdatum nicht rückdatierbar** (Audit S3) — beim Festschreiben serverseitig begrenzen.
 - MwSt je Satz aggregiert, `round2` je Zeile; Client-Summen ignorieren.
-- Regelbesteuerung. Storno als eigener Beleg, nicht Löschen.
+- **Regelbesteuerung — vom Inhaber am 02.09.2026 ausdrücklich bestätigt, KEINE
+  Kleinunternehmerregelung nach § 19 UStG.** Damit weist jede Rechnung Umsatzsteuer aus.
+  Sollte sich das je ändern, ist es kein Schalter: Dann dürfte keine Steuer ausgewiesen
+  werden, es bräuchte den Hinweis auf die Steuerbefreiung, und die Prüfung auf die Sätze
+  19/7 müsste weichen.
+- Storno als eigener Beleg, nicht Löschen.
 
 ## Deploy
 Backend nach `src/…`, dann `pm2 restart reifenpro`. Frontend-Änderungen an der Rechnungen-
