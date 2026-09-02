@@ -42,6 +42,45 @@ function zahlOk(v, min, max) {
   return Number.isFinite(n) && n >= min && n <= max;
 }
 
+// Nachlass je Position. Der Flyer verspricht gestaffelte Saetze (25 % auf die Einlagerung,
+// 10 % auf alles andere), also koennen in EINER Rechnung mehrere Rabattsaetze auftreten.
+//
+// Der Nachlass wird als eigene Minusposition ausgewiesen, nicht in den Preis eingerechnet:
+// § 14 Abs. 4 Nr. 7 UStG verlangt, dass eine im Voraus vereinbarte Entgeltminderung
+// erkennbar ist, und der Kunde soll sehen, was ihm der Code gebracht hat.
+//
+// Gruppiert wird je Rabattsatz UND Steuersatz — sonst waere der Steuerausweis falsch, sobald
+// unterschiedlich besteuerte Leistungen denselben Nachlass bekommen. Gerundet wird EINMAL je
+// Gruppe auf die Summe, nicht je Zeile; sonst laeuft die Summe um Cents von dem weg, was der
+// Kunde bei der Buchung gesehen hat.
+function nachlassPositionen(positionen) {
+  const gruppen = new Map();
+  (positionen || []).forEach(function (p) {
+    const rab = Number(p.rabatt_prozent);
+    if (!Number.isFinite(rab) || rab <= 0) return;
+    const satz = Number.isFinite(Number(p.mwst_satz)) ? Number(p.mwst_satz) : 19;
+    const brutto = (p.einzelpreis_brutto != null);
+    const basis = brutto
+      ? round2((Number(p.menge) || 0) * (Number(p.einzelpreis_brutto) || 0))
+      : round2((Number(p.menge) || 0) * (Number(p.einzelpreis_netto) || 0));
+    if (basis <= 0) return;
+    const key = rab + '|' + satz + '|' + (brutto ? 'b' : 'n');
+    const g = gruppen.get(key) || { rabatt: rab, satz: satz, brutto: brutto, basis: 0, namen: [] };
+    g.basis = round2(g.basis + basis);
+    g.namen.push(String(p.bezeichnung || '').trim());
+    gruppen.set(key, g);
+  });
+
+  return Array.from(gruppen.values()).map(function (g) {
+    // Bezeichnung: Bei genau einer betroffenen Leistung wird sie benannt, sonst zusammengefasst.
+    const was = g.namen.length === 1 ? g.namen[0] : 'übrige Leistungen';
+    const betrag = -round2(g.basis * g.rabatt / 100);
+    const pos = { bezeichnung: 'Nachlass ' + was + ' (' + g.rabatt + ' %)', menge: 1, einheit: null, mwst_satz: g.satz };
+    if (g.brutto) pos.einzelpreis_brutto = betrag; else pos.einzelpreis_netto = betrag;
+    return pos;
+  });
+}
+
 // Positionen aus dem Client pruefen. Liefert eine Fehlermeldung oder null.
 // Faengt ab: fehlende Bezeichnung (§ 14 Abs. 4 Nr. 5 UStG), unsinnige/unendliche Zahlen und
 // Massen-Positionen, die den gemeinsamen Datenbank-Pool blockieren wuerden.
@@ -65,6 +104,7 @@ function pruefePositionen(positionen) {
     // Die Betragsspalten sind numeric(10,2): das Produkt muss ebenfalls hineinpassen.
     if (!zahlOk(Number(p.menge) * Number(preis), -99999999.99, 99999999.99)) return nr + 'Zeilenbetrag ist zu groß.';
     if (p.mwst_satz != null && !zahlOk(p.mwst_satz, 0, 100)) return nr + 'Steuersatz ist keine gültige Zahl.';
+    if (p.rabatt_prozent != null && !zahlOk(p.rabatt_prozent, 0, 100)) return nr + 'Nachlass ist kein gültiger Prozentsatz (0 bis 100).';
   }
   return null;
 }
@@ -474,7 +514,11 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Bitte einen Kunden wählen oder einen Empfänger (Name oder Firma) eintragen.' });
     }
     // Gutschein/Rabatt anwenden: geprueften Code -> Rabattposition je MwSt-Satz (Aufschluesselung bleibt korrekt)
-    let posFinal = positionen;
+    // Nachlass je Position (gestaffelte Saetze) hat Vorrang: Tragen einzelne Positionen einen
+    // eigenen Rabattsatz, entstehen daraus die Minuspositionen. Der belegweite Gutscheinrabatt
+    // bleibt daneben fuer den einfachen Fall bestehen — beides zusammen waere doppelt.
+    let posFinal = positionen.concat(nachlassPositionen(positionen));
+    const gestaffelt = posFinal.length > positionen.length;
     let rabattProzent = 0, rabattLabel = null;
     const code = (req.body.gutschein_code || '').toString().trim();
     if (code) {
@@ -489,6 +533,9 @@ router.post('/', async (req, res, next) => {
       rabattLabel = 'Rabatt';
     }
     rabattProzent = Math.min(Math.max(rabattProzent, 0), 100);
+    if (gestaffelt && rabattProzent > 0) {
+      return res.status(400).json({ error: 'Es sind bereits Nachlässe je Position gesetzt. Ein zusätzlicher Rabatt auf den ganzen Beleg würde doppelt abziehen.' });
+    }
     if (rabattProzent > 0) {
       const basis = berechneSummen(positionen);
       const rabattPos = basis.mwst_aufschluesselung
@@ -497,7 +544,7 @@ router.post('/', async (req, res, next) => {
           return { bezeichnung: rabattLabel + ' (-' + rabattProzent + ' %)', menge: 1, einheit: null,
                    einzelpreis_netto: -round2(r.netto * rabattProzent / 100), mwst_satz: r.satz };
         });
-      posFinal = positionen.concat(rabattPos);
+      posFinal = posFinal.concat(rabattPos);
     }
     const s = berechneSummen(posFinal);
     const rdatum = rechnungsdatum || heute();
