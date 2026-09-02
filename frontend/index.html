@@ -721,6 +721,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <button class="etab" data-etab="bank" onclick="showEinstTab('bank')">Bank &amp; Buchhaltung</button>
             <button class="etab" data-etab="mail" onclick="showEinstTab('mail')">E-Mail-Texte</button>
             <button class="etab" data-etab="homepage" onclick="showEinstTab('homepage')">Homepage &amp; Kontakt</button>
+            <button class="etab" data-etab="geraete" onclick="showEinstTab('geraete')">Geräte</button>
           </nav>
           <div class="einst-content">
         <div class="etab-panel" data-epanel="firma">
@@ -835,6 +836,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </div>
         </div>
 
+        <div class="etab-panel" data-epanel="geraete" style="display:none">
+          <div class="pnl">
+            <div class="ptitle">Unterschriften-Geräte</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">Ein gekoppeltes iPad zeigt Verträge und Erklärungen zum Unterschreiben an. Es hat bewusst kein Mitarbeiterkonto: Es kann ausschließlich das jeweils gesendete Dokument anzeigen und die Unterschrift zurückgeben — keine Kundenliste, keine Rechnungen, keine Einstellungen.<br>Adresse am Gerät öffnen: <strong id="geraete-url"></strong></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+              <input id="geraet-name" placeholder="Name, z. B. iPad Tresen" style="flex:1;min-width:200px">
+              <button class="btn btn-p btn-sm" onclick="geraetAnlegen()">Gerät anlegen</button>
+            </div>
+            <div id="geraete-liste"></div>
+          </div>
+        </div>
         <div class="etab-panel" data-epanel="lager" style="display:none">
           <div class="ssec"><h3>Lagerorte &amp; Regale</h3>
             <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Lagerorte (z.B. Halle, Container) enthalten Regale mit einem Platzbereich. Daraus werden die Platz-Nummern vergeben — Schema <strong>Ort-Regal-Nr.</strong> (z.B. <code>Halle-A-03</code>). Löschen deaktiviert nur (bestehende Einlagerungen bleiben zuordenbar).</div>
@@ -1140,6 +1152,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <div class="dok-saved" id="dok-saved-badge">Gespeichert</div>
         <button class="btn btn-g btn-sm" id="dok-sw" onclick="switchDok()" style="display:none">Wechseln</button>
+        <button class="btn btn-g btn-sm" id="dok-station" onclick="dokAnStation()">An Gerät senden</button>
         <button class="btn btn-p btn-sm" id="dok-speichern" onclick="saveDokOhneSchließen()">Speichern</button>
         <button class="btn btn-g btn-sm" id="dok-drucken" onclick="druckUndSpeichereDok()" style="display:none">Drucken</button>
       </div>
@@ -1152,7 +1165,8 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <canvas id="sig-canvas" width="900" height="180"></canvas>
         <button class="btn btn-g btn-sm" style="position:absolute;top:8px;right:8px" onclick="clearSig()">Löschen</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben — oder über <strong>An Gerät senden</strong> auf dem iPad unterschreiben lassen.</div>
+      <div id="dok-station-stand" style="font-size:13px;margin-top:8px"></div>
       <div style="font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
         <strong style="color:var(--fg)">Ablauf:</strong> 1. Kunde unterschreibt hier auf dem Bildschirm.
         2. <strong style="color:var(--fg)">Speichern</strong> — erst damit ist das Dokument abgelegt. Danach lässt es sich drucken.
@@ -1826,7 +1840,7 @@ function showPage(n, fromPop) {
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
-  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); }
+  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); ladeGeraete(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
   updateBreadcrumb();
@@ -5095,6 +5109,14 @@ var dokUngespeichert = false;
 function dokSchliessen() {
   if (dokUngespeichert && !confirm('Das Dokument ist noch nicht gespeichert.\n\nWirklich schließen und verwerfen?')) return;
   dokUngespeichert = false;
+  // Ein noch offener Auftrag wird zurueckgezogen: Sonst zeigt das iPad weiter ein Dokument,
+  // das hier niemand mehr erwartet — und der naechste Kunde unterschriebe fremde Daten.
+  if (stationAuftragId) {
+    api('DELETE', '/station/auftraege/' + stationAuftragId).catch(function() {});
+    stationAuftragId = null;
+  }
+  stationStopp();
+  stationStand('');
   closeModal('dok');
 }
 function saveDokOhneSchließen() {
@@ -5227,6 +5249,140 @@ function initSig() {
 }
 function clearSig() { if (sigCtx) { var c = document.getElementById('sig-canvas'); sigCtx.clearRect(0, 0, c.width, c.height); } sigHas = false; dokUngespeichert = false; }
 function getSig() { if (!sigHas) return null; return document.getElementById('sig-canvas').toDataURL('image/png'); }
+
+// ── GERAETEVERWALTUNG (Einstellungen › Geräte) ──────────────────────────────────────
+function ladeGeraete() {
+  var url = document.getElementById('geraete-url');
+  if (url) url.textContent = location.origin + '/station/';
+  var el = document.getElementById('geraete-liste'); if (!el) return;
+  api('GET', '/station/stationen').then(function(liste) {
+    liste = liste || [];
+    if (!liste.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch kein Gerät angelegt.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="tw"><table><thead><tr><th>Name</th><th>Stand</th><th>Zuletzt gesehen</th><th></th></tr></thead><tbody>' +
+      liste.map(function(g) {
+        var stand = !g.aktiv ? 'abgemeldet'
+          : g.wartet_auf_kopplung ? 'wartet auf Kopplung'
+          : g.gekoppelt_am ? 'gekoppelt' : 'nicht gekoppelt';
+        return '<tr><td>' + kEsc(g.name) + '</td><td>' + stand + '</td><td>' +
+          (g.letzter_kontakt ? fd(g.letzter_kontakt) : '–') + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="geraetNeuerCode(\'' + g.id + '\')">Neuer Code</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="geraetEntfernen(\'' + g.id + '\',\'' + kEsc(g.name) + '\')">Entfernen</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }).catch(function() {});
+}
+function zeigeCode(name, code, minuten) {
+  alert('Gerät "' + name + '" koppeln\n\n'
+    + 'Kopplungscode: ' + code + '\n\n'
+    + 'Öffne am iPad ' + location.origin + '/station/ und gib den Code dort ein.\n'
+    + 'Der Code gilt ' + minuten + ' Minuten und nur einmal.');
+}
+function geraetAnlegen() {
+  var name = (document.getElementById('geraet-name') || {}).value || '';
+  if (!name.trim()) { notify('Bitte einen Namen vergeben.', 'err'); return; }
+  api('POST', '/station/stationen', { name: name }).then(function(g) {
+    document.getElementById('geraet-name').value = '';
+    zeigeCode(g.name, g.code, g.gueltig_minuten);
+    ladeGeraete();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function geraetNeuerCode(id) {
+  // Erzeugt zugleich ein neues Merkmal: Ein verlorenes Gerät verliert damit sofort den Zugang.
+  if (!confirm('Neuen Kopplungscode erzeugen?\n\nDas bisher gekoppelte Gerät verliert dabei den Zugang.')) return;
+  api('POST', '/station/stationen/' + id + '/neuer-code').then(function(g) {
+    zeigeCode(g.name, g.code, g.gueltig_minuten); ladeGeraete();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function geraetEntfernen(id, name) {
+  if (!confirm('Gerät "' + name + '" entfernen?\n\nEs kann danach nichts mehr anzeigen.')) return;
+  api('DELETE', '/station/stationen/' + id).then(function() { notify('Gerät entfernt.'); ladeGeraete(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── UNTERSCHRIFT AUF EINEM ZWEITEN GERAET ────────────────────────────────────────────
+// Am Rechner wird erfasst, das fertige Dokument geht zum Lesen und Unterschreiben ans iPad.
+// Das Geraet bekommt bewusst kein Mitarbeiterkonto: Wer dem Kunden ein angemeldetes Konto in
+// die Hand gibt, gibt ihm Kundenliste, Rechnungen und Einstellungen mit.
+// Gespeichert wird weiterhin hier ueber "Speichern" — die zurueckgegebene Unterschrift landet
+// im vorhandenen Feld, damit alle bestehenden Pruefungen unveraendert greifen.
+var stationAuftragId = null, stationTimer = null;
+
+function stationStand(text, farbe) {
+  var el = document.getElementById('dok-station-stand');
+  if (el) { el.textContent = text || ''; el.style.color = farbe || 'var(--muted)'; }
+}
+
+function dokAnStation() {
+  var inhalt = document.getElementById('dok-inhalt');
+  if (!inhalt || !inhalt.innerHTML.trim()) { notify('Es ist kein Dokument geöffnet.', 'err'); return; }
+  api('GET', '/station/stationen').then(function(liste) {
+    var bereit = (liste || []).filter(function(s) { return s.aktiv && s.gekoppelt_am; });
+    if (!bereit.length) {
+      notify('Noch kein Gerät gekoppelt. Unter Einstellungen › Geräte eine Station anlegen.', 'err');
+      return;
+    }
+    var ziel = bereit[0];
+    if (bereit.length > 1) {
+      var namen = bereit.map(function(s, i) { return (i + 1) + ') ' + s.name; }).join('\n');
+      var wahl = prompt('An welches Gerät senden?\n\n' + namen, '1');
+      if (wahl === null) return;
+      ziel = bereit[parseInt(wahl, 10) - 1] || bereit[0];
+    }
+    var titel = (document.getElementById('dok-titel') || {}).textContent || 'Dokument';
+    var kunde = aktK ? [aktK.vorname, aktK.nachname].filter(Boolean).join(' ') : null;
+    return api('POST', '/station/auftraege', {
+      station_id: ziel.id, titel: titel, kunde_name: kunde, inhalt_html: inhalt.innerHTML
+    }).then(function(a) {
+      stationAuftragId = a.id;
+      stationStand('An ' + ziel.name + ' gesendet — warte auf die Unterschrift des Kunden …', 'var(--accent-text)');
+      stationHorchen();
+    });
+  }).catch(function(e) { notify(e.message, 'err'); stationStand(''); });
+}
+
+// Nachfragen, ob unterschrieben wurde. Laeuft nur, solange der Dialog offen ist.
+function stationHorchen() {
+  stationStopp();
+  stationTimer = setInterval(function() {
+    if (!stationAuftragId) { stationStopp(); return; }
+    api('GET', '/station/auftraege/' + stationAuftragId).then(function(a) {
+      if (!a) return;
+      if (a.status === 'unterschrieben' && a.unterschrift) {
+        stationStopp();
+        stationUebernehmen(a.unterschrift);
+      } else if (a.status === 'abgelaufen') {
+        stationStopp(); stationAuftragId = null;
+        stationStand('Der Auftrag ist abgelaufen — bitte erneut senden.', 'var(--red)');
+      } else if (a.status === 'abgebrochen') {
+        stationStopp(); stationAuftragId = null;
+        stationStand('Am Gerät abgebrochen.', 'var(--red)');
+      }
+    }).catch(function() { /* Netzhaenger: beim naechsten Versuch erneut */ });
+  }, 2500);
+}
+function stationStopp() { if (stationTimer) clearInterval(stationTimer); stationTimer = null; }
+
+// Die vom Geraet zurueckgegebene Unterschrift ins vorhandene Feld zeichnen. Danach verhaelt
+// sich alles wie bei einer Unterschrift direkt am Rechner — inklusive Speichern und Drucken.
+function stationUebernehmen(datenUrl) {
+  var c = document.getElementById('sig-canvas');
+  if (!c) return;
+  var bild = new Image();
+  bild.onload = function() {
+    sigCtx = sigCtx || c.getContext('2d');
+    sigCtx.clearRect(0, 0, c.width, c.height);
+    var faktor = Math.min(c.width / bild.width, c.height / bild.height);
+    var b = bild.width * faktor, h = bild.height * faktor;
+    sigCtx.drawImage(bild, (c.width - b) / 2, (c.height - h) / 2, b, h);
+    sigHas = true; dokUngespeichert = true;
+    stationAuftragId = null;
+    stationStand('Unterschrift vom Gerät übernommen. Jetzt speichern.', 'var(--green)');
+    notify('Unterschrift eingegangen — bitte speichern.');
+  };
+  bild.src = datenUrl;
+}
 
 // ── ETIKETT ──
 function nameKuerzelFn(vorname, nachname) {
