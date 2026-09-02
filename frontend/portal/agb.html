@@ -88,8 +88,13 @@ function render() {
       '<p>Der Kunde ist verpflichtet, seine Kontaktdaten aktuell zu halten und uns über Änderungen zu informieren. Im Kundenportal hinterlegte Zugangsdaten sind vertraulich zu behandeln.</p>' +
       '<h2>8. Schlussbestimmungen</h2>' +
       '<p>Es gilt deutsches Recht. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.</p>';
-    document.getElementById('agb-hinweis').innerHTML =
-      'Hinweis: Diese AGB sind ein anpassbares Muster und sollten vor dem produktiven Einsatz durch einen Rechtsanwalt geprüft werden, um eine vollständige rechtliche Absicherung zu gewährleisten.';
+    // Kundenseitig steht hier bewusst NICHTS mehr: Der frühere Satz ("anpassbares Muster,
+    // vor dem produktiven Einsatz anwaltlich prüfen lassen") war ein interner Vermerk an den
+    // Inhaber -- gelesen hat ihn aber jeder Kunde, und er entwertet die Bedingungen, die er
+    // erklärt. Die Erinnerung steht dort, wo sie hingehört: als offener Punkt in der
+    // Projekt-CLAUDE.md. Sobald ein Anwalt die Fassung freigibt, gehört hier höchstens ein
+    // Stand-Datum hin, kein Vorbehalt.
+    document.getElementById('agb-hinweis').innerHTML = '';
   } else {
     document.getElementById('agb-content').innerHTML =
       '<h1>Terms and Conditions</h1>' +
@@ -110,8 +115,7 @@ function render() {
       '<p>The customer is obliged to keep their contact details up to date and to inform us of any changes. Login details stored in the customer portal must be treated confidentially.</p>' +
       '<h2>8. Final provisions</h2>' +
       '<p>German law applies. Should individual provisions be invalid, the validity of the remaining provisions remains unaffected.</p>';
-    document.getElementById('agb-hinweis').innerHTML =
-      'Note: These terms are an adaptable template and should be reviewed by a lawyer before productive use to ensure complete legal protection.';
+    document.getElementById('agb-hinweis').innerHTML = '';
   }
 }
 lade();
