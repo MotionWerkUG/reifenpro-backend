@@ -5307,7 +5307,7 @@ function geraetEntfernen(id, name) {
 // die Hand gibt, gibt ihm Kundenliste, Rechnungen und Einstellungen mit.
 // Gespeichert wird weiterhin hier ueber "Speichern" — die zurueckgegebene Unterschrift landet
 // im vorhandenen Feld, damit alle bestehenden Pruefungen unveraendert greifen.
-var stationAuftragId = null, stationTimer = null;
+var stationAuftragId = null, stationTimer = null, stationFuerKunde = null, stationFuerTyp = null;
 
 function stationStand(text, farbe) {
   var el = document.getElementById('dok-station-stand');
@@ -5336,6 +5336,8 @@ function dokAnStation() {
       station_id: ziel.id, titel: titel, kunde_name: kunde, inhalt_html: inhalt.innerHTML
     }).then(function(a) {
       stationAuftragId = a.id;
+      stationFuerKunde = aktK ? aktK.id : null;
+      stationFuerTyp = aktDokTyp;
       stationStand('An ' + ziel.name + ' gesendet — warte auf die Unterschrift des Kunden …', 'var(--accent-text)');
       stationHorchen();
     });
@@ -5367,6 +5369,17 @@ function stationStopp() { if (stationTimer) clearInterval(stationTimer); station
 // Die vom Geraet zurueckgegebene Unterschrift ins vorhandene Feld zeichnen. Danach verhaelt
 // sich alles wie bei einer Unterschrift direkt am Rechner — inklusive Speichern und Drucken.
 function stationUebernehmen(datenUrl) {
+  // Der Mitarbeiter koennte waehrend des Wartens den Kunden oder die Dokumentart gewechselt
+  // haben. Die Unterschrift dann einfach zu uebernehmen, wuerde sie dem FALSCHEN Kunden
+  // zuordnen — und weil danach die Aufbewahrungssperre greift, waere das nicht mehr zu heilen.
+  var jetztKunde = aktK ? aktK.id : null;
+  if (jetztKunde !== stationFuerKunde || aktDokTyp !== stationFuerTyp) {
+    stationAuftragId = null;
+    stationStand('Die Unterschrift wurde verworfen: Es ist inzwischen ein anderes Dokument geöffnet. '
+      + 'Bitte erneut senden.', 'var(--red)');
+    notify('Unterschrift verworfen — es ist ein anderes Dokument geöffnet.', 'err');
+    return;
+  }
   var c = document.getElementById('sig-canvas');
   if (!c) return;
   var bild = new Image();

@@ -10,6 +10,7 @@
 // Unterschrift, gespeichert wird weiterhin ueber den bestehenden Weg im Admin. Damit gilt
 // dieselbe Pruefung (Anschrift, Dokumentart, Aufbewahrungssperre) wie bisher, an einer Stelle.
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { query } = require('../db');
 const { authenticate, requireStaff } = require('../middleware/auth');
@@ -39,8 +40,16 @@ async function stationAuth(req, res, next) {
   } catch (err) { next(err); }
 }
 
+// Der Kopplungscode hat nur sechs Stellen. Ohne Bremse liesse er sich in Minuten
+// durchprobieren — und wer ihn errät, bekommt ein dauerhaft gueltiges Merkmal.
+// Zehn Versuche je Viertelstunde und Absender reichen fuer Vertipper und stoppen das Raten.
+const koppelBremse = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10,
+  message: { error: 'Zu viele Versuche. Bitte in 15 Minuten erneut versuchen.' },
+});
+
 // Kopplung: Das Geraet tauscht den im Admin angezeigten Code einmalig gegen sein Merkmal.
-router.post('/koppeln', async (req, res, next) => {
+router.post('/koppeln', koppelBremse, async (req, res, next) => {
   try {
     const code = String((req.body && req.body.code) || '').trim();
     if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Bitte den sechsstelligen Code eingeben.' });
