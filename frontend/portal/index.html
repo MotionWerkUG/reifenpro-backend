@@ -93,6 +93,19 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 .page { display: none; }
 .page.on { display: block; }
 .empty { text-align: center; color: var(--muted); padding: 30px; font-size: 14px; }
+/* Adress-Vorschlaege. Mechanik uebernommen aus frontend/termin/index.html (Buchungsstrecke) --
+   Farben hier ueber Design-Tokens, weil das Portal einen Dunkelmodus hat; die Buchungsseite
+   arbeitet dort mit festen Farben, die hier weiss auf weiss ergaeben. */
+.adr-wrap { position: relative; }
+.adr-drop { position: absolute; left: 0; right: 0; top: 100%; z-index: 40; background: var(--panel);
+  border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18); max-height: 260px; overflow: auto; display: none; }
+.adr-drop.on { display: block; }
+.adr-opt { padding: 11px 14px; font-size: 15px; cursor: pointer; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--text); }
+.adr-opt:last-child { border-bottom: none; }
+.adr-opt:hover { background: var(--ydim); }
+.adr-opt .adr-meta { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 .b-g { background: rgba(62,207,142,0.15); color: var(--green); }
 .b-y { background: rgba(240,192,0,0.15); color: var(--yellow); }
@@ -455,8 +468,14 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
           <!-- Anschrift gehoert ins Profil: Sie wird spaetestens bei der Buchung Pflicht (Rechnung),
                und ohne diese Felder waere die Buchung der einzige Ort, an dem sie sich eintragen
                oder korrigieren laesst -- ein Umzug waere fuer den Kunden sonst nicht abbildbar. -->
-          <div class="fg"><label data-i18n="street">Straße und Hausnummer</label><input id="pf-strasse" autocomplete="street-address"></div>
-          <div class="fg"><label data-i18n="zip">PLZ</label><input id="pf-plz" inputmode="numeric" autocomplete="postal-code"></div>
+          <div class="fg adr-wrap"><label data-i18n="street">Straße und Hausnummer</label>
+            <input id="pf-strasse" autocomplete="street-address" oninput="pfStrassenLookup()">
+            <div class="adr-drop" id="pf-strassen-drop"></div>
+          </div>
+          <div class="fg adr-wrap"><label data-i18n="zip">PLZ</label>
+            <input id="pf-plz" inputmode="numeric" autocomplete="postal-code" oninput="pfPlzLookup()">
+            <div class="adr-drop" id="pf-orte-drop"></div>
+          </div>
           <div class="fg"><label data-i18n="city">Ort</label><input id="pf-ort" autocomplete="address-level2"></div>
           <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="pf-kz"></div>
           <div class="fg"><label data-i18n="brand">Marke</label><input id="pf-marke"></div>
@@ -1500,6 +1519,76 @@ function ladeProfil() {
     if (cs) { var on = k.einwilligung_saison_erinnerung || k.einwilligung_werbung; cs.textContent = on ? t('consent_on') : t('consent_off'); }
   }).catch(function() {});
 }
+
+// ── Adress-Vorschlaege im Profil ────────────────────────────────────────────────────────────
+// Mechanik uebernommen aus frontend/termin/index.html (Buchungsstrecke: _hausnr, _strassenTeil,
+// strassenLookup, strassePick). ACHTUNG: Beide Stellen muessen ZUSAMMEN geaendert werden --
+// eine gemeinsame Datei ginge nur ueber einen dritten Auslieferungspfad, weil Buchungsseite und
+// Portal aus verschiedenen Web-Verzeichnissen kommen.
+//
+// Der Kern: EIN Feld fuer Strasse und Hausnummer. Fuer die ABFRAGE wird die Hausnummer
+// abgeschnitten (der Verzeichnisdienst kennt nur Strassennamen) und nach der Auswahl wieder
+// angehaengt. Ohne das verschwinden die Vorschlaege genau dann, wenn jemand seine Hausnummer
+// tippt -- der haeufigste Grund, warum solche Felder als kaputt empfunden werden.
+var _pfAdrT = null, _pfStrCache = [], _pfOrteCache = [];
+function pfAdrUrl() { return API.replace(/\/portal$/, '') + '/adresse'; }
+function pfAdrHide() { ['pf-strassen-drop', 'pf-orte-drop'].forEach(function(id) { var e = document.getElementById(id); if (e) e.classList.remove('on'); }); }
+function _pfHausnr(v) { var m = String(v || '').match(/\s*(\d+\s*[a-zA-Z]?)\s*$/); return m ? m[1].replace(/\s+/g, '') : ''; }
+function _pfStrassenTeil(v) { return String(v || '').replace(/\s*\d+\s*[a-zA-Z]?\s*$/, '').trim(); }
+
+function pfStrassenLookup() {
+  var raw = (document.getElementById('pf-strasse').value || '').trim();
+  var q = _pfStrassenTeil(raw);
+  var plz = (document.getElementById('pf-plz').value || '').trim();
+  var drop = document.getElementById('pf-strassen-drop');
+  clearTimeout(_pfAdrT);
+  if (q.length < 3) { if (drop) { drop.classList.remove('on'); drop.innerHTML = ''; } return; }
+  _pfAdrT = setTimeout(function() {   // 250 ms warten -> nicht eine Anfrage je Tastendruck
+    fetch(pfAdrUrl() + '/strassen?q=' + encodeURIComponent(q) + '&plz=' + encodeURIComponent(plz))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        _pfStrCache = (d && d.strassen) || [];
+        if (!drop) return;
+        if (!_pfStrCache.length) { drop.classList.remove('on'); drop.innerHTML = ''; return; }
+        drop.innerHTML = _pfStrCache.map(function(x, i) {
+          return '<div class="adr-opt" onclick="pfStrassePick(' + i + ')"><span>' + pEsc(x.strasse) + '</span>'
+               + '<span class="adr-meta">' + pEsc((x.plz ? x.plz + ' ' : '') + (x.ort || '')) + '</span></div>';
+        }).join('');
+        drop.classList.add('on');
+      }).catch(function() { if (drop) drop.classList.remove('on'); });   // fail-soft: dann tippt man selbst
+  }, 250);
+}
+
+function pfStrassePick(i) {
+  var x = _pfStrCache[i]; if (!x) return;
+  var el = document.getElementById('pf-strasse');
+  var hn = _pfHausnr(el.value);                        // getippte Hausnummer erhalten
+  el.value = (x.strasse || '') + (hn ? ' ' + hn : '');
+  if (x.plz) document.getElementById('pf-plz').value = x.plz;
+  if (x.ort) document.getElementById('pf-ort').value = x.ort;
+  pfAdrHide();
+  // Ohne Hausnummer bleibt der Cursor im Feld, damit man sie direkt anhaengt. Geprueft wird
+  // bewusst NICHT hier, sondern erst beim Speichern -- sonst saehe der Kunde "Bitte die
+  // Hausnummer mit angeben" fuer einen Vorschlag, den er gerade erst angeklickt hat.
+  if (!hn) el.focus();
+}
+
+function pfPlzLookup() {
+  var plz = (document.getElementById('pf-plz').value || '').trim();
+  var drop = document.getElementById('pf-orte-drop');
+  if (!/^\d{5}$/.test(plz)) { if (drop) drop.classList.remove('on'); return; }
+  fetch(pfAdrUrl() + '/plz?plz=' + encodeURIComponent(plz)).then(function(r) { return r.json(); }).then(function(d) {
+    _pfOrteCache = (d && d.orte) || [];
+    var ort = document.getElementById('pf-ort');
+    if (_pfOrteCache.length === 1) { if (!ort.value.trim()) ort.value = _pfOrteCache[0]; if (drop) drop.classList.remove('on'); return; }
+    if (_pfOrteCache.length > 1 && drop) {
+      drop.innerHTML = _pfOrteCache.map(function(o, i) { return '<div class="adr-opt" onclick="pfOrtPick(' + i + ')">' + pEsc(o) + '</div>'; }).join('');
+      drop.classList.add('on');
+    } else if (drop) { drop.classList.remove('on'); }
+  }).catch(function() { if (drop) drop.classList.remove('on'); });
+}
+function pfOrtPick(i) { var o = _pfOrteCache[i]; if (o == null) return; document.getElementById('pf-ort').value = o; pfAdrHide(); }
+document.addEventListener('click', function(ev) { if (!(ev.target.closest && ev.target.closest('.adr-wrap'))) pfAdrHide(); });
 
 function profilSpeichern() {
   var v = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
