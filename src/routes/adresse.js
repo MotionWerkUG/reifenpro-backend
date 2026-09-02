@@ -35,14 +35,35 @@ router.get('/plz', limiter, async (req, res) => {
   res.json({ orte: orte.slice(0, 10) });
 });
 
+// Amtliche Strassennamen sind abgekuerzt gespeichert ("Stöhrerstr.", "Hauptstr."). Wer
+// ausschreibt — also die Mehrheit — bekam bisher NICHTS: "Hauptstraße" lieferte 0 Treffer,
+// "Hauptstr" acht. Deshalb wird zusaetzlich mit der abgekuerzten Schreibweise gesucht und
+// umgekehrt; die Ergebnisse werden zusammengefuehrt.
+function schreibweisen(q) {
+  const varianten = [q];
+  const abgekuerzt = q.replace(/stra(ß|ss)e\b/gi, 'str.').replace(/stra(ß|ss)e$/i, 'str.');
+  if (abgekuerzt !== q) varianten.push(abgekuerzt);
+  // Umgekehrt: wer "Hauptstr" tippt, soll auch "Hauptstraße"-Schreibungen finden.
+  const ausgeschrieben = q.replace(/str\.?\b/gi, 'straße');
+  if (ausgeschrieben !== q && varianten.indexOf(ausgeschrieben) === -1) varianten.push(ausgeschrieben);
+  return varianten.slice(0, 3);
+}
+
 // Strassen-Vorschlaege (Fragment >= 3 Zeichen), optional auf eine PLZ eingegrenzt.
 router.get('/strassen', limiter, async (req, res) => {
   const q = String(req.query.q || '').trim();
   const plz = String(req.query.plz || '').trim();
   if (q.length < 3) return res.json({ strassen: [] });
-  let url = OPENPLZ + '/Streets?name=' + encodeURIComponent(q);
-  if (/^\d{5}$/.test(plz)) url += '&postalCode=' + encodeURIComponent(plz);
-  const rows = await hole(url);
+  const rows = [];
+  for (const variante of schreibweisen(q)) {
+    let url = OPENPLZ + '/Streets?name=' + encodeURIComponent(variante);
+    if (/^\d{5}$/.test(plz)) url += '&postalCode=' + encodeURIComponent(plz);
+    const teil = await hole(url);
+    rows.push.apply(rows, teil);
+    // Bei genug Treffern nicht weitersuchen: jede Variante ist eine zusaetzliche Anfrage
+    // an den fremden Dienst, und die Vorschlagsliste zeigt ohnehin nur acht.
+    if (rows.length >= 8) break;
+  }
   const seen = {}, out = [];
   rows.forEach(function (x) {
     if (!x || !x.name) return;
