@@ -114,10 +114,46 @@ router.get('/:id/preis', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Prueft eine Staffelzeile, bevor sie gespeichert wird. Bisher wurde alles angenommen:
+// vertauschte Grenzen, negative Preise und vor allem UEBERLAPPENDE Bereiche. Ueberlappungen
+// sind der gefaehrlichste Fall, weil sie nicht auffallen — der Kunde bekommt dann je nach
+// Zeilenreihenfolge mal den einen, mal den anderen Preis angezeigt.
+// Gibt null zurueck, wenn alles in Ordnung ist, sonst den Fehlertext.
+async function staffelPruefen(artikelId, typ, min, max, preis, ausserId) {
+  if (min !== null && max !== null && min > max)
+    return `Die Zollgrößen sind vertauscht: von ${min} bis ${max} ergibt keinen Bereich.`;
+  if (min !== null && (min < 1 || min > 40)) return 'Zollgröße "von" muss zwischen 1 und 40 liegen.';
+  if (max !== null && (max < 1 || max > 40)) return 'Zollgröße "bis" muss zwischen 1 und 40 liegen.';
+  if (!(preis >= 0)) return 'Der Preis darf nicht negativ sein.';
+
+  const vorhanden = (await query(
+    'SELECT id, fahrzeug_typ, zoll_min, zoll_max FROM artikel_preise WHERE artikel_id=$1', [artikelId])).rows;
+  const von = min === null ? -Infinity : min;
+  const bis = max === null ? Infinity : max;
+  for (const v of vorhanden) {
+    if (ausserId && String(v.id) === String(ausserId)) continue;
+    // Nur Zeilen desselben Fahrzeugtyps koennen sich in die Quere kommen; eine SUV-Regel
+    // und eine allgemeine Regel duerfen sich ueberschneiden, dort gewinnt bewusst der Typ.
+    if ((v.fahrzeug_typ || null) !== (typ || null)) continue;
+    const vVon = v.zoll_min === null ? -Infinity : v.zoll_min;
+    const vBis = v.zoll_max === null ? Infinity : v.zoll_max;
+    if (von <= vBis && vVon <= bis) {
+      const zeigen = (a, b) => (a === -Infinity ? 'alle' : a) + ' bis ' + (b === Infinity ? 'offen' : b);
+      return `Der Bereich ${zeigen(von, bis)} Zoll überschneidet sich mit einer vorhandenen `
+        + `Staffel (${zeigen(vVon, vBis)} Zoll${typ ? ', ' + typ : ''}). `
+        + 'Bitte die Bereiche so wählen, dass sie sich nicht überlappen — sonst ist nicht '
+        + 'eindeutig, welcher Preis gilt.';
+    }
+  }
+  return null;
+}
+
 router.post('/:id/preise', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const { fahrzeug_typ, zoll_min, zoll_max, preis, mwst_satz, dauer_minuten } = req.body;
     const typ = FZ_TYPEN.includes(fahrzeug_typ) ? fahrzeug_typ : null;
+    const fehler = await staffelPruefen(req.params.id, typ, intOrNull(zoll_min), intOrNull(zoll_max), parseFloat(preis) || 0, null);
+    if (fehler) return res.status(400).json({ error: fehler });
     const { rows } = await query(
       `INSERT INTO artikel_preise (artikel_id, fahrzeug_typ, zoll_min, zoll_max, preis, mwst_satz, dauer_minuten)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
@@ -131,6 +167,10 @@ router.put('/:id/preise/:vid', authenticate, requireAdmin, async (req, res, next
   try {
     const { fahrzeug_typ, zoll_min, zoll_max, preis, mwst_satz, dauer_minuten } = req.body;
     const typ = FZ_TYPEN.includes(fahrzeug_typ) ? fahrzeug_typ : null;
+    // Die eigene Zeile beim Ueberlappungstest ausnehmen, sonst kollidiert jede Aenderung
+    // mit sich selbst.
+    const fehler = await staffelPruefen(req.params.id, typ, intOrNull(zoll_min), intOrNull(zoll_max), parseFloat(preis) || 0, req.params.vid);
+    if (fehler) return res.status(400).json({ error: fehler });
     const { rows } = await query(
       `UPDATE artikel_preise SET fahrzeug_typ=$1, zoll_min=$2, zoll_max=$3, preis=$4, mwst_satz=$5, dauer_minuten=$6
        WHERE id=$7 AND artikel_id=$8 RETURNING *`,
