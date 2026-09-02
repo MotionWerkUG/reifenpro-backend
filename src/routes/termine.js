@@ -123,10 +123,44 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ── POST /api/termine ── Admin: Termin anlegen
+// Sucht Termine, die sich mit der angefragten Zeit ueberschneiden. Bewusst NUR eine
+// Warnung, keine Sperre: Es gibt gute Gruende fuer zwei Termine zur selben Zeit — der eine
+// Kunde bringt nur die Raeder vorbei, der andere wartet. Ein Verbot wuerde den Betrieb in
+// der eigenen Werkstatt behindern. Der oeffentliche Buchungsweg bleibt dagegen hart
+// gesperrt, dort entscheidet niemand mit Sachkenntnis.
+async function terminKonflikte(datum, von, bis, ausserId) {
+  const { rows } = await query(
+    `SELECT t.id, t.uhrzeit_von, t.uhrzeit_bis, t.termin_typ,
+            COALESCE(NULLIF(btrim(k.vorname || ' ' || k.nachname), ''), t.kontakt_name, 'Laufkundschaft') AS wer
+       FROM termine t LEFT JOIN kunden k ON k.id = t.kunden_id
+      WHERE t.datum = $1
+        AND t.status NOT IN ('storniert', 'abgesagt', 'nicht_erschienen')
+        AND ($4::uuid IS NULL OR t.id <> $4::uuid)
+        AND t.uhrzeit_von < $3::time AND t.uhrzeit_bis > $2::time
+      ORDER BY t.uhrzeit_von`,
+    [datum, von, bis, ausserId || null]);
+  return rows;
+}
+
 router.post('/', async (req, res, next) => {
   try {
-    const { kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, fahrzeug_id } = req.body;
+    const { kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, fahrzeug_id, trotzdem } = req.body;
     if (!datum || !uhrzeit_von || !uhrzeit_bis) return res.status(400).json({ error: 'Datum und Uhrzeiten erforderlich' });
+    if (trotzdem !== true) {
+      const konflikte = await terminKonflikte(datum, uhrzeit_von, uhrzeit_bis, null);
+      if (konflikte.length) {
+        return res.status(409).json({
+          error: 'Zu dieser Zeit ist bereits etwas eingetragen.',
+          konflikt: true,
+          termine: konflikte.map((k) => ({
+            id: k.id,
+            zeit: String(k.uhrzeit_von).substring(0, 5) + '–' + String(k.uhrzeit_bis).substring(0, 5),
+            wer: k.wer,
+            leistung: k.termin_typ || 'ohne Angabe',
+          })),
+        });
+      }
+    }
     const { rows } = await query(
       `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, fahrzeug_id, status)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'bestaetigt') RETURNING *`,
@@ -139,7 +173,24 @@ router.post('/', async (req, res, next) => {
 // ── PUT /api/termine/:id ──
 router.put('/:id', async (req, res, next) => {
   try {
-    const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status, kunden_id, kontakt_name, kontakt_telefon } = req.body;
+    const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status, kunden_id, kontakt_name, kontakt_telefon, trotzdem } = req.body;
+    // Verschieben ist derselbe Fall wie Neuanlegen: Wer einen Termin auf eine belegte Zeit
+    // zieht, soll es sehen. Der eigene Termin zaehlt dabei nicht als Konflikt.
+    if (trotzdem !== true && datum && uhrzeit_von && uhrzeit_bis) {
+      const konflikte = await terminKonflikte(datum, uhrzeit_von, uhrzeit_bis, req.params.id);
+      if (konflikte.length) {
+        return res.status(409).json({
+          error: 'Zu dieser Zeit ist bereits etwas eingetragen.',
+          konflikt: true,
+          termine: konflikte.map((k) => ({
+            id: k.id,
+            zeit: String(k.uhrzeit_von).substring(0, 5) + '–' + String(k.uhrzeit_bis).substring(0, 5),
+            wer: k.wer,
+            leistung: k.termin_typ || 'ohne Angabe',
+          })),
+        });
+      }
+    }
     const { rows } = await query(
       `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, termin_typ=$4, artikel_id=$5,
        kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=COALESCE($9, status),

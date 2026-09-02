@@ -52,7 +52,7 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
     // Termine, Rechnungen und Kontaktanfragen — eine unvollstaendige Auskunft ist selbst ein
     // Verstoss. Spalten sind einzeln aufgezaehlt, damit keine internen Token mitgehen
     // (termine.bestaetigung_token) und keine internen Notizen zu Dritten.
-    const [k, einl, docs, anf, fz, trm, rech] = await Promise.all([
+    const [k, einl, docs, anf, fz, trm, rech, prot, kpreise] = await Promise.all([
       query('SELECT * FROM kunden WHERE id=$1', [kid]),
       query('SELECT beleg_nr,reifen_groesse,reifen_typ,lagerplatz,status,eingelagert_am FROM einlagerungen WHERE kunden_id=$1', [kid]),
       query('SELECT typ,titel,erstellt_am,unterschrift_datum FROM kunden_dokumente WHERE kunden_id=$1', [kid]),
@@ -64,6 +64,21 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
       query(`SELECT rechnungsnr,status,rechnungsdatum,leistungsdatum,faelligkeit,
                     netto_summe,mwst_summe,brutto_summe,zahlungsstatus,bezahlt_am
                FROM rechnungen WHERE kunden_id=$1 ORDER BY rechnungsdatum DESC`, [kid]),
+      // Werkstatt-Protokolle sind Daten UEBER die Person (Fahrzeugzustand, Maengel,
+      // Kilometerstand, Unterschrift) und gehoeren damit in die Auskunft. Art. 15 kennt
+      // keine Unterscheidung zwischen "intern" und "fuer den Kunden bestimmt".
+      // Dateipfade zu Fotos und PDF bleiben draussen: Sie sind kein Inhalt, sondern ein
+      // Speicherort — stattdessen wird die Anzahl genannt, damit der Kunde weiss, dass es
+      // sie gibt und sie anfordern kann.
+      query(`SELECT typ, kennzeichen, km_stand, maengel, unterschrift_name, erstellt_am,
+                    COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(fotos)='array' THEN fotos ELSE '[]'::jsonb END),0) AS anzahl_fotos,
+                    (pdf_pfad IS NOT NULL) AS pdf_vorhanden,
+                    checkliste
+               FROM protokolle WHERE kunden_id=$1 ORDER BY erstellt_am DESC`, [kid]),
+      // Persoenliche Sonderpreise sind eine auf die Person bezogene Information.
+      query(`SELECT a.name AS leistung, p.preis
+               FROM kunden_preise p JOIN artikel a ON a.id = p.artikel_id
+              WHERE p.kunden_id=$1 ORDER BY a.name`, [kid]),
     ]);
     if (!k.rows.length) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
     // Kontaktanfragen haengen nicht am Kundendatensatz, sondern nur an der E-Mail-Adresse.
@@ -87,6 +102,8 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
         termine: trm.rows,
         rechnungen: rech.rows,
         dokumente: docs.rows,
+        werkstatt_protokolle: prot.rows,
+        persoenliche_preise: kpreise.rows,
         kontaktanfragen: kontakt,
         dsgvo_anfragen: anf.rows,
       },

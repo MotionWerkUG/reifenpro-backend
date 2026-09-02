@@ -1580,7 +1580,9 @@ function api(method, path, body, opt) {
     if (!r.ok) {
       return r.json().catch(function() { return {}; }).then(function(e) {
         var err = new Error(e.error || e.message || ('Fehler ' + r.status));
-        err.code = e.code; err.status = r.status;
+        // Ganze Antwort mitgeben: Manche Fehler tragen Nutzdaten, die der Aufrufer braucht
+        // (z.B. die Liste kollidierender Termine bei einer Doppelbuchung).
+        err.code = e.code; err.status = r.status; err.daten = e;
         throw err;
       });
     }
@@ -4607,14 +4609,32 @@ function saveNT() {
     kennzeichen: kz.trim() || null,
     beschreibung: gv('nt-bez'), notizen_intern: gv('nt-int')
   };
+  ntAbsenden(data, false);
+}
+// Speichert den Termin. Meldet der Server eine Ueberschneidung, wird sie gezeigt und
+// nachgefragt — nicht verboten. Zwei Termine zur selben Zeit koennen gewollt sein
+// (einer bringt nur die Raeder, der andere wartet); nur soll es niemand versehentlich tun.
+function ntAbsenden(data, trotzdem) {
+  var nutzlast = trotzdem ? Object.assign({}, data, { trotzdem: true }) : data;
   var prom = ntEditId
-    ? api('PUT', '/termine/' + ntEditId, data)
-    : api('POST', '/termine', data);
+    ? api('PUT', '/termine/' + ntEditId, nutzlast)
+    : api('POST', '/termine', nutzlast);
   prom.then(function() {
     notify(ntEditId ? 'Termin gespeichert!' : 'Termin angelegt!');
     closeModal('nt'); ntEditId = null;
     loadTermine();
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    var d = e.daten || {};
+    if (e.status === 409 && d.konflikt && d.termine && d.termine.length) {
+      var liste = d.termine.map(function(t) {
+        return '• ' + t.zeit + ' Uhr — ' + t.leistung + ' (' + t.wer + ')';
+      }).join('\n');
+      if (confirm('Zu dieser Zeit ist bereits eingetragen:\n\n' + liste
+        + '\n\nTermin trotzdem anlegen?')) ntAbsenden(data, true);
+      return;
+    }
+    notify(e.message, 'err');
+  });
 }
 function terminAbsagen(id) {
   var grund = prompt('Grund für Absage (optional):') || '';
