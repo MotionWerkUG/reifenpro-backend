@@ -323,7 +323,7 @@ function renderSektion(s, f, oz) {
     var info = '<div class="k-card">' +
       '<h3>' + esc(f.firmenname || 'Schröder & Scholz') + '</h3>' +
       '<p>' + (adr || '<span style="color:#8b949e">Adresse folgt in Kürze.</span>') + '</p>' +
-      (f.telefon ? '<p>Telefon: <a href="tel:' + esc(f.telefon) + '">' + esc(f.telefon) + '</a></p>' : '') +
+      (f.telefon ? '<p>Telefon: <a href="tel:' + esc(telZiel(f.telefon)) + '">' + esc(f.telefon) + '</a></p>' : '') +
       (f.email ? '<p>E-Mail: <a href="mailto:' + esc(f.email) + '">' + esc(f.email) + '</a></p>' : '') +
       (mapsLink ? '<p style="margin-top:14px"><a class="btn-ghost" href="' + mapsLink + '" target="_blank" rel="noopener">Route planen</a></p>' : '') +
       '</div>';
@@ -374,10 +374,12 @@ function navHtml(f) {
 // Telefon in der Kopfzeile — staerkster Hebel auf dem Handy (Anruf mit einem Tipp).
 // Bleibt auf schmalen Bildschirmen sichtbar, waehrend die uebrigen Menuepunkte einklappen.
 var ICON_TEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z"/></svg>';
+// Waehlbares tel:-Ziel: Leer- und Trennzeichen raus, sonst scheitern manche Wähl-Apps.
+// Die Anzeige bleibt immer die gepflegte Schreibweise aus den Firmendaten.
+function telZiel(nr) { return String(nr || '').replace(/[^\d+]/g, ''); }
 function telHtml(f) {
   if (!f.telefon) return '';
-  // tel:-Ziel ohne Leerzeichen/Trennzeichen, Anzeige bleibt die gepflegte Schreibweise
-  var ziel = String(f.telefon).replace(/[^\d+]/g, '');
+  var ziel = telZiel(f.telefon);
   if (!ziel) return '';
   return '<a class="nav-tel" href="tel:' + esc(ziel) + '" aria-label="Anrufen: ' + esc(f.telefon) + '">' +
     ICON_TEL + '<span>' + esc(f.telefon) + '</span></a>';
