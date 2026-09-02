@@ -31,7 +31,8 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   const nurUuid = (a) => (Array.isArray(a) ? a : []).filter((x) => UUID_RE.test(String(x))).slice(0, 20);
   mainIds = nurUuid(mainIds); zusatzIds = nurUuid(zusatzIds);
   const ids = mainIds.concat(zusatzIds);
-  const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
+  const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [],
+                 rabatt_summe: 0, brutto_nach_rabatt: 0, gutschein: null, rabatt_zeilen: [] };
   if (!ids.length) return leer;
   const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false; // Standard: Preise inkl. MwSt (Brutto)
   // Nur Leistungen, die im Admin ausdruecklich fuer die Online-Buchung freigegeben sind.
@@ -83,13 +84,14 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   //  (2) Gerundet wird EINMAL je Gruppe auf die Summe, nicht je Zeile.
   //  (3) Gruppiert wird nach Rabattsatz UND Steuersatz (heute alles 19 %, der Aufbau muss
   //      aber mehrere Saetze aushalten).
-  let rabattSumme = 0, gutscheinInfo = null;
+  let rabattSumme = 0, gutscheinInfo = null, rabattZeilen = [];
   if (gutscheinCode && positionen.length) {
     const g = await gutschein.ladeGutschein(gutscheinCode);
     if (g) {
       const saetze = await gutschein.saetzeFuer(g, positionen.map((p) => p.artikel_id));
       positionen.forEach((pos) => { pos.rabatt_prozent = saetze[pos.artikel_id] || 0; });
-      rabattSumme = gutschein.rabattAusPositionen(positionen).summe;
+      const _r = gutschein.rabattAusPositionen(positionen);
+      rabattSumme = _r.summe; rabattZeilen = _r.zeilen;
       // Effektiver Gesamtsatz nur als Anzeige- und Rueckfallwert (termine.gutschein_rabatt ist
       // ein einzelner Integer und kann die Staffelung nicht abbilden -- massgeblich ist der
       // Satz je Position oben).
@@ -100,7 +102,10 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   return {
     positionen: positionen, netto: round2(netto), mwst: round2(brutto - netto), brutto: round2(brutto),
     dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt,
-    rabatt_summe: rabattSumme, brutto_nach_rabatt: bruttoNach, gutschein: gutscheinInfo
+    rabatt_summe: rabattSumme, brutto_nach_rabatt: bruttoNach, gutschein: gutscheinInfo,
+    // Je Rabattsatz eine Zeile ("25 %: -10,00"). Ein einzelner Prozentsatz kann eine gestaffelte
+    // Aktion nicht abbilden; wer nur effektiv_prozent anzeigt, zeigt fast immer eine falsche Zahl.
+    rabatt_zeilen: rabattZeilen
   };
 }
 
@@ -209,7 +214,8 @@ router.get('/kalkulation', stoeberLimiter, async (req, res, next) => {
     const split = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
     const mainIds = split(req.query.main_ids || req.query.artikel_id);
     const zusatzIds = split(req.query.zusatz_ids);
-    if (!mainIds.length) return res.json({ positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 0, gewaehlt: [] });
+    if (!mainIds.length) return res.json({ positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 0, gewaehlt: [],
+                                           rabatt_summe: 0, brutto_nach_rabatt: 0, gutschein: null, rabatt_zeilen: [] });
     // Gutscheincode mitgeben (?gutschein= oder ?code=, wie im Frontend und auf dem Flyer):
     // Der Assistent zeigt damit ab Schritt 1 durchgehend alten und neuen Preis -- er RECHNET
     // aber nichts selbst, sondern zeigt nur, was hier herauskommt. Sonst zeigte er am Ende
@@ -407,15 +413,22 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       // Zollgroesse und Fahrzeugart). Der Gutschein steht bereits im Block darueber, hier nicht doppelt.
       const eurA = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
       const posHtmlA = kalk.positionen.map(p => escAttr(p.bezeichnung) + ': ab ' + eurA(p.zeilen_brutto)).join('<br>');
+      const rabattHtmlA = (kalk.rabatt_zeilen || []).length
+        ? ('<br><br><strong>Gutschein ' + escAttr(gutscheinCode) + '</strong><br>'
+           + kalk.rabatt_zeilen.map(r => 'Nachlass ' + r.satz + ' %: −' + eurA(r.betrag)).join('<br>')
+           + '<br><strong>Summe nach Abzug: ab ' + eurA(kalk.brutto_nach_rabatt) + '</strong>'
+           + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>')
+        : '';
       const preisBlockA = posHtmlA
         ? ('<strong>Ihre Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtmlA
            + '<br><strong>Summe (Schätzung): ab ' + eurA(kalk.brutto) + '</strong>'
+           + rabattHtmlA
            + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
         : '';
       const htmlGast = portalMailHtml(einst, {
         titel: 'Bitte bestätigen Sie Ihre Terminanfrage', name: vn,
         absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + gutscheinCode + ' (−' + gutscheinRabatt + ' %)' : ''),
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + escAttr(gutscheinCode) : ''),
           preisBlockA,
           // Bewusst kein "mit einem Klick": der Button fuehrt auf eine Seite, auf der der Termin
           // erst bestaetigt wird (der Zwischenschritt schuetzt davor, dass Mail-Scanner den Termin
@@ -536,7 +549,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       const preisBlock = posHtml
         ? ('<strong>Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtml
            + '<br><strong>Summe (Schätzung): ab ' + eur(summeBrutto) + '</strong>'
-           + (t.gutschein_code && rabattHtml ? '<br><br><strong>Gutschein ' + t.gutschein_code + '</strong><br>' + rabattHtml + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>' : '')
+           + (t.gutschein_code && rabattHtml ? '<br><br><strong>Gutschein ' + escAttr(t.gutschein_code) + '</strong><br>' + rabattHtml + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>' : '')
            + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
         : '';
       // #6 Konto-CTA (sekundaer) unter dem Bestaetigungstext. Statt der E-Mail in der URL geht jetzt ein
@@ -567,7 +580,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       if (einst.email) {
         await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: t.kontakt_email,
           subject: 'Neue Online-Buchung (Gast, bestätigt): ' + (t.termin_typ || '') + ' am ' + dF + ' ' + hhmm,
-          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code && rabattZeilen.length ? '<br>Gutschein ' + t.gutschein_code + ': ' + rabattZeilen.map(r => '−' + eur(r.betrag) + ' (' + r.satz + ' %)').join(', ') : '') + '</p>' });
+          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code && rabattZeilen.length ? '<br>Gutschein ' + escAttr(t.gutschein_code) + ': ' + rabattZeilen.map(r => '−' + eur(r.betrag) + ' (' + r.satz + ' %)').join(', ') : '') + '</p>' });
       }
     } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
 
