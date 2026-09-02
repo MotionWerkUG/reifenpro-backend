@@ -419,7 +419,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="ni" data-page="kalender">Kalender</div>
       <div class="ni" data-page="werkstatt">Werkstatt</div>
       <div class="ni" data-page="statistik">Statistik</div>
-      <div class="ni" data-page="besucher">Besucher</div>
       <div class="ni" data-page="rechnungen">Rechnungen</div>
       <div class="ni" data-page="kontakt">Kontaktanfragen</div>
       <div class="ni" data-page="gewerbeanf">Gewerbe-Anfragen</div>
@@ -617,12 +616,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-statistik">
         <div class="ph">
           <div class="pt">Statistik</div>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div id="stat-jahr-nav" style="display:flex;align-items:center;gap:8px">
             <button class="btn btn-g btn-sm" onclick="statJahr(-1)">Zurück</button>
             <div id="stat-jahr-anzeige" style="font-size:16px;font-weight:700;min-width:60px;text-align:center"></div>
             <button class="btn btn-g btn-sm" onclick="statJahr(1)">Vor</button>
           </div>
+          <select id="bs-zeitraum" onchange="loadBesucher()" style="display:none;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:inherit">
+            <option value="7">Letzte 7 Tage</option>
+            <option value="30" selected>Letzte 30 Tage</option>
+            <option value="90">Letzte 90 Tage</option>
+            <option value="365">Letztes Jahr</option>
+          </select>
         </div>
+        <div id="stat-tabs" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="etab on" data-stab="betrieb" onclick="showStatTab('betrieb')">Betrieb</button>
+          <button class="etab" data-stab="homepage" onclick="showStatTab('homepage')">Homepage</button>
+        </div>
+        <div class="stab-panel" data-spanel="betrieb">
         <div class="stats" style="grid-template-columns:repeat(3,1fr)">
           <div class="sc sc-b"><div class="sv" id="stat-gesamt">0</div><div class="sl">Termine gesamt</div></div>
           <div class="sc sc-g"><div class="sv" id="stat-online">0</div><div class="sl">Online gebucht</div></div>
@@ -634,19 +644,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div id="stat-monate-legende" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:12px"></div>
         </div>
         <div class="pnl"><div class="ptitle">Saisonvergleich</div><div id="stat-saison"></div></div>
-      </div>
-
-      <!-- BESUCHER (Homepage-Statistik aus dem Zugriffsprotokoll, ohne Cookies) -->
-      <div class="page" id="page-besucher">
-        <div class="ph">
-          <div class="pt">Besucher der Homepage</div>
-          <select id="bs-zeitraum" onchange="loadBesucher()" style="padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:inherit">
-            <option value="7">Letzte 7 Tage</option>
-            <option value="30" selected>Letzte 30 Tage</option>
-            <option value="90">Letzte 90 Tage</option>
-            <option value="365">Letztes Jahr</option>
-          </select>
         </div>
+
+        <!-- Homepage-Statistik aus dem Zugriffsprotokoll des Webservers, ohne Cookies -->
+        <div class="stab-panel" data-spanel="homepage" style="display:none">
         <div id="bs-kacheln" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px"></div>
         <div class="pnl" style="margin-bottom:18px">
           <div class="ptitle">Aufrufe je Tag</div>
@@ -658,6 +659,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div class="pnl"><div class="ptitle">Woher die Besucher kommen</div><div id="bs-herkunft"></div></div>
         </div>
         <div style="font-size:12px;color:var(--muted);margin-top:14px" id="bs-hinweis"></div>
+        </div>
       </div>
 
       <!-- MITARBEITER -->
@@ -1814,7 +1816,6 @@ function showPage(n, fromPop) {
   if (n === 'kalender') { renderKalender(); loadTermine(); }
   if (n === 'werkstatt') { loadTermineWerkstatt(); }
   if (n === 'statistik') loadStatistik();
-  if (n === 'besucher') loadBesucher();
   if (n === 'dashboard') { loadAktivitaet(); loadHeute(); loadAbzurechnen(); loadKontakt(); loadGewerbeAnf(); loadDokFaellig(); }
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
@@ -4896,6 +4897,23 @@ function druckListe() {
 }
 
 // ── STATISTIK ──
+// Reiter innerhalb der Statistik: Betrieb (Termine, Einlagerungen) und Homepage (Besucher).
+// Die Jahresnavigation gehoert nur zum Betrieb, die Zeitraumauswahl nur zur Homepage —
+// beide werden mitgeschaltet, sonst stehen Bedienelemente da, die nichts tun.
+function showStatTab(name) {
+  Array.prototype.forEach.call(document.querySelectorAll('#stat-tabs .etab'), function(b) {
+    b.classList.toggle('on', b.getAttribute('data-stab') === name);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#page-statistik .stab-panel'), function(p) {
+    p.style.display = p.getAttribute('data-spanel') === name ? '' : 'none';
+  });
+  var jahr = document.getElementById('stat-jahr-nav');
+  var zeitraum = document.getElementById('bs-zeitraum');
+  if (jahr) jahr.style.display = (name === 'betrieb') ? 'flex' : 'none';
+  if (zeitraum) zeitraum.style.display = (name === 'homepage') ? '' : 'none';
+  if (name === 'homepage') loadBesucher();
+}
+
 // Besucherstatistik der Homepage. Die Zahlen stammen aus dem Zugriffsprotokoll des
 // Webservers — keine Cookies, kein Zaehlpixel, keine Daten an Dritte.
 function loadBesucher() {
