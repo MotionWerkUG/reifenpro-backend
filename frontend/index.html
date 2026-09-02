@@ -349,6 +349,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .einst-rail { display: flex; flex-direction: column; gap: 3px; position: sticky; top: 12px; }
 .einst-rail .etab { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 9px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: var(--muted); font-weight: 500; cursor: pointer; transition: background .12s, color .12s; }
 .einst-rail .etab:hover { background: var(--panel); }
+.stabs { display: flex; gap: 2px; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
+.stabs .stab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 15px; font-family: inherit; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; transition: color .12s, border-color .12s; }
+.stabs .stab:hover { color: var(--text); }
+.stabs .stab.on { color: var(--accent-text); border-bottom-color: var(--accent-text); font-weight: 700; }
 .einst-rail .etab.on { background: var(--panel); color: var(--accent-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent-text); }
 .einst-content { min-width: 0; }
 @media (max-width: 720px) { .einst-split { grid-template-columns: 1fr; gap: 10px; } .einst-rail { flex-direction: row; flex-wrap: wrap; position: static; } .einst-rail .etab { width: auto; } .einst-rail .etab.on { box-shadow: none; border-bottom: 2px solid var(--accent-text); } }
@@ -628,9 +632,9 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <option value="365">Letztes Jahr</option>
           </select>
         </div>
-        <div id="stat-tabs" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
-          <button class="etab on" data-stab="betrieb" onclick="showStatTab('betrieb')">Betrieb</button>
-          <button class="etab" data-stab="homepage" onclick="showStatTab('homepage')">Homepage</button>
+        <div id="stat-tabs" class="stabs">
+          <button class="stab on" data-stab="betrieb" onclick="showStatTab('betrieb')">Betrieb</button>
+          <button class="stab" data-stab="homepage" onclick="showStatTab('homepage')">Homepage</button>
         </div>
         <div class="stab-panel" data-spanel="betrieb">
         <div class="stats" style="grid-template-columns:repeat(3,1fr)">
@@ -4921,7 +4925,7 @@ function druckListe() {
 // Die Jahresnavigation gehoert nur zum Betrieb, die Zeitraumauswahl nur zur Homepage —
 // beide werden mitgeschaltet, sonst stehen Bedienelemente da, die nichts tun.
 function showStatTab(name) {
-  Array.prototype.forEach.call(document.querySelectorAll('#stat-tabs .etab'), function(b) {
+  Array.prototype.forEach.call(document.querySelectorAll('#stat-tabs .stab'), function(b) {
     b.classList.toggle('on', b.getAttribute('data-stab') === name);
   });
   Array.prototype.forEach.call(document.querySelectorAll('#page-statistik .stab-panel'), function(p) {
