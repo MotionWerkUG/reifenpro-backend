@@ -48,7 +48,20 @@ app.use(/^\/api\/kunden\/[^/]+\/dokumente/, express.json({ limit: '25mb' }));
 // Abfotografierter, unterschriebener Beleg vom Handy (QR-Weg): Base64 im JSON-Body.
 app.use('/api/dokument-scan/upload', express.json({ limit: '28mb' }));
 app.use(express.json({ limit: '1mb' }));
-app.use(morgan('combined'));
+// Zugriffsprotokoll im ueblichen combined-Format -- mit EINER Ausnahme: Bei den
+// Adress-Vorschlaegen (/api/adresse/*) wird der Suchbegriff NICHT mitprotokolliert.
+// Grund: Dort steht die getippte Anschrift des Besuchers im Klartext, neben seiner IP.
+// Wir brauchen sie nicht (fuer die Fehlersuche genuegen Pfad, Methode, Status und Dauer),
+// und ohne sie stimmt die Zusage in der Datenschutzerklaerung, dass wir die Suchbegriffe
+// nicht speichern. Aufgefallen beim Gegenlesen genau dieser Zusage.
+// Bewusst nur dieser eine Pfad -- alles andere wird unveraendert protokolliert.
+morgan.token('url-ohne-adresssuche', function (req) {
+  const u = req.originalUrl || req.url || '';
+  // Kleinschreibung erzwungen: Express routet case-insensitiv, /API/adresse/... wuerde also
+  // bedient, am Scrubbing aber vorbeilaufen und den Suchbegriff doch ins Protokoll schreiben.
+  return u.toLowerCase().indexOf('/api/adresse/') === 0 ? u.split('?')[0] : u;
+});
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url-ohne-adresssuche HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 
 app.get('/health', function(req, res) {
   res.json({ status: 'ok', zeit: new Date().toISOString(), version: '1.3.0' });
