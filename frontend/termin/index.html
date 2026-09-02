@@ -106,7 +106,7 @@
     <div class="step on" id="st1">1 · Leistungen</div>
     <div class="step" id="st2">2 · Zusatz</div>
     <div class="step" id="st3">3 · Fahrzeug &amp; Termin</div>
-    <div class="step" id="st4">4 · Ihre Daten</div>
+    <div class="step" id="st4">4 · Deine Daten</div>
   </div>
 
   <!-- Mitlaufender Preis -->
@@ -122,7 +122,7 @@
 
   <!-- Schritt 1: Hauptleistungen (Mehrfachauswahl) -->
   <div id="p1">
-    <h1>Welche Leistungen benötigen Sie?</h1>
+    <h1>Welche Leistungen brauchst du?</h1>
     <div class="sub">Mehrfachauswahl möglich. Die Preise sind „ab"-Preise (PKW); je nach Fahrzeug kann ein Zuschlag hinzukommen.</div>
     <div class="cards" id="haupt-cards"></div>
   </div>
@@ -130,7 +130,7 @@
   <!-- Schritt 2: Zusatzleistungen -->
   <div id="p2" class="hidden">
     <h2 class="schritt">Zusatzleistungen</h2>
-    <div class="sub">Optional – wählen Sie passende Zusatzleistungen (Mehrfachauswahl möglich).</div>
+    <div class="sub">Optional – wähle passende Zusatzleistungen (Mehrfachauswahl möglich).</div>
     <div class="cards" id="zusatz-cards"></div>
   </div>
 
@@ -154,14 +154,14 @@
         <input id="f-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">
       </div>
     </div>
-    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Ihr gewünschtes Termindatum (nicht das Datum der Erstzulassung). <span id="buchbar-hint"></span></div></div>
+    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Dein gewünschtes Termindatum (nicht das Datum der Erstzulassung). <span id="buchbar-hint"></span></div></div>
     <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div id="slots"></div><div class="info" id="slots-info"></div></div>
   </div>
 
   <!-- Schritt 4: Daten & Bestätigung -->
   <div id="p4" class="hidden">
-    <h2 class="schritt">Ihre Kontaktdaten</h2>
-    <div class="sub">Damit wir Ihren Termin bestätigen und ggf. eine Rechnung erstellen können.</div>
+    <h2 class="schritt">Deine Kontaktdaten</h2>
+    <div class="sub">Damit wir deinen Termin bestätigen und dir ggf. eine Rechnung schicken können.</div>
     <div class="sum" id="sum-box"></div>
     <div class="field"><label class="lab">Gutschein-Code (optional)</label>
       <div class="gs-field">
@@ -220,7 +220,7 @@
     <h2 class="schritt" id="done-title">Termin bestätigt!</h2>
     <div id="done-text" class="sub" style="margin-top:10px"></div>
     <div id="done-konto" class="hidden" style="margin:24px auto 0;max-width:440px;padding:18px 20px;border:1px solid #e5e7eb;border-radius:12px;background:#faf9f6;text-align:center">
-      <div id="done-konto-hinweis" style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</div>
+      <div id="done-konto-hinweis" style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und deine eingelagerten Räder jederzeit einsehen.</div>
       <a id="done-konto-link" href="#" style="display:inline-block;text-decoration:none;background:#eab308;color:#171717;font-weight:700;padding:11px 20px;border-radius:9px;font-size:15px">Kundenkonto erstellen</a>
     </div>
     <div style="margin-top:16px"><a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none">Zur Startseite</a></div>
@@ -261,7 +261,7 @@ function ladeLeistungen(){
     setDatumMin(); setBuchbarHinweis();
     renderCards('haupt-cards', LEIST.haupt, 'haupt');
     renderCards('zusatz-cards', LEIST.zusatz, 'zusatz');
-    if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Bitte rufen Sie uns an.</p>';
+    if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Ruf uns bitte kurz an.</p>';
     vorauswahlAusUrl(); preisLive();
   }).catch(function(){ document.getElementById('haupt-cards').innerHTML='<p class="muted">Leistungen konnten nicht geladen werden.</p>'; });
 }
@@ -391,7 +391,7 @@ function gsBrutto(brutto){
 }
 function renderSum(){
   var box=document.getElementById('sum-box');
-  box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
+  box.innerHTML='<h3>Deine Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
   var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'');
   fetch(url).then(function(r){return r.json();}).then(function(k){
     var rows='';
@@ -416,8 +416,8 @@ function renderSum(){
     } else {
       rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span>'+eur(k.brutto)+'</span></div>';
     }
-    box.innerHTML='<h3>Ihre Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis Ihrer Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
-  }).catch(function(){ box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
+    box.innerHTML='<h3>Deine Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis deiner Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
+  }).catch(function(){ box.innerHTML='<h3>Deine Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
 }
 function zeigeSchritt(n){
   state.schritt=n;
@@ -432,11 +432,11 @@ function zeigeSchritt(n){
 function fehler(m){var e=document.getElementById('err');e.textContent=m;e.style.display='block';}
 function weiter(){
   var n=state.schritt;
-  if(n===1){ if(!state.haupt.length){fehler('Bitte wählen Sie mindestens eine Leistung.');return;} zeigeSchritt(2); return; }
+  if(n===1){ if(!state.haupt.length){fehler('Bitte wähle mindestens eine Leistung.');return;} zeigeSchritt(2); return; }
   if(n===2){ zeigeSchritt(3); return; }
   if(n===3){
-    if(!state.fahrzeugtyp){fehler('Bitte wählen Sie die Fahrzeugart.');return;}
-    if(!kz()){fehler('Bitte geben Sie das Kennzeichen ein.');return;}
+    if(!state.fahrzeugtyp){fehler('Bitte wähle die Fahrzeugart.');return;}
+    if(!kz()){fehler('Bitte gib das Kennzeichen ein.');return;}
     if(!state.datum){fehler('Bitte ein Datum wählen.');return;}
     if(!state.slot){fehler('Bitte eine Uhrzeit wählen.');return;}
     zeigeSchritt(4); return;
@@ -482,7 +482,7 @@ function absenden(){
     }
     ADR_BESTAETIGT = true;
   }
-  if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
+  if(!d.datenschutz){fehler('Bitte bestätige, dass du die Datenschutzerklärung gelesen hast.');return;}
   var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
   fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
     .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})
@@ -496,10 +496,10 @@ function absenden(){
       // 'bestaetigung_noetig' (Double-Opt-in) vs. direkte Bestaetigung.
       if (j.message==='bestaetigung_noetig') {
         document.getElementById('done-title').textContent='Fast geschafft – bitte bestätigen';
-        document.getElementById('done-text').textContent='Wir haben Ihnen eine E-Mail geschickt. Bitte bestätigen Sie Ihren Termin am '+dat+' um '+zeit+' Uhr über den Link darin – erst dann ist er verbindlich gebucht.'+betrag;
+        document.getElementById('done-text').textContent='Wir haben dir eine E-Mail geschickt. Bitte bestätige deinen Termin am '+dat+' um '+zeit+' Uhr über den Link darin – erst dann ist er verbindlich gebucht.'+betrag;
       } else {
         document.getElementById('done-title').textContent='Termin bestätigt!';
-        document.getElementById('done-text').textContent='Ihr Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
+        document.getElementById('done-text').textContent='Dein Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Du bekommst eine Bestätigung per E-Mail.'+betrag;
       }
       // Optionaler Konto-CTA (sekundaer). KEINE personenbezogenen Daten in der URL:
       // die Vorbefuellung laeuft ueber den signierten Token, den das Backend erst beim
@@ -509,8 +509,8 @@ function absenden(){
       var kl=document.getElementById('done-konto-link'), kh=document.getElementById('done-konto-hinweis');
       var wartetAufBestaetigung = (j.message==='bestaetigung_noetig');
       if(kh) kh.textContent = wartetAufBestaetigung
-        ? 'Danach können Sie Ihr Kundenkonto direkt aus derselben E-Mail heraus anlegen – Ihre Daten sind dann schon eingetragen, Sie vergeben nur noch ein Passwort. Damit sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.'
-        : 'Mit einem Kundenkonto sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.';
+        ? 'Danach kannst du dein Kundenkonto direkt aus derselben E-Mail heraus anlegen – deine Daten sind dann schon eingetragen, du vergibst nur noch ein Passwort. Damit siehst du deine Termine und eingelagerten Räder jederzeit online.'
+        : 'Mit einem Kundenkonto siehst du deine Termine und eingelagerten Räder jederzeit online.';
       // Vor der Bestaetigung KEIN Knopf: der schnelle Weg (ein Klick, ohne zweite Mail) haengt am
       // Token aus der Bestaetigungsmail. Ein Knopf hier wuerde in den langsameren Weg fuehren und
       // dem Satz darueber widersprechen.
