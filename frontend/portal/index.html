@@ -390,6 +390,13 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
           <label data-i18n="inch">Zollgröße</label>
           <select id="buchen-zoll" onchange="buchenSlotsLaden()"><option value="">—</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option></select>
         </div>
+        <!-- Gutscheincode: Im Portal gibt es kein Banner und keinen QR-Einstieg, der Kunde hat
+             den Code nur auf dem Flyer in der Hand. Ohne sichtbares Feld koennte er ihn hier
+             gar nicht einloesen -- und wir bewerben in jeder Bestaetigungsmail ein Konto. -->
+        <div class="fg" style="margin-bottom:10px">
+          <label data-i18n="voucher_code">Gutscheincode (optional)</label>
+          <input id="buchen-gutschein" autocapitalize="characters" autocomplete="off" placeholder="z. B. WINTER2026" oninput="buchenSlotsLaden()">
+        </div>
         <div id="buchen-preis" style="font-size:14px;font-weight:700;color:var(--accent-text);margin-bottom:10px"></div>
         <div class="fg">
           <label data-i18n="date">Datum</label>
@@ -551,6 +558,7 @@ var I18N = {
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
     past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    voucher_code: 'Gutscheincode (optional)', voucher_invalid: 'Code ungültig oder abgelaufen',
     address_incomplete: 'Bitte Straße, PLZ und Ort vollständig angeben.', address_no_number: 'Bitte die Hausnummer mit angeben (oder ein Postfach).', address_zip: 'Die PLZ besteht aus fünf Ziffern.',
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
@@ -618,6 +626,7 @@ var I18N = {
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
     past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    voucher_code: 'Voucher code (optional)', voucher_invalid: 'Code invalid or expired',
     address_incomplete: 'Please provide street, postcode and city.', address_no_number: 'Please include the house number (or a PO box).', address_zip: 'The postcode has five digits.',
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
@@ -1299,10 +1308,31 @@ function buchenSlotsLaden() {
   terminBuchenAbbrechen(); // evtl. offene Zusammenfassung schliessen (Eingaben geaendert)
   if (!artikelId) { wrap.classList.add('hidden'); return; }
   // Preis + Dauer aus Staffel (Typ + Zoll) anzeigen
-  papi('GET', '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(p) {
-    if (p && p.preis != null) {
-      var brutto = Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100);
-      preisEl.textContent = t('price') + ': ' + brutto.toFixed(2).replace('.', ',') + ' €' + (p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '');
+  // Preis + Dauer, bei eingetragenem Gutschein mit altem und neuem Betrag. Gerechnet wird
+  // ausschliesslich serverseitig -- der Assistent zeigt nur an, was zurueckkommt. Wuerde er
+  // selbst rechnen, koennte er einen anderen Betrag zeigen als Buchung und Rechnung.
+  var codeEl = document.getElementById('buchen-gutschein');
+  var code = codeEl ? codeEl.value.trim() : '';
+  var url = '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)
+          + (code ? '&gutschein=' + encodeURIComponent(code) : '');
+  papi('GET', url).then(function(p) {
+    if (!p || p.preis == null) return;
+    var eur = function(n) { return Number(n).toFixed(2).replace('.', ',') + ' €'; };
+    var dauer = p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '';
+    if (p.gutschein && p.rabatt_summe > 0) {
+      // Alter Preis durchgestrichen, neuer daneben -- wie im Gaeste-Assistenten.
+      preisEl.innerHTML = t('price') + ': <s style="color:var(--muted);font-weight:400">' + eur(p.brutto_vor_rabatt) + '</s> '
+        + '<span style="color:var(--accent-text)">' + eur(p.brutto_nach_rabatt) + '</span>'
+        + ' <span style="font-weight:400;color:var(--muted)">(' + pEsc(p.gutschein.code) + ', −' + p.gutschein.rabatt_prozent + ' %)</span>' + dauer;
+    } else if (code && p.gutschein === null) {
+      preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100)) + dauer
+        + ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';
+    } else {
+      // Bruttopreis kommt vom Server. Frueher rechnete die Oberflaeche hier selbst
+      // `preis * (1 + mwst/100)` -- die gepflegten Preise sind aber bereits Bruttopreise,
+      // also standen im Portal 19 % zu viel. Der Rueckfall gilt nur fuer alte Antworten.
+      var brutto = p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis);
+      preisEl.textContent = t('price') + ': ' + eur(brutto) + dauer;
     }
   }).catch(function() {});
   if (!datum) { wrap.classList.add('hidden'); return; }
@@ -1362,6 +1392,8 @@ function terminBuchen() {
     payload = { datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId, kennzeichen: kz || null, beschreibung: notiz || null, fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll };
   }
   if (notiz) rows.push([t('notes'), notiz]);
+  var _gc = document.getElementById('buchen-gutschein');
+  if (_gc && _gc.value.trim()) payload.gutschein_code = _gc.value.trim();
   pendingBuchung = { payload: payload, sammel: istSammel };
   var inhalt = rows.map(function(r) {
     return '<div><span style="color:var(--muted)">' + r[0] + ':</span> <strong>' + pEsc(r[1]) + '</strong></div>';
