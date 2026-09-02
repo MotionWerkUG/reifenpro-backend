@@ -5,6 +5,7 @@ const { query, withTransaction } = require('../db/index');
 const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
+const gutschein = require('../lib/gutschein');
 const { kundenMailHtml } = require('../lib/mail-template');
 const fs = require('fs');
 
@@ -202,6 +203,31 @@ router.post('/termine', authKunde, async (req, res, next) => {
     if (datum < heuteStr) return res.status(400).json({ error: 'Das gewählte Datum liegt in der Vergangenheit.' });
     const _sperre = vorBuchungsstart(einst && einst.buchbar_ab, datum);
     if (_sperre) return res.status(409).json({ error: _sperre });
+
+    // Gutschein (optional). Bis jetzt konnte ein angemeldeter Kunde den Flyer-Code gar nicht
+    // einloesen -- wir bewerben in jeder Bestaetigungsmail ein Kundenkonto und haetten es beim
+    // Rabatt bestraft. Dieselbe Logik wie im Gaeste-Weg, aus demselben Modul.
+    const _preisInkl = (einst && einst.preise_inkl_mwst) !== false;
+    const _mwst = Number(eff.mwst_satz != null ? eff.mwst_satz : (art.mwst_satz != null ? art.mwst_satz : 19));
+    const _preis = Number(eff.preis) || 0;
+    const _zeilenBrutto = _preisInkl ? gutschein.round2(_preis) : gutschein.round2(_preis * (1 + _mwst / 100));
+    const _zeilenNetto = _preisInkl ? gutschein.round2(_preis / (1 + _mwst / 100)) : gutschein.round2(_preis);
+    let _gCode = null, _gEffektiv = null, _rabattSumme = 0;
+    const _position = {
+      artikel_id: artikel_id, bezeichnung: art.name, rolle: 'haupt',
+      grundpreis_netto: _zeilenNetto, zuschlag_netto: 0, fahrzeugtyp: typ || null,
+      mwst_satz: _mwst, zeilen_netto: _zeilenNetto, zeilen_brutto: _zeilenBrutto
+    };
+    if (req.body.gutschein_code) {
+      const g = await gutschein.ladeGutschein(req.body.gutschein_code);
+      if (g) {
+        const saetze = await gutschein.saetzeFuer(g, [artikel_id]);
+        _position.rabatt_prozent = saetze[artikel_id] || 0;
+        _rabattSumme = gutschein.rabattAusPositionen([_position]).summe;
+        _gCode = g.code;
+        _gEffektiv = _zeilenBrutto > 0 ? Math.round(_rabattSumme / _zeilenBrutto * 100) : 0;
+      }
+    }
     const _bu = await query('SELECT 1 FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
     if (_bu.rows.length) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Betriebsurlaub).' });
     // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die Woche; Slot muss in eine Spanne fallen.
@@ -274,13 +300,17 @@ router.post('/termine', authKunde, async (req, res, next) => {
         const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e;
       }
       const ins = await client.query(
+        // `leistungen` wird jetzt auch im Portal geschrieben: Ohne die Positionsliste kann das
+        // Rechnungswesen den gestaffelten Nachlass gar nicht abbilden -- es baute die Positionen
+        // fuer Portal-Termine bisher aus dem Artikelstamm und haette den Rabatt nicht gesehen.
         `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
          datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung,
-         artikel_id, fahrzeug_id, status, portal_buchung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true) RETURNING *`,
+         artikel_id, fahrzeug_id, status, portal_buchung, leistungen, gutschein_code, gutschein_rabatt)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true,$13,$14,$15) RETURNING *`,
         [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
          datum, uhrzeit_von, uhrzeit_bis, art.name,
-         kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fzId]);
+         kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fzId,
+         JSON.stringify([_position]), _gCode, _gEffektiv]);
       return ins.rows;
     });
 
@@ -458,10 +488,44 @@ router.get('/artikel', authKunde, async (req, res, next) => {
 // ── GET /api/portal/daten/artikel/:id/preis ── effektiver Preis/Dauer nach Typ+Zoll
 router.get('/artikel/:id/preis', authKunde, async (req, res, next) => {
   try {
-    const a = (await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [req.params.id])).rows[0];
+    // Nur online freigegebene Leistungen -- sonst zeigt das Portal einen Preis fuer etwas an,
+    // das anschliessend nicht buchbar ist.
+    const a = await ladeBuchbarenArtikel(req.params.id);
     if (!a) return res.status(404).json({ error: 'Artikel nicht gefunden' });
     const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [req.params.id])).rows;
-    res.json(resolvePreis(a, varianten, req.query.typ || null, req.query.zoll));
+    const p = resolvePreis(a, varianten, req.query.typ || null, req.query.zoll);
+
+    // Optional mit Gutscheincode: Der Kunde soll im Portal denselben Vorher/Nachher-Preis sehen
+    // wie im Gaeste-Assistenten. Gerechnet wird HIER, nicht in der Oberflaeche -- sonst zeigte
+    // das Portal einen anderen Betrag als Buchung und Rechnung.
+    // Ein unbekannter oder abgelaufener Code ist kein Fehler: `gutschein` bleibt dann null und
+    // die Anzeige zeigt einfach den normalen Preis.
+    // Bruttopreis IMMER serverseitig ausrechnen und mitliefern -- auch ohne Gutschein.
+    // Die Oberflaeche rechnete bisher `preis * (1 + mwst/100)`, obwohl die gepflegten Preise
+    // bereits Bruttopreise sind (einstellungen.preise_inkl_mwst): Sie zeigte 47,60 statt 40,00,
+    // also 19 % zu viel. Wer im Portal buchte, sah einen hoeheren Preis als auf der Website und
+    // auf der spaeteren Rechnung.
+    const einst = (await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    const inkl = einst.preise_inkl_mwst !== false;
+    const mwst = Number(p.mwst_satz != null ? p.mwst_satz : 19);
+    const preis = Number(p.preis) || 0;
+    const brutto = inkl ? gutschein.round2(preis) : gutschein.round2(preis * (1 + mwst / 100));
+
+    const code = req.query.gutschein || req.query.code || null;
+    if (code) {
+      const g = await gutschein.ladeGutschein(code);
+      if (g) {
+        const saetze = await gutschein.saetzeFuer(g, [req.params.id]);
+        const satz = saetze[req.params.id] || 0;
+        const r = gutschein.rabattAusPositionen([{ zeilen_brutto: brutto, mwst_satz: mwst, rabatt_prozent: satz }]);
+        return res.json(Object.assign({}, p, {
+          gutschein: { code: g.code, rabatt_prozent: satz },
+          brutto_vor_rabatt: brutto, rabatt_summe: r.summe, brutto_nach_rabatt: gutschein.round2(brutto - r.summe)
+        }));
+      }
+      return res.json(Object.assign({}, p, { gutschein: null, brutto_vor_rabatt: brutto, rabatt_summe: 0, brutto_nach_rabatt: brutto }));
+    }
+    res.json(Object.assign({}, p, { brutto_vor_rabatt: brutto, rabatt_summe: 0, brutto_nach_rabatt: brutto }));
   } catch (e) { next(e); }
 });
 
