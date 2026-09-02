@@ -11,6 +11,7 @@
   --text: #201e1b; --muted: #6f6a61;
   --accent: #eab308; --accent-text: #87680c; --accent-ink: #1c1608; --adim: rgba(234,179,8,.18);
   --green: #1a8f52; --gdim: rgba(26,143,82,.12);
+  --red: #c8402a; --rdim: rgba(200,64,42,.12);
   --yellow: #b3781a; --ydim: rgba(179,120,26,.14);
   --blue: #2f6bd8; --bdim: rgba(47,107,216,.10);
   color-scheme: light;
@@ -22,6 +23,8 @@
     --text: #eceef2; --muted: #99a0ac;
     --accent: #eab308; --accent-text: #eec33a; --accent-ink: #1c1608; --adim: rgba(234,179,8,.15);
     --green: #3ab873; --gdim: rgba(58,184,115,.16);
+  --red: #e2604a; --rdim: rgba(226,96,74,.18);
+    --red: #e2604a; --rdim: rgba(226,96,74,.18);
     --yellow: #e0a02c; --ydim: rgba(224,160,44,.16);
     --blue: #5a90f0; --bdim: rgba(90,144,240,.16);
     color-scheme: dark;
@@ -126,8 +129,11 @@ aside { transition: width .18s ease; }
 .btn-grn { background: var(--green); color: #071a0d; font-weight: 700; }
 .btn-grn:hover { background: #2db87a; }
 .btn-sm { padding: 5px 11px; font-size: 12px; }
-.btn-danger { background: var(--adim); color: var(--accent-text); border: 1px solid rgba(234,179,8,.25); }
-.btn-danger:hover { background: rgba(234,179,8,.2); }
+/* Loeschen, Stornieren, Absagen muessen sich vom normalen Knopf unterscheiden — im
+   Tagesgeschaeft entscheidet das Auge in Sekundenbruchteilen. Gold war hier falsch:
+   Es ist die Akzentfarbe und laut Styleboard ausdruecklich NIE die Fehlerfarbe. */
+.btn-danger { background: var(--rdim); color: var(--red); border: 1px solid var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
 
 /* Page header */
 .ph { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
@@ -193,6 +199,11 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
 
 /* Badges */
+/* Lagerplatz-Kaestchen: am Rechner kompakt, auf dem Tablet mindestens 44 px — das ist die
+   Ansicht, die ein Mitarbeiter mit dem Geraet in der Hand vor dem Regal benutzt. */
+.lp-fach { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: 9px; cursor: pointer; }
+@media (max-width: 1024px) { .lp-fach { width: 44px; height: 44px; font-size: 12px; border-radius: 6px; } }
 .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 .b-r { background: var(--adim); color: var(--accent-text); border: 1px solid rgba(234,179,8,.25); }
 .b-y { background: var(--ydim); color: var(--yellow); border: 1px solid rgba(245,200,66,.25); }
@@ -273,10 +284,10 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
 .dok-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dok-saved { background: var(--gdim); border: 1px solid rgba(62,207,142,.3); color: var(--green); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; display: none; }
 #sig-canvas { background: #fff; border: 2px solid var(--border2); border-radius: 8px; cursor: crosshair; touch-action: none; display: block; width: 100%; height: 180px; }
-.portal-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-.pb-warten { background: var(--ydim); color: var(--yellow); border: 1px solid rgba(245,200,66,.25); }
-.pb-aktiv { background: var(--gdim); color: var(--green); border: 1px solid rgba(62,207,142,.25); }
-.pb-kein { background: var(--panel); color: var(--muted); border: 1px solid var(--border2); }
+/* Die Portal-Spalte hatte ein eigenes, optisch identisches Badge-System. Zusammengefuehrt:
+   dieselbe Sache soll ueberall gleich aussehen und an einer Stelle gepflegt werden. */
+.b-n { background: var(--panel); color: var(--muted); border: 1px solid var(--border2); }
+.b-x { background: var(--rdim); color: var(--red); border: 1px solid var(--red); }
 /* Druck erfolgt ueber separate Fenster (window.open) – keine globale body-Ausblendung mehr (sonst druckt Strg+P ein leeres Blatt). */
 @media (max-width: 768px) {
   .navtoggle { display: flex; }
@@ -288,7 +299,11 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
   #app.nav-collapsed .ni { justify-content: flex-start; padding: 9px 14px; margin: 1px 8px; }
   .navback { display: none !important; }
   /* Kopfzeile auf Mobil schlank halten (sonst wird 'Abmelden' aus dem Bild gedraengt) */
-  .crumb, .hsearch { display: none !important; }
+  /* Nur die Brotkrumen ausblenden. Die Schnellsuche (Kunde, Kennzeichen, Lagerplatz)
+     bleibt: Am Tresen mit dem Tablet in der Hand ist sie der schnellste Weg zum Vorgang
+     — sie ausgerechnet dort zu verstecken, war der Fehler. Platz ist da, weil Uhr und
+     Kennzahlen auf schmalen Bildschirmen ohnehin entfallen. */
+  .crumb { display: none !important; }
   #app.nav-open aside { transform: translateX(0); }
   #app.nav-open .nav-backdrop { display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 150; }
   .hstats { display: none; }
@@ -422,14 +437,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="nsec">Betrieb</div>
       <div class="ni" data-page="kalender">Kalender</div>
       <div class="ni" data-page="werkstatt">Werkstatt</div>
-      <div class="ni" data-page="statistik">Statistik</div>
       <div class="ni" data-page="rechnungen">Rechnungen</div>
+      <div class="ni" data-page="statistik">Statistik</div>
+      <!-- Kontakt-, Gewerbe- und Datenschutz-Anfragen sind dasselbe: Postfaecher mit Frist,
+           die jemand abarbeiten muss. Sie standen bisher auf zwei Gruppen verteilt. -->
+      <div class="nsec">Anfragen</div>
       <div class="ni" data-page="kontakt">Kontaktanfragen</div>
       <div class="ni" data-page="gewerbeanf">Gewerbe-Anfragen</div>
+      <div class="ni" data-page="dsgvo">Datenschutz</div>
       <div class="nsec">Team</div>
       <div class="ni" data-page="users">Mitarbeiter</div>
-      <div class="ni" data-page="dsgvo">DSGVO-Anfragen</div>
-      <div class="nsec">System</div>
       <div class="ni" data-page="einstellungen">Einstellungen</div>
     </aside>
     <main id="main-content">
@@ -440,18 +457,20 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div class="pt">Dashboard</div>
           <button class="btn btn-p" onclick="openModal('ne')">+ Neue Einlagerung</button>
         </div>
-        <div id="dash-freischalten"></div>
-        <div id="dash-dokumente"></div>
-        <div id="dash-kontakt"></div>
-        <div id="dash-gewerbe"></div>
-        <div id="dash-heute"></div>
-        <div id="dash-abzurechnen"></div>
+        <!-- Kennzahlen zuerst: Sie sind der Grund, warum jemand das Dashboard oeffnet.
+             Die Hinweiskaesten stehen darunter — sie sind wichtig, aber nicht taeglich da. -->
         <div class="stats">
           <div class="sc sc-a clickable" onclick="dashEinl('')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
           <div class="sc sc-y clickable" onclick="dashEinl('Abholbereit')"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
           <div class="sc sc-g clickable" onclick="showPage('lagerplan')"><div class="sv" id="st-f">-</div><div class="sl">Freie Plätze</div></div>
           <div class="sc sc-b clickable" onclick="showPage('kunden')"><div class="sv" id="st-k">0</div><div class="sl">Kunden</div></div>
         </div>
+        <div id="dash-heute"></div>
+        <div id="dash-abzurechnen"></div>
+        <div id="dash-freischalten"></div>
+        <div id="dash-dokumente"></div>
+        <div id="dash-kontakt"></div>
+        <div id="dash-gewerbe"></div>
         <div class="g2">
           <div class="pnl"><div class="ptitle">Letzte Einlagerungen</div><div id="dash-last"></div></div>
           <div>
@@ -511,7 +530,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-kd">
         <div class="ph">
           <div style="display:flex;align-items:center;gap:12px">
-            <button class="btn btn-g btn-sm" onclick="showPage('kunden')">Zurück</button>
             <div class="pt" id="kd-name">Kunde</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1974,7 +1992,7 @@ function renderKontakt() {
     var pre = 'Hallo ' + vorname + ',\n\n\n\nMit freundlichen Grüßen\nSchröder & Scholz';
     return '<div class="pnl" style="margin-bottom:12px">' +
       '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
-      '<div><strong>' + kEsc(a.name) + '</strong>' + (a.erledigt ? ' <span style="color:#1a7f37;font-size:12px">erledigt</span>' : '') + '<br>' +
+      '<div><strong>' + kEsc(a.name) + '</strong>' + (a.erledigt ? ' <span style="color:var(--green);font-size:12px">erledigt</span>' : '') + '<br>' +
       '<a href="mailto:' + kEsc(a.email) + '">' + kEsc(a.email) + '</a>' + (a.telefon ? ' · ' + kEsc(a.telefon) : '') + '</div>' +
       '<div style="font-size:12px;color:var(--muted)">' + rDatum(a.erstellt_am) + '</div></div>' +
       '<div style="margin:10px 0;white-space:pre-wrap;background:var(--bg,#f6f7f9);padding:10px 12px;border-radius:8px">' + kEsc(a.nachricht) + '</div>' +
@@ -2094,7 +2112,7 @@ function renderGewerbeAnf() {
   el.innerHTML = list.map(function(a) {
     return '<div class="pnl" style="margin-bottom:12px">' +
       '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
-      '<div><strong>' + kEsc(a.firma) + '</strong>' + (a.erledigt ? ' <span style="color:#1a7f37;font-size:12px">erledigt</span>' : '') + '<br>' +
+      '<div><strong>' + kEsc(a.firma) + '</strong>' + (a.erledigt ? ' <span style="color:var(--green);font-size:12px">erledigt</span>' : '') + '<br>' +
       kEsc((a.anrede ? a.anrede + ' ' : '') + a.ansprechpartner) + '<br>' +
       '<a href="mailto:' + kEsc(a.email) + '">' + kEsc(a.email) + '</a> · ' + kEsc(a.telefon) + '</div>' +
       '<div style="font-size:12px;color:var(--muted);text-align:right">' + rDatum(a.erstellt_am) +
@@ -2140,11 +2158,13 @@ var allRechnungen = [];
 function rEur(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function rDatum(d) { if (!d) return '-'; var t = new Date(d); return String(t.getDate()).padStart(2, '0') + '.' + String(t.getMonth() + 1).padStart(2, '0') + '.' + t.getFullYear(); }
 function rStatusBadge(s, istStorno) {
-  var map = { entwurf: ['Entwurf', '#888'], festgeschrieben: ['Festgeschrieben', '#1a7f37'], storniert: ['Storniert', '#c0392b'] };
+  // Nutzt dasselbe Badge-System wie der Rest der Oberflaeche statt eigener Farbwerte —
+  // sonst sieht derselbe Zustand je nach Seite anders aus.
+  var map = { entwurf: ['Entwurf', 'b-n'], festgeschrieben: ['Festgeschrieben', 'b-g'], storniert: ['Storniert', 'b-x'] };
   // Eine Stornorechnung hat selbst den Status 'festgeschrieben' — ohne eigenes Kennzeichen
   // waere sie in der Liste nicht von einer normalen Rechnung zu unterscheiden.
-  var m = istStorno ? ['Stornorechnung', '#c0392b'] : (map[s] || [s, '#888']);
-  return '<span style="background:' + m[1] + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">' + m[0] + '</span>';
+  var m = istStorno ? ['Stornorechnung', 'b-x'] : (map[s] || [s, 'b-n']);
+  return '<span class="badge ' + m[1] + '">' + m[0] + '</span>';
 }
 function loadRechnungen() {
   api('GET', '/rechnungen').then(function(r) { allRechnungen = r || []; renderRechnungen(); }).catch(function() {});
@@ -2203,7 +2223,7 @@ function renderRechnungen() {
         akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
-    var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
+    var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:var(--green)">bezahlt</span>' : '<span style="color:var(--red)">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:var(--red)">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
       '<td>' + (r.kundenname || r.empfaenger_firma || r.empfaenger_name || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
@@ -2406,8 +2426,8 @@ function recalcRechnung() {
     });
     if (rabattBrutto < 0) {
       var original = Math.round((brutto - rabattBrutto) * 100) / 100;
-      gi.innerHTML = '<span style="color:#c0392b;text-decoration:line-through">' + rEur(original) + '</span> &rarr; <strong>' + rEur(brutto) + '</strong>' +
-        '<div style="color:#c0392b;font-size:12px">' + kEsc(gcode) + ': ' + rEur(rabattBrutto) + '</div>';
+      gi.innerHTML = '<span style="color:var(--red);text-decoration:line-through">' + rEur(original) + '</span> &rarr; <strong>' + rEur(brutto) + '</strong>' +
+        '<div style="color:var(--red);font-size:12px">' + kEsc(gcode) + ': ' + rEur(rabattBrutto) + '</div>';
     } else { gi.innerHTML = ''; }
   }
 }
@@ -3298,13 +3318,13 @@ function renderK() {
     // Portal Status
     var portalBadge = '';
     if (k.portal_aktiv && k.portal_freigegeben) {
-      portalBadge = '<span class="portal-badge pb-aktiv">Aktiv</span>';
+      portalBadge = '<span class="badge b-g">Aktiv</span>';
     } else if (k.portal_aktiv && !k.portal_freigegeben && k.portal_email_bestaetigt) {
-      portalBadge = '<span class="portal-badge pb-warten" title="Kunde hat bestätigt — wartet auf die Freischaltung durch den Betrieb">Freigabe</span>';
+      portalBadge = '<span class="badge b-y" title="Kunde hat bestätigt — wartet auf die Freischaltung durch den Betrieb">Freigabe</span>';
     } else if (k.portal_aktiv && !k.portal_email_bestaetigt) {
-      portalBadge = '<span class="portal-badge pb-warten" title="Wartet auf die Bestätigung durch den Kunden per E-Mail">E-Mail</span>';
+      portalBadge = '<span class="badge b-y" title="Wartet auf die Bestätigung durch den Kunden per E-Mail">E-Mail</span>';
     } else {
-      portalBadge = '<span class="portal-badge pb-kein">-</span>';
+      portalBadge = '<span class="badge b-n">-</span>';
     }
     return '<div class="kunden-row" onclick="zeigeK(\'' + k.id + '\')">' +
       '<span style="font-size:12px;color:var(--accent-text);font-weight:600">' + k.kunden_nr + '</span>' +
@@ -3406,14 +3426,14 @@ function zeigeK(id) {
     if (aktK.portal_aktiv && !aktK.portal_freigegeben && aktK.portal_email_bestaetigt) {
       pbtn.innerHTML = '<button class="btn btn-grn btn-sm" onclick="portalFreigeben(\'' + aktK.id + '\')">Portal freigeben</button>';
     } else if (aktK.portal_aktiv && aktK.portal_freigegeben) {
-      pbtn.innerHTML = '<span class="portal-badge pb-aktiv">Portal aktiv</span>';
+      pbtn.innerHTML = '<span class="badge b-g">Portal aktiv</span>';
     } else if (aktK.portal_aktiv && !aktK.portal_email_bestaetigt) {
       // Vorher stand hier nichts — der Kunde hatte sich registriert, im Kundenblatt war davon
       // aber kein Wort zu sehen. Freigeben geht in diesem Zustand bewusst nicht; stattdessen
       // muss klar sein, worauf gewartet wird und was man dem Kunden am Telefon sagen kann.
       pbtn.innerHTML = '<div style="max-width:460px">' +
         '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:8px">' +
-        '<span class="portal-badge pb-warten">Wartet auf den Kunden</span> ' +
+        '<span class="badge b-y">Wartet auf den Kunden</span> ' +
         kEsc(aktK.portal_email || '') + ' hat den Bestätigungslink aus der Registrierungsmail noch nicht geöffnet. ' +
         'Freischalten ist erst danach möglich.</div>' +
         '<button class="btn btn-g btn-sm" data-kid="' + kEsc(aktK.id) + '" onclick="bestaetigungErneut(this.getAttribute(\'data-kid\'))">Bestätigungsmail erneut senden</button>' +
@@ -4067,7 +4087,7 @@ function loadHeute() {
     }
     var badge = function(s) {
       if (s === 'abgeschlossen') return '<span style="font-size:10px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>';
-      if (s === 'storniert' || s === 'abgesagt') return '<span style="font-size:10px;color:#c0392b">Abgesagt</span>';
+      if (s === 'storniert' || s === 'abgesagt') return '<span style="font-size:10px;color:var(--red)">Abgesagt</span>';
       if (s === 'nicht_erschienen') return '<span style="font-size:10px;color:var(--muted)">Nicht erschienen</span>';
       return '<span style="font-size:10px;font-weight:700;color:var(--blue);background:rgba(74,158,255,.15);padding:2px 8px;border-radius:10px">Offen</span>';
     };
@@ -4104,15 +4124,15 @@ function loadAbzurechnen() {
     var el = document.getElementById('dash-abzurechnen'); if (!el) return;
     var offen = (rows || []).filter(function(t) { return !t.fakturiert; });
     if (!offen.length) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div style="background:#eef6ff;border:1px solid #4a9eff;border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
-      '<div style="font-weight:700;color:#1a4b7a;margin-bottom:6px">' + offen.length + ' erledigte(r) Termin(e) — abzurechnen</div>' +
+    el.innerHTML = '<div style="background:var(--bdim);border:1px solid var(--blue);border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
+      '<div style="font-weight:700;color:var(--blue);margin-bottom:6px">' + offen.length + ' erledigte(r) Termin(e) — abzurechnen</div>' +
       offen.map(function(t) {
         var name = t.kundenname || t.kontakt_name || 'Laufkundschaft';
         var leist = t.artikel_name || t.termin_typ || 'Leistung';
         var d = t.datum ? fd(t.datum) : '';
         return '<div onclick="zeigeTermin(\'' + t.id + '\')" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(74,158,255,.3);cursor:pointer">' +
           '<div><span style="font-weight:600">' + kEsc(name) + '</span> <span style="color:#666;font-size:12px">' + kEsc(leist) + (d ? ' · ' + d : '') + '</span>' +
-            (t.gutschein_code ? ' <span style="color:#c0392b;font-size:11px;font-weight:600">Gutschein ' + kEsc(t.gutschein_code) + ' −' + (t.gutschein_rabatt || 0) + '%</span>' : '') + '</div>' +
+            (t.gutschein_code ? ' <span style="color:var(--red);font-size:11px;font-weight:600">Gutschein ' + kEsc(t.gutschein_code) + ' −' + (t.gutschein_rabatt || 0) + '%</span>' : '') + '</div>' +
           (t.kunden_id
             ? '<button class="btn btn-p btn-sm" onclick="event.stopPropagation();rechnungAusTermin(\'' + t.id + '\')">Rechnung</button>'
             : '') +
@@ -4135,8 +4155,8 @@ function renderDash() {
     var pend = (allK || []).filter(function(k) { return k.portal_aktiv && !k.portal_freigegeben; });
     if (!pend.length) { fcEl.innerHTML = ''; }
     else {
-      fcEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #eab308;border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
-        '<div style="font-weight:700;color:#854d0e;margin-bottom:6px">' + pend.length + ' neue(r) Portal-Kunde(n) – Freischaltung</div>' +
+      fcEl.innerHTML = '<div style="background:var(--ydim);border:1px solid var(--yellow);border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
+        '<div style="font-weight:700;color:var(--yellow);margin-bottom:6px">' + pend.length + ' neue(r) Portal-Kunde(n) – Freischaltung</div>' +
         pend.map(function(k) {
           var ok = k.portal_email_bestaetigt;
           return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(234,179,8,.4)">' +
@@ -4214,7 +4234,7 @@ function renderLager() {
           : 'Frei';
         var hg = voll ? 'rgba(234,179,8,.28)' : (teil ? 'rgba(234,179,8,.12)' : 'var(--panel)');
         var ra = voll ? 'rgba(234,179,8,.5)' : (teil ? 'rgba(234,179,8,.45)' : 'var(--border)');
-        html += '<div onclick="zeigeLager(\'' + pid + '\')" title="' + kEsc(titel) + '" style="position:relative;width:28px;height:28px;border-radius:4px;border:1px solid ' + ra + ';background:' + hg + ';cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px">' + p +
+        html += '<div onclick="zeigeLager(\'' + pid + '\')" title="' + kEsc(titel) + '" class="lp-fach" style="position:relative;border:1px solid ' + ra + ';background:' + hg + '">' + p +
           (kap > 1 && saetze.length ? '<span style="position:absolute;bottom:-1px;right:1px;font-size:8px;font-weight:800;color:var(--accent-text)">' + saetze.length + '</span>' : '') + '</div>';
       }
       html += '</div></div>';
@@ -4722,7 +4742,7 @@ function renderWS() {
           '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
           (einlagernAktiv(t) ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
-          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:#c0392b">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
+          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:var(--red)">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
