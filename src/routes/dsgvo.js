@@ -110,7 +110,7 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
       hinweis_nicht_enthalten: 'Interne Notizen zu Dritten sowie technische Zugangsdaten '
         + '(Passwort, Einmal-Token) sind nach Art. 15 Abs. 4 DSGVO nicht Bestandteil der Auskunft.',
       aufbewahrungsfristen: {
-        rechnungen: '10 Jahre (§ 147 AO, § 14b UStG)',
+        rechnungen: '8 Jahre (§ 147 AO, § 14b UStG — seit dem Vierten Bürokratieentlastungsgesetz, 01.01.2025)',
         buchungsbelege: '8 Jahre ab Ausstellung (§ 257 HGB, BEG IV ab 01.01.2025)',
         kontaktdaten: 'Bis Ende der Geschäftsbeziehung',
       },
