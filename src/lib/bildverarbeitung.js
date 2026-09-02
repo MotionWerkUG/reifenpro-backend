@@ -11,7 +11,19 @@ const FORMATE = {
   inhalt: { w: 900,  h: 675 }    // Leistungs-/Textbilder (4:3)
 };
 
+// Abfotografiertes Dokument (unterschriebener Schein): NICHT beschneiden — sonst faellt
+// der Rand mit der Unterschrift weg. Nur begradigen, auf eine vernuenftige Kantenlaenge
+// begrenzen und lesbar komprimieren.
+const SCAN = { max: 2200, quality: 88 };
+
 async function verarbeite(inputBuffer, format) {
+  if (format === 'scan') {
+    return sharp(inputBuffer, { limitInputPixels: 60000000 })
+      .rotate()                                        // EXIF-Ausrichtung (Handyfotos)
+      .resize(SCAN.max, SCAN.max, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: SCAN.quality, mozjpeg: true })
+      .toBuffer();
+  }
   const z = FORMATE[format] || FORMATE.inhalt;
   return sharp(inputBuffer)
     .rotate()                                  // EXIF-Ausrichtung beachten (Handyfotos)
@@ -20,4 +32,4 @@ async function verarbeite(inputBuffer, format) {
     .toBuffer();
 }
 
-module.exports = { verarbeite, FORMATE };
+module.exports = { verarbeite, FORMATE, SCAN };

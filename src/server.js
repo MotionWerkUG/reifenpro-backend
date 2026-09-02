@@ -45,6 +45,8 @@ app.use('/api/einstellungen',  express.json({ limit: '10mb' }));  // Firmenlogo 
 // Kundendokumente: der Scan steckt als Data-URL im HTML des Dokuments. Nur dieser Unterpfad,
 // nicht die ganze /api/kunden-Familie -> Express-4-RegExp statt Praefix-Mount.
 app.use(/^\/api\/kunden\/[^/]+\/dokumente/, express.json({ limit: '25mb' }));
+// Abfotografierter, unterschriebener Beleg vom Handy (QR-Weg): Base64 im JSON-Body.
+app.use('/api/dokument-scan/upload', express.json({ limit: '28mb' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('combined'));
 
@@ -73,6 +75,7 @@ app.use('/api/adresse',     require('./routes/adresse'));
 app.use('/api/preise',      require('./routes/preise'));
 app.use('/api/gewerbe',     require('./routes/gewerbe'));
 app.use('/api/qr',          require('./routes/qr'));
+app.use('/api/dokument-scan', require('./routes/dokument-scan'));
 app.use('/api/protokolle',  require('./routes/protokolle'));
 app.use('/api/rechnungen',                require('./routes/rechnungen'));
 
