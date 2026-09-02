@@ -779,6 +779,12 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       if (!aussteller.firmenname || !aussteller.strasse || !aussteller.plz || !aussteller.ort) {
         const e = new Error('Firmenname und vollständige Anschrift des Ausstellers fehlen — bitte in den Einstellungen vervollständigen (§ 14 UStG).'); e.status = 400; throw e;
       }
+      // Eine angegebene USt-IdNr. muss formal gueltig sein. Eine deutsche hat DE und neun
+      // Ziffern; steht dort etwas anderes, waere sie auf jeder Rechnung eine falsche
+      // Pflichtangabe. Leer lassen ist erlaubt — dann traegt die Steuernummer die Angabe.
+      if (aussteller.ust_id && !/^DE\s?\d{9}$/.test(String(aussteller.ust_id).replace(/\s/g, ' ').trim())) {
+        const e = new Error('Die hinterlegte USt-IdNr. ist keine gültige deutsche Nummer (Format DE gefolgt von neun Ziffern). Bitte in den Einstellungen korrigieren oder das Feld leer lassen.'); e.status = 400; throw e;
+      }
       // Bei nicht im Handelsregister eingetragenen Rechtsformen (Einzelunternehmen, GbR) genuegt die
       // Geschaeftsbezeichnung nicht — der buergerliche Name des Inhabers gehoert auf die Rechnung.
       // Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde z. B. in

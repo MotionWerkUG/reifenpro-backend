@@ -213,7 +213,9 @@ async function erzeugeRechnungPdf(rech, positionen) {
       const fuss = [
         a.firmenname, a.rechtsform,
         a.inhaber ? 'Inhaber: ' + a.inhaber : null,
-        a.handelsreg_nr ? 'HRB ' + a.handelsreg_nr : null,
+        // Die Registernummer wird oft schon mit Praefix erfasst ("HRB 12345") — dann darf
+        // nicht noch einmal "HRB " davorgesetzt werden.
+        a.handelsreg_nr ? (/^(HRA|HRB|VR|GnR)\b/i.test(String(a.handelsreg_nr).trim()) ? String(a.handelsreg_nr).trim() : 'HRB ' + a.handelsreg_nr) : null,
         a.registergericht,
         a.steuernummer ? 'Steuernr. ' + a.steuernummer : null,
         a.ust_id ? 'USt-IdNr. ' + a.ust_id : null
