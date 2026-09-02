@@ -27,7 +27,15 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
   const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
   if (!ids.length) return leer;
   const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false; // Standard: Preise inkl. MwSt (Brutto)
-  const arts = (await query('SELECT * FROM artikel WHERE id = ANY($1::uuid[]) AND aktiv IS NOT false', [ids])).rows;
+  // Nur Leistungen, die im Admin ausdruecklich fuer die Online-Buchung freigegeben sind.
+  // Die Whitelist stand bisher nur in der Anzeige (/leistungen filtert auf buchung_leistungen);
+  // wer eine artikel_id kannte, konnte per direktem Request auch eine nicht freigegebene Leistung
+  // buchen. Das Frontend entscheidet, was sichtbar ist -- was zulaessig ist, entscheidet der Server.
+  const arts = (await query(
+    `SELECT a.* FROM artikel a
+      WHERE a.id = ANY($1::uuid[]) AND a.aktiv IS NOT false
+        AND EXISTS (SELECT 1 FROM buchung_leistungen bl WHERE bl.artikel_id = a.id AND bl.aktiv = true)`,
+    [ids])).rows;
   const vars = (await query('SELECT * FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows;
   const byArt = {}; arts.forEach(function (a) { byArt[a.id] = a; });
   const varsByArt = {}; vars.forEach(function (v) { (varsByArt[v.artikel_id] = varsByArt[v.artikel_id] || []).push(v); });
