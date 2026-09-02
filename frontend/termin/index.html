@@ -331,11 +331,11 @@ function preisLive(){
   _pvTimer=setTimeout(function(){
     var seq=++_pvSeq;
     var zollReq=state.zoll;
-    var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(zollReq||'');
+    var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(zollReq||'')+(state.gutschein?'&gutschein='+encodeURIComponent(state.gutschein.code):'');
     fetch(url).then(function(r){return r.json();}).then(function(k){
       if(seq!==_pvSeq) return; // veraltete Antwort -> ignorieren
       var pre = zollReq ? '' : '<span class="ab">ab</span>';
-      var g=gsBrutto(k.brutto);
+      var g=gsBrutto(k);
       el.innerHTML = g ? (pre+'<span class="preis-alt">'+eur(g.alt)+'</span>'+eur(g.neu)) : (pre + eur(k.brutto));
     }).catch(function(){ if(seq===_pvSeq) el.textContent='—'; });
   }, 180);
@@ -384,15 +384,24 @@ function gutscheinAnwenden(){
   }).catch(function(){ state.gutschein=null; msg.className='gs-msg gs-bad'; msg.textContent='Code ungültig oder abgelaufen.'; renderSum(); preisLive(); });
 }
 // Wendet den aktiven Gutschein-Rabatt auf einen Bruttobetrag an (nur Anzeige/Schaetzung).
-function gsBrutto(brutto){
-  if(!state.gutschein) return null;
-  var neu=Math.round(brutto*(1-state.gutschein.rabatt/100)*100)/100;
-  return { alt:brutto, neu:neu, rabatt:Math.round((brutto-neu)*100)/100 };
+// Der Rabatt wird NICHT mehr hier gerechnet. Ein Gutschein kann je Leistung einen eigenen
+// Satz haben (WINTER2026: 25 % auf die Einlagerung, 10 % auf alles andere). Wer hier einen
+// einzelnen Satz ueber die Summe legt, zeigt dem Kunden einen anderen Preis, als er zahlt —
+// genau das ist passiert: 62,18 angezeigt, 68,61 berechnet.
+// Der Server liefert die fertigen Werte, diese Funktion reicht sie nur durch.
+function gsBrutto(k){
+  if(!state.gutschein || !k || k.brutto_nach_rabatt==null) return null;
+  return {
+    alt: k.brutto,
+    neu: k.brutto_nach_rabatt,
+    rabatt: k.rabatt_summe || 0,
+    zeilen: k.rabatt_zeilen || []
+  };
 }
 function renderSum(){
   var box=document.getElementById('sum-box');
   box.innerHTML='<h3>Deine Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
-  var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'');
+  var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'')+(state.gutschein?'&gutschein='+encodeURIComponent(state.gutschein.code):'');
   fetch(url).then(function(r){return r.json();}).then(function(k){
     var rows='';
     (k.positionen||[]).forEach(function(p){
@@ -409,9 +418,17 @@ function renderSum(){
     });
     rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
     rows+='<div class="subrow"><span>darin enthaltene MwSt</span><span>'+eur(k.mwst)+'</span></div>';
-    var g=gsBrutto(k.brutto);
+    var g=gsBrutto(k);
     if(g){
-      rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+' (−'+state.gutschein.rabatt+'%)</span><span>−'+eur(g.rabatt)+'</span></div>';
+      // Je Satz eine eigene Zeile. Ein zusammengefasster Prozentwert waere ein Mischsatz,
+      // den der Kunde in keinem Dokument wiederfindet.
+      if(g.zeilen && g.zeilen.length){
+        g.zeilen.forEach(function(z){
+          rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+' (−'+z.satz+'%)</span><span>−'+eur(z.betrag)+'</span></div>';
+        });
+      } else {
+        rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+'</span><span>−'+eur(g.rabatt)+'</span></div>';
+      }
       rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span><span class="preis-alt">'+eur(k.brutto)+'</span>'+eur(g.neu)+'</span></div>';
     } else {
       rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span>'+eur(k.brutto)+'</span></div>';
