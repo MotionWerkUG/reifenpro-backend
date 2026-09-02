@@ -4971,7 +4971,8 @@ function loadBesucher() {
     var gesamtGeraete = geraete.handy + geraete.rechner;
     var handyAnteil = gesamtGeraete ? Math.round((geraete.handy / gesamtGeraete) * 100) : 0;
     document.getElementById('bs-kacheln').innerHTML =
-      kachel(d.seitenaufrufe || 0, 'Seitenaufrufe', 'ohne Roboter (' + (d.roboter_gefiltert || 0) + ' gefiltert)')
+      kachel(d.seitenaufrufe || 0, 'Seitenaufrufe', 'ohne Roboter (' + (d.roboter_gefiltert || 0)
+        + ') und ohne eigene Zugriffe (' + (d.eigene_gefiltert || 0) + ')')
       + kachel(d.buchungen || 0, 'Terminbuchungen', d.buchungsquote != null ? d.buchungsquote + ' % der Besuche' : '')
       + kachel(d.flyer_scans || 0, 'Flyer-Scans', 'über den QR-Code')
       + kachel(d.buchungen_mit_gutschein || 0, 'Buchungen mit Code', 'Aktionscode eingelöst')
@@ -4989,7 +4990,10 @@ function loadBesucher() {
 
     liste('bs-seiten', d.top_seiten, 'Noch keine Aufrufe im Zeitraum.');
     liste('bs-herkunft', d.herkunft, 'Noch keine Herkunft erfasst.');
-    document.getElementById('bs-hinweis').textContent = d.hinweis || '';
+    document.getElementById('bs-hinweis').textContent = (d.hinweis || '')
+      + ((d.ausgeschlossene_bereiche && d.ausgeschlossene_bereiche.length)
+        ? ' Eigene Netzbereiche werden nicht mitgezählt: ' + d.ausgeschlossene_bereiche.join(', ')
+          + ' — pflegbar in den Einstellungen.' : '');
   }).catch(function () {
     document.getElementById('bs-kacheln').innerHTML =
       '<div class="pnl" style="padding:14px 16px;color:var(--muted)">Die Besucherzahlen konnten nicht geladen werden.</div>';

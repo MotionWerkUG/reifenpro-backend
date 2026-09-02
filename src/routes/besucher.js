@@ -32,11 +32,19 @@ function tagAus(zeitstempel) {
   return `${m[3]}-${String(MONATE[m[2]] + 1).padStart(2, '0')}-${m[1]}`;
 }
 
-// Alles, was kein Seitenaufruf eines Menschen ist, faellt raus: Schnittstellenaufrufe,
-// Bilder, Stylesheets, Schriften. Sonst zaehlt jede Seite ein Dutzend Mal.
+// Nur ECHTE Seiten zaehlen. Der Webserver liefert fuer jede unbekannte Adresse die
+// Startseite mit Status 200 aus (SPA-Rueckfall try_files). Ein Scanner, der 277 Mal nach
+// /.env, /wp/.env und /zend/.env fragt, erzeugt damit 277 vermeintliche Seitenaufrufe mit
+// gueltigem Status und normaler Browser-Kennung — die Statistik waere wertlos.
+// Deshalb eine Liste der tatsaechlich existierenden Seiten statt einer Ausschlussliste:
+// Was nicht bekannt ist, wird nicht gezaehlt.
+const ECHTE_SEITEN = new Set(['/', '/termin', '/preise', '/impressum', '/portal']);
 function istSeitenaufruf(pfad) {
   if (!pfad || pfad.startsWith('/api/')) return false;
-  return !/\.(css|js|mjs|png|jpe?g|gif|svg|webp|avif|ico|woff2?|ttf|eot|map|xml|txt|json|pdf)$/i.test(pfad.split('?')[0]);
+  const p = (pfad.split('?')[0] || '/').replace(/\/+$/, '') || '/';
+  if (ECHTE_SEITEN.has(p)) return true;
+  // Die Rechtstexte des Portals liegen als einzelne Dateien vor.
+  return /^\/portal\/(agb|datenschutz|impressum|faq)\.html$/i.test(p);
 }
 
 // Grobe Erkennung automatisierter Zugriffe. Absichtlich streng: Lieber ein paar echte
@@ -106,6 +114,16 @@ router.get('/', authenticate, requireStaff, async (req, res, next) => {
     const tage = Math.min(Math.max(parseInt(req.query.tage, 10) || 30, 1), 365);
     const grenze = new Date(Date.now() - tage * 86400000).toISOString().slice(0, 10);
 
+    // Eigene Zugriffe ausblenden: der Server selbst (Pruefaufrufe) und die Netzbereiche des
+    // Betriebs. Die IP liegt nur gekuerzt vor (letztes Oktett 0), verglichen wird deshalb der
+    // Praefix. Wichtig: Anschluesse bekommen regelmaessig neue Adressen — die Liste ist in den
+    // Einstellungen pflegbar und veraltet sonst still.
+    const einst = (await query('SELECT besucher_ausschluss FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
+    const ausschluss = String(einst.besucher_ausschluss || '')
+      .split(',').map((s) => s.trim()).filter(Boolean);
+    const eigenerZugriff = (ip) => ausschluss.some((p) => String(ip).startsWith(p));
+    let eigeneGefiltert = 0;
+
     const proTag = new Map();
     const proSeite = new Map();
     const proHerkunft = new Map();
@@ -116,7 +134,8 @@ router.get('/', authenticate, requireStaff, async (req, res, next) => {
         if (!zeile) continue;
         const m = ZEILE.exec(zeile);
         if (!m) continue;
-        const [, , zeitstempel, methode, pfad, status, , referer, ua] = m;
+        const [, ip, zeitstempel, methode, pfad, status, , referer, ua] = m;
+        if (eigenerZugriff(ip)) { eigeneGefiltert++; continue; }
         if (methode !== 'GET') continue;
         if (Number(status) >= 400) continue;
         if (!istSeitenaufruf(pfad)) continue;
@@ -166,6 +185,8 @@ router.get('/', authenticate, requireStaff, async (req, res, next) => {
       // Anteil der Besucher, die tatsaechlich einen Termin gebucht haben.
       buchungsquote: gesamt > 0 ? Math.round((buch.gesamt / gesamt) * 1000) / 10 : null,
       roboter_gefiltert: roboterZeilen,
+      eigene_gefiltert: eigeneGefiltert,
+      ausgeschlossene_bereiche: ausschluss,
       hinweis: 'Grundlage ist das Zugriffsprotokoll des Webservers. Die IP-Adresse wird '
         + 'bereits beim Schreiben gekürzt, es werden keine Cookies gesetzt und keine Daten '
         + 'an Dritte übertragen.',
