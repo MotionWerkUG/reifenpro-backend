@@ -71,6 +71,8 @@ app.use('/api/homepage',    require('./routes/homepage'));
 app.use('/api/kontakt',     require('./routes/kontakt'));
 app.use('/api/gutscheine',  require('./routes/gutscheine'));
 app.use('/api/besucher',    require('./routes/besucher'));
+// Unterschriften-Station: Das Geraet schickt das Bild der Unterschrift, deshalb groesseres Limit.
+app.use('/api/station',     express.json({ limit: '8mb' }), require('./routes/station'));
 app.use('/api/gast',        require('./routes/gast'));
 app.use('/api/adresse',     require('./routes/adresse'));
 app.use('/api/preise',      require('./routes/preise'));
