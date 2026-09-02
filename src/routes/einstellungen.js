@@ -21,7 +21,7 @@ const ALLOWED = [
   'email_termin_stornierung', 'email_neukunde_admin', 'saison_erinnerung_wochen',
   'mo_fr_von', 'mo_fr_bis', 'sa_von', 'sa_bis', 'sa_offen',
   'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
-  'max_parallele_termine', 'stornierung_frist_h', 'portal_url',
+  'max_parallele_termine', 'stornierung_frist_h', 'portal_url', 'besucher_ausschluss',
   'bank', 'iban', 'bic', 'zahlungsziel_tage',
   'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland', 'buchbar_ab',
   // Impressumsangaben nach § 5 DDG und § 36 VSBG. Bewusst NICHT in PFLICHT: der Betrieb ist
