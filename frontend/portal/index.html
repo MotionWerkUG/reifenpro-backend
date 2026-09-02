@@ -1562,7 +1562,10 @@ function pfStrassenLookup() {
 function pfStrassePick(i) {
   var x = _pfStrCache[i]; if (!x) return;
   var el = document.getElementById('pf-strasse');
-  var hn = _pfHausnr(el.value);                        // getippte Hausnummer erhalten
+  // Reihenfolge mit Absicht: Was der Kunde selbst getippt hat, gewinnt. Nur wenn er noch keine
+  // Hausnummer geschrieben hat, uebernehmen wir die aus dem Vorschlag -- dann ist die Adresse
+  // mit einem Tipp fertig. So kann auch keine doppelte Nummer entstehen ("Stöhrerstr. 22 22").
+  var hn = _pfHausnr(el.value) || (x.hausnr ? String(x.hausnr).trim() : '');
   el.value = (x.strasse || '') + (hn ? ' ' + hn : '');
   if (x.plz) document.getElementById('pf-plz').value = x.plz;
   if (x.ort) document.getElementById('pf-ort').value = x.ort;
