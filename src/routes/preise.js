@@ -25,7 +25,13 @@ router.get('/', limiter, async (req, res, next) => {
     const vars = ids.length ? (await query(
       `SELECT artikel_id, fahrzeug_typ, zoll_min, zoll_max, preis, mwst_satz
          FROM artikel_preise WHERE artikel_id = ANY($1::uuid[]) ORDER BY preis`, [ids])).rows : [];
-    const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
+    // Aktionsbanner und Telefon gleich mitliefern: Die Preisseite ist eine eigene Datei
+    // und hatte deshalb weder Banner noch Anruf-Moeglichkeit — ausgerechnet dort, wo
+    // jemand ueber Preise nachdenkt, verschwand der Rabatt.
+    const e = (await query(
+      `SELECT preise_inkl_mwst, telefon, aktion_aktiv, aktion_text, aktion_code, aktion_link
+         FROM einstellungen ORDER BY id LIMIT 1`)).rows[0] || {};
+    const inkl = e.preise_inkl_mwst !== false;
 
     // Rohpreis -> Brutto: bei inkl bereits Brutto, sonst mit (1 + satz/100) hochrechnen.
     const toBrutto = function (preis, satz) {
@@ -65,7 +71,14 @@ router.get('/', limiter, async (req, res, next) => {
       };
     });
 
-    res.json({ inkl_mwst: inkl, leistungen: leistungen });
+    res.json({
+      inkl_mwst: inkl,
+      telefon: e.telefon || null,
+      aktion: e.aktion_aktiv && e.aktion_text
+        ? { text: e.aktion_text, code: e.aktion_code || null, link: e.aktion_link || '/termin/' }
+        : null,
+      leistungen: leistungen
+    });
   } catch (e) { next(e); }
 });
 
