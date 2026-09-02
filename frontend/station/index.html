@@ -28,6 +28,16 @@
   @keyframes p { 0%,100% { opacity:.25; transform:scale(.85); } 50% { opacity:1; transform:scale(1.15); } }
   .dok { background:#fff; border:1px solid var(--linie); border-radius:12px; padding:22px; max-height:46vh;
     overflow:auto; -webkit-overflow-scrolling:touch; margin-bottom:16px; }
+  /* Das Dokument kommt aus dem Admin und ist fuer A4-Papier gebaut: 210 mm breit, Schrift 9,5 pt.
+     Auf dem iPad im Hochformat waere es breiter als der Bildschirm (Querscrollen) und zu klein zum
+     Lesen. Hier wird es auf die Bildschirmbreite gezogen und die Schrift angehoben — der Kunde soll
+     lesen koennen, was er unterschreibt, ohne zu zoomen. */
+  .dok .dok { max-width:100% !important; padding:0 !important; font-size:11.5pt !important; }
+  .dok .dok .para { font-size:10.5pt !important; line-height:1.6 !important; }
+  .dok .dok .iz-v { font-size:11pt !important; }
+  /* Bewusst NICHTS ausblenden: Der Kunde muss genau das sehen, was gespeichert wird —
+     auch den Unterschriftsblock und den Namen des ausstellenden Mitarbeiters. Eine
+     gekuerzte Ansicht waere ein anderes Dokument als das unterschriebene. */
   .sigfeld { background:#fff; border:2px dashed var(--linie); border-radius:12px; padding:14px; }
   .sigtitel { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.9px; color:var(--grau); margin-bottom:10px; }
   canvas { width:100%; height:200px; background:#fff; border-bottom:2px solid var(--schwarz); border-radius:6px; touch-action:none; display:block; }
@@ -208,6 +218,11 @@ function umfrage() {
   anfrage('/auftrag')
     .then(function (d) {
       kopf(d.station);
+      // Eine begonnene Unterschrift darf nicht verschwinden: Wenn der Kunde bereits
+      // gezeichnet hat, bleibt das Bild stehen, bis er bestaetigt oder das Geraet
+      // zurueckgegeben wird. Sonst waere ein kurzer Netzhaenger genug, um ihn mitten
+      // im Unterschreiben von vorn anfangen zu lassen.
+      if (hatStrich) return;
       if (d.auftrag && (!aktAuftrag || aktAuftrag.id !== d.auftrag.id)) zeigeAuftrag(d.auftrag);
       else if (!d.auftrag && aktAuftrag) zeigeWarten();
       else if (!d.auftrag && !aktAuftrag && !buehne.innerHTML) zeigeWarten();
