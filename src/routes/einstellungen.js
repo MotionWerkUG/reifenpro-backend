@@ -21,7 +21,7 @@ const ALLOWED = [
   'email_termin_stornierung', 'email_neukunde_admin', 'saison_erinnerung_wochen',
   'mo_fr_von', 'mo_fr_bis', 'sa_von', 'sa_bis', 'sa_offen',
   'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
-  'max_parallele_termine', 'termine_pro_stunde', 'stornierung_frist_h', 'portal_url',
+  'max_parallele_termine', 'stornierung_frist_h', 'portal_url',
   'bank', 'iban', 'bic', 'zahlungsziel_tage',
   'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland', 'buchbar_ab',
   // Impressumsangaben nach § 5 DDG und § 36 VSBG. Bewusst NICHT in PFLICHT: der Betrieb ist
@@ -37,7 +37,7 @@ const NULL_IF_EMPTY = new Set([
   'mittagspause_von', 'mittagspause_bis',
   'einlagerung_preis_komplett', 'einlagerung_preis_ohne_felgen', 'kofferraum_preis',
   'reifenwechsel_preis', 'mahngebuehr', 'vertragsdauer_monate', 'abholungsfrist_wochen',
-  'saison_erinnerung_wochen', 'max_parallele_termine', 'termine_pro_stunde',
+  'saison_erinnerung_wochen', 'max_parallele_termine',
   'stornierung_frist_h', 'zahlungsziel_tage', 'buchbar_ab'
 ]);
 
@@ -55,7 +55,7 @@ const DEFAULT = {
   email_raeder_nachziehen: 'Bitte denken Sie daran, die Radschrauben nach ca. 50-100 km nachzuziehen.',
   email_bewertung: '', email_erinnerung: '',
   mo_fr_von: '08:00', mo_fr_bis: '18:00',
-  sa_von: '08:00', sa_bis: '13:00', sa_offen: true, termine_pro_stunde: 2,
+  sa_von: '08:00', sa_bis: '13:00', sa_offen: true,
   bank: '', iban: '', bic: '', zahlungsziel_tage: 14
 };
 
