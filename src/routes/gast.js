@@ -18,7 +18,13 @@ const normGutschein = (s) => String(s == null ? '' : s).replace(/[\s\x00-\x1F]/g
 
 // Baut die Kalkulationspositionen: je Leistung Grundpreis + (getrennt) Fahrzeug-Zuschlag.
 // typ = gewaehlter Fahrzeugtyp (z.B. SUV), zoll = Zollgroesse (optional).
-async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
+// gutscheinCode (optional): Ist er gueltig, bekommt jede Position ihren Rabattsatz aus den
+// Regeln des Gutscheins -- spezifischste Regel gewinnt (Regel fuer genau diese Leistung vor
+// Auffangregel vor dem Standardsatz des Gutscheins). Der Satz wandert je Zeile mit in den
+// Termin und von dort in die Rechnung; die Zuordnung "welche Leistung bekommt welchen Satz"
+// passiert damit GENAU EINMAL, hier beim Buchen. Wuerden Buchung und Rechnung sie unabhaengig
+// voneinander treffen, liefen sie irgendwann auseinander.
+async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   // Nur gueltige UUIDs zulassen + Anzahl begrenzen -> kein 500 durch uuid-Typfehler, kein Ressourcen-DoS.
   const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const nurUuid = (a) => (Array.isArray(a) ? a : []).filter((x) => UUID_RE.test(String(x))).slice(0, 20);
@@ -69,7 +75,52 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll) {
       mwst_satz: satz, zeilen_netto: zeilenNetto, zeilen_brutto: zeilenBrutto
     });
   });
-  return { positionen: positionen, netto: round2(netto), mwst: round2(brutto - netto), brutto: round2(brutto), dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt };
+  // ── Rabatt ──────────────────────────────────────────────────────────────────────────────
+  // Rechenregeln wortgleich mit dem Rechnungswesen, damit Assistent und Beleg nicht abweichen:
+  //  (1) Der Nachlass rechnet auf den BRUTTO-Preis (25 % von 40,00 sind 10,00 -- auf den
+  //      Nettowert gerechnet kaeme ein anderer Betrag heraus als auf dem Flyer steht).
+  //  (2) Gerundet wird EINMAL je Gruppe auf die Summe, nicht je Zeile.
+  //  (3) Gruppiert wird nach Rabattsatz UND Steuersatz (heute alles 19 %, der Aufbau muss
+  //      aber mehrere Saetze aushalten).
+  let rabattSumme = 0, gutscheinInfo = null;
+  const gc = normGutschein(gutscheinCode);
+  if (gc && positionen.length) {
+    const g = (await query(
+      `SELECT id, code, rabatt_prozent FROM gutscheine
+        WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)`,
+      [gc])).rows[0];
+    if (g) {
+      const regeln = (await query('SELECT artikel_id, rabatt_prozent FROM gutschein_regeln WHERE gutschein_id=$1', [g.id])).rows;
+      const jeArtikel = {}; let auffang = null;
+      regeln.forEach((r) => { if (r.artikel_id) jeArtikel[r.artikel_id] = Number(r.rabatt_prozent); else auffang = Number(r.rabatt_prozent); });
+      const standard = auffang != null ? auffang : (Number(g.rabatt_prozent) || 0);
+      positionen.forEach((pos) => {
+        const satz = jeArtikel[pos.artikel_id] != null ? jeArtikel[pos.artikel_id] : standard;
+        pos.rabatt_prozent = Math.min(Math.max(satz, 0), 100);
+      });
+      // Gruppen bilden und je Gruppe EINMAL runden
+      const gruppen = {};
+      positionen.forEach((pos) => {
+        if (!pos.rabatt_prozent) return;
+        const key = pos.rabatt_prozent + '|' + pos.mwst_satz;
+        gruppen[key] = (gruppen[key] || 0) + Number(pos.zeilen_brutto || 0);
+      });
+      Object.keys(gruppen).forEach((key) => {
+        const satz = Number(key.split('|')[0]);
+        rabattSumme = round2(rabattSumme + round2(gruppen[key] * satz / 100));
+      });
+      // Effektiver Gesamtsatz nur als Anzeige- und Rueckfallwert (termine.gutschein_rabatt ist
+      // ein einzelner Integer und kann die Staffelung nicht abbilden -- massgeblich ist der
+      // Satz je Position oben).
+      gutscheinInfo = { code: g.code, effektiv_prozent: brutto > 0 ? Math.round(rabattSumme / brutto * 100) : 0 };
+    }
+  }
+  const bruttoNach = round2(brutto - rabattSumme);
+  return {
+    positionen: positionen, netto: round2(netto), mwst: round2(brutto - netto), brutto: round2(brutto),
+    dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt,
+    rabatt_summe: rabattSumme, brutto_nach_rabatt: bruttoNach, gutschein: gutscheinInfo
+  };
 }
 
 const limiter = rateLimit({ windowMs: 900000, max: 30, message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' } });
@@ -178,7 +229,12 @@ router.get('/kalkulation', stoeberLimiter, async (req, res, next) => {
     const mainIds = split(req.query.main_ids || req.query.artikel_id);
     const zusatzIds = split(req.query.zusatz_ids);
     if (!mainIds.length) return res.json({ positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 0, gewaehlt: [] });
-    const k = await baueKalkulation(mainIds, zusatzIds, req.query.typ || null, req.query.zoll || null);
+    // Gutscheincode mitgeben (?gutschein= oder ?code=, wie im Frontend und auf dem Flyer):
+    // Der Assistent zeigt damit ab Schritt 1 durchgehend alten und neuen Preis -- er RECHNET
+    // aber nichts selbst, sondern zeigt nur, was hier herauskommt. Sonst zeigte er am Ende
+    // einen anderen Betrag als die Rechnung.
+    const k = await baueKalkulation(mainIds, zusatzIds, req.query.typ || null, req.query.zoll || null,
+                                    req.query.gutschein || req.query.code || null);
     res.json(k);
   } catch (e) { next(e); }
 });
@@ -278,7 +334,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     if (offen.rows[0].c >= 2) return res.status(429).json({ error: 'Für diese E-Mail-Adresse liegen bereits offene Terminanfragen vor. Bitte bestätigen Sie diese zunächst über den Link in unserer E-Mail.' });
     const fzt = FZ_TYPEN.includes(fahrzeugtyp) ? fahrzeugtyp : null;
 
-    const kalk = await baueKalkulation(mainIds, zusatzIds, fzt, zoll || null);
+    const kalk = await baueKalkulation(mainIds, zusatzIds, fzt, zoll || null, b.gutschein_code);
     if (!kalk.positionen.length) return res.status(404).json({ error: 'Leistung nicht gefunden.' });
     const dauer = kalk.dauer;
 
@@ -327,15 +383,13 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     // Gutschein serverseitig pruefen (nur aktiver, nicht abgelaufener Code mit Rabatt > 0). Der zum
     // Buchungszeitpunkt validierte Prozentsatz wird am Termin EINGEFROREN (verbindliche Zusage; das
     // Rechnungswesen zieht genau diesen Wert in "Rechnung aus Termin"). Ungueltig -> kein Rabatt, kein Fehler.
-    let gutscheinCode = null, gutscheinRabatt = null;
-    const gcRaw = normGutschein(b.gutschein_code);
-    if (gcRaw) {
-      const gc = (await query(
-        `SELECT code, rabatt_prozent FROM gutscheine
-         WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE) AND rabatt_prozent > 0 AND rabatt_prozent <= 100`,
-        [gcRaw])).rows[0];
-      if (gc) { gutscheinCode = gc.code; gutscheinRabatt = gc.rabatt_prozent; }
-    }
+    // Der Gutschein wurde bereits in der Kalkulation geprueft und je Position angewandt --
+    // hier nur noch uebernehmen. Eine zweite Abfrage waere eine zweite Wahrheit: Sie koennte
+    // einen anderen Satz liefern als den, der in den Positionen steht.
+    // `gutschein_rabatt` am Termin ist der EFFEKTIVE Gesamtsatz und dient nur Anzeige und
+    // Rueckfall; massgeblich fuer die Rechnung ist `rabatt_prozent` je Zeile in `leistungen`.
+    const gutscheinCode = kalk.gutschein ? kalk.gutschein.code : null;
+    const gutscheinRabatt = kalk.gutschein ? kalk.gutschein.effektiv_prozent : null;
 
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 45 * 60000); // 45-Min-Bestaetigungsfenster (haelt den Slot befristet)
@@ -393,7 +447,13 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: em, replyTo: einst.email || process.env.SMTP_USER, subject: 'Bitte bestätigen: Terminanfrage ' + dF + ' ' + uhrzeit_von + ' Uhr — Schröder & Scholz', html: htmlGast });
     } catch (mailErr) { console.error('[Gast-Buchung-Mail]', mailErr.message); }
 
-    res.status(201).json({ message: 'bestaetigung_noetig', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt, summe_brutto: kalk.brutto, gutschein_code: gutscheinCode, gutschein_rabatt: gutscheinRabatt });
+    res.status(201).json({
+      message: 'bestaetigung_noetig', datum: datum, uhrzeit_von: uhrzeit_von, leistungen: kalk.gewaehlt,
+      summe_brutto: kalk.brutto, gutschein_code: gutscheinCode, gutschein_rabatt: gutscheinRabatt,
+      // Bei gestaffeltem Nachlass sagt ein einzelner Prozentsatz nichts mehr -- die Bestaetigungs-
+      // seite braucht die Betraege selbst, sonst zeigt sie den Preis vor Abzug.
+      rabatt_summe: kalk.rabatt_summe, summe_nach_rabatt: kalk.brutto_nach_rabatt
+    });
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
@@ -475,6 +535,28 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       };
       const posHtml = pos.map(p => p.bezeichnung + ': ab ' + eur(posBrutto(p))).join('<br>');
       const summeBrutto = round2(pos.reduce((s, p) => s + posBrutto(p), 0));
+      // Nachlasszeilen aus den je Position eingefrorenen Saetzen -- gruppiert nach Satz und
+      // Steuersatz, je Gruppe einmal gerundet, auf den Bruttopreis. Exakt die Regeln, nach denen
+      // das Rechnungswesen den Beleg baut: Was hier steht, muss dort wieder herauskommen.
+      // Ein einzelner Prozentsatz taugt dafuer nicht mehr -- bei 25 % auf die Einlagerung und
+      // 10 % auf alles andere waere jede einzelne Zahl falsch.
+      const rabattGruppen = {};
+      pos.forEach((p) => {
+        const satz = Number(p.rabatt_prozent || 0);
+        if (!satz) return;
+        const key = satz + '|' + Number(p.mwst_satz != null ? p.mwst_satz : 19);
+        rabattGruppen[key] = (rabattGruppen[key] || 0) + posBrutto(p);
+      });
+      const rabattZeilen = Object.keys(rabattGruppen).map((key) => {
+        const satz = Number(key.split('|')[0]);
+        const betrag = round2(rabattGruppen[key] * satz / 100);
+        return { satz: satz, betrag: betrag };
+      }).sort((a, b) => b.satz - a.satz);
+      const rabattGesamt = round2(rabattZeilen.reduce((s, r) => s + r.betrag, 0));
+      const rabattHtml = rabattZeilen.length
+        ? rabattZeilen.map(r => 'Nachlass ' + r.satz + ' %: −' + eur(r.betrag)).join('<br>')
+          + '<br><strong>Summe nach Abzug: ab ' + eur(round2(summeBrutto - rabattGesamt)) + '</strong>'
+        : '';
       // Interne Admin-Mail: Netto-Detail (Grundpreis + Zuschlag) statt der kundenseitigen Brutto-"ab"-Zeile
       // -> der Betrieb kalkuliert intern netto. Kundenmail bleibt reine Brutto-Schaetzung (PAngV).
       const posHtmlAdmin = pos.map(p => p.bezeichnung + ': ' + eur(p.grundpreis_netto)
@@ -482,7 +564,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       const preisBlock = posHtml
         ? ('<strong>Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtml
            + '<br><strong>Summe (Schätzung): ab ' + eur(summeBrutto) + '</strong>'
-           + (t.gutschein_code ? '<br>Gutschein ' + t.gutschein_code + ': −' + t.gutschein_rabatt + ' % (Anrechnung auf der Rechnung)' : '')
+           + (t.gutschein_code && rabattHtml ? '<br><br><strong>Gutschein ' + t.gutschein_code + '</strong><br>' + rabattHtml + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>' : '')
            + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
         : '';
       // #6 Konto-CTA (sekundaer) unter dem Bestaetigungstext. Statt der E-Mail in der URL geht jetzt ein
@@ -513,7 +595,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       if (einst.email) {
         await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: t.kontakt_email,
           subject: 'Neue Online-Buchung (Gast, bestätigt): ' + (t.termin_typ || '') + ' am ' + dF + ' ' + hhmm,
-          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code ? '<br>Gutschein ' + t.gutschein_code + ': −' + t.gutschein_rabatt + ' %' : '') + '</p>' });
+          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code && rabattZeilen.length ? '<br>Gutschein ' + t.gutschein_code + ': ' + rabattZeilen.map(r => '−' + eur(r.betrag) + ' (' + r.satz + ' %)').join(', ') : '') + '</p>' });
       }
     } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
 
