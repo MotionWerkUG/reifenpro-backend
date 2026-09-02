@@ -11,6 +11,7 @@
   --text: #201e1b; --muted: #6f6a61;
   --accent: #eab308; --accent-text: #87680c; --accent-ink: #1c1608; --adim: rgba(234,179,8,.18);
   --green: #1a8f52; --gdim: rgba(26,143,82,.12);
+  --red: #c8402a; --rdim: rgba(200,64,42,.12);
   --yellow: #b3781a; --ydim: rgba(179,120,26,.14);
   --blue: #2f6bd8; --bdim: rgba(47,107,216,.10);
   color-scheme: light;
@@ -22,6 +23,8 @@
     --text: #eceef2; --muted: #99a0ac;
     --accent: #eab308; --accent-text: #eec33a; --accent-ink: #1c1608; --adim: rgba(234,179,8,.15);
     --green: #3ab873; --gdim: rgba(58,184,115,.16);
+  --red: #e2604a; --rdim: rgba(226,96,74,.18);
+    --red: #e2604a; --rdim: rgba(226,96,74,.18);
     --yellow: #e0a02c; --ydim: rgba(224,160,44,.16);
     --blue: #5a90f0; --bdim: rgba(90,144,240,.16);
     color-scheme: dark;
@@ -126,8 +129,11 @@ aside { transition: width .18s ease; }
 .btn-grn { background: var(--green); color: #071a0d; font-weight: 700; }
 .btn-grn:hover { background: #2db87a; }
 .btn-sm { padding: 5px 11px; font-size: 12px; }
-.btn-danger { background: var(--adim); color: var(--accent-text); border: 1px solid rgba(234,179,8,.25); }
-.btn-danger:hover { background: rgba(234,179,8,.2); }
+/* Loeschen, Stornieren, Absagen muessen sich vom normalen Knopf unterscheiden — im
+   Tagesgeschaeft entscheidet das Auge in Sekundenbruchteilen. Gold war hier falsch:
+   Es ist die Akzentfarbe und laut Styleboard ausdruecklich NIE die Fehlerfarbe. */
+.btn-danger { background: var(--rdim); color: var(--red); border: 1px solid var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
 
 /* Page header */
 .ph { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
@@ -193,6 +199,11 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
 
 /* Badges */
+/* Lagerplatz-Kaestchen: am Rechner kompakt, auf dem Tablet mindestens 44 px — das ist die
+   Ansicht, die ein Mitarbeiter mit dem Geraet in der Hand vor dem Regal benutzt. */
+.lp-fach { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+  font-size: 9px; cursor: pointer; }
+@media (max-width: 1024px) { .lp-fach { width: 44px; height: 44px; font-size: 12px; border-radius: 6px; } }
 .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 .b-r { background: var(--adim); color: var(--accent-text); border: 1px solid rgba(234,179,8,.25); }
 .b-y { background: var(--ydim); color: var(--yellow); border: 1px solid rgba(245,200,66,.25); }
@@ -273,10 +284,10 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
 .dok-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dok-saved { background: var(--gdim); border: 1px solid rgba(62,207,142,.3); color: var(--green); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; display: none; }
 #sig-canvas { background: #fff; border: 2px solid var(--border2); border-radius: 8px; cursor: crosshair; touch-action: none; display: block; width: 100%; height: 180px; }
-.portal-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
-.pb-warten { background: var(--ydim); color: var(--yellow); border: 1px solid rgba(245,200,66,.25); }
-.pb-aktiv { background: var(--gdim); color: var(--green); border: 1px solid rgba(62,207,142,.25); }
-.pb-kein { background: var(--panel); color: var(--muted); border: 1px solid var(--border2); }
+/* Die Portal-Spalte hatte ein eigenes, optisch identisches Badge-System. Zusammengefuehrt:
+   dieselbe Sache soll ueberall gleich aussehen und an einer Stelle gepflegt werden. */
+.b-n { background: var(--panel); color: var(--muted); border: 1px solid var(--border2); }
+.b-x { background: var(--rdim); color: var(--red); border: 1px solid var(--red); }
 /* Druck erfolgt ueber separate Fenster (window.open) – keine globale body-Ausblendung mehr (sonst druckt Strg+P ein leeres Blatt). */
 @media (max-width: 768px) {
   .navtoggle { display: flex; }
@@ -288,7 +299,11 @@ tr:hover td { background: color-mix(in srgb,var(--text) 4%,transparent); }
   #app.nav-collapsed .ni { justify-content: flex-start; padding: 9px 14px; margin: 1px 8px; }
   .navback { display: none !important; }
   /* Kopfzeile auf Mobil schlank halten (sonst wird 'Abmelden' aus dem Bild gedraengt) */
-  .crumb, .hsearch { display: none !important; }
+  /* Nur die Brotkrumen ausblenden. Die Schnellsuche (Kunde, Kennzeichen, Lagerplatz)
+     bleibt: Am Tresen mit dem Tablet in der Hand ist sie der schnellste Weg zum Vorgang
+     — sie ausgerechnet dort zu verstecken, war der Fehler. Platz ist da, weil Uhr und
+     Kennzahlen auf schmalen Bildschirmen ohnehin entfallen. */
+  .crumb { display: none !important; }
   #app.nav-open aside { transform: translateX(0); }
   #app.nav-open .nav-backdrop { display: block; position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.5); z-index: 150; }
   .hstats { display: none; }
@@ -349,6 +364,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .einst-rail { display: flex; flex-direction: column; gap: 3px; position: sticky; top: 12px; }
 .einst-rail .etab { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 9px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: var(--muted); font-weight: 500; cursor: pointer; transition: background .12s, color .12s; }
 .einst-rail .etab:hover { background: var(--panel); }
+.stabs { display: flex; gap: 2px; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
+.stabs .stab { background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 9px 15px; font-family: inherit; font-size: 14px; font-weight: 500; color: var(--muted); cursor: pointer; transition: color .12s, border-color .12s; }
+.stabs .stab:hover { color: var(--text); }
+.stabs .stab.on { color: var(--accent-text); border-bottom-color: var(--accent-text); font-weight: 700; }
 .einst-rail .etab.on { background: var(--panel); color: var(--accent-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent-text); }
 .einst-content { min-width: 0; }
 @media (max-width: 720px) { .einst-split { grid-template-columns: 1fr; gap: 10px; } .einst-rail { flex-direction: row; flex-wrap: wrap; position: static; } .einst-rail .etab { width: auto; } .einst-rail .etab.on { box-shadow: none; border-bottom: 2px solid var(--accent-text); } }
@@ -418,14 +437,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="nsec">Betrieb</div>
       <div class="ni" data-page="kalender">Kalender</div>
       <div class="ni" data-page="werkstatt">Werkstatt</div>
-      <div class="ni" data-page="statistik">Statistik</div>
       <div class="ni" data-page="rechnungen">Rechnungen</div>
+      <div class="ni" data-page="statistik">Statistik</div>
+      <!-- Kontakt-, Gewerbe- und Datenschutz-Anfragen sind dasselbe: Postfaecher mit Frist,
+           die jemand abarbeiten muss. Sie standen bisher auf zwei Gruppen verteilt. -->
+      <div class="nsec">Anfragen</div>
       <div class="ni" data-page="kontakt">Kontaktanfragen</div>
       <div class="ni" data-page="gewerbeanf">Gewerbe-Anfragen</div>
+      <div class="ni" data-page="dsgvo">Datenschutz</div>
       <div class="nsec">Team</div>
       <div class="ni" data-page="users">Mitarbeiter</div>
-      <div class="ni" data-page="dsgvo">DSGVO-Anfragen</div>
-      <div class="nsec">System</div>
       <div class="ni" data-page="einstellungen">Einstellungen</div>
     </aside>
     <main id="main-content">
@@ -436,18 +457,20 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div class="pt">Dashboard</div>
           <button class="btn btn-p" onclick="openModal('ne')">+ Neue Einlagerung</button>
         </div>
-        <div id="dash-freischalten"></div>
-        <div id="dash-dokumente"></div>
-        <div id="dash-kontakt"></div>
-        <div id="dash-gewerbe"></div>
-        <div id="dash-heute"></div>
-        <div id="dash-abzurechnen"></div>
+        <!-- Kennzahlen zuerst: Sie sind der Grund, warum jemand das Dashboard oeffnet.
+             Die Hinweiskaesten stehen darunter — sie sind wichtig, aber nicht taeglich da. -->
         <div class="stats">
           <div class="sc sc-a clickable" onclick="dashEinl('')"><div class="sv" id="st-e">0</div><div class="sl">Eingelagert</div></div>
           <div class="sc sc-y clickable" onclick="dashEinl('Abholbereit')"><div class="sv" id="st-a">0</div><div class="sl">Abholbereit</div></div>
           <div class="sc sc-g clickable" onclick="showPage('lagerplan')"><div class="sv" id="st-f">-</div><div class="sl">Freie Plätze</div></div>
           <div class="sc sc-b clickable" onclick="showPage('kunden')"><div class="sv" id="st-k">0</div><div class="sl">Kunden</div></div>
         </div>
+        <div id="dash-heute"></div>
+        <div id="dash-abzurechnen"></div>
+        <div id="dash-freischalten"></div>
+        <div id="dash-dokumente"></div>
+        <div id="dash-kontakt"></div>
+        <div id="dash-gewerbe"></div>
         <div class="g2">
           <div class="pnl"><div class="ptitle">Letzte Einlagerungen</div><div id="dash-last"></div></div>
           <div>
@@ -507,7 +530,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-kd">
         <div class="ph">
           <div style="display:flex;align-items:center;gap:12px">
-            <button class="btn btn-g btn-sm" onclick="showPage('kunden')">Zurück</button>
             <div class="pt" id="kd-name">Kunde</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -531,9 +553,16 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="pnl">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
             <div class="ptitle" style="margin-bottom:0">Dokumente</div>
-            <label class="btn btn-g btn-sm" style="cursor:pointer">Scan hochladen<input type="file" accept="image/*,application/pdf" style="display:none" onchange="uploadScan(this)"></label>
+            <span style="font-size:12px;color:var(--muted)">Auf Papier unterschrieben? Am jeweiligen Dokument „Scan" wählen.</span>
           </div>
           <div id="kd-docs"></div>
+        </div>
+        <div class="pnl">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap">
+            <div class="ptitle" style="margin-bottom:0">Datenschutz-Anfragen</div>
+            <button class="btn btn-g btn-sm" onclick="dsgvoKarte()">Anfrage erfassen</button>
+          </div>
+          <div style="font-size:12px;color:var(--muted)">Auskunft, Löschung oder Widerspruch, die per Telefon, Brief oder am Tresen eingehen, hier erfassen. Die Bearbeitung läuft dann über den Bereich Datenschutz — dort lässt sich die Auskunft nach Art. 15 auch erstellen und drucken. Frist: ein Monat.</div>
         </div>
       </div>
 
@@ -609,12 +638,23 @@ html, body { max-width: 100%; overflow-x: hidden; }
       <div class="page" id="page-statistik">
         <div class="ph">
           <div class="pt">Statistik</div>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div id="stat-jahr-nav" style="display:flex;align-items:center;gap:8px">
             <button class="btn btn-g btn-sm" onclick="statJahr(-1)">Zurück</button>
             <div id="stat-jahr-anzeige" style="font-size:16px;font-weight:700;min-width:60px;text-align:center"></div>
             <button class="btn btn-g btn-sm" onclick="statJahr(1)">Vor</button>
           </div>
+          <select id="bs-zeitraum" onchange="loadBesucher()" style="display:none;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:inherit">
+            <option value="7">Letzte 7 Tage</option>
+            <option value="30" selected>Letzte 30 Tage</option>
+            <option value="90">Letzte 90 Tage</option>
+            <option value="365">Letztes Jahr</option>
+          </select>
         </div>
+        <div id="stat-tabs" class="stabs">
+          <button class="stab on" data-stab="betrieb" onclick="showStatTab('betrieb')">Betrieb</button>
+          <button class="stab" data-stab="homepage" onclick="showStatTab('homepage')">Homepage</button>
+        </div>
+        <div class="stab-panel" data-spanel="betrieb">
         <div class="stats" style="grid-template-columns:repeat(3,1fr)">
           <div class="sc sc-b"><div class="sv" id="stat-gesamt">0</div><div class="sl">Termine gesamt</div></div>
           <div class="sc sc-g"><div class="sv" id="stat-online">0</div><div class="sl">Online gebucht</div></div>
@@ -626,6 +666,22 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div id="stat-monate-legende" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:12px"></div>
         </div>
         <div class="pnl"><div class="ptitle">Saisonvergleich</div><div id="stat-saison"></div></div>
+        </div>
+
+        <!-- Homepage-Statistik aus dem Zugriffsprotokoll des Webservers, ohne Cookies -->
+        <div class="stab-panel" data-spanel="homepage" style="display:none">
+        <div id="bs-kacheln" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px"></div>
+        <div class="pnl" style="margin-bottom:18px">
+          <div class="ptitle">Aufrufe je Tag</div>
+          <div id="bs-verlauf" style="display:flex;align-items:flex-end;gap:2px;height:150px;padding-top:10px"></div>
+          <div id="bs-verlauf-achse" style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px">
+          <div class="pnl"><div class="ptitle">Meistbesuchte Seiten</div><div id="bs-seiten"></div></div>
+          <div class="pnl"><div class="ptitle">Woher die Besucher kommen</div><div id="bs-herkunft"></div></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:14px" id="bs-hinweis"></div>
+        </div>
       </div>
 
       <!-- MITARBEITER -->
@@ -683,6 +739,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <button class="etab" data-etab="bank" onclick="showEinstTab('bank')">Bank &amp; Buchhaltung</button>
             <button class="etab" data-etab="mail" onclick="showEinstTab('mail')">E-Mail-Texte</button>
             <button class="etab" data-etab="homepage" onclick="showEinstTab('homepage')">Homepage &amp; Kontakt</button>
+            <button class="etab" data-etab="geraete" onclick="showEinstTab('geraete')">Geräte</button>
           </nav>
           <div class="einst-content">
         <div class="etab-panel" data-epanel="firma">
@@ -708,6 +765,21 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <div class="fg"><label>Registergericht</label><input id="s-hrgericht" placeholder="Amtsgericht München"></div>
             <div class="fg"><label>Datenschutzbeauftragter</label><input id="s-dsb" placeholder="optional"></div>
             <div class="fg"><label>Versicherung (Name + Policen-Nr.)</label><input id="s-vers"></div>
+            <div class="fg full" style="margin-top:6px;padding-top:10px;border-top:1px solid var(--border)">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)">Impressum — Pflichtangaben nach Eintragung</div>
+              <div style="font-size:12px;color:var(--muted);margin-top:4px">Pflicht nach § 5 DDG, sobald der Betrieb in der Handwerksrolle steht, und nach § 36 VSBG. Solange die Firma nicht gegründet ist, dürfen die Felder leer bleiben — die Anwendung läuft dann normal weiter. Die Homepage zieht diese Angaben ins Impressum.</div>
+            </div>
+            <div class="fg"><label>Zuständige Handwerkskammer</label><input id="s-hwk" placeholder="Handwerkskammer für München und Oberbayern, Max-Joseph-Straße 4, 80333 München"></div>
+            <div class="fg"><label>Gesetzliche Berufsbezeichnung</label><input id="s-berufbez" placeholder="Kraftfahrzeugtechniker-Meister"></div>
+            <div class="fg"><label>Verliehen in (Staat)</label><input id="s-berufstaat" placeholder="Deutschland"></div>
+            <div class="fg"><label>Berufsrechtliche Regelungen (Link)</label><input id="s-berufsrecht" placeholder="https://www.gesetze-im-internet.de/hwo/"></div>
+            <div class="fg"><label>Verbraucherschlichtung</label>
+              <select id="s-schlicht">
+                <option value="nein">Nicht bereit und nicht verpflichtet</option>
+                <option value="ja">Zur Teilnahme bereit</option>
+              </select>
+            </div>
+            <div class="fg"><label>Schlichtungsstelle (Name + Anschrift)</label><input id="s-schlichtstelle" placeholder="Allgemeine Verbraucherschlichtungsstelle des Zentrums für Schlichtung e.V., Straßburger Straße 8, 77694 Kehl"></div>
             <div class="fg full"><label>Logo (JPG/PNG)</label>
               <input type="file" id="s-logo" accept="image/*" onchange="logoUp(this)" style="background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:8px;width:100%">
               <div id="s-logo-prev" style="margin-top:8px"></div>
@@ -782,6 +854,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </div>
         </div>
 
+        <div class="etab-panel" data-epanel="geraete" style="display:none">
+          <div class="pnl">
+            <div class="ptitle">Unterschriften-Geräte</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">Ein gekoppeltes iPad zeigt Verträge und Erklärungen zum Unterschreiben an. Es hat bewusst kein Mitarbeiterkonto: Es kann ausschließlich das jeweils gesendete Dokument anzeigen und die Unterschrift zurückgeben — keine Kundenliste, keine Rechnungen, keine Einstellungen.<br>Adresse am Gerät öffnen: <strong id="geraete-url"></strong></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+              <input id="geraet-name" placeholder="Name, z. B. iPad Tresen" style="flex:1;min-width:200px">
+              <button class="btn btn-p btn-sm" onclick="geraetAnlegen()">Gerät anlegen</button>
+            </div>
+            <div id="geraete-liste"></div>
+          </div>
+        </div>
         <div class="etab-panel" data-epanel="lager" style="display:none">
           <div class="ssec"><h3>Lagerorte &amp; Regale</h3>
             <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Lagerorte (z.B. Halle, Container) enthalten Regale mit einem Platzbereich. Daraus werden die Platz-Nummern vergeben — Schema <strong>Ort-Regal-Nr.</strong> (z.B. <code>Halle-A-03</code>). Löschen deaktiviert nur (bestehende Einlagerungen bleiben zuordenbar).</div>
@@ -1081,15 +1164,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 <div class="ov" id="m-dok">
   <div class="modal xl">
-    <button class="mx" onclick="closeModal('dok')">x</button>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+    <button class="mx" onclick="dokSchliessen()">x</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;padding-right:44px">
       <div class="mtitle" id="dok-titel" style="margin-bottom:0">Dokument</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <div class="dok-saved" id="dok-saved-badge">Gespeichert</div>
         <button class="btn btn-g btn-sm" id="dok-sw" onclick="switchDok()" style="display:none">Wechseln</button>
-        <button class="btn btn-g btn-sm" onclick="druckUndSpeichereDok()">Drucken</button>
-        <button class="btn btn-p btn-sm" onclick="saveDokOhneSchließen()">Speichern</button>
-        <button class="btn btn-g btn-sm" onclick="closeModal('dok')">Fertig</button>
+        <button class="btn btn-g btn-sm" id="dok-station" onclick="dokAnStation()">An Gerät senden</button>
+        <button class="btn btn-p btn-sm" id="dok-speichern" onclick="saveDokOhneSchließen()">Speichern</button>
+        <button class="btn btn-g btn-sm" id="dok-drucken" onclick="druckUndSpeichereDok()" style="display:none">Drucken</button>
       </div>
     </div>
     <!-- Dokument ZUERST (muss vor der Unterschrift lesbar sein), Unterschriftenfeld darunter -->
@@ -1100,7 +1183,13 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <canvas id="sig-canvas" width="900" height="180"></canvas>
         <button class="btn btn-g btn-sm" style="position:absolute;top:8px;right:8px" onclick="clearSig()">Löschen</button>
       </div>
-      <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px">Mit Finger oder Apple Pencil unterschreiben — oder über <strong>An Gerät senden</strong> auf dem iPad unterschreiben lassen.</div>
+      <div id="dok-station-stand" style="font-size:13px;margin-top:8px"></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <strong style="color:var(--fg)">Ablauf:</strong> 1. Kunde unterschreibt hier auf dem Bildschirm.
+        2. <strong style="color:var(--fg)">Speichern</strong> — erst damit ist das Dokument abgelegt. Danach lässt es sich drucken.
+        Das <strong style="color:var(--fg)">x</strong> oben rechts schließt nur die Ansicht; ist noch nicht gespeichert, wird vorher gefragt.
+      </div>
     </div>
   </div>
 </div>
@@ -1202,6 +1291,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
     <div class="mtitle">Preis-/Zeitstaffel — <span id="ap-artikel-name"></span></div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Varianten je Fahrzeugtyp und Zollgröße. Greift keine Variante, gilt der Standardpreis des Artikels.</div>
     <div id="ap-liste"></div>
+    <div id="ap-luecken"></div>
     <div class="ssec" style="margin-top:14px"><h3 style="font-size:13px">Variante hinzufügen</h3>
       <div class="fgrid">
         <div class="fg"><label>Fahrzeugtyp</label><select id="ap-typ"><option value="">Alle</option><option value="PKW">PKW</option><option value="SUV">SUV</option><option value="Transporter">Transporter</option><option value="Motorrad">Motorrad</option><option value="Sonstiges">Sonstiges</option></select></div>
@@ -1470,7 +1560,11 @@ window.addEventListener('load', function() {
   // Modal Overlay-Click
   document.querySelectorAll('.ov').forEach(function(o) {
     o.addEventListener('click', function(e) {
-      if (e.target === o) o.classList.remove('open');
+      if (e.target !== o) return;
+      // Der Dokumentdialog geht nur ueber dokSchliessen() zu, sonst waere die Unterschrift
+      // bei einem Klick daneben ohne Nachfrage verloren.
+      if (o.id === 'm-dok') { dokSchliessen(); return; }
+      o.classList.remove('open');
     });
   });
 
@@ -1511,19 +1605,24 @@ window.addEventListener('load', function() {
 });
 
 // ── API ──
-function api(method, path, body) {
+// opt.raw: Antwort als Datei (Blob) statt als JSON — fuer Scans und PDFs, die hinter der
+// Anmeldung liegen und deshalb nicht per einfachem Link geoeffnet werden koennen.
+function api(method, path, body, opt) {
   var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
-  if (body !== undefined) opts.body = JSON.stringify(body);
+  if (body !== undefined && body !== null) opts.body = JSON.stringify(body);
   return fetch(API + path, opts).then(function(r) {
     if (r.status === 401) { doLogout('expired'); return null; }
     if (!r.ok) {
       return r.json().catch(function() { return {}; }).then(function(e) {
         var err = new Error(e.error || e.message || ('Fehler ' + r.status));
-        err.code = e.code; err.status = r.status;
+        // Ganze Antwort mitgeben: Manche Fehler tragen Nutzdaten, die der Aufrufer braucht
+        // (z.B. die Liste kollidierender Termine bei einer Doppelbuchung).
+        err.code = e.code; err.status = r.status; err.daten = e;
         throw err;
       });
     }
+    if (opt && opt.raw) return r.blob();
     return r.json().catch(function() { return null; });
   });
 }
@@ -1681,13 +1780,22 @@ function startApp() {
   loadHeute();
   loadAbzurechnen();
   loadKontakt();
+  // Beide Dashboard-Meldungen wurden bisher nur von showPage('dashboard') geladen — beim
+  // ersten Aufbau nach dem Login lief showPage aber nie. Ergebnis: die Hinweise auf faellige
+  // Dokumente und offene Gewerbeanfragen waren genau dann unsichtbar, wenn man sie braucht.
+  loadDokFaellig();
+  loadGewerbeAnf();
   startUhr();
   befuelleJahrDropdown();
   if (!window._popBound) {
     window._popBound = true;
     window.addEventListener('popstate', function(e) {
       var m = document.querySelector('.ov.open');
-      if (m) { m.classList.remove('open'); if (history.pushState) { try { history.pushState({ page: currentPage }, '', '#' + currentPage); } catch (x) {} } return; }
+      if (m) {
+        if (m.id === 'm-dok') dokSchliessen(); else m.classList.remove('open');
+        if (history.pushState) { try { history.pushState({ page: currentPage }, '', '#' + currentPage); } catch (x) {} }
+        return;
+      }
       closeNav();
       showPage((e.state && e.state.page) || 'dashboard', true);
     });
@@ -1750,7 +1858,7 @@ function showPage(n, fromPop) {
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
-  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); }
+  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); ladeGeraete(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
   updateBreadcrumb();
@@ -1834,30 +1942,41 @@ function loadDokFaellig() {
     var byK = {};
     rows.forEach(function(r) {
       var k = byK[r.kunden_id] || (byK[r.kunden_id] = { kid: r.kunden_id, name: r.name, kunden_nr: r.kunden_nr, docs: [] });
-      k.docs.push({ typ: r.typ, grund: r.grund });
+      k.docs.push({ typ: r.typ, grund: r.grund, einlagerung_id: r.einlagerung_id, lagerplatz: r.lagerplatz });
     });
     var kunden = Object.keys(byK).map(function(k) { return byK[k]; });
-    var dokLbl = function(t) { return t === 'einlagerungsvertrag' ? 'Vertrag' : 'Datenschutz'; };
+    var dokLbl = function(t) {
+      if (t === 'einlagerungsvertrag') return 'Vertrag';
+      if (t === 'einlagerungsschein') return 'Einlagerungsschein';
+      return 'Datenschutz';
+    };
     el.innerHTML = '<details class="pnl" style="border-left:3px solid var(--accent);margin-bottom:14px">' +
       '<summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px">' +
       '<span class="ptitle" style="margin:0">Dokumente zu erneuern (' + kunden.length + ' Kunden)</span>' +
       '<span style="font-size:12px;color:var(--muted)">– zum Aufklappen</span></summary>' +
-      '<div style="font-size:12px;color:var(--muted);margin:8px 0 6px">Kunden mit eingelagerten Rädern, bei denen Datenschutz oder Vertrag fehlt oder abgelaufen ist.</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin:8px 0 6px">Kunden mit eingelagerten Rädern, bei denen Datenschutz, Vertrag oder die Unterschrift auf dem Einlagerungsschein fehlt.</div>' +
       kunden.map(function(k) {
         return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
           '<div style="min-width:0"><strong>' + kEsc(k.name) + '</strong> <span style="color:var(--muted);font-size:12px">' + kEsc(k.kunden_nr || '') + '</span></div>' +
           '<div style="display:flex;gap:5px;flex-wrap:wrap">' + k.docs.map(function(d) {
-            return '<button class="btn btn-g btn-sm" onclick="dokFaelligOeffnen(\'' + k.kid + '\',\'' + d.typ + '\')" title="' + kEsc(d.grund) + '">' + dokLbl(d.typ) + ' öffnen</button>';
+            var t = kEsc(d.grund) + (d.lagerplatz ? ' — Lagerplatz ' + kEsc(d.lagerplatz) : '');
+            return '<button class="btn btn-g btn-sm" onclick="dokFaelligOeffnen(\'' + k.kid + '\',\'' + d.typ + '\',\'' + (d.einlagerung_id || '') + '\')" title="' + t + '">' + dokLbl(d.typ) + (d.lagerplatz ? ' ' + kEsc(d.lagerplatz) : '') + ' öffnen</button>';
           }).join('') + '</div>' +
           '</div>';
       }).join('') + '</details>';
   }).catch(function() {});
 }
-function dokFaelligOeffnen(kid, typ) {
+function dokFaelligOeffnen(kid, typ, eid) {
   showPage('kunden');
   setTimeout(function() {
     zeigeK(kid);
-    setTimeout(function() { if (typ === 'einlagerungsvertrag') oeffneVertrag(); else oeffneDsgvo(); }, 350);
+    setTimeout(function() {
+      // Der Einlagerungsschein haengt am Vorgang: direkt den richtigen oeffnen, damit
+      // niemand in der Kundenakte suchen muss, welcher Satz gemeint ist.
+      if (typ === 'einlagerungsschein' && eid) zeigeSchein(eid, 'ein');
+      else if (typ === 'einlagerungsvertrag') oeffneVertrag();
+      else oeffneDsgvo();
+    }, 350);
   }, 120);
 }
 function renderKontakt() {
@@ -1873,7 +1992,7 @@ function renderKontakt() {
     var pre = 'Hallo ' + vorname + ',\n\n\n\nMit freundlichen Grüßen\nSchröder & Scholz';
     return '<div class="pnl" style="margin-bottom:12px">' +
       '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
-      '<div><strong>' + kEsc(a.name) + '</strong>' + (a.erledigt ? ' <span style="color:#1a7f37;font-size:12px">erledigt</span>' : '') + '<br>' +
+      '<div><strong>' + kEsc(a.name) + '</strong>' + (a.erledigt ? ' <span style="color:var(--green);font-size:12px">erledigt</span>' : '') + '<br>' +
       '<a href="mailto:' + kEsc(a.email) + '">' + kEsc(a.email) + '</a>' + (a.telefon ? ' · ' + kEsc(a.telefon) : '') + '</div>' +
       '<div style="font-size:12px;color:var(--muted)">' + rDatum(a.erstellt_am) + '</div></div>' +
       '<div style="margin:10px 0;white-space:pre-wrap;background:var(--bg,#f6f7f9);padding:10px 12px;border-radius:8px">' + kEsc(a.nachricht) + '</div>' +
@@ -1993,7 +2112,7 @@ function renderGewerbeAnf() {
   el.innerHTML = list.map(function(a) {
     return '<div class="pnl" style="margin-bottom:12px">' +
       '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
-      '<div><strong>' + kEsc(a.firma) + '</strong>' + (a.erledigt ? ' <span style="color:#1a7f37;font-size:12px">erledigt</span>' : '') + '<br>' +
+      '<div><strong>' + kEsc(a.firma) + '</strong>' + (a.erledigt ? ' <span style="color:var(--green);font-size:12px">erledigt</span>' : '') + '<br>' +
       kEsc((a.anrede ? a.anrede + ' ' : '') + a.ansprechpartner) + '<br>' +
       '<a href="mailto:' + kEsc(a.email) + '">' + kEsc(a.email) + '</a> · ' + kEsc(a.telefon) + '</div>' +
       '<div style="font-size:12px;color:var(--muted);text-align:right">' + rDatum(a.erstellt_am) +
@@ -2039,11 +2158,13 @@ var allRechnungen = [];
 function rEur(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') + ' €'; }
 function rDatum(d) { if (!d) return '-'; var t = new Date(d); return String(t.getDate()).padStart(2, '0') + '.' + String(t.getMonth() + 1).padStart(2, '0') + '.' + t.getFullYear(); }
 function rStatusBadge(s, istStorno) {
-  var map = { entwurf: ['Entwurf', '#888'], festgeschrieben: ['Festgeschrieben', '#1a7f37'], storniert: ['Storniert', '#c0392b'] };
+  // Nutzt dasselbe Badge-System wie der Rest der Oberflaeche statt eigener Farbwerte —
+  // sonst sieht derselbe Zustand je nach Seite anders aus.
+  var map = { entwurf: ['Entwurf', 'b-n'], festgeschrieben: ['Festgeschrieben', 'b-g'], storniert: ['Storniert', 'b-x'] };
   // Eine Stornorechnung hat selbst den Status 'festgeschrieben' — ohne eigenes Kennzeichen
   // waere sie in der Liste nicht von einer normalen Rechnung zu unterscheiden.
-  var m = istStorno ? ['Stornorechnung', '#c0392b'] : (map[s] || [s, '#888']);
-  return '<span style="background:' + m[1] + ';color:#fff;padding:2px 8px;border-radius:10px;font-size:11px">' + m[0] + '</span>';
+  var m = istStorno ? ['Stornorechnung', 'b-x'] : (map[s] || [s, 'b-n']);
+  return '<span class="badge ' + m[1] + '">' + m[0] + '</span>';
 }
 var KASSE_DA = false;   // Kassenanbindung auf diesem Server eingerichtet?
 function loadRechnungen() {
@@ -2114,7 +2235,7 @@ function renderRechnungen() {
         akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
     }
-    var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:#1a7f37">bezahlt</span>' : '<span style="color:#c0392b">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:#c0392b">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
+    var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:var(--green)">bezahlt</span>' : '<span style="color:var(--red)">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:var(--red)">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     // Beleg der Kasse sichtbar machen: Das ist die Verknuepfung, die belegt, dass der Umsatz
     // nur einmal gebucht wurde — Rechnung hier, Zahlung dort.
     if (r.kasse_beleg_nr) {
@@ -2323,8 +2444,8 @@ function recalcRechnung() {
     });
     if (rabattBrutto < 0) {
       var original = Math.round((brutto - rabattBrutto) * 100) / 100;
-      gi.innerHTML = '<span style="color:#c0392b;text-decoration:line-through">' + rEur(original) + '</span> &rarr; <strong>' + rEur(brutto) + '</strong>' +
-        '<div style="color:#c0392b;font-size:12px">' + kEsc(gcode) + ': ' + rEur(rabattBrutto) + '</div>';
+      gi.innerHTML = '<span style="color:var(--red);text-decoration:line-through">' + rEur(original) + '</span> &rarr; <strong>' + rEur(brutto) + '</strong>' +
+        '<div style="color:var(--red);font-size:12px">' + kEsc(gcode) + ': ' + rEur(rabattBrutto) + '</div>';
     } else { gi.innerHTML = ''; }
   }
 }
@@ -2504,7 +2625,8 @@ function notify(msg, t) {
 }
 function openModal(n, resetForm) {
   if (n === 'ne') fillNeForm();
-  if (n === 'nt') fillNtForm();
+  // resetForm===false: Formular ist bereits befuellt (Bearbeiten) und darf nicht geleert werden.
+  if (n === 'nt' && resetForm !== false) fillNtForm();
   if (n === 'nk' && resetForm !== false) NK_FROM_ANFRAGE = null;
   var el = document.getElementById('m-' + n);
   if (el) el.classList.add('open');
@@ -2726,6 +2848,10 @@ function fillEinst() {
   fv('s-steu', EINST.steuernummer); fv('s-ustid', EINST.ust_id);
   fv('s-rf', EINST.rechtsform); fv('s-hrnr', EINST.handelsreg_nr);
   fv('s-hrgericht', EINST.registergericht); fv('s-dsb', EINST.datenschutz_beauftragter);
+  fv('s-hwk', EINST.handwerkskammer); fv('s-berufbez', EINST.berufsbezeichnung);
+  fv('s-berufstaat', EINST.berufsbezeichnung_staat); fv('s-berufsrecht', EINST.berufsrechtliche_regelungen);
+  fv('s-schlichtstelle', EINST.schlichtung_stelle);
+  var sch = document.getElementById('s-schlicht'); if (sch) sch.value = EINST.schlichtung_bereit ? 'ja' : 'nein';
   fv('s-vers', EINST.versicherung_name); fv('s-purl', EINST.portal_url);
   fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
   fv('s-buchbar-ab', EINST.buchbar_ab ? String(EINST.buchbar_ab).substring(0, 10) : '');
@@ -2762,6 +2888,9 @@ function saveEinst() {
     google_bewertung_url: gv('s-google'), facebook_url: gv('s-fb'), instagram_url: gv('s-ig'),
     ust_id: gv('s-ustid'), rechtsform: gv('s-rf'), handelsreg_nr: gv('s-hrnr'),
     registergericht: gv('s-hrgericht'), datenschutz_beauftragter: gv('s-dsb'),
+    handwerkskammer: gv('s-hwk'), berufsbezeichnung: gv('s-berufbez'),
+    berufsbezeichnung_staat: gv('s-berufstaat'), berufsrechtliche_regelungen: gv('s-berufsrecht'),
+    schlichtung_bereit: gv('s-schlicht') === 'ja', schlichtung_stelle: gv('s-schlichtstelle'),
     versicherung_name: gv('s-vers'), portal_url: gv('s-purl'),
     bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
     zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
@@ -3020,6 +3149,25 @@ function apLaden() {
           '<td><button class="btn btn-danger btn-sm" onclick="apLoeschen(\'' + v.id + '\')">X</button></td></tr>';
       }).join('') + '</tbody></table></div>';
   }).catch(function() {});
+  apLueckenPruefen();
+}
+// Luecken in der Staffel sind kein Fehler, aber unsichtbar: Fehlt eine Groesse, gilt
+// stillschweigend der Standardpreis. Hier wird das benannt, statt es zu verschweigen.
+function apLueckenPruefen() {
+  var el = document.getElementById('ap-luecken'); if (!el) return;
+  el.innerHTML = '';
+  api('GET', '/artikel/' + apArtikelId + '/preise/pruefung').then(function(d) {
+    if (!d || !d.hinweise || !d.hinweise.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--green);margin-top:8px">'
+        + 'Staffel lückenlos von ' + d.geprueft_von + '" bis ' + d.geprueft_bis + '".</div>';
+      return;
+    }
+    el.innerHTML = '<div style="margin-top:10px;padding:10px 12px;background:var(--ydim);'
+      + 'border:1px solid rgba(179,120,26,.35);border-radius:8px;font-size:12px;color:var(--yellow)">'
+      + '<strong>Lücken in der Staffel</strong><br>'
+      + d.hinweise.map(function(h) { return kEsc(h.text); }).join('<br>')
+      + '</div>';
+  }).catch(function() {});
 }
 function apSpeichern() {
   if (!gv('ap-preis')) { notify('Preis erforderlich.', 'err'); return; }
@@ -3198,13 +3346,13 @@ function renderK() {
     // Portal Status
     var portalBadge = '';
     if (k.portal_aktiv && k.portal_freigegeben) {
-      portalBadge = '<span class="portal-badge pb-aktiv">Aktiv</span>';
+      portalBadge = '<span class="badge b-g">Aktiv</span>';
     } else if (k.portal_aktiv && !k.portal_freigegeben && k.portal_email_bestaetigt) {
-      portalBadge = '<span class="portal-badge pb-warten" title="Kunde hat bestätigt — wartet auf die Freischaltung durch den Betrieb">Freigabe</span>';
+      portalBadge = '<span class="badge b-y" title="Kunde hat bestätigt — wartet auf die Freischaltung durch den Betrieb">Freigabe</span>';
     } else if (k.portal_aktiv && !k.portal_email_bestaetigt) {
-      portalBadge = '<span class="portal-badge pb-warten" title="Wartet auf die Bestätigung durch den Kunden per E-Mail">E-Mail</span>';
+      portalBadge = '<span class="badge b-y" title="Wartet auf die Bestätigung durch den Kunden per E-Mail">E-Mail</span>';
     } else {
-      portalBadge = '<span class="portal-badge pb-kein">-</span>';
+      portalBadge = '<span class="badge b-n">-</span>';
     }
     return '<div class="kunden-row" onclick="zeigeK(\'' + k.id + '\')">' +
       '<span style="font-size:12px;color:var(--accent-text);font-weight:600">' + k.kunden_nr + '</span>' +
@@ -3306,14 +3454,14 @@ function zeigeK(id) {
     if (aktK.portal_aktiv && !aktK.portal_freigegeben && aktK.portal_email_bestaetigt) {
       pbtn.innerHTML = '<button class="btn btn-grn btn-sm" onclick="portalFreigeben(\'' + aktK.id + '\')">Portal freigeben</button>';
     } else if (aktK.portal_aktiv && aktK.portal_freigegeben) {
-      pbtn.innerHTML = '<span class="portal-badge pb-aktiv">Portal aktiv</span>';
+      pbtn.innerHTML = '<span class="badge b-g">Portal aktiv</span>';
     } else if (aktK.portal_aktiv && !aktK.portal_email_bestaetigt) {
       // Vorher stand hier nichts — der Kunde hatte sich registriert, im Kundenblatt war davon
       // aber kein Wort zu sehen. Freigeben geht in diesem Zustand bewusst nicht; stattdessen
       // muss klar sein, worauf gewartet wird und was man dem Kunden am Telefon sagen kann.
       pbtn.innerHTML = '<div style="max-width:460px">' +
         '<div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:8px">' +
-        '<span class="portal-badge pb-warten">Wartet auf den Kunden</span> ' +
+        '<span class="badge b-y">Wartet auf den Kunden</span> ' +
         kEsc(aktK.portal_email || '') + ' hat den Bestätigungslink aus der Registrierungsmail noch nicht geöffnet. ' +
         'Freischalten ist erst danach möglich.</div>' +
         '<button class="btn btn-g btn-sm" data-kid="' + kEsc(aktK.id) + '" onclick="bestaetigungErneut(this.getAttribute(\'data-kid\'))">Bestätigungsmail erneut senden</button>' +
@@ -3476,25 +3624,33 @@ function ladeDocs(kid) {
       return '<div class="dok-item">' +
         '<span style="font-size:11px;font-weight:700;color:var(--muted);min-width:36px;text-align:center">[' + (icons[d.typ] || 'D') + ']</span>' +
         '<div class="dok-info"><div class="dok-title">' + d.titel + '</div>' +
-        '<div class="dok-meta">' + fd(d.erstellt_am) + (d.unterschrieben ? ' - Unterschrieben ' + fd(d.unterschrift_datum) : ' - Ausstehend') + '</div></div>' +
+        '<div class="dok-meta">' + fd(d.erstellt_am) +
+          (d.unterschrieben ? ' - Unterschrieben' + (d.unterschrift_datum ? ' ' + fd(d.unterschrift_datum) : '') +
+            (d.unterschrift_weg === 'scan' ? ' (Papier, eingescannt)' : '') : ' - Ausstehend') + '</div></div>' +
         '<div style="display:flex;gap:6px">' +
         '<button class="btn btn-g btn-sm" onclick="zeigeDok(\'' + d.id + '\')">Anzeigen</button>' +
+        (d.hat_scan
+          ? '<button class="btn btn-g btn-sm" onclick="zeigeScan(\'' + d.id + '\')">Scan</button>'
+          : (d.unterschrieben ? '' : '<label class="btn btn-g btn-sm" style="cursor:pointer">Scan<input type="file" accept="image/jpeg,image/png,application/pdf" style="display:none" onchange="uploadScan(this,\'' + d.id + '\')"></label>')) +
         '<button class="btn btn-danger btn-sm" onclick="loescheDok(\'' + d.id + '\')">X</button>' +
         '</div></div>';
     }).join('');
   }).catch(function() {});
 }
-function uploadScan(inp) {
-  if (!aktK) { notify('Kein Kunde ausgewählt.', 'err'); return; }
+// Der Scan haengt jetzt an genau dem Dokument, das unterschrieben wurde. Frueher entstand
+// daraus ein freistehendes Dokument ohne Bezug zum Vorgang: Das System hielt den Schein
+// weiter fuer unbeschrieben, die Meldung im Dashboard blieb stehen und die
+// Aufbewahrungssperre griff nicht — der Beleg war jederzeit loeschbar.
+function uploadScan(inp, did) {
+  if (!aktK || !did) { notify('Kein Dokument ausgewählt.', 'err'); return; }
   var f = inp.files[0]; if (!f) return;
+  inp.value = '';
+  if (f.size > 15 * 1024 * 1024) { notify('Die Datei ist zu groß (höchstens 15 MB).', 'err'); return; }
   var r = new FileReader();
   r.onload = function(e) {
-    api('POST', '/kunden/' + aktK.id + '/dokumente', {
-      typ: 'scan',
-      titel: 'Scan - ' + f.name + ' - ' + new Date().toLocaleDateString('de-DE'),
-      inhalt_html: '<img src="' + e.target.result + '" style="max-width:100%">',
-      unterschrift_kunde: null, unterschrift_datum: null
-    }).then(function() { notify('Scan hochgeladen!'); ladeDocs(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });
+    api('POST', '/kunden/' + aktK.id + '/dokumente/' + did + '/scan', { data: e.target.result })
+      .then(function(a) { notify((a && a.message) || 'Scan gespeichert.'); ladeDocs(aktK.id); loadDokFaellig(); })
+      .catch(function(err) { notify(err.message, 'err'); });
   };
   r.readAsDataURL(f);
 }
@@ -3615,14 +3771,19 @@ function renderE() {
       '<td>' + aktionen + '</td></tr>';
   }).join('');
 }
-function setS(id, status) {
-  api('PATCH', '/einlagerungen/' + id + '/status', { status: status }).then(function() {
+function setS(id, status, ohneSchein) {
+  api('PATCH', '/einlagerungen/' + id + '/status', { status: status, ohne_schein_bestaetigt: !!ohneSchein }).then(function() {
     var i = allE.findIndex(function(e) { return e.id === id; });
     if (i !== -1) allE[i].status = status;
     renderE(); renderDash(); renderLager();
     notify(status === 'Abgeholt' ? 'Abgeholt markiert' : status === 'Abholbereit' ? 'Als abholbereit markiert — Kunde wird benachrichtigt.' : 'Status aktualisiert');
     if (aktK) ladeDocs(aktK.id);
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    // Fehlender Einlagerungsschein: nach der Abholung wird er nicht mehr gemeldet, deshalb
+    // hier einmal nachfragen statt ihn still verschwinden zu lassen.
+    if (e.code === 'SCHEIN_FEHLT' && confirm(e.message)) { setS(id, status, true); return; }
+    notify(e.message, 'err');
+  });
 }
 // Lagerplatz einer bestehenden Einlagerung aendern (Modal statt prompt).
 var platzVorschlagWert = '';
@@ -3945,10 +4106,16 @@ function loadHeute() {
       allTermine = allTermine.filter(function(t) { return !t.datum || t.datum.substring(0, 10) !== d; }).concat(rows);
     }
     var list = rows.slice().sort(function(a, b) { return (a.uhrzeit_von || '').localeCompare(b.uhrzeit_von || ''); });
-    if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;margin-bottom:18px">Heute keine Termine.</div>'; return; }
+    // Auch ohne heutige Termine muss der Hinweis auf wartende Online-Buchungen erscheinen —
+    // sonst sieht das Team eingehende Buchungen nie (bis zur Eroeffnung ist das der Normalfall).
+    if (!list.length) {
+      el.innerHTML = '<div id="dash-unbestaetigt"></div>' +
+        '<div style="color:var(--muted);font-size:13px;margin-bottom:18px">Heute keine Termine.</div>';
+      return;
+    }
     var badge = function(s) {
       if (s === 'abgeschlossen') return '<span style="font-size:10px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>';
-      if (s === 'storniert' || s === 'abgesagt') return '<span style="font-size:10px;color:#c0392b">Abgesagt</span>';
+      if (s === 'storniert' || s === 'abgesagt') return '<span style="font-size:10px;color:var(--red)">Abgesagt</span>';
       if (s === 'nicht_erschienen') return '<span style="font-size:10px;color:var(--muted)">Nicht erschienen</span>';
       return '<span style="font-size:10px;font-weight:700;color:var(--blue);background:rgba(74,158,255,.15);padding:2px 8px;border-radius:10px">Offen</span>';
     };
@@ -3985,15 +4152,15 @@ function loadAbzurechnen() {
     var el = document.getElementById('dash-abzurechnen'); if (!el) return;
     var offen = (rows || []).filter(function(t) { return !t.fakturiert; });
     if (!offen.length) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div style="background:#eef6ff;border:1px solid #4a9eff;border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
-      '<div style="font-weight:700;color:#1a4b7a;margin-bottom:6px">' + offen.length + ' erledigte(r) Termin(e) — abzurechnen</div>' +
+    el.innerHTML = '<div style="background:var(--bdim);border:1px solid var(--blue);border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
+      '<div style="font-weight:700;color:var(--blue);margin-bottom:6px">' + offen.length + ' erledigte(r) Termin(e) — abzurechnen</div>' +
       offen.map(function(t) {
         var name = t.kundenname || t.kontakt_name || 'Laufkundschaft';
         var leist = t.artikel_name || t.termin_typ || 'Leistung';
         var d = t.datum ? fd(t.datum) : '';
         return '<div onclick="zeigeTermin(\'' + t.id + '\')" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(74,158,255,.3);cursor:pointer">' +
           '<div><span style="font-weight:600">' + kEsc(name) + '</span> <span style="color:#666;font-size:12px">' + kEsc(leist) + (d ? ' · ' + d : '') + '</span>' +
-            (t.gutschein_code ? ' <span style="color:#c0392b;font-size:11px;font-weight:600">Gutschein ' + kEsc(t.gutschein_code) + ' −' + (t.gutschein_rabatt || 0) + '%</span>' : '') + '</div>' +
+            (t.gutschein_code ? ' <span style="color:var(--red);font-size:11px;font-weight:600">Gutschein ' + kEsc(t.gutschein_code) + ' −' + (t.gutschein_rabatt || 0) + '%</span>' : '') + '</div>' +
           (t.kunden_id
             ? '<button class="btn btn-p btn-sm" onclick="event.stopPropagation();rechnungAusTermin(\'' + t.id + '\')">Rechnung</button>'
             : '') +
@@ -4016,8 +4183,8 @@ function renderDash() {
     var pend = (allK || []).filter(function(k) { return k.portal_aktiv && !k.portal_freigegeben; });
     if (!pend.length) { fcEl.innerHTML = ''; }
     else {
-      fcEl.innerHTML = '<div style="background:#fef9c3;border:1px solid #eab308;border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
-        '<div style="font-weight:700;color:#854d0e;margin-bottom:6px">' + pend.length + ' neue(r) Portal-Kunde(n) – Freischaltung</div>' +
+      fcEl.innerHTML = '<div style="background:var(--ydim);border:1px solid var(--yellow);border-radius:10px;padding:14px 16px;margin-bottom:18px">' +
+        '<div style="font-weight:700;color:var(--yellow);margin-bottom:6px">' + pend.length + ' neue(r) Portal-Kunde(n) – Freischaltung</div>' +
         pend.map(function(k) {
           var ok = k.portal_email_bestaetigt;
           return '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(234,179,8,.4)">' +
@@ -4095,7 +4262,7 @@ function renderLager() {
           : 'Frei';
         var hg = voll ? 'rgba(234,179,8,.28)' : (teil ? 'rgba(234,179,8,.12)' : 'var(--panel)');
         var ra = voll ? 'rgba(234,179,8,.5)' : (teil ? 'rgba(234,179,8,.45)' : 'var(--border)');
-        html += '<div onclick="zeigeLager(\'' + pid + '\')" title="' + kEsc(titel) + '" style="position:relative;width:28px;height:28px;border-radius:4px;border:1px solid ' + ra + ';background:' + hg + ';cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px">' + p +
+        html += '<div onclick="zeigeLager(\'' + pid + '\')" title="' + kEsc(titel) + '" class="lp-fach" style="position:relative;border:1px solid ' + ra + ';background:' + hg + '">' + p +
           (kap > 1 && saetze.length ? '<span style="position:absolute;bottom:-1px;right:1px;font-size:8px;font-weight:800;color:var(--accent-text)">' + saetze.length + '</span>' : '') + '</div>';
       }
       html += '</div></div>';
@@ -4470,7 +4637,9 @@ function ntBearbeiten(id) {
   document.getElementById('nt-kz4').value = t3m ? t3m[2] : '';
   document.getElementById('nt-bez').value = t.beschreibung || '';
   document.getElementById('nt-int').value = t.notizen_intern || '';
-  openModal('nt');
+  // Ohne das zweite Argument wuerde openModal fillNtForm() erneut aufrufen und alle gerade
+  // gesetzten Werte samt ntEditId verwerfen — Speichern legte dann einen zweiten Termin an.
+  openModal('nt', false);
 }
 function saveNT() {
   var datum = gv('nt-datum'), von = gv('nt-von');
@@ -4506,14 +4675,32 @@ function saveNT() {
     kennzeichen: kz.trim() || null,
     beschreibung: gv('nt-bez'), notizen_intern: gv('nt-int')
   };
+  ntAbsenden(data, false);
+}
+// Speichert den Termin. Meldet der Server eine Ueberschneidung, wird sie gezeigt und
+// nachgefragt — nicht verboten. Zwei Termine zur selben Zeit koennen gewollt sein
+// (einer bringt nur die Raeder, der andere wartet); nur soll es niemand versehentlich tun.
+function ntAbsenden(data, trotzdem) {
+  var nutzlast = trotzdem ? Object.assign({}, data, { trotzdem: true }) : data;
   var prom = ntEditId
-    ? api('PUT', '/termine/' + ntEditId, data)
-    : api('POST', '/termine', data);
+    ? api('PUT', '/termine/' + ntEditId, nutzlast)
+    : api('POST', '/termine', nutzlast);
   prom.then(function() {
     notify(ntEditId ? 'Termin gespeichert!' : 'Termin angelegt!');
     closeModal('nt'); ntEditId = null;
     loadTermine();
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    var d = e.daten || {};
+    if (e.status === 409 && d.konflikt && d.termine && d.termine.length) {
+      var liste = d.termine.map(function(t) {
+        return '• ' + t.zeit + ' Uhr — ' + t.leistung + ' (' + t.wer + ')';
+      }).join('\n');
+      if (confirm('Zu dieser Zeit ist bereits eingetragen:\n\n' + liste
+        + '\n\nTermin trotzdem anlegen?')) ntAbsenden(data, true);
+      return;
+    }
+    notify(e.message, 'err');
+  });
 }
 function terminAbsagen(id) {
   var grund = prompt('Grund für Absage (optional):') || '';
@@ -4583,7 +4770,7 @@ function renderWS() {
           '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
           (einlagernAktiv(t) ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
-          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:#c0392b">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
+          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:var(--red)">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
@@ -4796,6 +4983,85 @@ function druckListe() {
 }
 
 // ── STATISTIK ──
+// Reiter innerhalb der Statistik: Betrieb (Termine, Einlagerungen) und Homepage (Besucher).
+// Die Jahresnavigation gehoert nur zum Betrieb, die Zeitraumauswahl nur zur Homepage —
+// beide werden mitgeschaltet, sonst stehen Bedienelemente da, die nichts tun.
+function showStatTab(name) {
+  Array.prototype.forEach.call(document.querySelectorAll('#stat-tabs .stab'), function(b) {
+    b.classList.toggle('on', b.getAttribute('data-stab') === name);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('#page-statistik .stab-panel'), function(p) {
+    p.style.display = p.getAttribute('data-spanel') === name ? '' : 'none';
+  });
+  var jahr = document.getElementById('stat-jahr-nav');
+  var zeitraum = document.getElementById('bs-zeitraum');
+  if (jahr) jahr.style.display = (name === 'betrieb') ? 'flex' : 'none';
+  if (zeitraum) zeitraum.style.display = (name === 'homepage') ? '' : 'none';
+  if (name === 'homepage') loadBesucher();
+}
+
+// Besucherstatistik der Homepage. Die Zahlen stammen aus dem Zugriffsprotokoll des
+// Webservers — keine Cookies, kein Zaehlpixel, keine Daten an Dritte.
+function loadBesucher() {
+  var tage = (document.getElementById('bs-zeitraum') || {}).value || '30';
+  var kachel = function (wert, titel, hinweis) {
+    return '<div class="pnl" style="padding:14px 16px">'
+      + '<div style="font-size:26px;font-weight:800;line-height:1.1">' + wert + '</div>'
+      + '<div style="font-size:13px;font-weight:600;margin-top:2px">' + titel + '</div>'
+      + (hinweis ? '<div style="font-size:11px;color:var(--muted);margin-top:2px">' + hinweis + '</div>' : '')
+      + '</div>';
+  };
+  var liste = function (elId, eintraege, leer) {
+    var el = document.getElementById(elId); if (!el) return;
+    if (!eintraege || !eintraege.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px">' + leer + '</div>'; return;
+    }
+    var max = eintraege[0].anzahl || 1;
+    el.innerHTML = eintraege.map(function (e) {
+      var breite = Math.max(2, Math.round((e.anzahl / max) * 100));
+      return '<div style="margin-bottom:8px">'
+        + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">'
+        + '<span>' + kEsc(e.name) + '</span><span style="font-weight:700">' + e.anzahl + '</span></div>'
+        + '<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">'
+        + '<div style="height:100%;width:' + breite + '%;background:var(--accent)"></div></div></div>';
+    }).join('');
+  };
+
+  api('GET', '/besucher?tage=' + encodeURIComponent(tage)).then(function (d) {
+    d = d || {};
+    var geraete = d.geraete || { handy: 0, rechner: 0 };
+    var gesamtGeraete = geraete.handy + geraete.rechner;
+    var handyAnteil = gesamtGeraete ? Math.round((geraete.handy / gesamtGeraete) * 100) : 0;
+    document.getElementById('bs-kacheln').innerHTML =
+      kachel(d.seitenaufrufe || 0, 'Seitenaufrufe', 'ohne Roboter (' + (d.roboter_gefiltert || 0)
+        + ') und ohne eigene Zugriffe (' + (d.eigene_gefiltert || 0) + ')')
+      + kachel(d.buchungen || 0, 'Terminbuchungen', d.buchungsquote != null ? d.buchungsquote + ' % der Besuche' : '')
+      + kachel(d.flyer_scans || 0, 'Flyer-Scans', 'über den QR-Code')
+      + kachel(d.buchungen_mit_gutschein || 0, 'Buchungen mit Code', 'Aktionscode eingelöst')
+      + kachel(handyAnteil + ' %', 'vom Handy', geraete.handy + ' Handy / ' + geraete.rechner + ' Rechner');
+
+    var v = d.verlauf || [];
+    var maxTag = v.reduce(function (m, x) { return Math.max(m, x.anzahl); }, 0) || 1;
+    document.getElementById('bs-verlauf').innerHTML = v.map(function (x) {
+      var h = Math.max(1, Math.round((x.anzahl / maxTag) * 140));
+      return '<div title="' + x.tag + ': ' + x.anzahl + ' Aufrufe" style="flex:1;height:' + h
+        + 'px;background:var(--accent);border-radius:2px 2px 0 0;opacity:' + (x.anzahl ? 1 : .25) + '"></div>';
+    }).join('');
+    document.getElementById('bs-verlauf-achse').innerHTML = v.length
+      ? '<span>' + v[0].tag + '</span><span>' + v[v.length - 1].tag + '</span>' : '';
+
+    liste('bs-seiten', d.top_seiten, 'Noch keine Aufrufe im Zeitraum.');
+    liste('bs-herkunft', d.herkunft, 'Noch keine Herkunft erfasst.');
+    document.getElementById('bs-hinweis').textContent = (d.hinweis || '')
+      + ((d.ausgeschlossene_bereiche && d.ausgeschlossene_bereiche.length)
+        ? ' Eigene Netzbereiche werden nicht mitgezählt: ' + d.ausgeschlossene_bereiche.join(', ')
+          + ' — pflegbar in den Einstellungen.' : '');
+  }).catch(function () {
+    document.getElementById('bs-kacheln').innerHTML =
+      '<div class="pnl" style="padding:14px 16px;color:var(--muted)">Die Besucherzahlen konnten nicht geladen werden.</div>';
+  });
+}
+
 function loadStatistik() {
   document.getElementById('stat-jahr-anzeige').textContent = statJahrAkt;
   api('GET', '/termine/statistik?jahr=' + statJahrAkt).then(function(r) {
@@ -4846,6 +5112,7 @@ function statJahr(dir) {
 // Pflichtdokument oeffnen: liegt ein GUELTIGES vor -> nur ansehen/drucken (kein erneutes Unterschreiben);
 // fehlt es oder ist es abgelaufen (Textaenderung/Frist) -> Unterschriftsformular.
 function oeffnePflichtDok(typ) {
+  dokUngespeichert = false;
   aktDokTyp = typ; aktEinlId = null; dokGespeichertId = null;
   if (!aktK) { zeigeDokVorschau(); return; }
   api('GET', '/kunden/' + aktK.id + '/dokumente').then(function(docs) {
@@ -4856,8 +5123,16 @@ function oeffnePflichtDok(typ) {
 }
 function oeffneDsgvo() { oeffnePflichtDok('datenschutzerklaerung'); }
 function oeffneVertrag() { oeffnePflichtDok('einlagerungsvertrag'); }
+// Wer den Beleg ausstellt, steht namentlich drauf — das ersetzt die Firmenunterschrift.
+function mitarbeiterName() {
+  var n = USER ? [USER.vorname, USER.nachname].filter(Boolean).join(' ').trim() : '';
+  return n || (USER && USER.email) || 'Schröder & Scholz';
+}
 function zeigeSchein(eid, typ) { aktDokTyp = typ === 'ein' ? 'einlagerungsschein' : 'auslagerungsschein'; aktEinlId = eid; dokGespeichertId = null; zeigeDokVorschau(); }
 function switchDok() {
+  // Ohne diese Rueckfrage waere eine schon geleistete, aber noch nicht gespeicherte
+  // Unterschrift beim Wechsel kommentarlos weg — derselbe Fall wie beim Schliessen.
+  if (dokUngespeichert && !confirm('Das Dokument ist noch nicht gespeichert.\n\nWirklich wechseln und verwerfen?')) return;
   aktDokTyp = aktDokTyp === 'datenschutzerklaerung' ? 'einlagerungsvertrag' : 'datenschutzerklaerung';
   dokGespeichertId = null; zeigeDokVorschau();
 }
@@ -4871,11 +5146,30 @@ function zeigeDokVorschau() {
   document.getElementById('dok-inhalt').innerHTML = genDok();
   document.getElementById('sig-wrap').style.display = '';
   var badge = document.getElementById('dok-saved-badge'); if (badge) badge.style.display = 'none';
+  var dr = document.getElementById('dok-drucken'); if (dr) dr.style.display = 'none';
+  dokUngespeichert = false;
   initSig();
   openModal('dok');
 }
+// Schliessen heisst schliessen — aber nicht stillschweigend verwerfen. Wurde noch nicht
+// gespeichert, wird nachgefragt. Vorher war nach einem Klick auf "Fertig" alles weg, ohne Hinweis.
+var dokUngespeichert = false;
+function dokSchliessen() {
+  if (dokUngespeichert && !confirm('Das Dokument ist noch nicht gespeichert.\n\nWirklich schließen und verwerfen?')) return;
+  dokUngespeichert = false;
+  // Ein noch offener Auftrag wird zurueckgezogen: Sonst zeigt das iPad weiter ein Dokument,
+  // das hier niemand mehr erwartet — und der naechste Kunde unterschriebe fremde Daten.
+  if (stationAuftragId) {
+    api('DELETE', '/station/auftraege/' + stationAuftragId).catch(function() {});
+    stationAuftragId = null;
+  }
+  stationStopp();
+  stationStand('');
+  closeModal('dok');
+}
 function saveDokOhneSchließen() {
   if (!aktK) { notify('Kein Kunde ausgewählt.', 'err'); return; }
+  if (dokGespeichertId && !dokUngespeichert) { notify('Dieses Dokument ist bereits gespeichert.', 'info'); return; }
   var html = document.getElementById('dok-inhalt').innerHTML;
   var sig = getSig();
   var titles = { datenschutzerklaerung: 'Datenschutzerklärung', einlagerungsvertrag: 'Einlagerungsvertrag', einlagerungsschein: 'Einlagerungsschein', auslagerungsschein: 'Auslagerungsschein' };
@@ -4888,7 +5182,9 @@ function saveDokOhneSchließen() {
   }).then(function(d) {
     if (d) dokGespeichertId = d.id;
     var badge = document.getElementById('dok-saved-badge'); if (badge) badge.style.display = 'inline-flex';
-    notify('Dokument gespeichert!', 'info');
+    dokUngespeichert = false;
+    var dr = document.getElementById('dok-drucken'); if (dr) dr.style.display = '';
+    notify('Dokument gespeichert.', 'info');
     if (aktK) ladeDocs(aktK.id);
     if (aktDokTyp === 'datenschutzerklaerung' && sig && aktK) {
       api('PUT', '/kunden/' + aktK.id, { portal_verifiziert: true }).then(function() {
@@ -4898,19 +5194,28 @@ function saveDokOhneSchließen() {
       }).catch(function() {});
     }
     if (sig) {
+      // Beschriftung des Feldes beibehalten: der Vertrag sagt "Unterschrift Auftraggeber",
+      // der Schein "Unterschrift Kunde". Ein fester Text haette sie nach dem Speichern ueberschrieben.
       var sigArea = document.getElementById('sig-print-area');
-      if (sigArea) sigArea.innerHTML = 'Unterschrift des Kunden<br><img src="' + sig + '" style="max-height:55px;margin-top:4px;display:block">';
+      if (sigArea && !sigArea.querySelector('img')) {
+        sigArea.innerHTML = kEsc(sigArea.textContent.trim()) + '<br><img src="' + sig + '" style="max-height:13mm;margin-top:4px;display:block">';
+      }
     }
   }).catch(function(e) { notify(e.message, 'err'); });
 }
 function druckUndSpeichereDok() {
-  saveDokOhneSchließen();
-  var inhalt = document.getElementById('dok-inhalt').innerHTML;
+  var quelle = document.getElementById('dok-inhalt');
   var sig = getSig();
-  var druckHtml = inhalt;
-  if (sig) {
-    druckHtml = druckHtml.replace('Unterschrift des Kunden</div>', 'Unterschrift des Kunden<br><img src="' + sig + '" style="max-height:55px;margin-top:4px;display:block"></div>');
+  // Die Unterschrift ueber das Element einsetzen statt per Textersetzung: der alte Weg suchte
+  // woertlich "Unterschrift des Kunden" und traf damit nur die Datenschutzerklaerung — auf
+  // gedrucktem Vertrag ("Unterschrift Auftraggeber") und Schein ("Unterschrift Kunde") fehlte
+  // die Unterschrift.
+  var klon = quelle.cloneNode(true);
+  var feld = klon.querySelector('#sig-print-area');
+  if (sig && feld && !feld.querySelector('img')) {
+    feld.innerHTML = feld.textContent.trim() + '<br><img src="' + sig + '" style="max-height:13mm;margin-top:4px;display:block">';
   }
+  var druckHtml = klon.innerHTML;
   var w = window.open('', '_blank');
   if (!w) { notify('Pop-up blockiert. Bitte Pop-ups für diese Seite erlauben.', 'err'); return; }
   w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + document.getElementById('dok-titel').textContent + '</title><style>body{margin:0;padding:0}@media print{body{margin:0}}</style></head><body>' + druckHtml + '</body></html>');
@@ -4927,8 +5232,44 @@ function zeigeDok(did) {
     document.getElementById('sig-wrap').style.display = d.unterschrift_datum ? 'none' : '';
     dokGespeichertId = d.id;
     var badge = document.getElementById('dok-saved-badge'); if (badge) badge.style.display = 'inline-flex';
+    var dr = document.getElementById('dok-drucken'); if (dr) dr.style.display = '';
+    dokUngespeichert = false;
     initSig(); openModal('dok');
   }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Der Scan liegt ausserhalb des Web-Verzeichnisses und ist nur ueber die angemeldete API
+// erreichbar. Deshalb wird er hier geladen und als Objekt-URL geoeffnet, nicht per Link.
+function zeigeScan(did) {
+  if (!aktK) return;
+  // Das Fenster muss SOFORT beim Klick geoeffnet werden. Wird es erst nach dem Laden
+  // geoeffnet, gilt es dem Browser nicht mehr als Nutzeraktion und wird blockiert.
+  var w = window.open('', '_blank');
+  if (!w) { notify('Bitte Pop-ups für diese Seite erlauben.', 'err'); return; }
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Scan</title></head>'
+    + '<body style="margin:0;font-family:sans-serif;padding:20px;color:#444">Scan wird geladen …</body></html>');
+  w.document.close();
+  api('GET', '/kunden/' + aktK.id + '/dokumente/' + did + '/scan', null, { raw: true })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      // Ein mit der Dokumentenerfassung des iPhone gescannter Beleg ist ein PDF, kein Bild.
+      // Beides wird eingebettet statt angesteuert: Ob ein Browser ein PDF selbst anzeigt,
+      // ist nicht verlaesslich — der Link darunter bleibt in jedem Fall.
+      var inhalt = blob.type === 'application/pdf'
+        ? '<embed src="' + url + '" type="application/pdf" style="width:100%;height:calc(100vh - 42px);border:0">'
+        : '<img src="' + url + '" style="max-width:100%;height:auto;display:block;margin:0 auto">';
+      w.document.open();
+      w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Scan</title></head>'
+        + '<body style="margin:0;background:#f3f2ef">'
+        + '<div style="padding:10px 14px;font-family:sans-serif;font-size:13px;background:#fff;border-bottom:1px solid #ddd">'
+        + '<a href="' + url + '" target="_blank" style="color:#e8502a">Scan in eigenem Fenster öffnen</a></div>'
+        + inhalt + '</body></html>');
+      w.document.close();
+      setTimeout(function() { URL.revokeObjectURL(url); }, 300000);
+    })
+    .catch(function(e) {
+      try { w.document.body.textContent = 'Der Scan konnte nicht geladen werden: ' + e.message; } catch (x) {}
+      notify(e.message, 'err');
+    });
 }
 function loescheDok(did) {
   if (!aktK || !confirm('Dokument löschen?')) return;
@@ -4947,15 +5288,162 @@ function initSig() {
     var t = ev.touches ? ev.touches[0] : ev;
     return { x: (t.clientX - r.left) * (c.width / r.width), y: (t.clientY - r.top) * (c.height / r.height) };
   }
-  c.onmousedown = function(ev) { sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; };
+  c.onmousedown = function(ev) { sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; dokUngespeichert = true; };
   c.onmousemove = function(ev) { if (!sigDrw) return; var p = getPos(ev); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); };
   c.onmouseup = c.onmouseleave = function() { sigDrw = false; };
-  c.ontouchstart = function(ev) { ev.preventDefault(); sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; };
+  c.ontouchstart = function(ev) { ev.preventDefault(); sigDrw = true; var p = getPos(ev); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); sigHas = true; dokUngespeichert = true; };
   c.ontouchmove = function(ev) { ev.preventDefault(); if (!sigDrw) return; var p = getPos(ev); sigCtx.lineTo(p.x, p.y); sigCtx.stroke(); sigCtx.beginPath(); sigCtx.moveTo(p.x, p.y); };
   c.ontouchend = function() { sigDrw = false; };
 }
-function clearSig() { if (sigCtx) { var c = document.getElementById('sig-canvas'); sigCtx.clearRect(0, 0, c.width, c.height); } sigHas = false; }
+function clearSig() { if (sigCtx) { var c = document.getElementById('sig-canvas'); sigCtx.clearRect(0, 0, c.width, c.height); } sigHas = false; dokUngespeichert = false; }
 function getSig() { if (!sigHas) return null; return document.getElementById('sig-canvas').toDataURL('image/png'); }
+
+// ── GERAETEVERWALTUNG (Einstellungen › Geräte) ──────────────────────────────────────
+function ladeGeraete() {
+  var url = document.getElementById('geraete-url');
+  if (url) url.textContent = location.origin + '/station/';
+  var el = document.getElementById('geraete-liste'); if (!el) return;
+  api('GET', '/station/stationen').then(function(liste) {
+    liste = liste || [];
+    if (!liste.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch kein Gerät angelegt.</div>';
+      return;
+    }
+    el.innerHTML = '<div class="tw"><table><thead><tr><th>Name</th><th>Stand</th><th>Zuletzt gesehen</th><th></th></tr></thead><tbody>' +
+      liste.map(function(g) {
+        var stand = !g.aktiv ? 'abgemeldet'
+          : g.wartet_auf_kopplung ? 'wartet auf Kopplung'
+          : g.gekoppelt_am ? 'gekoppelt' : 'nicht gekoppelt';
+        return '<tr><td>' + kEsc(g.name) + '</td><td>' + stand + '</td><td>' +
+          (g.letzter_kontakt ? fd(g.letzter_kontakt) : '–') + '</td>' +
+          '<td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="geraetNeuerCode(\'' + g.id + '\')">Neuer Code</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="geraetEntfernen(\'' + g.id + '\',\'' + kEsc(g.name) + '\')">Entfernen</button></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }).catch(function() {});
+}
+function zeigeCode(name, code, minuten) {
+  alert('Gerät "' + name + '" koppeln\n\n'
+    + 'Kopplungscode: ' + code + '\n\n'
+    + 'Öffne am iPad ' + location.origin + '/station/ und gib den Code dort ein.\n'
+    + 'Der Code gilt ' + minuten + ' Minuten und nur einmal.');
+}
+function geraetAnlegen() {
+  var name = (document.getElementById('geraet-name') || {}).value || '';
+  if (!name.trim()) { notify('Bitte einen Namen vergeben.', 'err'); return; }
+  api('POST', '/station/stationen', { name: name }).then(function(g) {
+    document.getElementById('geraet-name').value = '';
+    zeigeCode(g.name, g.code, g.gueltig_minuten);
+    ladeGeraete();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function geraetNeuerCode(id) {
+  // Erzeugt zugleich ein neues Merkmal: Ein verlorenes Gerät verliert damit sofort den Zugang.
+  if (!confirm('Neuen Kopplungscode erzeugen?\n\nDas bisher gekoppelte Gerät verliert dabei den Zugang.')) return;
+  api('POST', '/station/stationen/' + id + '/neuer-code').then(function(g) {
+    zeigeCode(g.name, g.code, g.gueltig_minuten); ladeGeraete();
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+function geraetEntfernen(id, name) {
+  if (!confirm('Gerät "' + name + '" entfernen?\n\nEs kann danach nichts mehr anzeigen.')) return;
+  api('DELETE', '/station/stationen/' + id).then(function() { notify('Gerät entfernt.'); ladeGeraete(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
+// ── UNTERSCHRIFT AUF EINEM ZWEITEN GERAET ────────────────────────────────────────────
+// Am Rechner wird erfasst, das fertige Dokument geht zum Lesen und Unterschreiben ans iPad.
+// Das Geraet bekommt bewusst kein Mitarbeiterkonto: Wer dem Kunden ein angemeldetes Konto in
+// die Hand gibt, gibt ihm Kundenliste, Rechnungen und Einstellungen mit.
+// Gespeichert wird weiterhin hier ueber "Speichern" — die zurueckgegebene Unterschrift landet
+// im vorhandenen Feld, damit alle bestehenden Pruefungen unveraendert greifen.
+var stationAuftragId = null, stationTimer = null, stationFuerKunde = null, stationFuerTyp = null;
+
+function stationStand(text, farbe) {
+  var el = document.getElementById('dok-station-stand');
+  if (el) { el.textContent = text || ''; el.style.color = farbe || 'var(--muted)'; }
+}
+
+function dokAnStation() {
+  var inhalt = document.getElementById('dok-inhalt');
+  if (!inhalt || !inhalt.innerHTML.trim()) { notify('Es ist kein Dokument geöffnet.', 'err'); return; }
+  api('GET', '/station/stationen').then(function(liste) {
+    var bereit = (liste || []).filter(function(s) { return s.aktiv && s.gekoppelt_am; });
+    if (!bereit.length) {
+      notify('Noch kein Gerät gekoppelt. Unter Einstellungen › Geräte eine Station anlegen.', 'err');
+      return;
+    }
+    var ziel = bereit[0];
+    if (bereit.length > 1) {
+      var namen = bereit.map(function(s, i) { return (i + 1) + ') ' + s.name; }).join('\n');
+      var wahl = prompt('An welches Gerät senden?\n\n' + namen, '1');
+      if (wahl === null) return;
+      ziel = bereit[parseInt(wahl, 10) - 1] || bereit[0];
+    }
+    var titel = (document.getElementById('dok-titel') || {}).textContent || 'Dokument';
+    var kunde = aktK ? [aktK.vorname, aktK.nachname].filter(Boolean).join(' ') : null;
+    return api('POST', '/station/auftraege', {
+      station_id: ziel.id, titel: titel, kunde_name: kunde, inhalt_html: inhalt.innerHTML
+    }).then(function(a) {
+      stationAuftragId = a.id;
+      stationFuerKunde = aktK ? aktK.id : null;
+      stationFuerTyp = aktDokTyp;
+      stationStand('An ' + ziel.name + ' gesendet — warte auf die Unterschrift des Kunden …', 'var(--accent-text)');
+      stationHorchen();
+    });
+  }).catch(function(e) { notify(e.message, 'err'); stationStand(''); });
+}
+
+// Nachfragen, ob unterschrieben wurde. Laeuft nur, solange der Dialog offen ist.
+function stationHorchen() {
+  stationStopp();
+  stationTimer = setInterval(function() {
+    if (!stationAuftragId) { stationStopp(); return; }
+    api('GET', '/station/auftraege/' + stationAuftragId).then(function(a) {
+      if (!a) return;
+      if (a.status === 'unterschrieben' && a.unterschrift) {
+        stationStopp();
+        stationUebernehmen(a.unterschrift);
+      } else if (a.status === 'abgelaufen') {
+        stationStopp(); stationAuftragId = null;
+        stationStand('Der Auftrag ist abgelaufen — bitte erneut senden.', 'var(--red)');
+      } else if (a.status === 'abgebrochen') {
+        stationStopp(); stationAuftragId = null;
+        stationStand('Am Gerät abgebrochen.', 'var(--red)');
+      }
+    }).catch(function() { /* Netzhaenger: beim naechsten Versuch erneut */ });
+  }, 2500);
+}
+function stationStopp() { if (stationTimer) clearInterval(stationTimer); stationTimer = null; }
+
+// Die vom Geraet zurueckgegebene Unterschrift ins vorhandene Feld zeichnen. Danach verhaelt
+// sich alles wie bei einer Unterschrift direkt am Rechner — inklusive Speichern und Drucken.
+function stationUebernehmen(datenUrl) {
+  // Der Mitarbeiter koennte waehrend des Wartens den Kunden oder die Dokumentart gewechselt
+  // haben. Die Unterschrift dann einfach zu uebernehmen, wuerde sie dem FALSCHEN Kunden
+  // zuordnen — und weil danach die Aufbewahrungssperre greift, waere das nicht mehr zu heilen.
+  var jetztKunde = aktK ? aktK.id : null;
+  if (jetztKunde !== stationFuerKunde || aktDokTyp !== stationFuerTyp) {
+    stationAuftragId = null;
+    stationStand('Die Unterschrift wurde verworfen: Es ist inzwischen ein anderes Dokument geöffnet. '
+      + 'Bitte erneut senden.', 'var(--red)');
+    notify('Unterschrift verworfen — es ist ein anderes Dokument geöffnet.', 'err');
+    return;
+  }
+  var c = document.getElementById('sig-canvas');
+  if (!c) return;
+  var bild = new Image();
+  bild.onload = function() {
+    sigCtx = sigCtx || c.getContext('2d');
+    sigCtx.clearRect(0, 0, c.width, c.height);
+    var faktor = Math.min(c.width / bild.width, c.height / bild.height);
+    var b = bild.width * faktor, h = bild.height * faktor;
+    sigCtx.drawImage(bild, (c.width - b) / 2, (c.height - h) / 2, b, h);
+    sigHas = true; dokUngespeichert = true;
+    stationAuftragId = null;
+    stationStand('Unterschrift vom Gerät übernommen. Jetzt speichern.', 'var(--green)');
+    notify('Unterschrift eingegangen — bitte speichern.');
+  };
+  bild.src = datenUrl;
+}
 
 // ── ETIKETT ──
 function nameKuerzelFn(vorname, nachname) {
@@ -5080,10 +5568,23 @@ function genDok() {
   return '<div style="padding:20px">Dokument nicht bekannt.</div>';
 }
 
+// Wortmarke fuer Dokumentenkoepfe. Inline eingebettet, nicht als Bildpfad: gespeicherte Scheine
+// liegen als HTML in der Datenbank und sind nach der Unterschrift unveraenderbar — ein Pfad, der
+// spaeter umzieht, wuerde den Beleg dauerhaft beschaedigen. Die Schriftbreite ist im SVG per
+// textLength fixiert, damit der Kopf ohne die Hausschrift nicht verrutscht.
+var MARKE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="196" height="35" role="img" aria-label="Schröder & Scholz"><text x="0" y="52" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" fill="#1a1a1a" textLength="441" lengthAdjust="spacingAndGlyphs">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,\'Helvetica Neue\',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" fill="#555555" textLength="363" lengthAdjust="spacingAndGlyphs">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>';
+// Traegt jemand in den Einstellungen einen anderen Firmennamen ein (anderer Betrieb), wird dessen
+// Name gesetzt statt unserer Wortmarke — sonst behauptet der Beleg eine fremde Marke.
+function markeKopf(f, rueckfall) {
+  var name = (f && f.firmenname) ? String(f.firmenname).trim() : '';
+  var eigen = /schr(ö|oe)der\s*(&|und)\s*scholz/i.test(name);
+  if (!name) return rueckfall ? kEsc(rueckfall) : MARKE_SVG;
+  return eigen ? MARKE_SVG : kEsc(name);
+}
 function dokStyle() {
   // WICHTIG: alle Regeln auf .dok scopen – sonst wirken *{} und body{} global und
   // verformen die ganze Admin-Seite (Style bleibt nach Schliessen des Modals im DOM).
-  return '<style>.dok,.dok *{box-sizing:border-box;margin:0;padding:0}.dok{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#111;padding:10mm 12mm;max-width:210mm;margin:auto}.dok .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm}.dok .firmenname{font-size:16pt;font-weight:700;color:#1a3a6e;letter-spacing:1px}.dok .hdr-sub{font-size:7.5pt;color:#555;margin-top:2px}.dok .dok-titel{font-size:14pt;font-weight:700;color:#1a3a6e;margin-bottom:4mm;padding-bottom:2mm;border-bottom:1px solid #d0d8e8}.dok .sek{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a3a6e;padding:3mm 0 1.5mm;border-bottom:1px solid #d0d8e8;margin-bottom:2mm}.dok .g2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 5mm}.dok .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm 4mm}.dok .iz{padding:2mm 0;border-bottom:1px solid #eef}.dok .iz-l{font-size:7pt;color:#777;text-transform:uppercase;letter-spacing:.5px}.dok .iz-v{font-size:9.5pt;font-weight:600}.dok .para{margin-bottom:2.5mm;font-size:8.5pt;line-height:1.5}.dok .para-t{font-weight:700;margin-top:3mm;margin-bottom:1mm}.dok .sig-box{display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:6mm}.dok .sig-line{border-top:1.5px solid #1a3a6e;padding-top:1.5mm;font-size:7.5pt;color:#555}.dok .sig-area{min-height:18mm;border:1px dashed #aaa;border-radius:3px;padding:2mm;margin-bottom:2mm;font-size:7pt;color:#999}.dok .fuss{margin-top:6mm;padding-top:3mm;border-top:1px solid #ddd;font-size:7pt;color:#777;text-align:center}@media print{.dok{padding:8mm 10mm}}</style>';
+  return '<style>.dok,.dok *{box-sizing:border-box;margin:0;padding:0}.dok{font-family:Arial,Helvetica,sans-serif;font-size:9.5pt;color:#111;padding:10mm 12mm;max-width:210mm;margin:auto}.dok .hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2.5px solid #1a3a6e;padding-bottom:4mm;margin-bottom:5mm}.dok .firmenname{font-size:16pt;font-weight:700;color:#1a3a6e;letter-spacing:1px}.dok .hdr-sub{font-size:7.5pt;color:#555;margin-top:2px}.dok .dok-titel{font-size:14pt;font-weight:700;color:#1a3a6e;margin-bottom:4mm;padding-bottom:2mm;border-bottom:1px solid #d0d8e8}.dok .sek{font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#1a3a6e;padding:3mm 0 1.5mm;border-bottom:1px solid #d0d8e8;margin-bottom:2mm}.dok .g2{display:grid;grid-template-columns:1fr 1fr;gap:2mm 5mm}.dok .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2mm 4mm}.dok .iz{padding:2mm 0;border-bottom:1px solid #eef}.dok .iz-l{font-size:7pt;color:#777;text-transform:uppercase;letter-spacing:.5px}.dok .iz-v{font-size:9.5pt;font-weight:600}.dok .para{margin-bottom:2.5mm;font-size:8.5pt;line-height:1.5}.dok .para-t{font-weight:700;margin-top:3mm;margin-bottom:1mm}.dok .sig-box{display:grid;grid-template-columns:1fr 1fr;gap:8mm;margin-top:6mm}.dok .sig-line{border-top:1.5px solid #1a3a6e;padding-top:1.5mm;font-size:7.5pt;color:#555}.dok .sig-box>div{display:flex;flex-direction:column;justify-content:flex-end}.dok .sig-area{height:20mm;border:1px dashed #aaa;border-radius:3px;padding:2mm;margin-bottom:2mm;font-size:7pt;color:#999;overflow:hidden}.dok .sig-area img{max-height:13mm;width:auto}.dok .sig-firma{height:20mm;padding:2mm;margin-bottom:2mm;font-size:7.5pt;color:#555;display:flex;flex-direction:column;justify-content:center;line-height:1.4}.dok .fuss{margin-top:6mm;padding-top:3mm;border-top:1px solid #ddd;font-size:7pt;color:#777;text-align:center}@media print{.dok{padding:8mm 10mm}}</style>';
 }
 
 function genDsgvo() {
@@ -5091,7 +5592,7 @@ function genDsgvo() {
   var datum = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
   return '<div class="dok">' + dokStyle() +
-    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || 'Firma') + '</div>' +
+    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, 'Firma') + '</div>' +
     '<div class="hdr-sub">' + adresse + '<br>' + (f.telefon || '') + (f.email ? '  |  ' + f.email : '') + '</div></div>' +
     '<div style="text-align:right"><div style="font-size:8pt;color:#777">Datum: ' + datum + '</div>' +
     '<div style="font-size:7pt;color:#aaa;margin-top:2px">Art. 13 DSGVO</div></div></div>' +
@@ -5106,7 +5607,7 @@ function genDsgvo() {
     '<div class="sek" style="margin-top:3mm">Verantwortlicher</div>' +
     '<div class="g2">' +
     '<div class="iz"><div class="iz-l">Firma</div><div class="iz-v">' + (f.firmenname || '-') + '</div></div>' +
-    '<div class="iz"><div class="iz-l">Rechtsform</div><div class="iz-v">' + (f.rechtsform || 'Einzelunternehmen') + '</div></div>' +
+    '<div class="iz"><div class="iz-l">Rechtsform</div><div class="iz-v">' + (f.rechtsform || '') + '</div></div>' +
     '<div class="iz"><div class="iz-l">Inhaber</div><div class="iz-v">' + (f.inhaber || '-') + '</div></div>' +
     '<div class="iz"><div class="iz-l">Adresse</div><div class="iz-v">' + adresse + '</div></div>' +
     '<div class="iz"><div class="iz-l">Telefon</div><div class="iz-v">' + (f.telefon || '-') + '</div></div>' +
@@ -5119,13 +5620,13 @@ function genDsgvo() {
     '<div class="para">Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfullung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung). Für Marketing-E-Mails und Saison-Erinnerungen auf Grundlage von Art. 6 Abs. 1 lit. a DSGVO (Einwilligung).</div>' +
     '<div class="sek">3. Speicherdauer</div>' +
     '<div class="para">Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Buchungsbelege und Rechnungen 8 Jahre, Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 147 AO, § 257 HGB). Nach Ablauf dieser Fristen werden die Daten gelöscht oder anonymisiert, sofern keine weitere Rechtsgrundlage besteht.</div>' +
-    '<div class="sek">4. Auftragsverarbeiter</div>' + '<div class="para">Zur Erbringung unserer Leistungen setzen wir sorgfältig ausgewählte Dienstleister ein, mit denen Vereinbarungen zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Hosting des Servers (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe Ihrer Daten an Dritte zu anderen Zwecken erfolgt nicht.</div>' + '<div class="sek">5. Ihre Rechte</div>' +
-    '<div class="para">Sie haben jederzeit das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen. Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach, Telefon 0981 53 1300, poststelle@lda.bayern.de.</div>' +
-    '<div class="sek">6. Einwilligung</div>' +
+    '<div class="sek">4. Auftragsverarbeiter</div>' + '<div class="para">Zur Erbringung unserer Leistungen setzen wir sorgfältig ausgewählte Dienstleister ein, mit denen Vereinbarungen zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Hosting des Servers (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe Ihrer Daten an Dritte zu anderen Zwecken erfolgt nicht.</div>' + '<div class="sek">5. Adressvorschläge bei der Eingabe</div>' + '<div class="para">Wenn Sie eine Anschrift eingeben, schlagen wir passende Straßen vor. Dazu fragt unser Server — nicht Ihr Browser — bei den Kartendiensten Photon (photon.komoot.io, OpenStreetMap-Daten) und OpenPLZ (openplzapi.org, amtliche Daten) an. Übermittelt wird ausschließlich der eingegebene Suchbegriff, also der Anfang der Straße und gegebenenfalls die Postleitzahl. Ihre IP-Adresse, Ihr Name und alle übrigen Daten bleiben bei uns; die Dienste erfahren nicht, wer sucht. Wie jeder Aufruf unserer Anwendung erscheint die Anfrage in unserem Zugriffsprotokoll auf unserem eigenen Server; diese Protokolle werden nach spätestens 14 Tagen gelöscht. Rechtsgrundlage ist unser berechtigtes Interesse an einer korrekten Anschrift (Art. 6 Abs. 1 lit. f DSGVO). Sie können die Adresse auch ohne Vorschläge von Hand eintragen.</div>' + '<div class="sek">6. Ihre Rechte</div>' +
+    '<div class="para">Sie haben jederzeit das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen. Sächsische Datenschutz- und Transparenzbeauftragte, Postfach 11 01 32, 01330 Dresden, Telefon +49 351 85471-101, post@sdtb.sachsen.de.</div>' +
+    '<div class="sek">7. Einwilligung</div>' +
     '<div class="para">Mit Ihrer Unterschrift bestätigen Sie, dass Sie diese Datenschutzerklärung erhalten und verstanden haben und einer Verarbeitung Ihrer personenbezogenen Daten zum Zweck der Vertragsdurchführung zustimmen. Ihre Einwilligung ist freiwillig und kann jederzeit widerrufen werden.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift des Kunden</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
-    '<div><div class="sig-area"></div><div class="sig-line">' + (f.firmenname || '') + ' - ' + (f.inhaber || '') + '</div></div>' +
+    '<div><div class="sig-firma"><div><strong>Angenommen durch ' + kEsc(mitarbeiterName()) + '</strong></div><div>Elektronisch erstellt - eine Unterschrift des Betriebs ist nicht erforderlich.</div></div><div class="sig-line">' + (f.firmenname || '') + ', ' + datum + '</div></div>' +
     '</div>' +
     '<div class="fuss">' + (f.firmenname || '') + (f.rechtsform ? ' - ' + f.rechtsform : '') + (f.handelsreg_nr ? ' - HRB ' + f.handelsreg_nr : '') + (f.registergericht ? ' - AG ' + f.registergericht : '') + (f.ust_id ? ' - USt-ID: ' + f.ust_id : '') + '</div>' +
     '</div>';
@@ -5139,7 +5640,7 @@ function genVertrag() {
   var ablaufStr = ablauf.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
   return '<div class="dok">' + dokStyle() +
-    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || '') + '</div>' +
+    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, '') + '</div>' +
     '<div class="hdr-sub">' + adresse + ' | Tel: ' + (f.telefon || '') + '</div></div>' +
     '<div style="text-align:right"><div style="font-size:8pt;color:#777">Datum: ' + datum + '</div></div></div>' +
     '<div class="dok-titel">Reifeneinlagerungsvertrag</div>' +
@@ -5174,7 +5675,7 @@ function genVertrag() {
     '<div class="para">Der Auftraggeber erkennt die erfassten Profiltiefen sowie den Reifenzustand als korrekt an. Das Nachziehen der Radschrauben nach 50-100 km liegt in der Verantwortung des Fahrers.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift Auftraggeber</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
-    '<div><div class="sig-area"></div><div class="sig-line">' + (f.inhaber || f.firmenname || '') + ', ' + datum + '</div></div>' +
+    '<div><div class="sig-firma"><div><strong>Angenommen durch ' + kEsc(mitarbeiterName()) + '</strong></div><div>Elektronisch erstellt - eine Unterschrift des Betriebs ist nicht erforderlich.</div></div><div class="sig-line">' + (f.firmenname || '') + ', ' + datum + '</div></div>' +
     '</div>' +
     '<div class="fuss">' + (f.firmenname || '') + (f.rechtsform ? ' - ' + f.rechtsform : '') + (f.ust_id ? ' - USt-ID: ' + f.ust_id : '') + '</div>' +
     '</div>';
@@ -5187,9 +5688,9 @@ function genSchein(e, typ) {
   var istEin = typ === 'ein';
   var titel = istEin ? 'Einlagerungsschein' : 'Auslagerungsschein';
   var adresse = [f.strasse, f.plz + ' ' + f.ort].filter(Boolean).join(', ');
-  if (!e) return '<div class="dok">' + dokStyle() + '<div class="hdr"><div class="firmenname">' + (f.firmenname||'') + '</div></div><div class="dok-titel">' + titel + '</div><div style="padding:20px;color:red">Keine Einlagerung ausgewählt.</div></div>';
+  if (!e) return '<div class="dok">' + dokStyle() + '<div class="hdr"><div class="firmenname">' + markeKopf(f, '') + '</div></div><div class="dok-titel">' + titel + '</div><div style="padding:20px;color:red">Keine Einlagerung ausgewählt.</div></div>';
   return '<div class="dok">' + dokStyle() +
-    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + (f.firmenname || '') + '</div>' +
+    '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, '') + '</div>' +
     '<div class="hdr-sub">' + adresse + ' | Tel: ' + (f.telefon || '') + '</div></div>' +
     '<div style="text-align:right"><div style="font-size:8pt;color:#777">' + datum + '</div>' +
     '<div style="font-size:8pt;color:#777;font-weight:600">' + e.beleg_nr + '</div></div></div>' +
@@ -5223,11 +5724,11 @@ function genSchein(e, typ) {
     (e.bemerkungen ? '<div class="sek" style="margin-top:3mm">Bemerkungen</div><div class="para">' + e.bemerkungen + '</div>' : '') +
     '<div class="sek" style="margin-top:3mm">Bestätigung ' + (istEin ? 'Einlagerung' : 'Rückgabe') + '</div>' +
     '<div class="para">' + (istEin
-      ? 'Ich bestatige die Übergabe oben genannter Reifen zur Einlagerung und bestatige die korrekte Erfassung der Profiltiefen. Das Nachziehen der Radschrauben nach 50-100 km liegt in meiner Verantwortung.'
-      : 'Ich bestatige die Rückgabe und habe die Reifen in einwandfreiem Zustand übernommen. Profiltiefe und Zustand wurden geprüft.') + '</div>' +
+      ? 'Ich bestätige die Übergabe oben genannter Reifen zur Einlagerung und bestätige die korrekte Erfassung der Profiltiefen. Das Nachziehen der Radschrauben nach 50-100 km liegt in meiner Verantwortung.'
+      : 'Ich bestätige die Rückgabe und habe die Reifen in einwandfreiem Zustand übernommen. Profiltiefe und Zustand wurden geprüft.') + '</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift Kunde</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
-    '<div><div class="sig-area"></div><div class="sig-line">Mitarbeiter, ' + datum + '</div></div>' +
+    '<div><div class="sig-firma"><div><strong>Angenommen durch ' + kEsc(mitarbeiterName()) + '</strong></div><div>Elektronisch erstellt - eine Unterschrift des Betriebs ist nicht erforderlich.</div></div><div class="sig-line">' + (f.firmenname || '') + ', ' + datum + '</div></div>' +
     '</div>' +
     '<div class="fuss">' + (f.firmenname || '') + (f.ust_id ? ' - USt-ID: ' + f.ust_id : '') + (f.telefon ? ' - Tel: ' + f.telefon : '') + '</div>' +
     '</div>';
@@ -5366,20 +5867,82 @@ function renderDsgvo(liste) {
       (d.antwort ? '<div style="font-size:12px;margin-top:6px;color:var(--muted)">Antwort: ' + kEsc(d.antwort) + '</div>' : '') +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px">' +
+      (d.kunden_id && (d.typ === 'auskunft' || d.typ === 'export')
+        ? '<button class="btn btn-p btn-sm" onclick="dsgvoAuskunft(\'' + d.kunden_id + '\')">Auskunft erstellen</button>' : '') +
       (d.status === 'offen' ? '<button class="btn btn-grn btn-sm" onclick="dsgvoOk(\'' + d.id + '\')">Erledigt</button>' +
                              '<button class="btn btn-g btn-sm" onclick="dsgvoNein(\'' + d.id + '\')">Ablehnen</button>' : '') +
       '</div>' +
       '</div></div>';
   }).join('');
 }
-function dsgvoKarte(kid) {
+// Die Art der Anfrage muss zu den Werten passen, die die Datenbank zulaesst — freier Text
+// aus einem prompt() wurde vom CHECK abgelehnt und die Anfrage war verloren.
+var DSGVO_TYPEN = [
+  ['auskunft', 'Auskunft (Art. 15)'], ['export', 'Datenübertragbarkeit (Art. 20)'],
+  ['loeschung', 'Löschung (Art. 17)'], ['berichtigung', 'Berichtigung (Art. 16)'],
+  ['einschraenkung', 'Einschränkung (Art. 18)'], ['widerruf', 'Widerruf der Einwilligung (Art. 7)'],
+  ['widerspruch', 'Widerspruch (Art. 21)']
+];
+function dsgvoKarte() {
   if (!aktK) { notify('Kein Kunde ausgewählt.', 'err'); return; }
-  var typ = prompt('Art der Anfrage (Auskunft, Löschung, Berichtigung, Widerspruch, Datenübertragbarkeit):', 'Auskunft');
-  if (!typ) return;
-  api('POST', '/dsgvo', {
-    kunden_id: aktK.id, vorname: aktK.vorname, nachname: aktK.nachname,
-    email: aktK.email, telefon: aktK.telefon, typ: typ, beschreibung: null
-  }).then(function() { notify('DSGVO-Anfrage erfasst.'); }).catch(function(e) { notify(e.message, 'err'); });
+  var liste = DSGVO_TYPEN.map(function(t, i) { return (i + 1) + ' = ' + t[1]; }).join('\n');
+  var wahl = prompt('Art der Anfrage von ' + aktK.vorname + ' ' + aktK.nachname + ':\n\n' + liste + '\n\nNummer eingeben:', '1');
+  if (!wahl) return;
+  var t = DSGVO_TYPEN[parseInt(wahl, 10) - 1];
+  if (!t) { notify('Ungültige Auswahl.', 'err'); return; }
+  var notiz = prompt('Wie ist die Anfrage eingegangen? (Telefon, Brief, persönlich - optional)', '');
+  api('POST', '/dsgvo', { kunden_id: aktK.id, typ: t[0], nachricht: notiz || null })
+    .then(function() { notify('DSGVO-Anfrage erfasst. Frist: ein Monat (Art. 12 Abs. 3 DSGVO).'); loadDsgvo(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+// Die Auskunft nach Art. 15 war bisher nur als API vorhanden und im Admin nirgends
+// erreichbar: Eine Anfrage konnte man abhaken, aber nicht beantworten. Hier wird sie erzeugt,
+// als lesbares Blatt angezeigt und laesst sich direkt drucken.
+function dsgvoAuskunft(kid) {
+  api('GET', '/dsgvo/auskunft/' + kid).then(function(a) {
+    var d = a.gespeicherte_daten || {};
+    function tabelle(titel, zeilen) {
+      if (!zeilen || !zeilen.length) return '<div class="sek">' + titel + '</div><div class="para">Keine Daten gespeichert.</div>';
+      var sp = Object.keys(zeilen[0]);
+      return '<div class="sek">' + titel + ' (' + zeilen.length + ')</div>' +
+        '<table style="width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:2mm">' +
+        '<tr>' + sp.map(function(k) { return '<th style="text-align:left;border-bottom:1px solid #d0d8e8;padding:1mm 2mm 1mm 0">' + kEsc(k) + '</th>'; }).join('') + '</tr>' +
+        zeilen.map(function(z) {
+          return '<tr>' + sp.map(function(k) {
+            var v = z[k];
+            return '<td style="border-bottom:1px solid #eef;padding:1mm 2mm 1mm 0">' + kEsc(v === null || v === undefined ? '' : String(v)) + '</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</table>';
+    }
+    var stamm = d.stammdaten || {};
+    var stammZeilen = Object.keys(stamm).filter(function(k) { return stamm[k] !== null && stamm[k] !== '' && k !== 'id'; })
+      .map(function(k) { return '<div class="iz"><div class="iz-l">' + kEsc(k) + '</div><div class="iz-v">' + kEsc(String(stamm[k])) + '</div></div>'; }).join('');
+    var f = EINST || {};
+    var html = '<div class="dok">' + dokStyle() +
+      '<div class="hdr"><div class="hdr-l"><div class="firmenname">' + markeKopf(f, '') + '</div>' +
+      '<div class="hdr-sub">' + kEsc([f.strasse, (f.plz || '') + ' ' + (f.ort || '')].filter(function(x) { return String(x).trim(); }).join(' - ')) + '</div></div></div>' +
+      '<div class="dok-titel">Auskunft nach Art. 15 DSGVO</div>' +
+      '<div class="para">Erstellt am ' + rDatum(a.generiert_am) + '. Diese Auskunft umfasst alle zu Ihrer Person gespeicherten Daten.</div>' +
+      '<div class="sek">Stammdaten</div><div class="g2">' + stammZeilen + '</div>' +
+      tabelle('Fahrzeuge', d.fahrzeuge) +
+      tabelle('Einlagerungen', d.einlagerungen) +
+      tabelle('Termine', d.termine) +
+      tabelle('Rechnungen', d.rechnungen) +
+      tabelle('Dokumente', d.dokumente) +
+      tabelle('Kontaktanfragen', d.kontaktanfragen) +
+      tabelle('Bisherige DSGVO-Anfragen', d.dsgvo_anfragen) +
+      '<div class="sek">Aufbewahrungsfristen</div><div class="para">' +
+      Object.keys(a.aufbewahrungsfristen || {}).map(function(k) { return kEsc(k) + ': ' + kEsc(a.aufbewahrungsfristen[k]); }).join('<br>') + '</div>' +
+      '<div class="sek">Ihre Rechte</div><div class="para">' + (a.betroffenenrechte || []).map(kEsc).join('<br>') + '</div>' +
+      (a.hinweis_nicht_enthalten ? '<div class="para" style="color:#555">' + kEsc(a.hinweis_nicht_enthalten) + '</div>' : '') +
+      '</div>';
+    var w = window.open('', '_blank');
+    if (!w) { notify('Bitte Pop-ups für diese Seite erlauben.', 'err'); return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Auskunft Art. 15 DSGVO</title></head><body>' + html + '</body></html>');
+    w.document.close();
+    notify('Auskunft erstellt. Die Anfrage wurde protokolliert.');
+    loadDsgvo();
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function dsgvoOk(id) {
   api('PATCH', '/dsgvo/' + id, { status: 'bearbeitet' })

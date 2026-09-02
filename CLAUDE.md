@@ -107,9 +107,9 @@ Fertig, teils noch zu deployen/testen:
 - Noch nicht abgeschlossen vom Inhaber: Firmendaten + Artikel-Preise eintragen,
   AV-Verträge IONOS + Contabo, AGB anwaltlich prüfen
 
-## Rechtliches (Bayern, nicht-öffentlich)
+## Rechtliches (Sachsen, nicht-öffentlich)
 
-- Aufsichtsbehörde: BayLDA, Promenade 18, 91522 Ansbach, [poststelle@lda.bayern.de](mailto:poststelle@lda.bayern.de)
+- Aufsichtsbehörde: Sächsische Datenschutz- und Transparenzbeauftragte, Postfach 11 01 32, 01330 Dresden, Telefon +49 351 85471-101, [post@sdtb.sachsen.de](mailto:post@sdtb.sachsen.de) — zuständig, weil der Betrieb in Leipzig sitzt (Sachsen, nicht Bayern)
 - Aufbewahrung: Rechnungen/Belege 8 Jahre, Verträge 8 Jahre ab Ende, Korrespondenz 6 Jahre
 - Auftragsverarbeiter: Contabo (Hosting), IONOS (E-Mail) — AV-Verträge nötig
 

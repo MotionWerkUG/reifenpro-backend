@@ -93,6 +93,19 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
 .page { display: none; }
 .page.on { display: block; }
 .empty { text-align: center; color: var(--muted); padding: 30px; font-size: 14px; }
+/* Adress-Vorschlaege. Mechanik uebernommen aus frontend/termin/index.html (Buchungsstrecke) --
+   Farben hier ueber Design-Tokens, weil das Portal einen Dunkelmodus hat; die Buchungsseite
+   arbeitet dort mit festen Farben, die hier weiss auf weiss ergaeben. */
+.adr-wrap { position: relative; }
+.adr-drop { position: absolute; left: 0; right: 0; top: 100%; z-index: 40; background: var(--panel);
+  border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px;
+  box-shadow: 0 10px 24px rgba(0,0,0,.18); max-height: 260px; overflow: auto; display: none; }
+.adr-drop.on { display: block; }
+.adr-opt { padding: 11px 14px; font-size: 15px; cursor: pointer; border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--text); }
+.adr-opt:last-child { border-bottom: none; }
+.adr-opt:hover { background: var(--ydim); }
+.adr-opt .adr-meta { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
 .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
 .b-g { background: rgba(62,207,142,0.15); color: var(--green); }
 .b-y { background: rgba(240,192,0,0.15); color: var(--yellow); }
@@ -390,6 +403,13 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
           <label data-i18n="inch">Zollgröße</label>
           <select id="buchen-zoll" onchange="buchenSlotsLaden()"><option value="">—</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option><option>21</option><option>22</option></select>
         </div>
+        <!-- Gutscheincode: Im Portal gibt es kein Banner und keinen QR-Einstieg, der Kunde hat
+             den Code nur auf dem Flyer in der Hand. Ohne sichtbares Feld koennte er ihn hier
+             gar nicht einloesen -- und wir bewerben in jeder Bestaetigungsmail ein Konto. -->
+        <div class="fg" style="margin-bottom:10px">
+          <label data-i18n="voucher_code">Gutscheincode (optional)</label>
+          <input id="buchen-gutschein" autocapitalize="characters" autocomplete="off" placeholder="z. B. WINTER2026" oninput="buchenSlotsLaden()">
+        </div>
         <div id="buchen-preis" style="font-size:14px;font-weight:700;color:var(--accent-text);margin-bottom:10px"></div>
         <div class="fg">
           <label data-i18n="date">Datum</label>
@@ -445,6 +465,18 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         <div class="card-titel" data-i18n="edit_contact">Kontaktdaten</div>
         <div class="g2">
           <div class="fg"><label data-i18n="phone">Telefon</label><input id="pf-tel" autocomplete="tel"></div>
+          <!-- Anschrift gehoert ins Profil: Sie wird spaetestens bei der Buchung Pflicht (Rechnung),
+               und ohne diese Felder waere die Buchung der einzige Ort, an dem sie sich eintragen
+               oder korrigieren laesst -- ein Umzug waere fuer den Kunden sonst nicht abbildbar. -->
+          <div class="fg adr-wrap"><label data-i18n="street">Straße und Hausnummer</label>
+            <input id="pf-strasse" autocomplete="street-address" oninput="pfStrassenLookup()">
+            <div class="adr-drop" id="pf-strassen-drop"></div>
+          </div>
+          <div class="fg adr-wrap"><label data-i18n="zip">PLZ</label>
+            <input id="pf-plz" inputmode="numeric" autocomplete="postal-code" oninput="pfPlzLookup()">
+            <div class="adr-drop" id="pf-orte-drop"></div>
+          </div>
+          <div class="fg"><label data-i18n="city">Ort</label><input id="pf-ort" autocomplete="address-level2"></div>
           <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="pf-kz"></div>
           <div class="fg"><label data-i18n="brand">Marke</label><input id="pf-marke"></div>
           <div class="fg"><label data-i18n="model">Modell</label><input id="pf-modell"></div>
@@ -545,6 +577,8 @@ var I18N = {
     pw_min: 'Passwort muss mind. 8 Zeichen haben', winter: 'Winter', sommer: 'Sommer', ganzjahres: 'Ganzjahres',
     upcoming: 'Anstehende Termine', active_storage: 'Aktive Einlagerungen', book_now: 'Jetzt Termin buchen',
     past_appointments: 'Vergangene Termine', no_upcoming_appointments: 'Keine anstehenden Termine.', error_loading: 'Daten konnten nicht geladen werden. Bitte später erneut versuchen.',
+    voucher_code: 'Gutscheincode (optional)', voucher_invalid: 'Code ungültig oder abgelaufen',
+    address_incomplete: 'Bitte Straße, PLZ und Ort vollständig angeben.', address_no_number: 'Bitte die Hausnummer mit angeben (oder ein Postfach).', address_zip: 'Die PLZ besteht aus fünf Ziffern.',
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
@@ -611,6 +645,8 @@ var I18N = {
     pw_min: 'Password must be at least 8 characters', winter: 'Winter', sommer: 'Summer', ganzjahres: 'All-season',
     upcoming: 'Upcoming appointments', active_storage: 'Active storage', book_now: 'Book appointment now',
     past_appointments: 'Past appointments', no_upcoming_appointments: 'No upcoming appointments.', error_loading: 'Could not load data. Please try again later.',
+    voucher_code: 'Voucher code (optional)', voucher_invalid: 'Code invalid or expired',
+    address_incomplete: 'Please provide street, postcode and city.', address_no_number: 'Please include the house number (or a PO box).', address_zip: 'The postcode has five digits.',
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
@@ -1291,10 +1327,31 @@ function buchenSlotsLaden() {
   terminBuchenAbbrechen(); // evtl. offene Zusammenfassung schliessen (Eingaben geaendert)
   if (!artikelId) { wrap.classList.add('hidden'); return; }
   // Preis + Dauer aus Staffel (Typ + Zoll) anzeigen
-  papi('GET', '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(p) {
-    if (p && p.preis != null) {
-      var brutto = Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100);
-      preisEl.textContent = t('price') + ': ' + brutto.toFixed(2).replace('.', ',') + ' €' + (p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '');
+  // Preis + Dauer, bei eingetragenem Gutschein mit altem und neuem Betrag. Gerechnet wird
+  // ausschliesslich serverseitig -- der Assistent zeigt nur an, was zurueckkommt. Wuerde er
+  // selbst rechnen, koennte er einen anderen Betrag zeigen als Buchung und Rechnung.
+  var codeEl = document.getElementById('buchen-gutschein');
+  var code = codeEl ? codeEl.value.trim() : '';
+  var url = '/daten/artikel/' + artikelId + '/preis?typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)
+          + (code ? '&gutschein=' + encodeURIComponent(code) : '');
+  papi('GET', url).then(function(p) {
+    if (!p || p.preis == null) return;
+    var eur = function(n) { return Number(n).toFixed(2).replace('.', ',') + ' €'; };
+    var dauer = p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '';
+    if (p.gutschein && p.rabatt_summe > 0) {
+      // Alter Preis durchgestrichen, neuer daneben -- wie im Gaeste-Assistenten.
+      preisEl.innerHTML = t('price') + ': <s style="color:var(--muted);font-weight:400">' + eur(p.brutto_vor_rabatt) + '</s> '
+        + '<span style="color:var(--accent-text)">' + eur(p.brutto_nach_rabatt) + '</span>'
+        + ' <span style="font-weight:400;color:var(--muted)">(' + pEsc(p.gutschein.code) + ', −' + p.gutschein.rabatt_prozent + ' %)</span>' + dauer;
+    } else if (code && p.gutschein === null) {
+      preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100)) + dauer
+        + ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';
+    } else {
+      // Bruttopreis kommt vom Server. Frueher rechnete die Oberflaeche hier selbst
+      // `preis * (1 + mwst/100)` -- die gepflegten Preise sind aber bereits Bruttopreise,
+      // also standen im Portal 19 % zu viel. Der Rueckfall gilt nur fuer alte Antworten.
+      var brutto = p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis);
+      preisEl.textContent = t('price') + ': ' + eur(brutto) + dauer;
     }
   }).catch(function() {});
   if (!datum) { wrap.classList.add('hidden'); return; }
@@ -1354,6 +1411,8 @@ function terminBuchen() {
     payload = { datum: datum, uhrzeit_von: selectedSlot, artikel_id: artikelId, kennzeichen: kz || null, beschreibung: notiz || null, fahrzeug_id: fahrzeugId, typ: buchenTyp() || null, zoll: zoll };
   }
   if (notiz) rows.push([t('notes'), notiz]);
+  var _gc = document.getElementById('buchen-gutschein');
+  if (_gc && _gc.value.trim()) payload.gutschein_code = _gc.value.trim();
   pendingBuchung = { payload: payload, sammel: istSammel };
   var inhalt = rows.map(function(r) {
     return '<div><span style="color:var(--muted)">' + r[0] + ':</span> <strong>' + pEsc(r[1]) + '</strong></div>';
@@ -1450,6 +1509,9 @@ function ladeProfil() {
     el.innerHTML = html;
     var g = function(id) { return document.getElementById(id); };
     if (g('pf-tel')) g('pf-tel').value = k.telefon || '';
+    if (g('pf-strasse')) g('pf-strasse').value = k.strasse || '';
+    if (g('pf-plz')) g('pf-plz').value = k.plz || '';
+    if (g('pf-ort')) g('pf-ort').value = k.ort || '';
     if (g('pf-kz')) g('pf-kz').value = k.kennzeichen || '';
     if (g('pf-marke')) g('pf-marke').value = k.fahrzeug_marke || '';
     if (g('pf-modell')) g('pf-modell').value = k.fahrzeug_modell || '';
@@ -1458,9 +1520,92 @@ function ladeProfil() {
   }).catch(function() {});
 }
 
+// ── Adress-Vorschlaege im Profil ────────────────────────────────────────────────────────────
+// Mechanik uebernommen aus frontend/termin/index.html (Buchungsstrecke: _hausnr, _strassenTeil,
+// strassenLookup, strassePick). ACHTUNG: Beide Stellen muessen ZUSAMMEN geaendert werden --
+// eine gemeinsame Datei ginge nur ueber einen dritten Auslieferungspfad, weil Buchungsseite und
+// Portal aus verschiedenen Web-Verzeichnissen kommen.
+//
+// Der Kern: EIN Feld fuer Strasse und Hausnummer. Fuer die ABFRAGE wird die Hausnummer
+// abgeschnitten (der Verzeichnisdienst kennt nur Strassennamen) und nach der Auswahl wieder
+// angehaengt. Ohne das verschwinden die Vorschlaege genau dann, wenn jemand seine Hausnummer
+// tippt -- der haeufigste Grund, warum solche Felder als kaputt empfunden werden.
+var _pfAdrT = null, _pfStrCache = [], _pfOrteCache = [];
+function pfAdrUrl() { return API.replace(/\/portal$/, '') + '/adresse'; }
+function pfAdrHide() { ['pf-strassen-drop', 'pf-orte-drop'].forEach(function(id) { var e = document.getElementById(id); if (e) e.classList.remove('on'); }); }
+function _pfHausnr(v) { var m = String(v || '').match(/\s*(\d+\s*[a-zA-Z]?)\s*$/); return m ? m[1].replace(/\s+/g, '') : ''; }
+function _pfStrassenTeil(v) { return String(v || '').replace(/\s*\d+\s*[a-zA-Z]?\s*$/, '').trim(); }
+
+function pfStrassenLookup() {
+  var raw = (document.getElementById('pf-strasse').value || '').trim();
+  var q = _pfStrassenTeil(raw);
+  var plz = (document.getElementById('pf-plz').value || '').trim();
+  var drop = document.getElementById('pf-strassen-drop');
+  clearTimeout(_pfAdrT);
+  if (q.length < 3) { if (drop) { drop.classList.remove('on'); drop.innerHTML = ''; } return; }
+  _pfAdrT = setTimeout(function() {   // 250 ms warten -> nicht eine Anfrage je Tastendruck
+    fetch(pfAdrUrl() + '/strassen?q=' + encodeURIComponent(q) + '&plz=' + encodeURIComponent(plz))
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        _pfStrCache = (d && d.strassen) || [];
+        if (!drop) return;
+        if (!_pfStrCache.length) { drop.classList.remove('on'); drop.innerHTML = ''; return; }
+        drop.innerHTML = _pfStrCache.map(function(x, i) {
+          return '<div class="adr-opt" onclick="pfStrassePick(' + i + ')"><span>' + pEsc(x.strasse) + '</span>'
+               + '<span class="adr-meta">' + pEsc((x.plz ? x.plz + ' ' : '') + (x.ort || '')) + '</span></div>';
+        }).join('');
+        drop.classList.add('on');
+      }).catch(function() { if (drop) drop.classList.remove('on'); });   // fail-soft: dann tippt man selbst
+  }, 250);
+}
+
+function pfStrassePick(i) {
+  var x = _pfStrCache[i]; if (!x) return;
+  var el = document.getElementById('pf-strasse');
+  // Reihenfolge mit Absicht: Was der Kunde selbst getippt hat, gewinnt. Nur wenn er noch keine
+  // Hausnummer geschrieben hat, uebernehmen wir die aus dem Vorschlag -- dann ist die Adresse
+  // mit einem Tipp fertig. So kann auch keine doppelte Nummer entstehen ("Stöhrerstr. 22 22").
+  var hn = _pfHausnr(el.value) || (x.hausnr ? String(x.hausnr).trim() : '');
+  el.value = (x.strasse || '') + (hn ? ' ' + hn : '');
+  if (x.plz) document.getElementById('pf-plz').value = x.plz;
+  if (x.ort) document.getElementById('pf-ort').value = x.ort;
+  pfAdrHide();
+  // Ohne Hausnummer bleibt der Cursor im Feld, damit man sie direkt anhaengt. Geprueft wird
+  // bewusst NICHT hier, sondern erst beim Speichern -- sonst saehe der Kunde "Bitte die
+  // Hausnummer mit angeben" fuer einen Vorschlag, den er gerade erst angeklickt hat.
+  if (!hn) el.focus();
+}
+
+function pfPlzLookup() {
+  var plz = (document.getElementById('pf-plz').value || '').trim();
+  var drop = document.getElementById('pf-orte-drop');
+  if (!/^\d{5}$/.test(plz)) { if (drop) drop.classList.remove('on'); return; }
+  fetch(pfAdrUrl() + '/plz?plz=' + encodeURIComponent(plz)).then(function(r) { return r.json(); }).then(function(d) {
+    _pfOrteCache = (d && d.orte) || [];
+    var ort = document.getElementById('pf-ort');
+    if (_pfOrteCache.length === 1) { if (!ort.value.trim()) ort.value = _pfOrteCache[0]; if (drop) drop.classList.remove('on'); return; }
+    if (_pfOrteCache.length > 1 && drop) {
+      drop.innerHTML = _pfOrteCache.map(function(o, i) { return '<div class="adr-opt" onclick="pfOrtPick(' + i + ')">' + pEsc(o) + '</div>'; }).join('');
+      drop.classList.add('on');
+    } else if (drop) { drop.classList.remove('on'); }
+  }).catch(function() { if (drop) drop.classList.remove('on'); });
+}
+function pfOrtPick(i) { var o = _pfOrteCache[i]; if (o == null) return; document.getElementById('pf-ort').value = o; pfAdrHide(); }
+document.addEventListener('click', function(ev) { if (!(ev.target.closest && ev.target.closest('.adr-wrap'))) pfAdrHide(); });
+
 function profilSpeichern() {
   var v = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell') })
+  // Nur pruefen, wenn ueberhaupt etwas eingetragen ist -- ein leeres Profil bleibt erlaubt,
+  // Pflicht wird die Anschrift erst bei der Buchung. Gleiche Regel wie dort: Hausnummer oder
+  // Postfach, PLZ fuenfstellig. Sonst haette der Kunde hier gespeichert und bekaeme beim
+  // Buchen dieselbe Adresse zurueckgewiesen.
+  var str = v('pf-strasse'), plz = v('pf-plz'), ort = v('pf-ort');
+  if (str || plz || ort) {
+    if (!str || !plz || !ort) { notify(t('address_incomplete'), 'err'); return; }
+    if (!/\d/.test(str) && !/postfach/i.test(str)) { notify(t('address_no_number'), 'err'); return; }
+    if (!/^\d{5}$/.test(plz)) { notify(t('address_zip'), 'err'); return; }
+  }
+  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell'), strasse: str, plz: plz, ort: ort })
     .then(function() { notify(t('contact_saved'), 'ok'); ladeProfil(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }

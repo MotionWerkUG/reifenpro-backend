@@ -93,7 +93,13 @@ function render() {
       '<h3>Terminbuchung ohne Kundenkonto</h3>' +
       '<p>Buchen Sie einen Termin über unsere Terminseite, ohne ein Kundenkonto zu haben, verarbeiten wir: Anrede, Vor- und Nachname (bei Firmenkunden zusätzlich den Firmennamen), Telefonnummer, E-Mail-Adresse, Anschrift, Kennzeichen, Fahrzeugart und Zollgröße, die gewünschten Leistungen sowie einen etwaigen Gutscheincode. Anschrift und Name benötigen wir, um die Leistung abrechnen zu können; die Fahrzeugangaben, um die passenden Arbeiten und Zeiten einzuplanen.</p>' +
       '<p>Wir versenden Ihnen zunächst eine E-Mail mit einem Bestätigungslink; erst nach Ihrer Bestätigung wird der Termin verbindlich. Bestätigen Sie nicht, wird die Anfrage nach 45 Minuten automatisch gelöscht. Dieses Verfahren schützt davor, dass Dritte Termine unter fremden E-Mail-Adressen buchen. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung vorvertraglicher Maßnahmen und des Vertrages).</p>' +
-      '<p>Bei der Adresseingabe schlagen wir Ihnen passende Straßen, Postleitzahlen und Orte vor. Die Abfrage läuft über unseren eigenen Server an den amtlichen Datenbestand von openplzapi.org; dabei wird nur der von Ihnen eingegebene Adressbestandteil übermittelt, nicht Ihre IP-Adresse und keine weiteren Angaben.</p>' +
+      // Formulierung mit admin-c2 abgestimmt und am Code geprueft. Zwei Aussagen aus dem ersten
+      // Entwurf sind bewusst NICHT enthalten, weil sie nachweislich falsch waren: "Wir speichern
+      // die Suchbegriffe nicht" (sie standen im Zugriffsprotokoll) und "und nicht ausgewertet"
+      // (das Protokoll wird fuer die Besucherzahlen ausgewertet). Sobald der Suchbegriff auf
+      // ALLEN Ebenen aus den Protokollen heraus ist, wird hier auf die staerkere Fassung
+      // gewechselt -- gemeinsam, nicht einseitig.
+      '<p>Wenn Sie eine Anschrift eingeben, schlagen wir Ihnen passende Straßen, Postleitzahlen und Orte vor. Dazu fragt <strong>unser Server – nicht Ihr Browser</strong> bei den Kartendiensten Photon (photon.komoot.io, OpenStreetMap-Daten) und OpenPLZ (openplzapi.org, amtliche Daten) an. Übermittelt wird ausschließlich der eingegebene Suchbegriff, also der Anfang der Straße und gegebenenfalls die Postleitzahl. Ihre IP-Adresse, Ihr Name und alle übrigen Daten bleiben bei uns; die Dienste erfahren nicht, wer sucht. Wie jeder Aufruf unserer Anwendung wird die Anfrage in den Zugriffsprotokollen unseres eigenen Servers festgehalten; diese Protokolle werden nach spätestens 14 Tagen gelöscht. Rechtsgrundlage ist unser berechtigtes Interesse an einer korrekten Anschrift (Art. 6 Abs. 1 lit. f DSGVO). Sie können die Adresse auch ohne Vorschläge von Hand eintragen.</p>' +
       '<p>Erteilen Sie uns eine Einwilligung (z. B. für Saison-Erinnerungen oder eine einmalige Bewertungsanfrage), speichern wir zum Nachweis zusätzlich den Zeitpunkt und Ihre IP-Adresse. Jede dieser E-Mails enthält einen Abmeldelink, mit dem Sie die Einwilligung mit einem Klick widerrufen können.</p>' +
       '<h3>Kontaktformular</h3>' +
       '<p>Schreiben Sie uns über das Kontaktformular unserer Website, verarbeiten wir Ihren Namen, Ihre E-Mail-Adresse, auf Wunsch Ihre Telefonnummer, Ihre Nachricht sowie Ihre IP-Adresse. Die IP-Adresse dient allein dem Schutz vor automatisiertem Missbrauch. Wir nutzen diese Angaben ausschließlich, um Ihre Anfrage zu beantworten; Rechtsgrundlage ist unser berechtigtes Interesse an der Beantwortung von Anfragen (Art. 6 Abs. 1 lit. f DSGVO), bei Anfragen zu einem möglichen Auftrag Art. 6 Abs. 1 lit. b DSGVO. Eine Weitergabe an Dritte erfolgt nicht. Anfragen, aus denen sich kein Geschäftsvorgang ergibt, löschen wir, sobald sie erledigt sind; führt die Anfrage zu einem Auftrag, gelten die Fristen unter Ziffer 4.</p>' +
@@ -109,7 +115,12 @@ function render() {
       '<p>Sie haben das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch (Art. 21). Sie können eine erteilte Einwilligung jederzeit widerrufen.</p>' +
       '<h2>7. Beschwerderecht</h2>' +
       '<p>Sie haben das Recht, sich bei einer Aufsichtsbehörde zu beschweren. Zuständig ist:<br>' +
-      'Bayerisches Landesamt für Datenschutzaufsicht (BayLDA)<br>Promenade 18, 91522 Ansbach<br>Telefon: 0981 53 1300<br>E-Mail: poststelle@lda.bayern.de</p>';
+      // Zustaendig ist die Behoerde am Sitz des Betriebs -- Leipzig, also Sachsen. Hier stand das
+      // bayerische Landesamt; eine falsche Aufsichtsbehoerde schickt Beschwerdefuehrer in die Irre
+      // (Art. 13 Abs. 2 lit. d DSGVO). Angaben an der Quelle geprueft (datenschutz.sachsen.de):
+      // Die Behoerde heisst seit einiger Zeit "Datenschutz- UND Transparenzbeauftragte", und fuer
+      // Post gilt das Postfach, nicht die Hausanschrift.
+      'Die Sächsische Datenschutz- und Transparenzbeauftragte<br>Postfach 11 01 32, 01330 Dresden<br>Telefon: +49 351 85471-101<br>E-Mail: post@sdtb.sachsen.de<br>www.datenschutz.sachsen.de</p>';
   } else {
     document.getElementById('ds-content').innerHTML =
       '<h1>Privacy Policy</h1>' +
@@ -131,7 +142,7 @@ function render() {
       '<h3>Booking an appointment without a customer account</h3>' +
       '<p>If you book an appointment via our booking page without holding an account, we process: form of address, first and last name (for business customers also the company name), phone number, email address, postal address, licence plate, vehicle type and wheel size, the selected services and any voucher code. Name and address are required to invoice the service; the vehicle details to schedule the right work and duration.</p>' +
       '<p>We first send you an email containing a confirmation link; the appointment only becomes binding once you confirm it. Without confirmation the request is deleted automatically after 45 minutes. This protects against third parties booking appointments under someone else&rsquo;s email address. The legal basis is Art. 6(1)(b) GDPR (pre-contractual measures and performance of the contract).</p>' +
-      '<p>While you enter your address we suggest matching streets, postcodes and towns. The lookup runs through our own server against the official records of openplzapi.org; only the address fragment you typed is transmitted &ndash; not your IP address and no other details.</p>' +
+      '<p>When you enter an address, we suggest matching streets, postcodes and towns. To do so, <strong>our server &ndash; not your browser</strong> queries the mapping services Photon (photon.komoot.io, OpenStreetMap data) and OpenPLZ (openplzapi.org, official records). Only the search term you typed is transmitted, i.e. the beginning of the street and possibly the postcode. Your IP address, your name and all other data stay with us; the services do not learn who is searching. Like every request to our application, the query is recorded in the access logs of our own server; these logs are deleted after 14 days at the latest. The legal basis is our legitimate interest in a correct address (Art. 6(1)(f) GDPR). You can also enter the address by hand, without suggestions.</p>' +
       '<p>If you give us consent (for example for seasonal reminders or a one-off review request), we additionally store the time and your IP address as evidence. Every such email contains an unsubscribe link that withdraws the consent with a single click.</p>' +
       '<h3>Contact form</h3>' +
       '<p>If you write to us via the contact form on our website, we process your name, email address, optionally your phone number, your message and your IP address. The IP address serves solely to protect against automated abuse. We use these details exclusively to answer your enquiry; the legal basis is our legitimate interest in responding to enquiries (Art. 6(1)(f) GDPR), or Art. 6(1)(b) GDPR where the enquiry concerns a potential order. The data is not passed on to third parties. Enquiries that do not lead to a business transaction are deleted once they have been dealt with; if the enquiry leads to an order, the periods under section 4 apply.</p>' +
@@ -147,7 +158,7 @@ function render() {
       '<p>You have the right to access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection (Art. 21). You can withdraw consent at any time.</p>' +
       '<h2>7. Right to complain</h2>' +
       '<p>You have the right to lodge a complaint with a supervisory authority. The competent authority is:<br>' +
-      'Bavarian State Office for Data Protection Supervision (BayLDA)<br>Promenade 18, 91522 Ansbach, Germany<br>Phone: +49 981 53 1300<br>Email: poststelle@lda.bayern.de</p>';
+      'Saxon Commissioner for Data Protection and Transparency<br>Postfach 11 01 32, 01330 Dresden, Germany<br>Phone: +49 351 85471-101<br>Email: post@sdtb.sachsen.de<br>www.datenschutz.sachsen.de</p>';
   }
 }
 lade();

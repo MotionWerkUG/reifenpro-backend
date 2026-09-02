@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { execFileSync } = require('child_process');
 const path = require('path');
+const { ohneGeheimnisse } = require('../lib/kundendaten');
 const { query, withTransaction } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
@@ -17,31 +18,99 @@ router.get('/', authenticate, requireStaff, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Anfragen kommen nicht nur ueber das Portal, sondern auch am Telefon, per Brief oder am
+// Tresen. Bisher gab es dafuer keinen Weg: Das Frontend rief POST /dsgvo auf, die Route
+// existierte aber nicht — die Anfrage war damit nirgends erfasst und die Frist nach
+// Art. 12 Abs. 3 DSGVO (ein Monat) lief unbemerkt.
+const DSGVO_TYPEN = ['auskunft', 'export', 'loeschung', 'berichtigung', 'einschraenkung', 'widerruf', 'widerspruch'];
+
+router.post('/', authenticate, requireStaff, async (req, res, next) => {
+  try {
+    const { kunden_id, typ, nachricht } = req.body || {};
+    if (!kunden_id || !/^[0-9a-fA-F-]{36}$/.test(String(kunden_id)))
+      return res.status(400).json({ error: 'Kunde fehlt oder ist ungültig.' });
+    const t = String(typ || '').toLowerCase();
+    if (!DSGVO_TYPEN.includes(t))
+      return res.status(400).json({ error: 'Unbekannte Art der Anfrage.', erlaubt: DSGVO_TYPEN });
+    const k = (await query('SELECT id FROM kunden WHERE id=$1', [kunden_id])).rows[0];
+    if (!k) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
+    const { rows } = await query(
+      `INSERT INTO dsgvo_anfragen (kunden_id, typ, status, nachricht)
+       VALUES ($1, $2, 'offen', $3) RETURNING *`,
+      [kunden_id, t, nachricht ? String(nachricht).slice(0, 2000) : null]
+    );
+    await auditLog({ userId: req.user.id, aktion: 'dsgvo.anfrage_erfasst',
+      tabelle: 'dsgvo_anfragen', datensatzId: rows[0].id, neueWerte: rows[0], req });
+    res.status(201).json(rows[0]);
+  } catch (err) { next(err); }
+});
+
 router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, next) => {
   try {
     const kid = req.params.kundenId;
-    const [k, einl, docs, anf] = await Promise.all([
+    // Art. 15 verlangt ALLE zu der Person gespeicherten Daten. Bisher fehlten Fahrzeuge,
+    // Termine, Rechnungen und Kontaktanfragen — eine unvollstaendige Auskunft ist selbst ein
+    // Verstoss. Spalten sind einzeln aufgezaehlt, damit keine internen Token mitgehen
+    // (termine.bestaetigung_token) und keine internen Notizen zu Dritten.
+    const [k, einl, docs, anf, fz, trm, rech, prot, kpreise] = await Promise.all([
       query('SELECT * FROM kunden WHERE id=$1', [kid]),
       query('SELECT beleg_nr,reifen_groesse,reifen_typ,lagerplatz,status,eingelagert_am FROM einlagerungen WHERE kunden_id=$1', [kid]),
       query('SELECT typ,titel,erstellt_am,unterschrift_datum FROM kunden_dokumente WHERE kunden_id=$1', [kid]),
       query('SELECT typ,status,erstellt_am FROM dsgvo_anfragen WHERE kunden_id=$1', [kid]),
+      query('SELECT typ,marke,modell,kennzeichen,baujahr,hu_datum,notiz,erstellt_am FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [kid]),
+      query(`SELECT datum,uhrzeit_von,uhrzeit_bis,termin_typ,kennzeichen,beschreibung,status,
+                    portal_buchung,storniert_am,erstellt_am
+               FROM termine WHERE kunden_id=$1 ORDER BY datum DESC`, [kid]),
+      query(`SELECT rechnungsnr,status,rechnungsdatum,leistungsdatum,faelligkeit,
+                    netto_summe,mwst_summe,brutto_summe,zahlungsstatus,bezahlt_am
+               FROM rechnungen WHERE kunden_id=$1 ORDER BY rechnungsdatum DESC`, [kid]),
+      // Werkstatt-Protokolle sind Daten UEBER die Person (Fahrzeugzustand, Maengel,
+      // Kilometerstand, Unterschrift) und gehoeren damit in die Auskunft. Art. 15 kennt
+      // keine Unterscheidung zwischen "intern" und "fuer den Kunden bestimmt".
+      // Dateipfade zu Fotos und PDF bleiben draussen: Sie sind kein Inhalt, sondern ein
+      // Speicherort — stattdessen wird die Anzahl genannt, damit der Kunde weiss, dass es
+      // sie gibt und sie anfordern kann.
+      query(`SELECT typ, kennzeichen, km_stand, maengel, unterschrift_name, erstellt_am,
+                    COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(fotos)='array' THEN fotos ELSE '[]'::jsonb END),0) AS anzahl_fotos,
+                    (pdf_pfad IS NOT NULL) AS pdf_vorhanden,
+                    checkliste
+               FROM protokolle WHERE kunden_id=$1 ORDER BY erstellt_am DESC`, [kid]),
+      // Persoenliche Sonderpreise sind eine auf die Person bezogene Information.
+      query(`SELECT a.name AS leistung, p.preis
+               FROM kunden_preise p JOIN artikel a ON a.id = p.artikel_id
+              WHERE p.kunden_id=$1 ORDER BY a.name`, [kid]),
     ]);
     if (!k.rows.length) return res.status(404).json({ error: 'Kunde nicht gefunden.' });
+    // Kontaktanfragen haengen nicht am Kundendatensatz, sondern nur an der E-Mail-Adresse.
+    const mails = [k.rows[0].email, k.rows[0].portal_email, k.rows[0].rechnung_email]
+      .filter(Boolean).map(function (m) { return String(m).toLowerCase(); });
+    const kontakt = mails.length
+      ? (await query('SELECT name,email,telefon,nachricht,erledigt,erstellt_am FROM kontakt_anfragen WHERE LOWER(email) = ANY($1::text[]) ORDER BY erstellt_am DESC', [mails])).rows
+      : [];
 
-    const kunde = {...k.rows[0]};
-    delete kunde.portal_password;
+    // Auch die Auskunft nach Art. 15 darf keine gueltigen Einmal-Token enthalten: die Datei
+    // wird ausgedruckt und verschickt, ein darin stehender Reset-Token waere ein Nachschluessel.
+    const kunde = ohneGeheimnisse(k.rows[0]);
 
     const auskunft = {
       generiert_am: new Date().toISOString(),
       rechtsgrundlage: 'Art. 15 DSGVO',
       gespeicherte_daten: {
         stammdaten: kunde,
+        fahrzeuge: fz.rows,
         einlagerungen: einl.rows,
+        termine: trm.rows,
+        rechnungen: rech.rows,
         dokumente: docs.rows,
+        werkstatt_protokolle: prot.rows,
+        persoenliche_preise: kpreise.rows,
+        kontaktanfragen: kontakt,
         dsgvo_anfragen: anf.rows,
       },
+      hinweis_nicht_enthalten: 'Interne Notizen zu Dritten sowie technische Zugangsdaten '
+        + '(Passwort, Einmal-Token) sind nach Art. 15 Abs. 4 DSGVO nicht Bestandteil der Auskunft.',
       aufbewahrungsfristen: {
-        rechnungen: '10 Jahre (§ 147 AO, § 14b UStG)',
+        rechnungen: '8 Jahre (§ 147 AO, § 14b UStG — seit dem Vierten Bürokratieentlastungsgesetz, 01.01.2025)',
         buchungsbelege: '8 Jahre ab Ausstellung (§ 257 HGB, BEG IV ab 01.01.2025)',
         kontaktdaten: 'Bis Ende der Geschäftsbeziehung',
       },
@@ -53,7 +122,8 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
         'Art. 20 DSGVO - Recht auf Datenübertragbarkeit',
         'Art. 21 DSGVO - Widerspruchsrecht',
         'Art. 7 Abs. 3 DSGVO - Widerruf der Einwilligung',
-        'Art. 77 DSGVO - Beschwerderecht bei BayLDA (www.lda.bayern.de)',
+        'Art. 77 DSGVO - Beschwerderecht bei der Sächsischen Datenschutz- und '
+          + 'Transparenzbeauftragten (www.datenschutz.sachsen.de)',
       ],
     };
 
@@ -120,10 +190,18 @@ router.post('/loeschung/:kundenId', authenticate, requireStaff, async (req, res,
           kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL,
           baujahr=NULL, notizen=NULL, portal_aktiv=false,
           portal_email=NULL, portal_password=NULL, portal_verifiziert=false,
+          portal_reset_token=NULL, portal_reset_ablauf=NULL,
+          portal_bestaetigung_token=NULL, portal_token_ablauf=NULL,
+          einwilligung_token=NULL, einwilligung_token_ablauf=NULL,
+          portal_freigegeben=false, portal_email_bestaetigt=false,
           anonymisiert_am=NOW(), geloescht_am=NOW()
          WHERE id=$1`,
         [kid]
       );
+      // Vorsorglich: Der Kundenportal-Reset laeuft ueber kunden.portal_reset_token (oben schon
+      // genullt), die Tabelle wird heute nur fuer Mitarbeiter-Logins gefuellt. Sollte sie
+      // spaeter auch fuer Kunden genutzt werden, bleibt hier kein gueltiger Einmal-Link liegen.
+      await query('DELETE FROM passwort_reset_tokens WHERE kunden_id=$1', [kid]);
       await auditLog({ userId: req.user.id, aktion: 'kunde.anonymisiert',
         tabelle: 'kunden', datensatzId: kid, req });
       res.json({

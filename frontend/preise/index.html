@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Preise – Schröder &amp; Scholz Reifenservice</title>
 <meta name="description" content="Transparente Preise für Räderwechsel, Reifeneinlagerung und Fahrzeugtechnik bei Schröder &amp; Scholz. Alle Preise inkl. MwSt.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://www.schroeder-scholz.de/preise/">
 <style>
   :root{--accent:#eab308;--accent-ink:#171717;--dark:#171717;--fg:#1a1a1a;--muted:#6b7280;--line:#e5e7eb;--bg:#fff;--soft:#f7f7f5}
   *{box-sizing:border-box}
@@ -13,7 +15,39 @@
   a{color:inherit}
   .inner{max-width:1240px;margin:0 auto;padding:0 24px}
   /* Nav */
-  .nav{background:var(--dark)}
+  .nav{background:var(--dark);position:relative}
+  .nav-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .nav-links{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+  .nav-links a{color:#e6e6e6;font-size:14px;font-weight:600;text-decoration:none}
+  .nav-links a:hover{color:var(--accent)}
+  .nav-links a[aria-current=page]{color:var(--accent)}
+  .btn-sm{background:var(--accent);color:var(--accent-ink)!important;padding:8px 16px;border-radius:8px}
+  .nav-tel{display:inline-flex;align-items:center;gap:8px;color:#fff;font-size:14px;font-weight:700;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px;white-space:nowrap;text-decoration:none}
+  .nav-tel svg{width:16px;height:16px;color:var(--accent);flex:none}
+  .nav-burger{display:none;background:none;border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;padding:7px 9px;cursor:pointer;align-items:center}
+  .nav-burger svg{width:22px;height:22px;display:block}
+  .nav-burger .b-zu{display:none}
+  .nav-burger[aria-expanded="true"] .b-auf{display:none}
+  .nav-burger[aria-expanded="true"] .b-zu{display:block}
+  .nav-burger:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .akt-leiste{background:var(--accent);color:var(--accent-ink);padding:11px 20px;text-align:center;font-weight:700;font-size:14px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap}
+  .akt-code{background:#171717;color:var(--accent);border-radius:6px;padding:4px 10px;font-family:ui-monospace,Menlo,monospace;letter-spacing:1px}
+  .akt-cta{background:#171717;color:#fff;text-decoration:none;border-radius:8px;padding:8px 16px;font-weight:700}
+  @media(max-width:760px){
+    .nav-in{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;gap:10px;padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right))}
+    .nav-burger{display:inline-flex;justify-content:center;width:46px;height:46px;padding:0;justify-self:start}
+    .wm{justify-self:center}.wm svg{height:30px;width:auto}
+    .nav-right{gap:0;justify-self:end}
+    .nav-tel{width:46px;height:46px;padding:0;justify-content:center;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+    .nav-tel svg{width:21px;height:21px;color:var(--accent-ink)}
+    .nav-tel .tel-nr{display:none}
+    .nav-links{position:absolute;left:0;right:0;top:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--dark);border-top:1px solid rgba(255,255,255,.12);padding:6px 24px 18px;display:none;z-index:60}
+    .nav-links.offen{display:flex}
+    .nav-links a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.09);font-size:16px}
+    .nav-links a:last-child{border-bottom:none}
+    .nav-links a[href*="/termin/"]{background:var(--accent);color:var(--accent-ink)!important;border-radius:8px;margin:12px 0 2px;text-align:center;padding:14px 16px;font-weight:800;border-bottom:none}
+    .nav-links a.btn-sm{margin-top:12px;text-align:center;padding:12px 16px;border-bottom:none;background:transparent;color:#e6e6e6!important;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-weight:600}
+  }
   .nav-in{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
   .wm svg{display:block;height:38px;width:auto}
   .nav-cta{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-ink);font-weight:700;text-decoration:none;padding:11px 20px;border-radius:9px;font-size:15px}
@@ -64,14 +98,29 @@
 </style>
 </head>
 <body>
+<div id="aktionsbanner"></div>
 <header class="nav"><div class="nav-in">
+  <button class="nav-burger" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="hauptmenue" onclick="menueUmschalten(this)">
+    <span class="b-auf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span>
+    <span class="b-zu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+  </button>
   <a href="/" class="wm" aria-label="Schröder &amp; Scholz">
     <svg viewBox="0 0 300 44" xmlns="http://www.w3.org/2000/svg" role="img">
       <text x="0" y="30" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="24" font-weight="800" letter-spacing="-.9" fill="#fafafa">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text>
       <text x="1" y="42" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="8" font-weight="600" letter-spacing="2.4" fill="#a3a3a3">REIFENSERVICE UND FAHRZEUGTECHNIK</text>
     </svg>
   </a>
-  <a class="nav-cta" href="/termin/">Termin buchen</a>
+  <div class="nav-right">
+    <nav class="nav-links" id="hauptmenue">
+      <a href="/#leistungen">Leistungen</a>
+      <a href="/preise/" aria-current="page">Preise</a>
+      <a href="/termin/">Termin buchen</a>
+      <a href="/#oeffnungszeiten">Öffnungszeiten</a>
+      <a href="/#kontakt">Kontakt</a>
+      <a class="btn-sm" href="/portal/">Kundenportal</a>
+    </nav>
+    <a class="nav-tel" id="nav-tel" href="#" style="display:none"></a>
+  </div>
 </div></header>
 
 <section class="hero"><div class="inner">
@@ -85,13 +134,13 @@
 
   <div class="hinweis">
     <b>Hinweis:</b> „ab"-Preise beziehen sich auf die günstigste Variante. Der Endpreis richtet sich nach
-    Zollgröße und Fahrzeugart (PKW, SUV, Transporter) und kann vor Ort abweichen. Gerne erstellen wir Ihnen ein
+    Zollgröße und Fahrzeugart (PKW, SUV, Transporter) und kann vor Ort abweichen. Gerne machen wir dir ein
     verbindliches Angebot.
   </div>
 
   <div class="cta-band">
     <h2>Termin online buchen</h2>
-    <p>Wählen Sie Ihre Leistung, Fahrzeug und Wunschtermin – in wenigen Schritten.</p>
+    <p>Wähle deine Leistung, dein Fahrzeug und den Wunschtermin – in wenigen Schritten.</p>
     <a class="btn-lg" href="/termin/">Jetzt Termin buchen</a>
   </div>
 </main>
@@ -147,23 +196,60 @@
   }
   function render(d){
     var list = (d && d.leistungen) || [];
-    if(!list.length){ C.innerHTML='<div class="state">Aktuell sind keine Preise hinterlegt. Sprechen Sie uns gerne direkt an.</div>'; return; }
+    if(!list.length){ C.innerHTML='<div class="state">Aktuell sind keine Preise hinterlegt. Sprich uns gerne direkt an.</div>'; return; }
     var haupt = list.filter(function(l){return l.rolle==='haupt';});
     var zusatz = list.filter(function(l){return l.rolle==='zusatz';});
     var html='';
     if(haupt.length){
-      html += '<h2 class="sec-title">Leistungen</h2><p class="sec-sub">Unsere Kernleistungen rund um Ihre Räder und Ihr Fahrzeug.</p>';
+      html += '<h2 class="sec-title">Leistungen</h2><p class="sec-sub">Unsere Kernleistungen rund um deine Räder und dein Fahrzeug.</p>';
       html += '<div class="grid">'+haupt.map(card).join('')+'</div>';
     }
     if(zusatz.length){
-      html += '<h2 class="sec-title">Zusatzleistungen</h2><p class="sec-sub">Praktisch kombinierbar mit Ihrem Termin.</p>';
+      html += '<h2 class="sec-title">Zusatzleistungen</h2><p class="sec-sub">Praktisch kombinierbar mit deinem Termin.</p>';
       html += '<div class="grid">'+zusatz.map(card).join('')+'</div>';
     }
     C.innerHTML = html;
   }
+  // Banner und Telefon kommen aus derselben Antwort — die Preisseite hatte beides nicht,
+  // obwohl hier ueber Preise nachgedacht wird und der Rabatt genau hier zaehlt.
+  function kopfzeile(d){
+    if(d.telefon){
+      var t=document.getElementById('nav-tel');
+      var ziel=String(d.telefon).replace(/[^\d+]/g,'');
+      if(t&&ziel){ t.href='tel:'+ziel; t.setAttribute('aria-label','Anrufen: '+d.telefon);
+        t.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z"/></svg><span class="tel-nr">'+esc(d.telefon)+'</span>';
+        t.style.display='inline-flex'; }
+    }
+    if(d.aktion&&d.aktion.text){
+      var ziel2=d.aktion.link||'/termin/';
+      // gleicher Parameter wie auf der Startseite: daran unterscheiden wir Website von Flyer
+      if(d.aktion.code) ziel2 += (ziel2.indexOf('?')===-1?'?':'&')+'gutschein='+encodeURIComponent(d.aktion.code);
+      document.getElementById('aktionsbanner').innerHTML =
+        '<div class="akt-leiste"><span>'+esc(d.aktion.text)+'</span>'+
+        (d.aktion.code?'<span class="akt-code">'+esc(d.aktion.code)+'</span>':'')+
+        '<a class="akt-cta" href="'+esc(ziel2)+'">Jetzt Termin buchen</a></div>';
+    }
+  }
+  function menueUmschalten(k){
+    var n=document.getElementById('hauptmenue'); if(!n) return;
+    var auf=n.classList.toggle('offen');
+    k.setAttribute('aria-expanded',auf?'true':'false');
+    k.setAttribute('aria-label',auf?'Menü schließen':'Menü öffnen');
+  }
+  window.menueUmschalten=menueUmschalten;
+  document.addEventListener('click',function(ev){
+    var n=document.getElementById('hauptmenue');
+    if(!n||!n.classList.contains('offen')) return;
+    if(ev.target.closest&&ev.target.closest('.nav-burger')) return;
+    var drin=ev.target.closest&&ev.target.closest('#hauptmenue');
+    var link=ev.target.closest&&ev.target.closest('#hauptmenue a');
+    if(link||!drin){ n.classList.remove('offen');
+      var b=document.querySelector('.nav-burger');
+      if(b){ b.setAttribute('aria-expanded','false'); b.setAttribute('aria-label','Menü öffnen'); } }
+  });
   fetch('/api/preise').then(function(r){ if(!r.ok) throw 0; return r.json(); })
-    .then(render)
-    .catch(function(){ C.innerHTML='<div class="state">Die Preise konnten gerade nicht geladen werden. Bitte versuchen Sie es später erneut oder kontaktieren Sie uns direkt.</div>'; });
+    .then(function(d){ kopfzeile(d); render(d); })
+    .catch(function(){ C.innerHTML='<div class="state">Die Preise konnten gerade nicht geladen werden. Bitte versuch es später erneut oder melde dich direkt bei uns.</div>'; });
 })();
 </script>
 </body>

@@ -126,7 +126,7 @@ function jsonLd(f, oz) {
   var data = {
     '@context': 'https://schema.org', '@type': 'AutoRepair',
     name: 'Schröder & Scholz',
-    description: 'Reifenservice und Fahrzeugtechnik: Räderwechsel, Reifeneinlagerung, Reifen & Felgen, Fahrwerkstechnik und Bremsenservice.',
+    description: 'Reifenservice: Räderwechsel, Reifeneinlagerung sowie Reifen & Felgen.',
     url: 'https://www.schroeder-scholz.de/',
     image: 'https://www.schroeder-scholz.de/uploads/hero.jpg'
   };
@@ -178,7 +178,7 @@ function socialHtml(f) {
   if (f.instagram_url) items.push('<a href="' + esc(f.instagram_url) + '" target="_blank" rel="noopener" aria-label="Instagram">' + ICON_IG + '</a>');
   if (f.google_bewertung_url) items.push('<a href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener" aria-label="Google">' + ICON_GG + '</a>');
   if (!items.length) return '';
-  var bew = f.google_bewertung_url ? '<a class="foot-bewerten" href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener">Bewerten Sie uns bei Google</a>' : '';
+  var bew = f.google_bewertung_url ? '<a class="foot-bewerten" href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener">Bewerte uns bei Google</a>' : '';
   return '<div class="foot-social">' + items.join('') + '</div>' + bew;
 }
 
@@ -208,7 +208,7 @@ function bannerHtml(f) {
 // CTA-Abschnitt, der zur mehrstufigen Buchungsseite /termin/ fuehrt
 function buchungHtml(f) {
   var titel = f.buchung_titel || 'Online Termin buchen';
-  var text = f.buchung_text || 'In wenigen Schritten zum Wunschtermin: Leistung wählen, Zusatzleistungen ergänzen, freie Zeit aussuchen – Sie erhalten sofort eine Bestätigung per E-Mail.';
+  var text = f.buchung_text || 'In wenigen Schritten zum Wunschtermin: Leistung wählen, Zusatzleistungen ergänzen, freie Zeit aussuchen – du bekommst sofort eine Bestätigung per E-Mail.';
   return '<section class="sec buchung" id="termin-buchen"><div class="inner" style="text-align:center">' +
     '<h2 style="color:#fff">' + esc(titel) + '</h2>' +
     '<p class="bk-intro" style="margin:0 auto 24px">' + esc(text) + '</p>' +
@@ -307,7 +307,7 @@ function renderSektion(s, f, oz) {
       '</div></section>';
   }
   if (s.typ === 'oeffnungszeiten') {
-    var rows = oeffnungszeilen(f, oz).map(function(r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Bitte erfragen Sie unsere Öffnungszeiten.</td></tr>';
+    var rows = oeffnungszeilen(f, oz).map(function(r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Bitte frag unsere Öffnungszeiten kurz nach.</td></tr>';
     // Freier Hinweis (z. B. „Termine auch nach Vereinbarung“) aus den Firmendaten
     var hinweis = f.oeffnungszeiten_hinweis && String(f.oeffnungszeiten_hinweis).trim()
       ? '<p class="oz-hinweis">' + nl2br(String(f.oeffnungszeiten_hinweis).trim()) + '</p>' : '';
@@ -323,7 +323,7 @@ function renderSektion(s, f, oz) {
     var info = '<div class="k-card">' +
       '<h3>' + esc(f.firmenname || 'Schröder & Scholz') + '</h3>' +
       '<p>' + (adr || '<span style="color:#8b949e">Adresse folgt in Kürze.</span>') + '</p>' +
-      (f.telefon ? '<p>Telefon: <a href="tel:' + esc(f.telefon) + '">' + esc(f.telefon) + '</a></p>' : '') +
+      (f.telefon ? '<p>Telefon: <a href="tel:' + esc(telZiel(f.telefon)) + '">' + esc(f.telefon) + '</a></p>' : '') +
       (f.email ? '<p>E-Mail: <a href="mailto:' + esc(f.email) + '">' + esc(f.email) + '</a></p>' : '') +
       (mapsLink ? '<p style="margin-top:14px"><a class="btn-ghost" href="' + mapsLink + '" target="_blank" rel="noopener">Route planen</a></p>' : '') +
       '</div>';
@@ -334,12 +334,12 @@ function renderSektion(s, f, oz) {
       '</div></div>' : '';
     var form = '<form class="k-form" onsubmit="return sendeKontakt(event)">' +
       '<h3>Nachricht senden</h3>' +
-      '<div class="kf-ok" id="kf-ok">Vielen Dank! Ihre Anfrage wurde gesendet. Wir melden uns zeitnah.</div>' +
+      '<div class="kf-ok" id="kf-ok">Vielen Dank! Deine Anfrage ist angekommen. Wir melden uns zeitnah.</div>' +
       '<div class="kf-err" id="kf-err"></div>' +
       '<input type="text" id="kf-name" placeholder="Name" required>' +
       '<input type="email" id="kf-email" placeholder="E-Mail" required>' +
       '<input type="tel" id="kf-telefon" placeholder="Telefon (optional)">' +
-      '<textarea id="kf-nachricht" placeholder="Ihre Nachricht" required></textarea>' +
+      '<textarea id="kf-nachricht" placeholder="Deine Nachricht" required></textarea>' +
       '<label class="kf-check"><input type="checkbox" id="kf-dsgvo" required> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und bin mit der Verarbeitung meiner Angaben zur Bearbeitung der Anfrage einverstanden.</span></label>' +
       '<input type="text" id="kf-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">' +
       '<button type="submit" class="btn">Anfrage senden</button>' +
@@ -363,9 +363,18 @@ var DEFAULT_NAV = [
   { label: 'Kontakt', url: '#kontakt', sichtbar: true, btn: false },
   { label: 'Kundenportal', url: '/portal/', sichtbar: true, btn: true }
 ];
+// Aufklapp-Knopf fuers Handy. Auf schmalen Bildschirmen klappte die Navigation bisher
+// ersatzlos weg — bei ueber 6000 Pixeln Seitenhoehe hiess das: alles nur per Scrollen.
+var ICON_MENU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>';
+var ICON_ZU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+function menueKnopfHtml() {
+  return '<button class="nav-burger" type="button" aria-label="Menü öffnen" aria-expanded="false" aria-controls="hauptmenue" onclick="menueUmschalten(this)">' +
+    '<span class="b-auf">' + ICON_MENU + '</span><span class="b-zu">' + ICON_ZU + '</span></button>';
+}
+
 function navHtml(f) {
   var items = (f && Array.isArray(f.nav_links) && f.nav_links.length) ? f.nav_links : DEFAULT_NAV;
-  return '<nav class="nav-links">' + items
+  return '<nav class="nav-links" id="hauptmenue">' + items
     .filter(function (i) { return i && i.sichtbar !== false && i.label; })
     .map(function (i) { return '<a' + (i.btn ? ' class="btn-sm"' : '') + ' href="' + esc(i.url || '#') + '">' + esc(i.label) + '</a>'; })
     .join('') + '</nav>';
@@ -374,13 +383,15 @@ function navHtml(f) {
 // Telefon in der Kopfzeile — staerkster Hebel auf dem Handy (Anruf mit einem Tipp).
 // Bleibt auf schmalen Bildschirmen sichtbar, waehrend die uebrigen Menuepunkte einklappen.
 var ICON_TEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3h3l1.5 4-2 1.5a12 12 0 006.5 6.5l1.5-2 4 1.5v3a2 2 0 01-2.2 2A17 17 0 014.5 5.2 2 2 0 016.5 3z"/></svg>';
+// Waehlbares tel:-Ziel: Leer- und Trennzeichen raus, sonst scheitern manche Wähl-Apps.
+// Die Anzeige bleibt immer die gepflegte Schreibweise aus den Firmendaten.
+function telZiel(nr) { return String(nr || '').replace(/[^\d+]/g, ''); }
 function telHtml(f) {
   if (!f.telefon) return '';
-  // tel:-Ziel ohne Leerzeichen/Trennzeichen, Anzeige bleibt die gepflegte Schreibweise
-  var ziel = String(f.telefon).replace(/[^\d+]/g, '');
+  var ziel = telZiel(f.telefon);
   if (!ziel) return '';
   return '<a class="nav-tel" href="tel:' + esc(ziel) + '" aria-label="Anrufen: ' + esc(f.telefon) + '">' +
-    ICON_TEL + '<span>' + esc(f.telefon) + '</span></a>';
+    ICON_TEL + '<span class="tel-nr">' + esc(f.telefon) + '</span></a>';
 }
 
 function renderHomepage(sektionen, f, fonts, oz) {
@@ -409,7 +420,7 @@ function renderHomepage(sektionen, f, fonts, oz) {
   var ort = f.ort ? ' in ' + f.ort : '';
   var seo = f.seo_config && typeof f.seo_config === 'object' ? f.seo_config : {};
   var title = (seo.titel && String(seo.titel).trim()) || ('Schröder & Scholz – Reifenservice, Räderwechsel & Reifeneinlagerung' + ort);
-  var desc = (seo.beschreibung && String(seo.beschreibung).trim()) || ('Schröder & Scholz – Ihr Reifenservice' + ort + ': schneller Räderwechsel, sichere Reifeneinlagerung, Reifen & Felgen sowie Fahrwerkstechnik und Bremsenservice. Jetzt bequem online Termin buchen.');
+  var desc = (seo.beschreibung && String(seo.beschreibung).trim()) || ('Schröder & Scholz – dein Reifenservice' + ort + ': schneller Räderwechsel, sichere Reifeneinlagerung sowie Reifen & Felgen. Jetzt bequem online einen Termin buchen.');
   var ogBild = seo.og_bild && String(seo.og_bild).trim() ? absUrl(seo.og_bild) : 'https://www.schroeder-scholz.de/uploads/hero.jpg';
 
   return '<!DOCTYPE html><html lang="de"><head>' +
@@ -434,6 +445,7 @@ function renderHomepage(sektionen, f, fonts, oz) {
     '<style>' + css(f, fonts) + extraCss() + '</style></head><body>' +
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
+    menueKnopfHtml() +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
     '<div class="nav-right">' + navHtml(f) + telHtml(f) + '</div>' +
     '</div></header>' +
@@ -499,6 +511,12 @@ function css(f, fonts) {
     ".nav-links{display:flex;align-items:center;gap:20px;flex-wrap:wrap}.nav-links a{color:#e6e6e6;font-size:calc(14px*var(--sc));font-weight:600}.nav-links a:hover{color:var(--accent)}" +
     ".btn-sm{background:var(--accent);color:var(--accent-ink)!important;padding:8px 16px;border-radius:8px}" +
     ".nav-right{display:flex;align-items:center;gap:16px;flex-wrap:wrap}" +
+    ".nav{position:relative}" +
+    ".nav-burger{display:none;background:none;border:1px solid rgba(255,255,255,.3);border-radius:8px;color:#fff;padding:7px 9px;cursor:pointer;align-items:center}" +
+    ".nav-burger svg{width:22px;height:22px;display:block}" +
+    ".nav-burger .b-zu{display:none}" +
+    ".nav-burger[aria-expanded='true'] .b-auf{display:none}.nav-burger[aria-expanded='true'] .b-zu{display:block}" +
+    ".nav-burger:focus-visible{outline:2px solid var(--accent);outline-offset:2px}" +
     ".nav-tel{display:inline-flex;align-items:center;gap:8px;color:#fff;font-size:calc(14px*var(--sc));font-weight:700;border:1px solid rgba(255,255,255,.3);padding:7px 14px;border-radius:8px;white-space:nowrap}" +
     ".nav-tel svg{width:16px;height:16px;color:var(--accent);flex:none}" +
     ".nav-tel:hover{border-color:var(--accent);color:var(--accent)}.nav-tel:hover svg{color:var(--accent)}" +
@@ -559,7 +577,7 @@ function css(f, fonts) {
     ".foot-links{font-size:calc(13px*var(--sc))}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:var(--accent)}" +
     ".foot-social{display:flex;gap:14px;justify-content:center;margin:6px 0 14px}.foot-social a{color:#cfcfcf;display:inline-flex}.foot-social a:hover{color:var(--accent)}" +
     ".foot-bewerten{display:inline-block;margin:0 0 16px;font-size:13px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:9px 18px;border-radius:8px;text-decoration:none}.foot-bewerten:hover{filter:brightness(1.05)}" +
-    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-links{gap:12px}.nav-links a:not(.btn-sm){display:none}.nav-right{gap:10px}.nav-tel{padding:7px 12px;font-size:calc(13px*var(--sc))}.sec{padding:44px 0}.wm svg{height:30px}}";
+    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-in{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;gap:10px;padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right))}.nav-burger{display:inline-flex;justify-content:center;width:46px;height:46px;padding:0;justify-self:start}.wm{justify-self:center}.wm svg{height:30px;width:auto}.nav-right{gap:0;justify-self:end}.nav-tel{width:46px;height:46px;padding:0;justify-content:center;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}.nav-tel svg{width:21px;height:21px;color:var(--accent-ink)}.nav-tel .tel-nr{display:none}.nav-tel:hover{border-color:var(--accent);color:var(--accent-ink)}.nav-tel:hover svg{color:var(--accent-ink)}.nav-links{position:absolute;left:0;right:0;top:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--dark);border-top:1px solid rgba(255,255,255,.12);padding:6px 24px 18px;display:none;z-index:60}.nav-links.offen{display:flex}.nav-links a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.09);font-size:calc(16px*var(--sc))}.nav-links a:last-child{border-bottom:none}.nav-links a.btn-sm{margin-top:12px;text-align:center;padding:12px 16px;border-bottom:none;background:transparent;color:#e6e6e6!important;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-weight:600}.nav-links a[href*='/termin/']{background:var(--accent);color:var(--accent-ink)!important;border-radius:8px;margin:12px 0 2px;text-align:center;padding:14px 16px;font-weight:800;border-bottom:none}.sec{padding:44px 0}.wm svg{height:30px}}";
 }
 
 function script() {
@@ -572,6 +590,18 @@ function script() {
     // Live-Design-Vorschau: CMS schickt Design-Variablen, wir wenden sie sofort an (ohne Speichern)
     "window.addEventListener('message',function(ev){if(ev.origin.indexOf('schroeder-scholz.de')===-1)return;var d=ev.data;if(!d||d.type!=='cms-design'||!d.vars)return;var r=document.documentElement.style,v=d.vars,set=function(k,x){if(x)r.setProperty(k,x);};set('--accent',v.accent);set('--accent-ink',v.accent_ink);set('--dark',v.dunkel);set('--font-head',v.font_head);set('--font-body',v.font_body);if(v.sc)r.setProperty('--sc',v.sc);});" +
     "})();" +
+    "function menueUmschalten(k){var n=document.getElementById('hauptmenue');if(!n)return;" +
+    "var auf=n.classList.toggle('offen');k.setAttribute('aria-expanded',auf?'true':'false');" +
+    "k.setAttribute('aria-label',auf?'Men\u00fc schlie\u00dfen':'Men\u00fc \u00f6ffnen');}" +
+    // Nach dem Antippen eines Punktes und beim Tippen daneben wieder schliessen — sonst
+    // verdeckt das offene Menue den Abschnitt, zu dem es gerade gesprungen ist.
+    "document.addEventListener('click',function(ev){var n=document.getElementById('hauptmenue');" +
+    "if(!n||!n.classList.contains('offen'))return;" +
+    "if(ev.target.closest&&ev.target.closest('.nav-burger'))return;" +
+    "var drin=ev.target.closest&&ev.target.closest('#hauptmenue');" +
+    "var link=ev.target.closest&&ev.target.closest('#hauptmenue a');" +
+    "if(link||!drin){n.classList.remove('offen');var b=document.querySelector('.nav-burger');" +
+    "if(b){b.setAttribute('aria-expanded','false');b.setAttribute('aria-label','Men\u00fc \u00f6ffnen');}}});" +
     "function ladeKarte(){var m=document.getElementById('kmap');if(!m)return;var u=m.getAttribute('data-embed');" +
     "m.innerHTML='<iframe src=\"'+u+'\" loading=\"lazy\" referrerpolicy=\"no-referrer-when-downgrade\" title=\"Standortkarte\"></iframe>';}" +
     "function kfv(id){var e=document.getElementById(id);return e?e.value.trim():'';}" +
@@ -601,17 +631,17 @@ function script() {
     "if(!d.artikel_id||!d.datum){er.textContent='Bitte Leistung und Datum wählen.';er.style.display='block';return false;}" +
     "if(!d.uhrzeit_von){er.textContent='Bitte eine Uhrzeit wählen.';er.style.display='block';return false;}" +
     "if(!d.name||!d.telefon||!d.email||!kz){er.textContent='Bitte Name, Telefon, E-Mail und Kennzeichen ausfüllen.';er.style.display='block';return false;}" +
-    "if(!d.datenschutz){er.textContent='Bitte stimmen Sie der Datenschutzerklärung zu.';er.style.display='block';return false;}" +
+    "if(!d.datenschutz){er.textContent='Bitte stimme der Datenschutzerklärung zu.';er.style.display='block';return false;}" +
     "var b=document.getElementById('bk-submit');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';" +
     "fetch('/api/gast/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})" +
     ".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})" +
-    ".then(function(j){ev.target.reset();bkSel=null;document.getElementById('bk-slots-wrap').style.display='none';ok.innerHTML='Vielen Dank! Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.';ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
+    ".then(function(j){ev.target.reset();bkSel=null;document.getElementById('bk-slots-wrap').style.display='none';ok.innerHTML='Vielen Dank! Dein Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Du bekommst eine Bestätigung per E-Mail.';ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
     ".catch(function(x){er.textContent=x.message;er.style.display='block';})" +
     ".then(function(){b.disabled=false;b.textContent=bt;});return false;}" +
     "</scr" + "ipt>";
 }
 
-// Coming-Soon-/Wartungsseite: grosses Logo, "bald fuer Sie da", Buchungsstart-Datum.
+// Coming-Soon-/Wartungsseite: grosses Logo, "bald fuer dich da", Buchungsstart-Datum.
 // Auf Marke (dunkel + Gold), keine Navigation/Buchung, noindex (Platzhalter nicht indexieren).
 function renderWartung(f) {
   f = f || {};
@@ -621,14 +651,14 @@ function renderWartung(f) {
   var _ba = (f.buchbar_ab && /^\d{4}-\d{2}-\d{2}$/.test(String(f.buchbar_ab))) ? String(f.buchbar_ab).split('-') : null;
   var startDatum = _ba ? (parseInt(_ba[2], 10) + '. ' + _MON[parseInt(_ba[1], 10) - 1] + ' ' + _ba[0]) : null;
   var datumSatz = startDatum
-    ? 'Ab dem <b>' + startDatum + '</b> können Sie hier online Ihren Termin buchen.'
+    ? 'Ab dem <b>' + startDatum + '</b> kannst du hier online deinen Termin buchen.'
     : 'Die Online-Terminbuchung startet <b>in Kürze</b>.';
   var metaDesc = 'Schröder & Scholz – Reifenservice und Fahrzeugtechnik. Unsere neue Website ist bald da.' + (startDatum ? ' Ab ' + startDatum + ' online Termine buchen.' : '');
   // Reine Info-Seite: nur Logo, Headline und Buchungsstart-Datum – kein Kontakt,
   // keine Rechtslinks (bewusst auf Wunsch von David).
   return '<!DOCTYPE html><html lang="de"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>Schröder &amp; Scholz &ndash; bald für Sie da</title>' +
+    '<title>Schröder &amp; Scholz &ndash; bald für dich da</title>' +
     '<meta name="description" content="' + esc(metaDesc) + '">' +
     '<meta name="robots" content="noindex">' +
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' +
@@ -657,7 +687,7 @@ function renderWartung(f) {
       '</svg>' +
     '</div>' +
     '<div class="ws-badge">Neue Website in Arbeit</div>' +
-    '<h1>Wir sind bald <span class="akz">für Sie</span> da.</h1>' +
+    '<h1>Wir sind bald <span class="akz">für dich</span> da.</h1>' +
     '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
     '<div class="ws-line"></div>' +
     '<p class="ws-datum">' + datumSatz + '</p>' +
