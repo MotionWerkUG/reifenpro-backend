@@ -65,11 +65,13 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
     if (!einst) return res.status(500).json({ error: 'Einstellungen fehlen' });
 
-    // Artikel + Preisstaffel laden, effektive Dauer nach Typ/Zoll ermitteln
-    const artRes = await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
-    if (!artRes.rows.length) return res.status(404).json({ error: 'Artikel nicht gefunden' });
+    // Artikel + Preisstaffel laden, effektive Dauer nach Typ/Zoll ermitteln.
+    // Nur online freigegebene Leistungen -- sonst zeigt das Portal freie Zeiten fuer etwas an,
+    // das anschliessend bei der Buchung abgelehnt wird.
+    const _art = await ladeBuchbarenArtikel(artikel_id);
+    if (!_art) return res.status(404).json({ error: 'Artikel nicht gefunden' });
     const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [artikel_id])).rows;
-    const eff = resolvePreis(artRes.rows[0], varianten, req.query.typ || null, req.query.zoll);
+    const eff = resolvePreis(_art, varianten, req.query.typ || null, req.query.zoll);
     const dauer = eff.dauer_minuten || 30;
 
     // Betriebsurlaub pruefen
@@ -113,7 +115,7 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
       }
     }
 
-    res.json({ slots, dauer, artikel: artRes.rows[0].name });
+    res.json({ slots, dauer, artikel: _art.name });
   } catch (e) { next(e); }
 });
 
@@ -129,6 +131,20 @@ function vorBuchungsstart(buchbarAb, datum) {
     : String(buchbarAb).slice(0, 10);
   if (datum < bStr) return 'Online-Buchungen sind erst ab dem ' + bStr.split('-').reverse().join('.') + ' möglich.';
   return null;
+}
+
+// Nur Leistungen laden, die im Admin ausdruecklich fuer die Online-Buchung freigegeben sind.
+// Die Whitelist galt bisher nur fuer die Gaeste-Buchung; angemeldete Kunden konnten per direktem
+// Aufruf jede beliebige artikel_id buchen. Das ist nicht nur eine Preisfrage: Leistungen wie
+// Bremsen- und Fahrwerksarbeiten sind bewusst nicht freigegeben, weil der Betrieb sie ohne die
+// laufende Handwerksrollen-Eintragung gar nicht erbringen darf.
+async function ladeBuchbarenArtikel(artikelId) {
+  const { rows } = await query(
+    `SELECT a.* FROM artikel a
+      WHERE a.id=$1 AND a.aktiv=true
+        AND EXISTS (SELECT 1 FROM buchung_leistungen bl WHERE bl.artikel_id=a.id AND bl.aktiv=true)`,
+    [artikelId]);
+  return rows[0] || null;
 }
 
 // Anschrift-Pruefung. Bewusst locker: eine Ziffer in der Strasse (Hausnummer) ODER "Postfach"
@@ -169,9 +185,8 @@ router.post('/termine', authKunde, async (req, res, next) => {
       kd.strasse = nStr; kd.plz = nPlz; kd.ort = nOrt;
     }
 
-    const artRes = await query('SELECT * FROM artikel WHERE id=$1 AND aktiv=true', [artikel_id]);
-    if (!artRes.rows.length) return res.status(404).json({ error: 'Artikel nicht gefunden' });
-    const art = artRes.rows[0];
+    const art = await ladeBuchbarenArtikel(artikel_id);
+    if (!art) return res.status(404).json({ error: 'Artikel nicht gefunden' });
     const varianten = (await query('SELECT * FROM artikel_preise WHERE artikel_id=$1', [artikel_id])).rows;
     const eff = resolvePreis(art, varianten, typ || null, zoll);
     const dauer = eff.dauer_minuten || 30;
