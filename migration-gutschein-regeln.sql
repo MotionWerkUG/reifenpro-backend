@@ -20,3 +20,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_gutschein_regel_auffang
 CREATE UNIQUE INDEX IF NOT EXISTS idx_gutschein_regel_artikel
   ON gutschein_regeln (gutschein_id, artikel_id) WHERE artikel_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_gutschein_regeln_gutschein ON gutschein_regeln (gutschein_id);
+
+-- WICHTIG: Eigentuemer setzen. Wird die Tabelle als Rolle `postgres` angelegt (so laeuft der
+-- DB-Zugriff in diesem Projekt), gehoert sie postgres -- die Anwendung laeuft aber als
+-- `reifenpro_user` und bekommt sonst "permission denied for table gutschein_regeln".
+-- Genau das ist beim ersten Ausrollen passiert: Die Kalkulation MIT Gutscheincode
+-- antwortete live mit 500, waehrend sie ohne Code weiterlief.
+ALTER TABLE gutschein_regeln OWNER TO reifenpro_user;
+GRANT ALL ON TABLE gutschein_regeln TO reifenpro_user;
