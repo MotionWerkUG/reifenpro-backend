@@ -391,7 +391,7 @@ function telHtml(f) {
   var ziel = telZiel(f.telefon);
   if (!ziel) return '';
   return '<a class="nav-tel" href="tel:' + esc(ziel) + '" aria-label="Anrufen: ' + esc(f.telefon) + '">' +
-    ICON_TEL + '<span>' + esc(f.telefon) + '</span></a>';
+    ICON_TEL + '<span class="tel-nr">' + esc(f.telefon) + '</span></a>';
 }
 
 function renderHomepage(sektionen, f, fonts, oz) {
@@ -445,8 +445,9 @@ function renderHomepage(sektionen, f, fonts, oz) {
     '<style>' + css(f, fonts) + extraCss() + '</style></head><body>' +
     bannerHtml(f) +
     '<header class="nav"><div class="nav-in">' +
+    menueKnopfHtml() +
     '<a href="/" class="wm" aria-label="Schröder & Scholz">' + logoSvg(212, 38) + '</a>' +
-    '<div class="nav-right">' + navHtml(f) + telHtml(f) + menueKnopfHtml() + '</div>' +
+    '<div class="nav-right">' + navHtml(f) + telHtml(f) + '</div>' +
     '</div></header>' +
     '<main>' + body + '</main>' +
     '<footer class="foot"><div class="inner">' +
@@ -576,7 +577,7 @@ function css(f, fonts) {
     ".foot-links{font-size:calc(13px*var(--sc))}.foot-links a{color:#cfcfcf}.foot-links a:hover{color:var(--accent)}" +
     ".foot-social{display:flex;gap:14px;justify-content:center;margin:6px 0 14px}.foot-social a{color:#cfcfcf;display:inline-flex}.foot-social a:hover{color:var(--accent)}" +
     ".foot-bewerten{display:inline-block;margin:0 0 16px;font-size:13px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:9px 18px;border-radius:8px;text-decoration:none}.foot-bewerten:hover{filter:brightness(1.05)}" +
-    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-right{gap:10px}.nav-tel{padding:7px 12px;font-size:calc(13px*var(--sc))}.nav-burger{display:inline-flex}.nav-links{position:absolute;left:0;right:0;top:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--dark);border-top:1px solid rgba(255,255,255,.12);padding:6px 24px 18px;display:none;z-index:60}.nav-links.offen{display:flex}.nav-links a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.09);font-size:calc(16px*var(--sc))}.nav-links a:last-child{border-bottom:none}.nav-links a.btn-sm{margin-top:12px;text-align:center;padding:12px 16px;border-bottom:none;background:transparent;color:#e6e6e6!important;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-weight:600}.nav-links a[href*='/termin/']{background:var(--accent);color:var(--accent-ink)!important;border-radius:8px;margin:12px 0 2px;text-align:center;padding:14px 16px;font-weight:800;border-bottom:none}.sec{padding:44px 0}.wm svg{height:30px}}";
+    "@media(max-width:760px){.t-grid{grid-template-columns:1fr}.t-img{order:-1}.k-grid{grid-template-columns:1fr}.bk-grid{grid-template-columns:1fr}.bk-card{padding:18px}.nav-in{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;gap:10px;padding-left:calc(14px + env(safe-area-inset-left));padding-right:calc(14px + env(safe-area-inset-right))}.nav-burger{display:inline-flex;justify-content:center;width:46px;height:46px;padding:0;justify-self:start}.wm{justify-self:center}.wm svg{height:30px;width:auto}.nav-right{gap:0;justify-self:end}.nav-tel{width:46px;height:46px;padding:0;justify-content:center;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}.nav-tel svg{width:21px;height:21px;color:var(--accent-ink)}.nav-tel .tel-nr{display:none}.nav-tel:hover{border-color:var(--accent);color:var(--accent-ink)}.nav-tel:hover svg{color:var(--accent-ink)}.nav-links{position:absolute;left:0;right:0;top:100%;flex-direction:column;align-items:stretch;gap:0;background:var(--dark);border-top:1px solid rgba(255,255,255,.12);padding:6px 24px 18px;display:none;z-index:60}.nav-links.offen{display:flex}.nav-links a{padding:14px 2px;border-bottom:1px solid rgba(255,255,255,.09);font-size:calc(16px*var(--sc))}.nav-links a:last-child{border-bottom:none}.nav-links a.btn-sm{margin-top:12px;text-align:center;padding:12px 16px;border-bottom:none;background:transparent;color:#e6e6e6!important;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-weight:600}.nav-links a[href*='/termin/']{background:var(--accent);color:var(--accent-ink)!important;border-radius:8px;margin:12px 0 2px;text-align:center;padding:14px 16px;font-weight:800;border-bottom:none}.sec{padding:44px 0}.wm svg{height:30px}}";
 }
 
 function script() {
