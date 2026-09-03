@@ -584,7 +584,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       const f = (await query('SELECT typ FROM fahrzeuge WHERE id=$1', [t.fahrzeug_id])).rows[0];
       if (f) typ = f.typ;
     }
-    // R4: Bei preise_inkl_mwst=true sind artikel.preis/kunden_preise Brutto -> unten zu Netto umrechnen (wie gast.js)
+    // Bei preise_inkl_mwst=true sind artikel.preis und kunden_preise BRUTTO-Endpreise. Sie
+    // werden weiter unten als Bruttopreis uebergeben und bleiben damit exakt erhalten — sie
+    // werden NICHT mehr auf Netto umgerechnet. Der frueher hier stehende Hinweis auf eine
+    // Netto-Umrechnung war seit der Endpreis-Umstellung falsch.
     const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
     let preis = t.artikel_preis != null ? Number(t.artikel_preis) : 0;
     let mwst = t.artikel_mwst != null ? Number(t.artikel_mwst) : 19;
