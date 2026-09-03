@@ -1604,7 +1604,11 @@ window.addEventListener('load', function() {
   if (TOKEN && USER) {
     fetch(API + '/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
       .then(function(r) {
-        if (r.ok) { startApp(); }
+        if (r.ok) {
+          // Bereiche der Rolle uebernehmen, dann das Menue danach aufbauen.
+          r.json().then(function(d) { if (d && d.bereiche) { BEREICHE = d.bereiche; menueFiltern(); } }).catch(function() {});
+          startApp();
+        }
         else { TOKEN = null; USER = null; localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user'); if (ls) ls.style.display = 'flex'; }
       })
       .catch(function() { if (ls) ls.style.display = 'flex'; });
@@ -1848,7 +1852,40 @@ function kalSetMonat() {
 function toggleNav() { document.getElementById('app').classList.toggle('nav-open'); }
 function closeNav() { document.getElementById('app').classList.remove('nav-open'); }
 var currentPage = 'dashboard';
+// Welche Bereiche darf die angemeldete Rolle sehen? Kommt vom Server aus DERSELBEN Quelle, aus
+// der auch gesperrt wird. Vor der Antwort ist die Liste leer -- dann wird nichts versteckt, damit
+// niemand bei einem Aussetzer vor einem leeren Menue steht.
+var BEREICHE = null;
+var MENUE_BEREICH = {
+  dashboard:'dashboard', kunden:'kunden', einlagerung:'einlagerungen', lagerplan:'lagerplan',
+  kalender:'kalender', werkstatt:'werkstatt', rechnungen:'rechnungen', statistik:'statistik',
+  kontakt:'kontaktanfragen', gewerbeanf:'gewerbeanfragen', dsgvo:'datenschutz',
+  users:'einstellungen', einstellungen:'einstellungen'
+};
+function darfBereich(seite) {
+  if (!BEREICHE) return true;
+  var b = MENUE_BEREICH[seite];
+  if (!b) return true;
+  return !!BEREICHE[b];
+}
+// Menuepunkte ohne Zugriff werden ENTFERNT, nicht ausgegraut. Ein Punkt, den man sieht und nicht
+// oeffnen kann, laedt zum Nachfragen ein und verraet nebenbei, was es sonst noch gibt.
+function menueFiltern() {
+  document.querySelectorAll('.ni[data-page]').forEach(function(el) {
+    el.style.display = darfBereich(el.getAttribute('data-page')) ? '' : 'none';
+  });
+  if (currentPage && !darfBereich(currentPage)) {
+    var erste = null;
+    document.querySelectorAll('.ni[data-page]').forEach(function(el) {
+      if (!erste && el.style.display !== 'none') erste = el.getAttribute('data-page');
+    });
+    if (erste) showPage(erste);
+  }
+}
 function showPage(n, fromPop) {
+  // Zweite Schicht vor dem Server: Wer die Adresse von Hand eintippt, landet nicht auf einer
+  // Seite, die dann nur Fehlermeldungen nachlaedt.
+  if (!darfBereich(n)) { if (typeof notify === 'function') notify('Für diesen Bereich fehlt Ihrer Rolle die Berechtigung.', 'err'); return; }
   closeNav();
   if (currentPage && currentPage !== n) navPrev = currentPage;
   currentPage = n;

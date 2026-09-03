@@ -10,6 +10,8 @@ const cron        = require('node-cron');
 
 const { testConnection } = require('./db/index');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
+const rechte = require('./lib/rechte');
+const { authenticate } = require('./middleware/auth');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -66,6 +68,15 @@ app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url-ohne-adre
 app.get('/health', function(req, res) {
   res.json({ status: 'ok', zeit: new Date().toISOString(), version: '1.3.0' });
 });
+
+// ── Rollen-Torwaechter ───────────────────────────────────────────────────────────────────────
+// EINE Stelle entscheidet, wer welchen Bereich sehen und aendern darf -- nicht 163 verstreute
+// requireStaff/requireAdmin. Er haengt VOR den Routern und greift damit auch fuer Routen, die
+// spaeter dazukommen. Absichtlich streng: Ein Pfad, der in lib/rechte.js nicht zugeordnet ist,
+// bleibt dem Inhaber vorbehalten -- ein vergessener Bereich ist dann zu streng statt zu offen,
+// und das faellt sofort auf, eine stille Luecke nicht.
+// Die bestehenden requireStaff/requireAdmin in den Routern bleiben als zweite Schicht.
+app.use('/api', rechte.torwaechter(authenticate));
 
 app.use('/api/auth',                       require('./routes/auth'));
 app.use('/api/users',                      require('./routes/users'));

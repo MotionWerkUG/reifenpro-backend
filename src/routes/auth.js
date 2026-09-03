@@ -97,9 +97,16 @@ router.post('/logout', authenticate, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get('/me', authenticate, (req, res) =>
-  res.json({ user: req.user })
-);
+// /me liefert zusaetzlich die sichtbaren Bereiche der Rolle. Die Oberflaeche baut ihr Menue
+// daraus -- aus DERSELBEN Quelle, aus der der Torwaechter sperrt. Zwei getrennte Listen (eine
+// fuer die Sichtbarkeit, eine fuer die Sperre) waeren zwei Wahrheiten, die irgendwann
+// auseinanderlaufen; genau das haben wir an anderer Stelle mehrfach erlebt.
+router.get('/me', authenticate, async (req, res, next) => {
+  try {
+    const rechte = require('../lib/rechte');
+    res.json({ user: req.user, bereiche: await rechte.sichtbareBereiche(req.user.rolle) });
+  } catch (e) { next(e); }
+});
 
 // Passwort-Reset Anfrage
 const resetLimiter = require('express-rate-limit')({ windowMs: 900000, max: 8, message: { error: 'Zu viele Anfragen. Bitte in einigen Minuten erneut versuchen.' } });
