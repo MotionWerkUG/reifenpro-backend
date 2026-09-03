@@ -96,6 +96,10 @@
   .gs-msg{font-size:13px;margin-top:6px}.gs-msg.gs-ok{color:#1a7f37;font-weight:700}.gs-msg.gs-bad{color:#c8402a}
   .sum .gs-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;color:#1a7f37;font-weight:700;border-bottom:1px solid #f0f1f3}
   @media(max-width:600px){.grid2{grid-template-columns:1fr}.step{min-width:0;font-size:0;padding-top:6px}.step::first-letter{font-size:12px}}
+  .gw-hinweis { display:block; background:rgba(234,179,8,.10); border:1px solid rgba(234,179,8,.45);
+    border-left:4px solid #eab308; border-radius:10px; padding:13px 15px; margin-bottom:16px;
+    font-size:14px; line-height:1.6; }
+  .gw-hinweis strong { display:block; margin-bottom:3px; }
 </style>
 </head>
 <body>
@@ -183,6 +187,19 @@
       <input type="text" id="f-firma" name="firma" autocomplete="organization" placeholder="Muster GmbH">
     </div>
     <div class="info" id="firma-hinweis" style="display:none;margin-bottom:14px">Bitte den vollständigen Firmennamen mit Rechtsform angeben – so erscheint er auf der Rechnung. Name und Anrede darunter sind die Ansprechpartnerin oder der Ansprechpartner.</div>
+    <!-- Gewerbekunden koennen vereinbarte Konditionen hinterlegt haben. Die haengen am Kundenkonto,
+         nicht an der E-Mail-Adresse — eine Gastbuchung kennt sie also nicht und rechnet zum
+         Listenpreis. Deshalb hier der Hinweis, BEVOR gebucht wird. Wir sperren die Gastbuchung
+         aber NICHT: Ein Firmenkunde ohne Sonderkonditionen soll genauso schnell buchen koennen
+         wie jeder andere, und wer zum ersten Mal kommt, hat noch gar kein Konto. -->
+    <div class="gw-hinweis" id="gewerbe-portal-hinweis" style="display:none">
+      <strong>Sie haben Konditionen mit uns vereinbart?</strong>
+      <span>Dann buchen Sie bitte im <a href="/portal/" target="_blank" rel="noopener">Kundenportal</a> —
+      Ihre Preise sind an Ihr Konto geknüpft und werden nur dort berücksichtigt. Bei einer Buchung
+      ohne Anmeldung rechnen wir zum Listenpreis.
+      Noch kein Konto? <a href="/portal/#registrieren" target="_blank" rel="noopener">Hier registrieren</a>
+      — Konditionen vereinbaren wir persönlich oder telefonisch.</span>
+    </div>
     <div class="grid2">
       <div class="field"><label class="lab">Anrede</label>
         <select id="f-anrede" name="anrede" autocomplete="honorific-prefix"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
@@ -525,6 +542,7 @@ function kundenartWechsel(){
   var firma = (document.getElementById('f-kundentyp')||{}).value === 'firma';
   var w=document.getElementById('fw-firma'); if(w) w.style.display = firma ? '' : 'none';
   var h=document.getElementById('firma-hinweis'); if(h) h.style.display = firma ? '' : 'none';
+  var gw=document.getElementById('gewerbe-portal-hinweis'); if(gw) gw.style.display = firma ? '' : 'none';
   var lv=document.getElementById('lab-vorname'), ln=document.getElementById('lab-nachname');
   if(lv) lv.textContent = firma ? 'Vorname Ansprechpartner *' : 'Vorname *';
   if(ln) ln.textContent = firma ? 'Nachname Ansprechpartner *' : 'Nachname *';
