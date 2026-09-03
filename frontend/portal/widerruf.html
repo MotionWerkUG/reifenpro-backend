@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Widerrufsbelehrung — Schröder & Scholz</title>
+<style>
+  :root, :root[data-theme="light"] { --bg:#f3f2ef; --panel:#ffffff; --text:#201e1b; --muted:#6f6a61; --accent:#eab308; --accent-text:#87680c; --border:#e2ddd3; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --border:#2a3441; } }
+  :root[data-theme="dark"] { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --border:#2a3441; }
+  .wm-tx { fill: var(--text); } .wm-sub { fill: var(--muted); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; font-size:15px; }
+  .wrap { max-width:760px; margin:0 auto; padding:32px 22px 60px; }
+  .logo { display:flex; align-items:center; margin-bottom:8px; }
+  h1 { font-size:24px; margin:24px 0 6px; font-weight:800; }
+  h2 { font-size:17px; margin:26px 0 8px; font-weight:700; color:var(--accent-text); }
+  p { margin-bottom:12px; color:var(--text); }
+  .meta { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  a { color:var(--accent-text); }
+  .lang-toggle { position:fixed; top:14px; right:14px; display:flex; gap:4px; }
+  .lang-toggle button { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--muted); padding:5px 11px; cursor:pointer; font-weight:700; font-size:12px; }
+  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent-text); }
+  .back { display:inline-block; margin-top:24px; color:var(--accent-text); text-decoration:none; font-weight:600; }
+  .form { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin:14px 0 4px; font-size:14px; }
+  .form div { margin-bottom:7px; color:var(--muted); }
+  .box { background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.3); border-radius:10px; padding:14px 16px; margin:16px 0; }
+  .hinweis { background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.25); border-radius:10px; padding:14px 16px; font-size:13px; color:var(--muted); margin-top:20px; }
+</style>
+<script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<div class="lang-toggle">
+  <button id="wl-de" class="on" onclick="setWidLang('de')">DE</button>
+  <button id="wl-en" onclick="setWidLang('en')">EN</button>
+</div>
+<div class="wrap">
+  <div class="logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+  </div>
+  <div id="wid-content"></div>
+  <a href="./" class="back">&larr; Zur&uuml;ck zum Portal</a>
+</div>
+<script>
+// Widerrufsbelehrung fuer online gebuchte Termine.
+//
+// WARUM DIESE SEITE EXISTIERT: Wer auf der Website "Termin verbindlich buchen" drueckt,
+// schliesst einen Fernabsatzvertrag (Paragraf 312c BGB). Verbrauchern steht dabei ein
+// Widerrufsrecht von 14 Tagen zu (Paragraf 312g Abs. 1 BGB). Die Ausnahme fuer
+// Freizeitbetaetigungen (Paragraf 312g Abs. 2 Nr. 9 BGB) greift bei einer Kfz-Werkstatt
+// nicht -- ein Raederwechsel ist keine Freizeitbetaetigung.
+// Ohne diese Belehrung beginnt die Widerrufsfrist gar nicht erst zu laufen
+// (Paragraf 356 Abs. 3 BGB); sie endet dann erst 12 Monate und 14 Tage nach Vertragsschluss.
+//
+// Der Wortlaut folgt der gesetzlichen Muster-Widerrufsbelehrung (Anlage 1 zu
+// Artikel 246a Paragraf 1 Abs. 2 EGBGB) in der Fassung fuer Dienstleistungen. Wer das
+// Muster verwendet, genuegt der Informationspflicht -- eigene Formulierungen sind
+// riskant, weil jede Abweichung angreifbar ist. Deshalb ist hier bewusst nichts
+// "schoener" geschrieben als im Gesetz.
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api/portal' : '/api/portal';
+var FIRMA = {};
+var WIDLANG = 'de';
+
+function setWidLang(l) {
+  WIDLANG = l;
+  document.getElementById('wl-de').classList.toggle('on', l === 'de');
+  document.getElementById('wl-en').classList.toggle('on', l === 'en');
+  document.documentElement.lang = l;
+  render();
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function lade() {
+  fetch(API + '/daten/firmendaten')
+    .then(function (r) { return r.json(); })
+    .then(function (f) { FIRMA = f || {}; render(); })
+    .catch(function () { render(); });
+}
+
+// Anschriftsblock. Die Belehrung MUSS Name, Anschrift und einen Kommunikationsweg
+// nennen -- eine Belehrung ohne ladungsfaehige Anschrift ist unvollstaendig.
+function anschrift() {
+  var f = FIRMA;
+  var z = [f.firmenname || 'Schröder & Scholz'];
+  if (f.strasse) z.push(f.strasse);
+  var ort = ((f.plz || '') + ' ' + (f.ort || '')).trim();
+  if (ort) z.push(ort);
+  if (f.telefon) z.push('Telefon: ' + f.telefon);
+  if (f.email) z.push('E-Mail: ' + f.email);
+  return z.map(esc).join('<br>');
+}
+
+function render() {
+  var stand = new Date().toLocaleDateString(WIDLANG === 'de' ? 'de-DE' : 'en-GB');
+  var adr = anschrift();
+  var h;
+
+  if (WIDLANG === 'de') {
+    h = '<h1>Widerrufsbelehrung</h1>'
+      + '<div class="meta">Stand: ' + stand + '</div>'
+
+      + '<div class="box"><p style="margin:0">Diese Belehrung gilt f&uuml;r <strong>Verbraucher</strong>, '
+      + 'die einen Termin oder eine Einlagerung <strong>online</strong> buchen. Verbraucher ist jede '
+      + 'nat&uuml;rliche Person, die das Gesch&auml;ft zu privaten Zwecken abschlie&szlig;t. Wer '
+      + 'gewerblich bucht, hat kein Widerrufsrecht.</p></div>'
+
+      + '<h2>Widerrufsrecht</h2>'
+      + '<p>Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gr&uuml;nden diesen Vertrag zu '
+      + 'widerrufen. Die Widerrufsfrist betr&auml;gt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>'
+      + '<p>Um Ihr Widerrufsrecht auszu&uuml;ben, m&uuml;ssen Sie uns</p>'
+      + '<p style="padding-left:16px">' + adr + '</p>'
+      + '<p>mittels einer eindeutigen Erkl&auml;rung (z.&nbsp;B. ein mit der Post versandter Brief oder '
+      + 'eine E-Mail) &uuml;ber Ihren Entschluss, diesen Vertrag zu widerrufen, informieren. Sie '
+      + 'k&ouml;nnen daf&uuml;r das untenstehende Muster-Widerrufsformular verwenden, das jedoch nicht '
+      + 'vorgeschrieben ist.</p>'
+      + '<p>Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung &uuml;ber die '
+      + 'Aus&uuml;bung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>'
+
+      + '<h2>Folgen des Widerrufs</h2>'
+      + '<p>Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen '
+      + 'erhalten haben, unverz&uuml;glich und sp&auml;testens binnen vierzehn Tagen ab dem Tag '
+      + 'zur&uuml;ckzuzahlen, an dem die Mitteilung &uuml;ber Ihren Widerruf dieses Vertrags bei uns '
+      + 'eingegangen ist. F&uuml;r diese R&uuml;ckzahlung verwenden wir dasselbe Zahlungsmittel, das '
+      + 'Sie bei der urspr&uuml;nglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde '
+      + 'ausdr&uuml;cklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser '
+      + 'R&uuml;ckzahlung Entgelte berechnet.</p>'
+      + '<p>Haben Sie verlangt, dass die Dienstleistungen w&auml;hrend der Widerrufsfrist beginnen '
+      + 'sollen, so haben Sie uns einen angemessenen Betrag zu zahlen, der dem Anteil der bis zu dem '
+      + 'Zeitpunkt, zu dem Sie uns von der Aus&uuml;bung des Widerrufsrechts hinsichtlich dieses '
+      + 'Vertrags unterrichten, bereits erbrachten Dienstleistungen im Vergleich zum Gesamtumfang der '
+      + 'im Vertrag vorgesehenen Dienstleistungen entspricht.</p>'
+
+      + '<h2>Vorzeitiges Erl&ouml;schen des Widerrufsrechts</h2>'
+      + '<p>Ihr Widerrufsrecht erlischt bei einem Vertrag &uuml;ber die Erbringung von Dienstleistungen, '
+      + 'wenn wir die Dienstleistung vollst&auml;ndig erbracht haben und mit der Ausf&uuml;hrung der '
+      + 'Dienstleistung erst begonnen haben, nachdem Sie dazu Ihre ausdr&uuml;ckliche Zustimmung '
+      + 'gegeben haben und gleichzeitig Ihre Kenntnis davon best&auml;tigt haben, dass Sie Ihr '
+      + 'Widerrufsrecht bei vollst&auml;ndiger Vertragserf&uuml;llung durch uns verlieren.</p>'
+      + '<div class="box"><p style="margin:0"><strong>Was das praktisch bedeutet:</strong> Liegt Ihr '
+      + 'Termin innerhalb der vierzehn Tage, fragen wir Sie bei der Buchung ausdr&uuml;cklich, ob wir '
+      + 'schon vor Ablauf der Frist arbeiten d&uuml;rfen. Stimmen Sie zu und ist die Arbeit erledigt, '
+      + 'k&ouml;nnen Sie den Termin nicht mehr widerrufen. Widerrufen Sie mittendrin, zahlen Sie nur '
+      + 'den Teil, den wir bis dahin geleistet haben. Ohne Ihre Zustimmung f&uuml;hren wir den Termin '
+      + 'erst nach Ablauf der Frist aus.</p></div>'
+
+      + '<h2>Muster-Widerrufsformular</h2>'
+      + '<p>(Wenn Sie den Vertrag widerrufen wollen, dann f&uuml;llen Sie bitte dieses Formular aus '
+      + 'und senden Sie es zur&uuml;ck.)</p>'
+      + '<div class="form">'
+      + '<div>An:<br>' + adr + '</div>'
+      + '<div>Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag &uuml;ber '
+      + 'den Kauf der folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*)</div>'
+      + '<div>Bestellt am (*) / erhalten am (*)</div>'
+      + '<div>Name des/der Verbraucher(s)</div>'
+      + '<div>Anschrift des/der Verbraucher(s)</div>'
+      + '<div>Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)</div>'
+      + '<div>Datum</div>'
+      + '<div style="margin:0">(*) Unzutreffendes streichen.</div>'
+      + '</div>'
+
+      + '<h2>Absage statt Widerruf</h2>'
+      + '<p>Unabh&auml;ngig vom Widerrufsrecht k&ouml;nnen Sie einen Termin jederzeit &uuml;ber das '
+      + 'Kundenportal oder telefonisch absagen. Das ist meist der einfachere Weg &mdash; sagen Sie uns '
+      + 'einfach fr&uuml;h genug Bescheid, damit wir die Zeit anderweitig vergeben k&ouml;nnen.</p>';
+
+  } else {
+    h = '<h1>Right of withdrawal</h1>'
+      + '<div class="meta">As of: ' + stand + '</div>'
+      + '<div class="box"><p style="margin:0">This notice applies to <strong>consumers</strong> who '
+      + 'book an appointment or storage <strong>online</strong>. A consumer is any natural person '
+      + 'entering into the contract for private purposes. Commercial customers have no right of '
+      + 'withdrawal.</p></div>'
+      + '<h2>Right of withdrawal</h2>'
+      + '<p>You have the right to withdraw from this contract within fourteen days without giving any '
+      + 'reason. The withdrawal period is fourteen days from the day of conclusion of the contract.</p>'
+      + '<p>To exercise your right of withdrawal, you must inform us</p>'
+      + '<p style="padding-left:16px">' + adr + '</p>'
+      + '<p>by means of a clear statement (e.g. a letter sent by post or an e-mail) of your decision to '
+      + 'withdraw from this contract. You may use the model withdrawal form below, but it is not '
+      + 'obligatory.</p>'
+      + '<p>To meet the withdrawal deadline, it is sufficient for you to send your communication '
+      + 'concerning your exercise of the right of withdrawal before the withdrawal period has expired.</p>'
+      + '<h2>Effects of withdrawal</h2>'
+      + '<p>If you withdraw from this contract, we shall reimburse to you all payments received from '
+      + 'you without undue delay and in any event not later than fourteen days from the day on which '
+      + 'we are informed about your decision to withdraw from this contract. We will carry out such '
+      + 'reimbursement using the same means of payment as you used for the initial transaction, unless '
+      + 'you have expressly agreed otherwise; in any event, you will not incur any fees as a result of '
+      + 'such reimbursement.</p>'
+      + '<p>If you requested to begin the performance of services during the withdrawal period, you '
+      + 'shall pay us an amount which is in proportion to what has been provided until you have '
+      + 'communicated to us your withdrawal from this contract, in comparison with the full coverage '
+      + 'of the contract.</p>'
+      + '<h2>Early expiry of the right of withdrawal</h2>'
+      + '<p>Your right of withdrawal expires in the case of a contract for the supply of services if we '
+      + 'have fully performed the service and only began performance after you gave your express '
+      + 'consent and at the same time acknowledged that you lose your right of withdrawal upon full '
+      + 'performance of the contract by us.</p>'
+      + '<h2>Model withdrawal form</h2>'
+      + '<p>(Complete and return this form only if you wish to withdraw from the contract.)</p>'
+      + '<div class="form">'
+      + '<div>To:<br>' + adr + '</div>'
+      + '<div>I/We (*) hereby give notice that I/We (*) withdraw from my/our (*) contract of sale of '
+      + 'the following goods (*) / for the provision of the following service (*)</div>'
+      + '<div>Ordered on (*) / received on (*)</div>'
+      + '<div>Name of consumer(s)</div>'
+      + '<div>Address of consumer(s)</div>'
+      + '<div>Signature of consumer(s) (only if this form is notified on paper)</div>'
+      + '<div>Date</div>'
+      + '<div style="margin:0">(*) Delete as appropriate.</div>'
+      + '</div>'
+      + '<h2>Cancelling instead of withdrawing</h2>'
+      + '<p>Regardless of the right of withdrawal, you can cancel an appointment at any time via the '
+      + 'customer portal or by phone. That is usually the simpler route &mdash; just let us know early '
+      + 'enough so we can offer the slot to someone else.</p>';
+  }
+  document.getElementById('wid-content').innerHTML = h;
+}
+lade();
+</script>
+</body>
+</html>

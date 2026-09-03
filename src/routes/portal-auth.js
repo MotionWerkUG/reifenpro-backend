@@ -14,6 +14,13 @@ const loginLimiter = rateLimit({
   windowMs: 900000, max: 10, skipSuccessfulRequests: true,
   message: { error: 'Zu viele fehlgeschlagene Login-Versuche. Bitte in 15 Minuten erneut versuchen.' }
 });
+// Eigener Begrenzer fuer den Reset-SCHRITT. Er teilte sich das Kontingent mit den beiden
+// Anfrage-Routen; ein Kunde, der eine Mail anfordert, sie erneut anfordert und dann das Formular
+// mit einem Tippfehler abschickt, haette sich mitten im Vorgang selbst ausgesperrt.
+const resetSchrittLimiter = rateLimit({
+  windowMs: 3600000, max: 15,
+  message: { error: 'Zu viele Versuche. Bitte später erneut versuchen.' }
+});
 const resetLimiter = rateLimit({
   windowMs: 3600000, max: 5,
   message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' }
@@ -134,8 +141,37 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
     //  - es darf noch KEIN Portal-Konto auf diese Adresse geben (sonst waere das ein Weg, sich an
     //    ein fremdes bestehendes Konto zu haengen; dann greift unten der normale Ablauf).
     const kontoTermin = req.body.konto_token ? await gastKontoTermin(req.body.konto_token) : null;
-    if (kontoTermin && !existiert.rows.length
-        && String(kontoTermin.kontakt_email || '').toLowerCase() === email.toLowerCase()) {
+    // Gewerbeangaben nicht verlieren: Der Kunde waehlt im Buchungsassistenten "Firma" und tippt den
+    // Firmennamen; beides liegt am Termin (kontakt_kundentyp/kontakt_firma) und wurde beim Anlegen des
+    // Kontos bisher nicht mitgeschrieben. Er landete als Privatkunde -- ohne Firma auf der Rechnung,
+    // ohne Gewerbekonditionen. Der Termin wiegt schwerer als das Formular: Diese Angabe hat der
+    // Kunde mit dem Bestaetigungsklick belegt.
+    // ist_gewerbe wird hier BEWUSST NICHT gesetzt (Entscheidung des Inhabers). Die Kennung ist
+    // sein Zeichen dafuer, dass ueber den Kunden gesprochen wurde -- persoenlich oder am Telefon --
+    // und bleibt dem geprueften Weg ueber /gewerbe (Upload der Gewerbeanmeldung) vorbehalten.
+    // Auch der Weg ueber den Konto-Token setzt sie nicht: Auch dort hat niemand eine
+    // Gewerbeanmeldung gesehen. Herabgestuft wird nie -- wer eingestuft ist, bleibt es.
+    // Folge, die der Inhaber kennt und hingenommen hat: Bis zur Einstufung kann ein selbst
+    // eingetragener Firmenkunde keinen Sammeltermin fuer mehrere Fahrzeuge buchen.
+    // Gehoert der Termin wirklich zu DIESER Anmeldung? Nur dann darf er die Formulareingabe
+    // ueberstimmen. Wird hier einmal entschieden und unten wiederverwendet -- vorher wurde die
+    // Ableitung vor der Pruefung gebildet, sodass bei gueltigem Token mit abweichender E-Mail
+    // die Firma eines fremden Termins in den neuen Kundensatz gewandert waere.
+    const kontoPasst = !!(kontoTermin && !existiert.rows.length
+        && String(kontoTermin.kontakt_email || '').toLowerCase() === email.toLowerCase());
+    const _typRoh = String((kontoPasst && kontoTermin.kontakt_kundentyp) || req.body.kundentyp || '').toLowerCase();
+    const _firmaRoh = String((kontoPasst && kontoTermin.kontakt_firma) || req.body.firma || '').trim().slice(0, 200);
+    const gewerbe = {
+      kundentyp: _typRoh === 'firma' ? 'firma' : 'privat',
+      firma: _typRoh === 'firma' ? (_firmaRoh || null) : null
+    };
+    // Befund 3: Die Pflichtangabe wurde bisher nur im Formular geprueft. Ein direkter Aufruf mit
+    // kundentyp=firma und leerer Firma legte einen Gewerbekunden ohne Namen an -- auf dessen
+    // Rechnung spaeter kein Rechnungsempfaenger stuende.
+    if (gewerbe.kundentyp === 'firma' && !gewerbe.firma) {
+      return res.status(400).json({ error: 'Bitte geben Sie den Firmennamen an — er steht später auf der Rechnung.' });
+    }
+    if (kontoPasst) {
       const now2 = new Date();
       const ip2 = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
       const agbV2 = 'Stand ' + now2.toISOString().substring(0, 10);
@@ -168,20 +204,26 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
              portal_email, portal_password, portal_aktiv, portal_freigegeben,
              portal_email_bestaetigt, portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
              portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
-             einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,true,true,true,$8,true,$8,true,$8,$9,$10,$11,$12,$13,true)
+             einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv,
+             kundentyp, firma)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,true,true,true,$8,true,$8,true,$8,$9,$10,$11,$12,$13,true,$14,$15)
              RETURNING id`,
             [nr2, vn, nn, email.toLowerCase(), tel, email.toLowerCase(), hash, now2,
-             saison ? true : false, ip2, agbV2, bewertung ? true : false, bewertung ? now2 : null])).rows[0].id;
+             saison ? true : false, ip2, agbV2, bewertung ? true : false, bewertung ? now2 : null,
+             gewerbe.kundentyp, gewerbe.firma])).rows[0].id;
         }
         // Anschrift/Kennzeichen aus der Buchung nur fuellen, wo im Stamm noch nichts steht --
         // gepflegte Daten des Betriebs duerfen dadurch nicht ueberschrieben werden.
         await client.query(
           `UPDATE kunden SET strasse=COALESCE(NULLIF(strasse,''), $1), plz=COALESCE(NULLIF(plz,''), $2),
-           ort=COALESCE(NULLIF(ort,''), $3), kennzeichen=COALESCE(NULLIF(kennzeichen,''), $4), geaendert_am=NOW()
+           ort=COALESCE(NULLIF(ort,''), $3), kennzeichen=COALESCE(NULLIF(kennzeichen,''), $4),
+             firma=COALESCE(NULLIF(firma,''), $6),
+             kundentyp=CASE WHEN $7 = 'firma' THEN 'firma' ELSE COALESCE(NULLIF(kundentyp,''), $7) END,
+             geaendert_am=NOW()
            WHERE id=$5`,
           [kontaktWert(kontoTermin.kontakt_strasse), kontaktWert(kontoTermin.kontakt_plz),
-           kontaktWert(kontoTermin.kontakt_ort), kontaktWert(kontoTermin.kennzeichen), id]);
+           kontaktWert(kontoTermin.kontakt_ort), kontaktWert(kontoTermin.kennzeichen), id,
+             gewerbe.firma, gewerbe.kundentyp]);
         // Alle noch kontenlosen Termine dieser Adresse ans Konto haengen -- sonst sieht der Kunde
         // seinen gerade gebuchten Termin im Portal ueberhaupt nicht (das Portal liest ueber kunden_id).
         await client.query(
@@ -231,9 +273,12 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
          portal_registriert_am=$4, portal_agb_akzeptiert=$5, portal_agb_datum=$4,
          portal_dsgvo_akzeptiert=$5, portal_dsgvo_datum=$4,
          einwilligung_saison_erinnerung=$6, einwilligung_ip=$8, agb_version=$9,
-         einwilligung_bewertung=$10, einwilligung_bewertung_am=$11
+         einwilligung_bewertung=$10, einwilligung_bewertung_am=$11,
+         firma=COALESCE(NULLIF(firma,''), $12),
+         kundentyp=CASE WHEN $13 = 'firma' THEN 'firma' ELSE COALESCE(NULLIF(kundentyp,''), $13) END
          WHERE id=$7`,
-        [email.toLowerCase(), resetToken, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion, bewertung ? true : false, bewertung ? now : null]
+        [email.toLowerCase(), resetToken, ablauf, now, true, saison ? true : false, kundeId, einwilligungIp, agbVersion, bewertung ? true : false, bewertung ? now : null,
+         gewerbe.firma, gewerbe.kundentyp]
       );
     } else {
       // Neuer Kunde anlegen (Kundennummer aus Sequenz wie im Admin -> keine Doppelnummern)
@@ -244,12 +289,14 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
          portal_email_bestaetigt, portal_bestaetigung_token, portal_token_ablauf,
          portal_registriert_am, portal_agb_akzeptiert, portal_agb_datum,
          portal_dsgvo_akzeptiert, portal_dsgvo_datum, einwilligung_saison_erinnerung,
-         einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,$14,$15,true)
+         einwilligung_ip, agb_version, einwilligung_bewertung, einwilligung_bewertung_am, aktiv,
+         kundentyp, firma)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,true,false,false,$8,$9,$10,true,$10,true,$10,$11,$12,$13,$14,$15,true,$16,$17)
          RETURNING id`,
         [nr, vn, nn, email.toLowerCase(), tel,
          email.toLowerCase(), hash, token, ablauf, now, saison ? true : false, einwilligungIp, agbVersion,
-         bewertung ? true : false, bewertung ? now : null]
+         bewertung ? true : false, bewertung ? now : null,
+         gewerbe.kundentyp, gewerbe.firma]
       );
       kundeId = neu.rows[0].id;
     }
@@ -339,9 +386,10 @@ router.get('/bestaetigen/:token', async (req, res, next) => {
 
 // ── POST /api/portal/auth/bestaetigung-erneut ── Bestaetigungsmail erneut senden (Rettung bei verlorener Mail)
 router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
+  const _start = Date.now();
   try {
     const { email } = req.body;
-    if (!email) return res.json({ message: 'ok' });
+    if (!email) { await gleichLange(_start); return res.json({ message: 'ok' }); }
     const k = (await query('SELECT * FROM kunden WHERE LOWER(portal_email)=$1 AND portal_aktiv=true AND portal_email_bestaetigt=false', [String(email).toLowerCase()])).rows[0];
     if (k) {
       const token = crypto.randomBytes(32).toString('hex');
@@ -350,7 +398,7 @@ router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
       const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
       const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
       const link = portalUrl + '?bestaetigen=' + token;
-      await sendMail(
+      sendMail(
         k.portal_email,
         'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
         portalMailHtml(einst, {
@@ -362,8 +410,9 @@ router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
       ).catch(function (e) { console.error('[Resend-Mail]', e.message); });
     }
     // Generische Antwort (keine Auskunft, ob die E-Mail existiert)
+    await gleichLange(_start);
     res.json({ message: 'ok' });
-  } catch (e) { next(e); }
+  } catch (e) { await gleichLange(_start); next(e); }
 });
 
 // ── POST /api/portal/auth/login ──
@@ -390,31 +439,44 @@ router.post('/login', loginLimiter, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Gleiche Antwortzeit fuer bekannte und unbekannte Adressen. Ohne das laesst sich am
+// Zeitunterschied ablesen, ob zu einer Adresse ein Konto existiert -- der Antworttext ist
+// zwar identisch, die Dauer war es nicht.
+const MIND_MS = 350;
+function gleichLange(start) {
+  const rest = MIND_MS - (Date.now() - start);
+  return rest > 0 ? new Promise((r) => setTimeout(r, rest)) : Promise.resolve();
+}
+
 // ── POST /api/portal/auth/passwort-vergessen ──
 router.post('/passwort-vergessen', resetLimiter, async (req, res, next) => {
+  const _start = Date.now();
   try {
     const { email } = req.body;
-    if (!email) return res.json({ message: 'ok' });
+    if (!email) { await gleichLange(_start); return res.json({ message: 'ok' }); }
     const { rows } = await query('SELECT * FROM kunden WHERE portal_email=$1 AND portal_aktiv=true', [email.toLowerCase()]);
-    if (!rows.length) return res.json({ message: 'ok' });
+    if (!rows.length) { await gleichLange(_start); return res.json({ message: 'ok' }); }
     const k = rows[0];
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 3600000);
     await query('UPDATE kunden SET portal_reset_token=$1, portal_reset_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
     const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
-    await sendMail(
+    // Nicht abwarten: Sonst bestimmt die Dauer des echten Mailversands die Antwortzeit und
+    // verraet damit wieder, dass die Adresse existiert. Gleiche Loesung wie bei /registrieren.
+    sendMail(
       k.portal_email,
       'Passwort zurücksetzen — ' + (einst.firmenname || 'ReifenPro'),
       '<p>Hallo ' + k.vorname + ',</p><p>Klicken Sie auf den Link um Ihr Passwort zurückzusetzen:</p>' +
       '<p><a href="' + portalUrl + '?reset=' + token + '">Passwort zurücksetzen</a></p><p>Der Link ist 1 Stunde gültig.</p>'
     ).catch(() => {});
+    await gleichLange(_start);
     res.json({ message: 'ok' });
-  } catch (e) { next(e); }
+  } catch (e) { await gleichLange(_start); next(e); }
 });
 
 // ── POST /api/portal/auth/passwort-reset ──
-router.post('/passwort-reset', async (req, res, next) => {
+router.post('/passwort-reset', resetSchrittLimiter, async (req, res, next) => {
   try {
     const { token, passwort } = req.body;
     if (!token || !passwort || passwort.length < 8) return res.status(400).json({ error: 'Ungültige Daten' });

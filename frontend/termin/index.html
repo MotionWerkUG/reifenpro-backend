@@ -70,7 +70,9 @@
   .kz input{min-width:0;text-align:center;font-family:monospace;text-transform:uppercase;font-weight:700;font-size:15px;border:1px solid #d5d9e0;border-radius:10px;background:#fff;color:#1a1a1a;padding:13px 4px}
   .kz input:focus{outline:none;border-color:#eab308}
   .kz input:nth-of-type(1){flex:0 0 64px}.kz input:nth-of-type(2){flex:0 0 52px}.kz input:nth-of-type(3){flex:0 0 74px}.kz input:nth-of-type(4){flex:0 0 46px}
-  .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#555;margin-top:14px;line-height:1.5}.check input{width:auto;margin-top:3px}.check a{color:#171717;text-decoration:underline}
+  .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#555;margin-top:14px;line-height:1.5}
+  .check.hervor{background:#fffbeb;border:1px solid #f2d675;border-left:3px solid #eab308;border-radius:10px;padding:12px 14px;margin-top:10px}
+  @media (prefers-color-scheme: dark){.check.hervor{background:#2a2413;border-color:#5c4d16}}.check input{width:auto;margin-top:3px}.check a{color:#171717;text-decoration:underline}
   .sum{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:18px 20px;margin-bottom:18px}
   .sum h3{font-size:15px;margin-bottom:10px}
   .sum .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #f0f1f3;font-size:14px}
@@ -94,6 +96,10 @@
   .gs-msg{font-size:13px;margin-top:6px}.gs-msg.gs-ok{color:#1a7f37;font-weight:700}.gs-msg.gs-bad{color:#c8402a}
   .sum .gs-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;font-size:14px;color:#1a7f37;font-weight:700;border-bottom:1px solid #f0f1f3}
   @media(max-width:600px){.grid2{grid-template-columns:1fr}.step{min-width:0;font-size:0;padding-top:6px}.step::first-letter{font-size:12px}}
+  .gw-hinweis { display:block; background:rgba(234,179,8,.10); border:1px solid rgba(234,179,8,.45);
+    border-left:4px solid #eab308; border-radius:10px; padding:13px 15px; margin-bottom:16px;
+    font-size:14px; line-height:1.6; }
+  .gw-hinweis strong { display:block; margin-bottom:3px; }
 </style>
 </head>
 <body>
@@ -106,7 +112,7 @@
     <div class="step on" id="st1">1 · Leistungen</div>
     <div class="step" id="st2">2 · Zusatz</div>
     <div class="step" id="st3">3 · Fahrzeug &amp; Termin</div>
-    <div class="step" id="st4">4 · Deine Daten</div>
+    <div class="step" id="st4">4 · Ihre Daten</div>
   </div>
 
   <!-- Mitlaufender Preis -->
@@ -122,7 +128,7 @@
 
   <!-- Schritt 1: Hauptleistungen (Mehrfachauswahl) -->
   <div id="p1">
-    <h1>Welche Leistungen brauchst du?</h1>
+    <h1>Welche Leistungen benötigen Sie?</h1>
     <div class="sub">Mehrfachauswahl möglich. Die Preise sind „ab"-Preise (PKW); je nach Fahrzeug kann ein Zuschlag hinzukommen.</div>
     <div class="cards" id="haupt-cards"></div>
   </div>
@@ -130,7 +136,7 @@
   <!-- Schritt 2: Zusatzleistungen -->
   <div id="p2" class="hidden">
     <h2 class="schritt">Zusatzleistungen</h2>
-    <div class="sub">Optional – wähle passende Zusatzleistungen (Mehrfachauswahl möglich).</div>
+    <div class="sub">Optional – wählen Sie passende Zusatzleistungen (Mehrfachauswahl möglich).</div>
     <div class="cards" id="zusatz-cards"></div>
   </div>
 
@@ -154,14 +160,14 @@
         <input id="f-kz4" maxlength="1" placeholder="E" oninput="this.value=this.value.toUpperCase()">
       </div>
     </div>
-    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Dein gewünschtes Termindatum (nicht das Datum der Erstzulassung). <span id="buchbar-hint"></span></div></div>
+    <div class="field"><label class="lab">Wunschtermin *</label><input type="date" id="datum" onchange="ladeSlots()"><div class="info">Ihr gewünschtes Termindatum (nicht das Datum der Erstzulassung). <span id="buchbar-hint"></span></div></div>
     <div class="field" id="slots-wrap" style="display:none"><label class="lab">Verfügbare Uhrzeiten</label><div id="slots"></div><div class="info" id="slots-info"></div></div>
   </div>
 
   <!-- Schritt 4: Daten & Bestätigung -->
   <div id="p4" class="hidden">
-    <h2 class="schritt">Deine Kontaktdaten</h2>
-    <div class="sub">Damit wir deinen Termin bestätigen und dir ggf. eine Rechnung schicken können.</div>
+    <h2 class="schritt">Ihre Kontaktdaten</h2>
+    <div class="sub">Damit wir Ihren Termin bestätigen und Ihnen ggf. eine Rechnung schicken können.</div>
     <div class="sum" id="sum-box"></div>
     <div class="field"><label class="lab">Gutschein-Code (optional)</label>
       <div class="gs-field">
@@ -181,6 +187,19 @@
       <input type="text" id="f-firma" name="firma" autocomplete="organization" placeholder="Muster GmbH">
     </div>
     <div class="info" id="firma-hinweis" style="display:none;margin-bottom:14px">Bitte den vollständigen Firmennamen mit Rechtsform angeben – so erscheint er auf der Rechnung. Name und Anrede darunter sind die Ansprechpartnerin oder der Ansprechpartner.</div>
+    <!-- Gewerbekunden koennen vereinbarte Konditionen hinterlegt haben. Die haengen am Kundenkonto,
+         nicht an der E-Mail-Adresse — eine Gastbuchung kennt sie also nicht und rechnet zum
+         Listenpreis. Deshalb hier der Hinweis, BEVOR gebucht wird. Wir sperren die Gastbuchung
+         aber NICHT: Ein Firmenkunde ohne Sonderkonditionen soll genauso schnell buchen koennen
+         wie jeder andere, und wer zum ersten Mal kommt, hat noch gar kein Konto. -->
+    <div class="gw-hinweis" id="gewerbe-portal-hinweis" style="display:none">
+      <strong>Sie haben Konditionen mit uns vereinbart?</strong>
+      <span>Dann buchen Sie bitte im <a href="/portal/" target="_blank" rel="noopener">Kundenportal</a> —
+      Ihre Preise sind an Ihr Konto geknüpft und werden nur dort berücksichtigt. Bei einer Buchung
+      ohne Anmeldung rechnen wir zum Listenpreis.
+      Noch kein Konto? <a href="/portal/#registrieren" target="_blank" rel="noopener">Hier registrieren</a>
+      — Konditionen vereinbaren wir persönlich oder telefonisch.</span>
+    </div>
     <div class="grid2">
       <div class="field"><label class="lab">Anrede</label>
         <select id="f-anrede" name="anrede" autocomplete="honorific-prefix"><option value="">—</option><option>Herr</option><option>Frau</option><option>Divers</option></select>
@@ -207,8 +226,10 @@
         </div>
       </div>
     </div>
-    <div class="info">Tipp: Straße tippen (Hausnummer kann direkt dahinter stehen), Vorschlag anklicken – PLZ &amp; Ort füllen sich; die Hausnummer bleibt erhalten. Adressvorschläge über <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten, kein Tracking).</div>
+    <div class="info">Tipp: Straße tippen (Hausnummer kann direkt dahinter stehen), Vorschlag anklicken – PLZ &amp; Ort füllen sich; die Hausnummer bleibt erhalten. Adressvorschläge über <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> (OpenStreetMap) und <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten). Kein Tracking, keine Werbung.</div>
     <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
+    <label class="check"><input type="checkbox" id="f-agb"> <span>Ich habe die <a href="/portal/agb.html" target="_blank" rel="noopener">AGB</a> und die <a href="/portal/widerruf.html" target="_blank" rel="noopener">Widerrufsbelehrung</a> gelesen und bin damit einverstanden. *</span></label>
+    <label class="check hervor" id="vorzeitig-wrap" style="display:none"><input type="checkbox" id="f-vorzeitig"> <span id="vorzeitig-text"></span></label>
     <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
     <input type="text" id="f-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     </form>
@@ -220,7 +241,7 @@
     <h2 class="schritt" id="done-title">Termin bestätigt!</h2>
     <div id="done-text" class="sub" style="margin-top:10px"></div>
     <div id="done-konto" class="hidden" style="margin:24px auto 0;max-width:440px;padding:18px 20px;border:1px solid #e5e7eb;border-radius:12px;background:#faf9f6;text-align:center">
-      <div id="done-konto-hinweis" style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und deine eingelagerten Räder jederzeit einsehen.</div>
+      <div id="done-konto-hinweis" style="font-size:14px;color:#555;margin-bottom:13px">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</div>
       <a id="done-konto-link" href="#" style="display:inline-block;text-decoration:none;background:#eab308;color:#171717;font-weight:700;padding:11px 20px;border-radius:9px;font-size:15px">Kundenkonto erstellen</a>
     </div>
     <div style="margin-top:16px"><a href="/" class="btn btn-p" style="display:inline-block;text-decoration:none">Zur Startseite</a></div>
@@ -261,7 +282,7 @@ function ladeLeistungen(){
     setDatumMin(); setBuchbarHinweis();
     renderCards('haupt-cards', LEIST.haupt, 'haupt');
     renderCards('zusatz-cards', LEIST.zusatz, 'zusatz');
-    if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Ruf uns bitte kurz an.</p>';
+    if(!LEIST.haupt.length) document.getElementById('haupt-cards').innerHTML='<p class="muted">Aktuell sind keine Leistungen hinterlegt. Bitte rufen Sie uns kurz an.</p>';
     vorauswahlAusUrl(); preisLive();
   }).catch(function(){ document.getElementById('haupt-cards').innerHTML='<p class="muted">Leistungen konnten nicht geladen werden.</p>'; });
 }
@@ -303,7 +324,7 @@ function pick(rolle, id){
   markSel(); preisLive();
 }
 // Mitlaufender Preis: bei jeder Auswahl neu berechnen
-var _pvTimer=null, _pvSeq=0;
+var _pvTimer=null, _pvSeq=0, _sumSeq=0, _gsSeq=0;
 function setZoll(v){
   state.zoll=v;
   var a=document.getElementById('fz-zoll');
@@ -326,16 +347,17 @@ function updateLeiste(){
 function preisLive(){
   updateLeiste();
   var el=document.getElementById('pb-total'); if(!el)return;
-  if(!state.haupt.length){ el.innerHTML='<span class="ab">ab</span>—'; return; }
+  if(!state.haupt.length){ el.innerHTML='<span class="ab">ab</span>—'; gsMeldung(null); return; }
   clearTimeout(_pvTimer);
   _pvTimer=setTimeout(function(){
     var seq=++_pvSeq;
     var zollReq=state.zoll;
-    var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(zollReq||'');
+    var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(zollReq||'')+(state.gutschein?'&gutschein='+encodeURIComponent(state.gutschein.code):'');
     fetch(url).then(function(r){return r.json();}).then(function(k){
       if(seq!==_pvSeq) return; // veraltete Antwort -> ignorieren
       var pre = zollReq ? '' : '<span class="ab">ab</span>';
-      var g=gsBrutto(k.brutto);
+      var g=gsBrutto(k);
+      gsMeldung(g);
       el.innerHTML = g ? (pre+'<span class="preis-alt">'+eur(g.alt)+'</span>'+eur(g.neu)) : (pre + eur(k.brutto));
     }).catch(function(){ if(seq===_pvSeq) el.textContent='—'; });
   }, 180);
@@ -372,28 +394,57 @@ function idsCsv(arr){ return arr.map(function(a){return a.artikel_id;}).join(','
 function gutscheinAnwenden(){
   var code=(document.getElementById('gs-code').value||'').trim().toUpperCase();
   var msg=document.getElementById('gs-msg');
-  if(!code){ state.gutschein=null; msg.className='gs-msg'; msg.textContent=''; renderSum(); preisLive(); return; }
+  if(!code){ _gsSeq++; state.gutschein=null; msg.className='gs-msg'; msg.textContent=''; renderSum(); preisLive(); return; }
   msg.className='gs-msg'; msg.textContent='Prüfe …';
+  var seq=++_gsSeq;
   fetch(API+'/gutschein/'+encodeURIComponent(code)).then(function(r){ if(!r.ok) throw 0; return r.json(); }).then(function(gd){
+    // Zwischenzeitlich anderer Code eingegeben oder Feld geleert -> diese Antwort verwerfen,
+    // sonst springt ein bereits entfernter Gutschein von selbst wieder an.
+    if(seq!==_gsSeq) return;
     if(gd && gd.gueltig===false) throw 0;
     var rab=Number(gd&&gd.rabatt_prozent)||0;
     if(!(rab>0)) throw 0;
     state.gutschein={ code:(gd.code||code), rabatt:rab };
-    msg.className='gs-msg gs-ok'; msg.textContent='Gutschein '+state.gutschein.code+' aktiv: −'+rab+' % (endgültige Anrechnung bei der Rechnung).';
+    // Kein Prozentsatz in der Meldung: bei gestaffelten Gutscheinen gilt er nicht fuer alles.
+    // Den tatsaechlichen Abzug traegt gsMeldung() nach, sobald die Kalkulation da ist.
+    msg.className='gs-msg gs-ok';
+    msg.textContent=state.haupt.length ? 'Gutschein '+state.gutschein.code+' aktiv – Abzug wird berechnet …'
+                                       : 'Gutschein '+state.gutschein.code+' aktiv – der Abzug erscheint, sobald Sie eine Leistung gewählt haben.';
     renderSum(); preisLive();
-  }).catch(function(){ state.gutschein=null; msg.className='gs-msg gs-bad'; msg.textContent='Code ungültig oder abgelaufen.'; renderSum(); preisLive(); });
+  }).catch(function(){ if(seq!==_gsSeq) return; state.gutschein=null; msg.className='gs-msg gs-bad'; msg.textContent='Code ungültig oder abgelaufen.'; renderSum(); preisLive(); });
+}
+// Meldung unter dem Gutscheinfeld: der tatsaechliche Abzug in Euro (Serverwert), nie ein
+// Prozentsatz — bei gestaffelten Gutscheinen gaebe es sonst eine Zahl, die nirgends steht.
+function gsMeldung(g){
+  var msg=document.getElementById('gs-msg'); if(!msg||!state.gutschein) return;
+  msg.className='gs-msg gs-ok';
+  msg.textContent = g
+    ? 'Gutschein '+state.gutschein.code+' aktiv: −'+eur(g.rabatt)+' auf Ihre Auswahl (endgültige Anrechnung bei der Rechnung).'
+    : (state.haupt.length ? 'Gutschein '+state.gutschein.code+' aktiv – auf diese Auswahl gibt es keinen Abzug.'
+                          : 'Gutschein '+state.gutschein.code+' aktiv – der Abzug erscheint, sobald Sie eine Leistung gewählt haben.');
 }
 // Wendet den aktiven Gutschein-Rabatt auf einen Bruttobetrag an (nur Anzeige/Schaetzung).
-function gsBrutto(brutto){
-  if(!state.gutschein) return null;
-  var neu=Math.round(brutto*(1-state.gutschein.rabatt/100)*100)/100;
-  return { alt:brutto, neu:neu, rabatt:Math.round((brutto-neu)*100)/100 };
+// Der Rabatt wird NICHT mehr hier gerechnet. Ein Gutschein kann je Leistung einen eigenen
+// Satz haben (WINTER2026: 25 % auf die Einlagerung, 10 % auf alles andere). Wer hier einen
+// einzelnen Satz ueber die Summe legt, zeigt dem Kunden einen anderen Preis, als er zahlt —
+// genau das ist passiert: 62,18 angezeigt, 68,61 berechnet.
+// Der Server liefert die fertigen Werte, diese Funktion reicht sie nur durch.
+function gsBrutto(k){
+  if(!state.gutschein || !k || k.brutto_nach_rabatt==null) return null;
+  return {
+    alt: k.brutto,
+    neu: k.brutto_nach_rabatt,
+    rabatt: k.rabatt_summe || 0,
+    zeilen: k.rabatt_zeilen || []
+  };
 }
 function renderSum(){
   var box=document.getElementById('sum-box');
-  box.innerHTML='<h3>Deine Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
-  var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'');
+  var seq=++_sumSeq;   // veraltete Antwort darf die Summe nicht ueberschreiben
+  box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation wird geladen …</div>';
+  var url=API+'/kalkulation?main_ids='+encodeURIComponent(idsCsv(state.haupt))+'&zusatz_ids='+encodeURIComponent(idsCsv(state.zusatz))+'&typ='+encodeURIComponent(state.fahrzeugtyp||'')+'&zoll='+encodeURIComponent(state.zoll||'')+(state.gutschein?'&gutschein='+encodeURIComponent(state.gutschein.code):'');
   fetch(url).then(function(r){return r.json();}).then(function(k){
+    if(seq!==_sumSeq) return;
     var rows='';
     (k.positionen||[]).forEach(function(p){
       var satz=Number(p.mwst_satz!=null?p.mwst_satz:19);
@@ -409,15 +460,23 @@ function renderSum(){
     });
     rows+='<div class="row"><span>Termin</span><strong>'+(state.datum?state.datum.split('-').reverse().join('.'):'—')+' · '+(state.slot||'—')+' Uhr</strong></div>';
     rows+='<div class="subrow"><span>darin enthaltene MwSt</span><span>'+eur(k.mwst)+'</span></div>';
-    var g=gsBrutto(k.brutto);
+    var g=gsBrutto(k);
     if(g){
-      rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+' (−'+state.gutschein.rabatt+'%)</span><span>−'+eur(g.rabatt)+'</span></div>';
+      // Je Satz eine eigene Zeile. Ein zusammengefasster Prozentwert waere ein Mischsatz,
+      // den der Kunde in keinem Dokument wiederfindet.
+      if(g.zeilen && g.zeilen.length){
+        g.zeilen.forEach(function(z){
+          rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+' (−'+z.satz+'%)</span><span>−'+eur(z.betrag)+'</span></div>';
+        });
+      } else {
+        rows+='<div class="gs-row"><span>Gutschein '+esc(state.gutschein.code)+'</span><span>−'+eur(g.rabatt)+'</span></div>';
+      }
       rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span><span class="preis-alt">'+eur(k.brutto)+'</span>'+eur(g.neu)+'</span></div>';
     } else {
       rows+='<div class="row total"><span>Gesamt (inkl. MwSt)</span><span>'+eur(k.brutto)+'</span></div>';
     }
-    box.innerHTML='<h3>Deine Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis deiner Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
-  }).catch(function(){ box.innerHTML='<h3>Deine Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
+    box.innerHTML='<h3>Ihre Auswahl</h3>'+rows+'<div class="hint">Unverbindliche Preisschätzung auf Basis Ihrer Angaben. Der Endpreis kann je nach tatsächlichem Aufwand abweichen.</div>';
+  }).catch(function(){ box.innerHTML='<h3>Ihre Auswahl</h3><div class="info">Kalkulation konnte nicht geladen werden – der Termin ist trotzdem buchbar.</div>'; });
 }
 function zeigeSchritt(n){
   state.schritt=n;
@@ -426,17 +485,50 @@ function zeigeSchritt(n){
   for(var i=1;i<=4;i++){var s=document.getElementById('st'+i);s.classList.toggle('on',i===n);s.classList.toggle('done',i<n);}
   document.getElementById('btn-back').style.visibility = n>1 ? 'visible':'hidden';
   document.getElementById('btn-next').textContent = n===4 ? 'Termin verbindlich buchen' : 'Weiter';
-  if(n===4) renderSum();
+  if(n===4){ renderSum(); vorzeitigPruefen(); }
   window.scrollTo({top:0,behavior:'smooth'});
+}
+// Zustimmung zum vorzeitigen Leistungsbeginn (Paragraf 356 Abs. 4 BGB).
+//
+// Wer online bucht, hat als Verbraucher 14 Tage Widerrufsrecht. Fast jeder Termin liegt
+// aber INNERHALB dieser 14 Tage — wir wuerden also arbeiten, bevor die Frist abgelaufen
+// ist. Ohne die ausdrueckliche Zustimmung und den Hinweis auf den Rechtsverlust koennte
+// der Kunde nach getaner Arbeit widerrufen und muesste NICHTS zahlen (Paragraf 357a
+// Abs. 2 BGB verlangt fuer den Wertersatz genau dieses Verlangen). Mit Zustimmung
+// erlischt das Widerrufsrecht, sobald die Leistung vollstaendig erbracht ist.
+//
+// Liegt der Termin spaeter als 14 Tage, ist die Frage gegenstandslos — dann wird sie
+// nicht gestellt. Eine unnoetige Haekchenpflicht waere nur laestig.
+function tageBisTermin(){
+  if(!state.datum) return null;
+  var t=new Date(state.datum+'T12:00:00'), heute=new Date();
+  heute.setHours(12,0,0,0);
+  return Math.round((t-heute)/86400000);
+}
+function vorzeitigNoetig(){ var d=tageBisTermin(); return d!==null && d<14; }
+function vorzeitigPruefen(){
+  var wrap=document.getElementById('vorzeitig-wrap');
+  if(!wrap) return;
+  if(!vorzeitigNoetig()){ wrap.style.display='none'; document.getElementById('f-vorzeitig').checked=false; return; }
+  var d=state.datum.split('-');
+  // In der ICH-Form formuliert. Der Satz ist eine Erklaerung des Kunden ueber sich selbst,
+  // keine Ansprache des Betriebs — damit ist er von der Anrede unabhaengig und bleibt bei der
+  // Umstellung auf Sie unveraendert richtig. Die frueher hier stehende Fassung ("Ja, ihr duerft
+  // den Termin ausfuehren") war an den Betrieb gerichtet und haette gesiezt schief geklungen.
+  document.getElementById('vorzeitig-text').innerHTML =
+    'Ich bin damit einverstanden, dass der Termin am <strong>'+d[2]+'.'+d[1]+'.'+d[0]+'</strong> '
+    + 'ausgeführt wird, obwohl meine 14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, '
+    + 'dass mein Widerrufsrecht erlischt, sobald die Leistung vollständig erbracht ist. *';
+  wrap.style.display='';
 }
 function fehler(m){var e=document.getElementById('err');e.textContent=m;e.style.display='block';}
 function weiter(){
   var n=state.schritt;
-  if(n===1){ if(!state.haupt.length){fehler('Bitte wähle mindestens eine Leistung.');return;} zeigeSchritt(2); return; }
+  if(n===1){ if(!state.haupt.length){fehler('Bitte wählen Sie mindestens eine Leistung.');return;} zeigeSchritt(2); return; }
   if(n===2){ zeigeSchritt(3); return; }
   if(n===3){
-    if(!state.fahrzeugtyp){fehler('Bitte wähle die Fahrzeugart.');return;}
-    if(!kz()){fehler('Bitte gib das Kennzeichen ein.');return;}
+    if(!state.fahrzeugtyp){fehler('Bitte wählen Sie die Fahrzeugart.');return;}
+    if(!kz()){fehler('Bitte geben Sie das Kennzeichen ein.');return;}
     if(!state.datum){fehler('Bitte ein Datum wählen.');return;}
     if(!state.slot){fehler('Bitte eine Uhrzeit wählen.');return;}
     zeigeSchritt(4); return;
@@ -454,6 +546,7 @@ function kundenartWechsel(){
   var firma = (document.getElementById('f-kundentyp')||{}).value === 'firma';
   var w=document.getElementById('fw-firma'); if(w) w.style.display = firma ? '' : 'none';
   var h=document.getElementById('firma-hinweis'); if(h) h.style.display = firma ? '' : 'none';
+  var gw=document.getElementById('gewerbe-portal-hinweis'); if(gw) gw.style.display = firma ? '' : 'none';
   var lv=document.getElementById('lab-vorname'), ln=document.getElementById('lab-nachname');
   if(lv) lv.textContent = firma ? 'Vorname Ansprechpartner *' : 'Vorname *';
   if(ln) ln.textContent = firma ? 'Nachname Ansprechpartner *' : 'Nachname *';
@@ -470,19 +563,25 @@ function absenden(){
     strasse:v('f-strasse'), plz:v('f-plz'), ort:v('f-ort'),
     fahrzeugtyp:state.fahrzeugtyp, zoll:state.zoll, kennzeichen:kz(),
     datum:state.datum, uhrzeit_von:state.slot, gutschein_code: state.gutschein ? state.gutschein.code : '',
-    datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
+    datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked,
+    agb:document.getElementById('f-agb').checked,
+    vorzeitige_leistung:document.getElementById('f-vorzeitig').checked, website:v('f-hp') };
   if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
   if(d.kundentyp==='firma'&&!d.firma){fehler('Bitte den Firmennamen angeben – er steht später auf der Rechnung.');return;}
   // Hausnummer fehlt: nachfragen statt sperren. Adressen ohne Hausnummer gibt es real
   // (kleine Orte, „Am Markt"); ein echter Kunde darf daran nicht scheitern. Der haeufige
   // Fall ist die vergessene Hausnummer — dafuer reicht die Rueckfrage.
   if(!/\d/.test(d.strasse)&&!/postfach/i.test(d.strasse)&&!ADR_BESTAETIGT){
-    if(!confirm('In der Straße steht keine Hausnummer. Für Vertrag und Rechnung brauchen wir die vollständige Anschrift.\n\nTrotzdem so übernehmen?')){
+    if(!confirm('In der Straße steht keine Hausnummer. Für Vertrag und Rechnung benötigen wir die vollständige Anschrift.\n\nTrotzdem so übernehmen?')){
       document.getElementById('f-strasse').focus(); return;
     }
     ADR_BESTAETIGT = true;
   }
-  if(!d.datenschutz){fehler('Bitte bestätige, dass du die Datenschutzerklärung gelesen hast.');return;}
+  if(!d.datenschutz){fehler('Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.');return;}
+  if(!d.agb){fehler('Bitte bestätigen Sie, dass Sie AGB und Widerrufsbelehrung gelesen haben.');return;}
+  if(vorzeitigNoetig()&&!d.vorzeitige_leistung){
+    fehler('Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen — sonst können wir erst nach Ablauf der Frist arbeiten.');return;
+  }
   var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
   fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
     .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})
@@ -490,16 +589,21 @@ function absenden(){
       fehlerWeg();
       document.querySelectorAll('.steps,#navbar,#pricebar').forEach(function(x){x.classList.add('hidden');});
       [1,2,3,4].forEach(function(i){document.getElementById('p'+i).classList.add('hidden');});
-      var betrag = (j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '';
+      // Mit Gutschein den Betrag NACH Abzug nennen (der Server liefert ihn mit). Sonst stuende
+      // hier direkt nach dem Buchen eine hoehere Zahl als in der Zusammenfassung davor.
+      var rab=Number(j.rabatt_summe||0);
+      var betrag = (rab>0 && j.summe_nach_rabatt!=null)
+        ? ' Voraussichtlicher Betrag: '+eur(j.summe_nach_rabatt)+' (Gutschein bereits abgezogen: −'+eur(rab)+').'
+        : ((j.summe_brutto!=null) ? ' Voraussichtlicher Betrag: '+eur(j.summe_brutto)+'.' : '');
       var dat=String(j.datum||'').split('-').reverse().join('.'), zeit=(j.uhrzeit_von||'');
       // Meldung richtet sich nach der Backend-Antwort -> deploy-reihenfolge-unabhaengig:
       // 'bestaetigung_noetig' (Double-Opt-in) vs. direkte Bestaetigung.
       if (j.message==='bestaetigung_noetig') {
         document.getElementById('done-title').textContent='Fast geschafft – bitte bestätigen';
-        document.getElementById('done-text').textContent='Wir haben dir eine E-Mail geschickt. Bitte bestätige deinen Termin am '+dat+' um '+zeit+' Uhr über den Link darin – erst dann ist er verbindlich gebucht.'+betrag;
+        document.getElementById('done-text').textContent='Wir haben Ihnen eine E-Mail geschickt. Bitte bestätigen Sie Ihren Termin am '+dat+' um '+zeit+' Uhr über den Link darin – erst dann ist er verbindlich gebucht.'+betrag;
       } else {
         document.getElementById('done-title').textContent='Termin bestätigt!';
-        document.getElementById('done-text').textContent='Dein Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Du bekommst eine Bestätigung per E-Mail.'+betrag;
+        document.getElementById('done-text').textContent='Ihr Termin am '+dat+' um '+zeit+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.'+betrag;
       }
       // Optionaler Konto-CTA (sekundaer). KEINE personenbezogenen Daten in der URL:
       // die Vorbefuellung laeuft ueber den signierten Token, den das Backend erst beim
@@ -509,8 +613,8 @@ function absenden(){
       var kl=document.getElementById('done-konto-link'), kh=document.getElementById('done-konto-hinweis');
       var wartetAufBestaetigung = (j.message==='bestaetigung_noetig');
       if(kh) kh.textContent = wartetAufBestaetigung
-        ? 'Danach kannst du dein Kundenkonto direkt aus derselben E-Mail heraus anlegen – deine Daten sind dann schon eingetragen, du vergibst nur noch ein Passwort. Damit siehst du deine Termine und eingelagerten Räder jederzeit online.'
-        : 'Mit einem Kundenkonto siehst du deine Termine und eingelagerten Räder jederzeit online.';
+        ? 'Danach können Sie Ihr Kundenkonto direkt aus derselben E-Mail heraus anlegen – Ihre Daten sind dann schon eingetragen, Sie vergeben nur noch ein Passwort. Damit sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.'
+        : 'Mit einem Kundenkonto sehen Sie Ihre Termine und eingelagerten Räder jederzeit online.';
       // Vor der Bestaetigung KEIN Knopf: der schnelle Weg (ein Klick, ohne zweite Mail) haengt am
       // Token aus der Bestaetigungsmail. Ein Knopf hier wuerde in den langsameren Weg fuehren und
       // dem Satz darueber widersprechen.

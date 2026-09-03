@@ -24,3 +24,9 @@ _qa-backup*
 design/mitarbeiter-rechte-rollen.html
 design-werkstatt/raederwechsel-am-tablet.html
 design*/shots/
+
+# Sicherungen der .env enthalten Zugangsdaten und duerfen NIE ins Repository.
+# Ohne diese Zeile wuerde ein 'git add -A' sie mitcommitten — sie sind nur
+# zufaellig ungetrackt, nicht geschuetzt.
+.env.bak*
+.env.*.bak

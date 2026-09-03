@@ -111,7 +111,11 @@ function zeilenAus(datei) {
 
 router.get('/', authenticate, requireStaff, async (req, res, next) => {
   try {
-    const tage = Math.min(Math.max(parseInt(req.query.tage, 10) || 30, 1), 365);
+    // Obergrenze 15 statt 365 Tage: Die nginx-Protokolle werden nach 14 Tagen weggeraeumt
+    // (logrotate rotate 14), und genau diese Frist steht in der Datenschutzerklaerung. 365
+    // versprach eine Auswertbarkeit, die es weder gibt noch geben darf -- der Code deckte sich
+    // nur zufaellig mit der Wirklichkeit, weil die aelteren Dateien fehlen.
+    const tage = Math.min(Math.max(parseInt(req.query.tage, 10) || 30, 1), 15);
     const grenze = new Date(Date.now() - tage * 86400000).toISOString().slice(0, 10);
 
     // Eigene Zugriffe ausblenden: der Server selbst (Pruefaufrufe) und die Netzbereiche des

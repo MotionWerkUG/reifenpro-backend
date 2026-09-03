@@ -182,6 +182,17 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
          sind dann erledigt und der Nutzer soll nur noch lesen, wie es weitergeht. -->
     <div id="reg-form">
     <div class="g2">
+      <div class="fg" style="grid-column:1/-1"><label data-i18n="customer_type">Kundenart</label>
+        <select id="reg-kundentyp" onchange="regKundenartWechsel()">
+          <option value="privat" data-i18n="customer_private">Privatkunde</option>
+          <option value="firma" data-i18n="customer_business">Firmenkunde</option>
+        </select>
+      </div>
+      <div class="fg hidden" id="reg-firma-feld" style="grid-column:1/-1">
+        <label data-i18n="company_name">Firma</label>
+        <input id="reg-firma" autocomplete="organization" placeholder="Muster GmbH">
+        <div id="reg-firma-hinweis" data-i18n="company_hint" style="font-size:13px;color:var(--muted);margin-top:6px">Bitte geben Sie den vollständigen Firmennamen mit Rechtsform an — so erscheint er auf der Rechnung. Name und Anrede darunter sind Ihre Ansprechperson.</div>
+      </div>
       <div class="fg"><label data-i18n="firstname">Vorname</label><input id="reg-vorname"></div>
       <div class="fg"><label data-i18n="lastname">Nachname</label><input id="reg-nachname"></div>
     </div>
@@ -438,6 +449,17 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
         <div id="buchen-bestaetigung" class="hidden" style="margin-top:14px;padding:14px 16px;background:var(--panel2);border:1px solid var(--border2);border-radius:10px">
           <div style="font-weight:700;margin-bottom:10px" data-i18n="confirm_booking_title">Bitte Buchung bestätigen</div>
           <div id="buchen-bestaetigung-inhalt" style="font-size:14px;line-height:1.7"></div>
+          <!-- Zustimmung zum vorzeitigen Leistungsbeginn. Erscheint NUR, wenn der Termin innerhalb
+               der 14-taegigen Widerrufsfrist liegt -- bei spaeteren Terminen ist sie gegenstandslos
+               und waere nur eine zusaetzliche Huerde. Wortlaut in der ICH-Form: Der Satz ist eine
+               Erklaerung des Kunden ueber sich selbst, keine Ansprache des Betriebs, und damit von
+               der Anrede unabhaengig. Gleiche Loesung wie in der Buchungsstrecke. -->
+          <div id="buchen-vorzeitig" class="hidden" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)">
+            <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.55;cursor:pointer">
+              <input type="checkbox" id="buchen-vorzeitig-box" style="margin-top:3px;flex-shrink:0">
+              <span id="buchen-vorzeitig-text"></span>
+            </label>
+          </div>
           <!-- Anschrift wird nur eingeblendet, wenn sie im Kundenkonto fehlt: sie ist fuer die
                spaetere Rechnung Pflicht, wird bei der Registrierung aber bewusst nicht erhoben. -->
           <div id="buchen-anschrift" class="hidden" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)">
@@ -535,6 +557,11 @@ var I18N = {
     login_btn: 'Anmelden', forgot_pw: 'Passwort vergessen?', no_account: 'Noch kein Konto?',
     register_now: 'Jetzt registrieren', register_sub: 'Neues Kundenkonto erstellen',
     firstname: 'Vorname', lastname: 'Nachname', phone: 'Telefon (optional)',
+    customer_type: 'Kundenart', customer_private: 'Privatkunde', customer_business: 'Firmenkunde',
+    early_service_required: 'Bitte stimmen Sie zu, dass wir den Termin innerhalb der Widerrufsfrist ausführen dürfen.',
+    company_name: 'Firma',
+    company_hint: 'Bitte geben Sie den vollständigen Firmennamen mit Rechtsform an — so erscheint er auf der Rechnung. Name und Anrede darunter sind Ihre Ansprechperson.',
+    company_required: 'Bitte geben Sie den Firmennamen an — er steht später auf der Rechnung.',
     password_repeat: 'Passwort wiederholen', accept_dsgvo: 'Ich habe die',
     dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
     accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
@@ -603,6 +630,11 @@ var I18N = {
     login_btn: 'Sign In', forgot_pw: 'Forgot password?', no_account: 'No account yet?',
     register_now: 'Register now', register_sub: 'Create new customer account',
     firstname: 'First name', lastname: 'Last name', phone: 'Phone (optional)',
+    customer_type: 'Customer type', customer_private: 'Private customer', customer_business: 'Business customer',
+    early_service_required: 'Please agree that we may carry out the appointment within the withdrawal period.',
+    company_name: 'Company',
+    company_hint: 'Please give the full company name including its legal form — this is how it appears on the invoice. The name and salutation below are your contact person.',
+    company_required: 'Please enter the company name — it will appear on the invoice.',
     password_repeat: 'Repeat password', accept_dsgvo: 'I have read the',
     dsgvo_link: 'Privacy Policy', accept_read: 'and accept it.',
     accept_agb: 'I accept the', agb_link: 'Terms',
@@ -734,12 +766,26 @@ var KONTO_TOKEN = '';
 // Formular aus dem gebuchten Termin vorbefuellen. Schlaegt es fehl (Link abgelaufen, Termin schon
 // einem Konto zugeordnet), bleibt der normale Registrierungsweg -- ohne Fehlermeldung, denn der
 // Nutzer kann sich hier ganz regulaer anmelden.
+// Firmenfeld nur zeigen, wenn Firmenkunde gewaehlt ist. Beim Zurueckschalten den Namen wirklich
+// leeren -- ein unsichtbar mitgeschicktes Feld waere genau die Art Datenrest, die spaeter auf
+// einer Rechnung auftaucht.
+function regKundenartWechsel() {
+  var istFirma = (document.getElementById('reg-kundentyp') || {}).value === 'firma';
+  var feld = document.getElementById('reg-firma-feld');
+  if (feld) feld.classList.toggle('hidden', !istFirma);
+  if (!istFirma) { var e = document.getElementById('reg-firma'); if (e) e.value = ''; }
+}
+
 function kontoStartLaden() {
   papi('GET', '/auth/konto-start?token=' + encodeURIComponent(KONTO_TOKEN)).then(function(d) {
     if (!d) return;
     var setz = function(id, wert) { var e = document.getElementById(id); if (e && wert) e.value = wert; };
     setz('reg-vorname', d.vorname); setz('reg-nachname', d.nachname);
     setz('reg-email', d.email); setz('reg-telefon', d.telefon);
+    // Kundenart und Firma stehen am bestaetigten Termin und kamen hier schon immer an -- gesetzt
+    // wurden sie bisher nicht, wodurch ein Gewerbekunde als Privatkunde im Stamm landete.
+    var kt = document.getElementById('reg-kundentyp');
+    if (kt && d.kundentyp === 'firma') { kt.value = 'firma'; regKundenartWechsel(); setz('reg-firma', d.firma); }
     var mail = document.getElementById('reg-email');
     if (mail && d.email) { mail.readOnly = true; mail.style.opacity = '.7'; }   // gehoert zum Nachweis
     var hin = document.getElementById('reg-konto-hinweis');
@@ -748,7 +794,9 @@ function kontoStartLaden() {
 }
 
 function resetRegForm() {
-  ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
+  var _kt = document.getElementById('reg-kundentyp');
+  if (_kt) { _kt.value = 'privat'; regKundenartWechsel(); }   // sonst bliebe "Firmenkunde" stehen
+  ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2', 'reg-firma'].forEach(function(id) {
     var e = document.getElementById(id); if (e) e.value = '';
   });
   ['reg-dsgvo', 'reg-agb', 'reg-saison'].forEach(function(id) {
@@ -807,10 +855,14 @@ function portalRegister() {
   if (pass.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
   if (pass !== pass2) { errEl.textContent = t('password_mismatch'); errEl.classList.remove('hidden'); return; }
   if (!dsgvo || !agb) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+  var kundentyp = (document.getElementById('reg-kundentyp') || {}).value || 'privat';
+  var firma = ((document.getElementById('reg-firma') || {}).value || '').trim();
+  if (kundentyp === 'firma' && !firma) { errEl.textContent = t('company_required'); errEl.classList.remove('hidden'); return; }
 
   papi('POST', '/auth/registrieren', {
     vorname: vorname, nachname: nachname, email: email, telefon: telefon,
     passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung,
+    kundentyp: kundentyp, firma: kundentyp === 'firma' ? firma : '',
     konto_token: KONTO_TOKEN || undefined
   }).then(function(antwort) {
     // Kam der Kunde aus einer bestaetigten Terminbuchung, ist das Konto sofort nutzbar --
@@ -1344,7 +1396,7 @@ function buchenSlotsLaden() {
         + '<span style="color:var(--accent-text)">' + eur(p.brutto_nach_rabatt) + '</span>'
         + ' <span style="font-weight:400;color:var(--muted)">(' + pEsc(p.gutschein.code) + ', −' + p.gutschein.rabatt_prozent + ' %)</span>' + dauer;
     } else if (code && p.gutschein === null) {
-      preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100)) + dauer
+      preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis)) + dauer
         + ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';
     } else {
       // Bruttopreis kommt vom Server. Frueher rechnete die Oberflaeche hier selbst
@@ -1377,6 +1429,42 @@ function slotWaehlen(el) {
 }
 
 var pendingBuchung = null;
+
+// Zeigt die Zustimmung zum vorzeitigen Leistungsbeginn -- aber nur, wenn der Termin innerhalb der
+// 14-taegigen Widerrufsfrist liegt. Gleiche Grenze wie im Gaeste-Weg und auf dem Server: 13 Tage
+// ja, 14 Tage nein. Bei spaeteren Terminen ist die Frage gegenstandslos.
+// Massgeblich ist die Pruefung auf dem Server; diese hier entscheidet nur, ob gefragt wird.
+function buchenVorzeitigNoetig(datum) {
+  if (!datum) return false;
+  // BEIDE Seiten auf 12 Uhr. Mitternacht gegen Mittag ergibt eine halbe Tagesdifferenz, die
+  // Math.round nach oben zieht -- ein Termin in 13 Tagen kam dann auf 14 und fiel aus der Frist.
+  // Gleiche Rechnung wie in src/lib/widerruf.js und in der Buchungsstrecke.
+  var ziel = new Date(datum + 'T12:00:00');
+  var heute = new Date(); heute.setHours(12, 0, 0, 0);
+  return Math.round((ziel - heute) / 86400000) < 14;
+}
+
+function buchenVorzeitigPruefen(datum) {
+  var wrap = document.getElementById('buchen-vorzeitig');
+  var box = document.getElementById('buchen-vorzeitig-box');
+  if (!wrap || !box) return;
+  // Immer zuerst abwaehlen: Die Zustimmung gilt fuer GENAU DIESEN Termin. Ein stehengebliebener
+  // Haken aus einer vorherigen Buchung waere eine Erklaerung, die der Kunde nie abgegeben hat.
+  box.checked = false;
+  if (!buchenVorzeitigNoetig(datum)) { wrap.classList.add('hidden'); return; }
+  var d = String(datum).split('-');
+  var datumDe = d[2] + '.' + d[1] + '.' + d[0];
+  // ICH-Form: eine Erklaerung des Kunden ueber sich selbst, keine Ansprache des Betriebs. Damit
+  // ist der Satz von der Anrede unabhaengig.
+  document.getElementById('buchen-vorzeitig-text').innerHTML = (LANG === 'en')
+    ? ('I agree that the appointment on <strong>' + pEsc(datumDe) + '</strong> may be carried out '
+       + 'even though my 14-day withdrawal period is still running. I am aware that my right of '
+       + 'withdrawal expires once the service has been fully performed.')
+    : ('Ich bin damit einverstanden, dass der Termin am <strong>' + pEsc(datumDe) + '</strong> '
+       + 'ausgeführt wird, obwohl meine 14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, '
+       + 'dass mein Widerrufsrecht erlischt, sobald die Leistung vollständig erbracht ist.');
+  wrap.classList.remove('hidden');
+}
 var buchungLaeuft = false; // In-Flight-Sperre: verhindert einen zweiten POST waehrend eine Buchung laeuft
 // Schritt 1: validieren, Zusammenfassung bauen und Bestaetigungs-Panel zeigen (bucht noch NICHT)
 function terminBuchen() {
@@ -1414,6 +1502,7 @@ function terminBuchen() {
   var _gc = document.getElementById('buchen-gutschein');
   if (_gc && _gc.value.trim()) payload.gutschein_code = _gc.value.trim();
   pendingBuchung = { payload: payload, sammel: istSammel };
+  buchenVorzeitigPruefen(datum);
   var inhalt = rows.map(function(r) {
     return '<div><span style="color:var(--muted)">' + r[0] + ':</span> <strong>' + pEsc(r[1]) + '</strong></div>';
   }).join('');
@@ -1444,9 +1533,21 @@ function terminBuchenBestaetigen() {
   if (btn) { btn.disabled = true; btn.textContent = t('loading'); }
   var sammel = pendingBuchung.sammel;
   var nutzlast = pendingBuchung.payload;
+  // Zustimmung zum vorzeitigen Leistungsbeginn: fehlt sie, gar nicht erst absenden -- der Server
+  // wiese es ohnehin ab, aber der Kunde soll den Grund am Haekchen sehen und nicht als Fehlermeldung.
+  var _vz = document.getElementById('buchen-vorzeitig');
+  var _vzBox = document.getElementById('buchen-vorzeitig-box');
+  var _vzNoetig = _vz && !_vz.classList.contains('hidden');
+  if (_vzNoetig && !(_vzBox && _vzBox.checked)) {
+    notify(t('early_service_required'), 'err');
+    buchungLaeuft = false;
+    if (btn) { btn.disabled = false; btn.textContent = t('confirm_book_btn'); }
+    return;
+  }
+  nutzlast = JSON.parse(JSON.stringify(nutzlast));
+  nutzlast.vorzeitige_leistung = !!(_vzNoetig && _vzBox && _vzBox.checked);
   if (buchenAnschriftPruefen()) {
     var gv = function(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; };
-    nutzlast = JSON.parse(JSON.stringify(nutzlast));
     nutzlast.strasse = gv('buchen-strasse'); nutzlast.plz = gv('buchen-plz'); nutzlast.ort = gv('buchen-ort');
   }
   papi('POST', '/daten/termine', nutzlast).then(function() {
@@ -1468,6 +1569,11 @@ function terminBuchenBestaetigen() {
 
 // Zusammenfassung schliessen, zurueck zum Formular
 function terminBuchenAbbrechen() {
+  // Auch hier abwaehlen: Wer abbricht, hat nichts erklaert.
+  var _vzb = document.getElementById('buchen-vorzeitig-box');
+  if (_vzb) _vzb.checked = false;
+  var _vzw = document.getElementById('buchen-vorzeitig');
+  if (_vzw) _vzw.classList.add('hidden');
   pendingBuchung = null;
   var p = document.getElementById('buchen-bestaetigung');
   if (p) p.classList.add('hidden');

@@ -74,20 +74,26 @@ function render() {
       '<div class="meta">Stand: ' + new Date().toLocaleDateString('de-DE') + '</div>' +
       '<h2>1. Geltungsbereich</h2>' +
       '<p>Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge über Reifenservice-, Räderwechsel- und Einlagerungsleistungen zwischen ' + firma + ' (nachfolgend "wir") und dem Kunden sowie für die Nutzung des Kundenportals.</p>' +
-      '<h2>2. Einlagerung</h2>' +
+      '<h2>2. Vertragsschluss bei Online-Buchung</h2>' +
+      '<p>Mit dem Absenden der Buchung geben Sie ein verbindliches Angebot ab. Der Vertrag kommt zustande, sobald wir den Termin bestätigen — bei Buchungen ohne Kundenkonto erst, nachdem Sie den Bestätigungslink in unserer E-Mail geöffnet haben. Die Preisangabe im Buchungsassistenten ist eine Schätzung auf Basis Ihrer Angaben; der Endpreis kann je nach tatsächlichem Aufwand abweichen. Weicht er ab, sprechen wir Sie vor der Ausführung an.</p>' +
+      '<h2>3. Einlagerung</h2>' +
       '<p>Wir lagern die uns übergebenen Räder und Reifen sachgerecht ' + lagerort + '. Die Standard-Vertragsdauer der Einlagerung beträgt ' + vertragsdauer + ' Monate und verlängert sich, sofern nicht gekündigt, saisonüblich. Die Räder bleiben im Eigentum des Kunden.</p>' +
-      '<h2>3. Abholung</h2>' +
+      '<h2>4. Abholung</h2>' +
       '<p>Nach Beendigung des Einlagerungsvertrages ist der Kunde verpflichtet, die eingelagerten Räder innerhalb von ' + abholfrist + ' Wochen abzuholen. Nach Ablauf dieser Frist sind wir berechtigt, ein angemessenes Lagerentgelt zu berechnen.</p>' +
-      '<h2>4. Terminbuchung und Stornierung</h2>' +
+      '<h2>5. Terminbuchung und Stornierung</h2>' +
       '<p>Termine können online über das Kundenportal gebucht werden. Eine kostenlose Stornierung ist bis ' + stornoFrist + ' Stunden vor dem Termin möglich. Bei späterer Absage oder Nichterscheinen behalten wir uns vor, eine Ausfallpauschale zu berechnen.</p>' +
-      '<h2>5. Preise und Zahlung</h2>' +
+      '<h2>6. Widerrufsrecht für Verbraucher</h2>' +
+      '<p>Buchen Sie als Verbraucher online, steht Ihnen ein gesetzliches Widerrufsrecht von vierzehn Tagen zu. Die Einzelheiten und das Muster-Widerrufsformular finden Sie in unserer <a href="./widerruf.html">Widerrufsbelehrung</a>. Liegt Ihr Termin innerhalb dieser vierzehn Tage, holen wir vor der Ausführung Ihre ausdrückliche Zustimmung dazu ein, dass wir schon vor Ablauf der Frist tätig werden; nach vollständiger Ausführung erlischt das Widerrufsrecht dann. Unabhängig davon können Sie einen Termin nach Ziffer 5 absagen — das ist in der Regel der einfachere Weg.</p>' +
+      '<h2>7. Preise und Zahlung</h2>' +
       '<p>Es gelten die zum Zeitpunkt der Leistungserbringung gültigen Preise. Die Zahlung ist nach Leistungserbringung fällig.</p>' +
-      '<h2>6. Gewährleistung und Haftung</h2>' +
+      '<h2>8. Gewährleistung und Haftung</h2>' +
       '<p>Wir haften nach den gesetzlichen Bestimmungen. Für die fachgerechte Lagerung übernehmen wir die Verantwortung; für normale Alterung der Reifen (Materialermüdung) haften wir nicht. Eine Haftung für leichte Fahrlässigkeit ist auf den vertragstypischen, vorhersehbaren Schaden begrenzt, soweit gesetzlich zulässig.</p>' +
-      '<h2>7. Pflichten des Kunden</h2>' +
+      '<h2>9. Pflichten des Kunden</h2>' +
       '<p>Der Kunde ist verpflichtet, seine Kontaktdaten aktuell zu halten und uns über Änderungen zu informieren. Im Kundenportal hinterlegte Zugangsdaten sind vertraulich zu behandeln.</p>' +
-      '<h2>8. Schlussbestimmungen</h2>' +
-      '<p>Es gilt deutsches Recht. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.</p>';
+      '<h2>10. Schlussbestimmungen</h2>' +
+      '<p>Es gilt deutsches Recht; gegenüber Verbrauchern gilt dies nur, soweit dadurch der Schutz zwingender Vorschriften des Staates ihres gewöhnlichen Aufenthalts nicht entzogen wird. Ist der Kunde Kaufmann, juristische Person des öffentlichen Rechts oder öffentlich-rechtliches Sondervermögen, ist Gerichtsstand unser Geschäftssitz. Gegenüber Verbrauchern gelten die gesetzlichen Gerichtsstände. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Bestimmungen unberührt.</p>' +
+      '<h2>11. Streitbeilegung</h2>' +
+      '<p>Wir sind zur Teilnahme an einem Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle weder verpflichtet noch bereit. Sie erreichen uns bei Beanstandungen jederzeit direkt unter den im Impressum genannten Kontaktdaten — erfahrungsgemäß ist das der schnellste Weg.</p>';
     // Kundenseitig steht hier bewusst NICHTS mehr: Der frühere Satz ("anpassbares Muster,
     // vor dem produktiven Einsatz anwaltlich prüfen lassen") war ein interner Vermerk an den
     // Inhaber -- gelesen hat ihn aber jeder Kunde, und er entwertet die Bedingungen, die er
@@ -101,20 +107,26 @@ function render() {
       '<div class="meta">As of: ' + new Date().toLocaleDateString('en-GB') + '</div>' +
       '<h2>1. Scope</h2>' +
       '<p>These terms and conditions apply to all contracts for tire service, wheel change and storage services between ' + firma + ' (hereinafter "we") and the customer, as well as to the use of the customer portal.</p>' +
-      '<h2>2. Storage</h2>' +
+      '<h2>2. Conclusion of contract for online bookings</h2>' +
+      '<p>By submitting the booking you make a binding offer. The contract is concluded once we confirm the appointment — for bookings without a customer account, only after you have opened the confirmation link in our e-mail. The price shown in the booking assistant is an estimate based on your input; the final price may differ depending on the actual work required. If it does, we will speak to you before carrying out the work.</p>' +
+      '<h2>3. Storage</h2>' +
       '<p>We store the wheels and tires handed over to us properly ' + lagerort + '. The standard contract duration for storage is ' + vertragsdauer + ' months and is extended seasonally unless cancelled. The wheels remain the property of the customer.</p>' +
-      '<h2>3. Collection</h2>' +
+      '<h2>4. Collection</h2>' +
       '<p>After termination of the storage contract, the customer is obliged to collect the stored wheels within ' + abholfrist + ' weeks. After this period, we are entitled to charge a reasonable storage fee.</p>' +
-      '<h2>4. Appointment booking and cancellation</h2>' +
+      '<h2>5. Appointment booking and cancellation</h2>' +
       '<p>Appointments can be booked online via the customer portal. Free cancellation is possible up to ' + stornoFrist + ' hours before the appointment. For later cancellation or no-show, we reserve the right to charge a cancellation fee.</p>' +
-      '<h2>5. Prices and payment</h2>' +
+      '<h2>6. Right of withdrawal for consumers</h2>' +
+      '<p>If you book online as a consumer, you have a statutory right of withdrawal of fourteen days. Details and the model withdrawal form can be found in our <a href="./widerruf.html">withdrawal notice</a>. If your appointment falls within those fourteen days, we will obtain your express consent to start work before the period expires; once the service has been fully performed, the right of withdrawal expires. Independently of this, you may cancel an appointment under clause 5 — usually the simpler route.</p>' +
+      '<h2>7. Prices and payment</h2>' +
       '<p>The prices valid at the time the service is provided apply. Payment is due after the service has been provided.</p>' +
-      '<h2>6. Warranty and liability</h2>' +
+      '<h2>8. Warranty and liability</h2>' +
       '<p>We are liable in accordance with statutory provisions. We assume responsibility for proper storage; we are not liable for normal aging of tires (material fatigue). Liability for slight negligence is limited to the foreseeable damage typical for the contract, as far as legally permissible.</p>' +
-      '<h2>7. Customer obligations</h2>' +
+      '<h2>9. Customer obligations</h2>' +
       '<p>The customer is obliged to keep their contact details up to date and to inform us of any changes. Login details stored in the customer portal must be treated confidentially.</p>' +
-      '<h2>8. Final provisions</h2>' +
-      '<p>German law applies. Should individual provisions be invalid, the validity of the remaining provisions remains unaffected.</p>';
+      '<h2>10. Final provisions</h2>' +
+      '<p>German law applies; in relation to consumers this applies only insofar as it does not deprive them of the protection of mandatory provisions of the state of their habitual residence. If the customer is a merchant, a legal entity under public law or a special fund under public law, the place of jurisdiction is our registered office. In relation to consumers, the statutory places of jurisdiction apply. Should individual provisions be invalid, the validity of the remaining provisions remains unaffected.</p>' +
+      '<h2>11. Dispute resolution</h2>' +
+      '<p>We are neither obliged nor willing to participate in dispute resolution proceedings before a consumer arbitration board. You can always reach us directly with any complaint using the contact details in our legal notice — in our experience that is the fastest route.</p>';
     document.getElementById('agb-hinweis').innerHTML = '';
   }
 }

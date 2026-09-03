@@ -178,7 +178,7 @@ function socialHtml(f) {
   if (f.instagram_url) items.push('<a href="' + esc(f.instagram_url) + '" target="_blank" rel="noopener" aria-label="Instagram">' + ICON_IG + '</a>');
   if (f.google_bewertung_url) items.push('<a href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener" aria-label="Google">' + ICON_GG + '</a>');
   if (!items.length) return '';
-  var bew = f.google_bewertung_url ? '<a class="foot-bewerten" href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener">Bewerte uns bei Google</a>' : '';
+  var bew = f.google_bewertung_url ? '<a class="foot-bewerten" href="' + esc(f.google_bewertung_url) + '" target="_blank" rel="noopener">Bewerten Sie uns bei Google</a>' : '';
   return '<div class="foot-social">' + items.join('') + '</div>' + bew;
 }
 
@@ -208,7 +208,7 @@ function bannerHtml(f) {
 // CTA-Abschnitt, der zur mehrstufigen Buchungsseite /termin/ fuehrt
 function buchungHtml(f) {
   var titel = f.buchung_titel || 'Online Termin buchen';
-  var text = f.buchung_text || 'In wenigen Schritten zum Wunschtermin: Leistung wählen, Zusatzleistungen ergänzen, freie Zeit aussuchen – du bekommst sofort eine Bestätigung per E-Mail.';
+  var text = f.buchung_text || 'In wenigen Schritten zum Wunschtermin: Leistung wählen, Zusatzleistungen ergänzen, freie Zeit aussuchen – Sie erhalten sofort eine Bestätigung per E-Mail.';
   return '<section class="sec buchung" id="termin-buchen"><div class="inner" style="text-align:center">' +
     '<h2 style="color:#fff">' + esc(titel) + '</h2>' +
     '<p class="bk-intro" style="margin:0 auto 24px">' + esc(text) + '</p>' +
@@ -303,11 +303,11 @@ function renderSektion(s, f, oz) {
       '<div class="hero-in">' +
       '<h1>' + esc(s.headline || '') + '</h1>' +
       (s.subline ? '<p>' + esc(s.subline) + '</p>' : '') +
-      (s.cta_text ? '<a class="btn" href="' + esc(s.cta_url || '/portal/') + '">' + esc(s.cta_text) + '</a>' : '') +
+      (s.cta_text ? '<a class="btn" href="' + esc(s.cta_url || '/termin/') + '">' + esc(s.cta_text) + '</a>' : '') +
       '</div></section>';
   }
   if (s.typ === 'oeffnungszeiten') {
-    var rows = oeffnungszeilen(f, oz).map(function(r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Bitte frag unsere Öffnungszeiten kurz nach.</td></tr>';
+    var rows = oeffnungszeilen(f, oz).map(function(r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Bitte erfragen Sie unsere Öffnungszeiten.</td></tr>';
     // Freier Hinweis (z. B. „Termine auch nach Vereinbarung“) aus den Firmendaten
     var hinweis = f.oeffnungszeiten_hinweis && String(f.oeffnungszeiten_hinweis).trim()
       ? '<p class="oz-hinweis">' + nl2br(String(f.oeffnungszeiten_hinweis).trim()) + '</p>' : '';
@@ -334,12 +334,12 @@ function renderSektion(s, f, oz) {
       '</div></div>' : '';
     var form = '<form class="k-form" onsubmit="return sendeKontakt(event)">' +
       '<h3>Nachricht senden</h3>' +
-      '<div class="kf-ok" id="kf-ok">Vielen Dank! Deine Anfrage ist angekommen. Wir melden uns zeitnah.</div>' +
+      '<div class="kf-ok" id="kf-ok">Vielen Dank! Ihre Anfrage wurde gesendet. Wir melden uns zeitnah.</div>' +
       '<div class="kf-err" id="kf-err"></div>' +
       '<input type="text" id="kf-name" placeholder="Name" required>' +
       '<input type="email" id="kf-email" placeholder="E-Mail" required>' +
       '<input type="tel" id="kf-telefon" placeholder="Telefon (optional)">' +
-      '<textarea id="kf-nachricht" placeholder="Deine Nachricht" required></textarea>' +
+      '<textarea id="kf-nachricht" placeholder="Ihre Nachricht" required></textarea>' +
       '<label class="kf-check"><input type="checkbox" id="kf-dsgvo" required> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen und bin mit der Verarbeitung meiner Angaben zur Bearbeitung der Anfrage einverstanden.</span></label>' +
       '<input type="text" id="kf-hp" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">' +
       '<button type="submit" class="btn">Anfrage senden</button>' +
@@ -420,7 +420,7 @@ function renderHomepage(sektionen, f, fonts, oz) {
   var ort = f.ort ? ' in ' + f.ort : '';
   var seo = f.seo_config && typeof f.seo_config === 'object' ? f.seo_config : {};
   var title = (seo.titel && String(seo.titel).trim()) || ('Schröder & Scholz – Reifenservice, Räderwechsel & Reifeneinlagerung' + ort);
-  var desc = (seo.beschreibung && String(seo.beschreibung).trim()) || ('Schröder & Scholz – dein Reifenservice' + ort + ': schneller Räderwechsel, sichere Reifeneinlagerung sowie Reifen & Felgen. Jetzt bequem online einen Termin buchen.');
+  var desc = (seo.beschreibung && String(seo.beschreibung).trim()) || ('Schröder & Scholz – Ihr Reifenservice' + ort + ': schneller Räderwechsel, sichere Reifeneinlagerung sowie Reifen & Felgen. Jetzt bequem online einen Termin buchen.');
   var ogBild = seo.og_bild && String(seo.og_bild).trim() ? absUrl(seo.og_bild) : 'https://www.schroeder-scholz.de/uploads/hero.jpg';
 
   return '<!DOCTYPE html><html lang="de"><head>' +
@@ -453,7 +453,7 @@ function renderHomepage(sektionen, f, fonts, oz) {
     '<footer class="foot"><div class="inner">' +
     '<div class="foot-logo">' + logoSvg(252, 45) + '</div>' +
     socialHtml(f) +
-    '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a></div>' +
+    '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/widerruf.html">Widerrufsbelehrung</a> · <a href="/portal/faq.html">FAQ</a></div>' +
     '</div></footer>' + script() + '</body></html>';
 }
 
@@ -631,17 +631,17 @@ function script() {
     "if(!d.artikel_id||!d.datum){er.textContent='Bitte Leistung und Datum wählen.';er.style.display='block';return false;}" +
     "if(!d.uhrzeit_von){er.textContent='Bitte eine Uhrzeit wählen.';er.style.display='block';return false;}" +
     "if(!d.name||!d.telefon||!d.email||!kz){er.textContent='Bitte Name, Telefon, E-Mail und Kennzeichen ausfüllen.';er.style.display='block';return false;}" +
-    "if(!d.datenschutz){er.textContent='Bitte stimme der Datenschutzerklärung zu.';er.style.display='block';return false;}" +
+    "if(!d.datenschutz){er.textContent='Bitte stimmen Sie der Datenschutzerklärung zu.';er.style.display='block';return false;}" +
     "var b=document.getElementById('bk-submit');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';" +
     "fetch('/api/gast/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})" +
     ".then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})" +
-    ".then(function(j){ev.target.reset();bkSel=null;document.getElementById('bk-slots-wrap').style.display='none';ok.innerHTML='Vielen Dank! Dein Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Du bekommst eine Bestätigung per E-Mail.';ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
+    ".then(function(j){ev.target.reset();bkSel=null;document.getElementById('bk-slots-wrap').style.display='none';ok.innerHTML='Vielen Dank! Ihr Termin am '+String(j.datum||'').split('-').reverse().join('.')+' um '+(j.uhrzeit_von||'')+' Uhr ist bestätigt. Sie erhalten eine Bestätigung per E-Mail.';ok.style.display='block';ok.scrollIntoView({behavior:'smooth',block:'center'});})" +
     ".catch(function(x){er.textContent=x.message;er.style.display='block';})" +
     ".then(function(){b.disabled=false;b.textContent=bt;});return false;}" +
     "</scr" + "ipt>";
 }
 
-// Coming-Soon-/Wartungsseite: grosses Logo, "bald fuer dich da", Buchungsstart-Datum.
+// Coming-Soon-/Wartungsseite: grosses Logo, "bald fuer Sie da", Buchungsstart-Datum.
 // Auf Marke (dunkel + Gold), keine Navigation/Buchung, noindex (Platzhalter nicht indexieren).
 function renderWartung(f) {
   f = f || {};
@@ -651,14 +651,14 @@ function renderWartung(f) {
   var _ba = (f.buchbar_ab && /^\d{4}-\d{2}-\d{2}$/.test(String(f.buchbar_ab))) ? String(f.buchbar_ab).split('-') : null;
   var startDatum = _ba ? (parseInt(_ba[2], 10) + '. ' + _MON[parseInt(_ba[1], 10) - 1] + ' ' + _ba[0]) : null;
   var datumSatz = startDatum
-    ? 'Ab dem <b>' + startDatum + '</b> kannst du hier online deinen Termin buchen.'
+    ? 'Ab dem <b>' + startDatum + '</b> können Sie hier online Ihren Termin buchen.'
     : 'Die Online-Terminbuchung startet <b>in Kürze</b>.';
   var metaDesc = 'Schröder & Scholz – Reifenservice und Fahrzeugtechnik. Unsere neue Website ist bald da.' + (startDatum ? ' Ab ' + startDatum + ' online Termine buchen.' : '');
   // Reine Info-Seite: nur Logo, Headline und Buchungsstart-Datum – kein Kontakt,
   // keine Rechtslinks (bewusst auf Wunsch von David).
   return '<!DOCTYPE html><html lang="de"><head>' +
     '<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">' +
-    '<title>Schröder &amp; Scholz &ndash; bald für dich da</title>' +
+    '<title>Schröder &amp; Scholz &ndash; bald für Sie da</title>' +
     '<meta name="description" content="' + esc(metaDesc) + '">' +
     '<meta name="robots" content="noindex">' +
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">' +
@@ -687,7 +687,7 @@ function renderWartung(f) {
       '</svg>' +
     '</div>' +
     '<div class="ws-badge">Neue Website in Arbeit</div>' +
-    '<h1>Wir sind bald <span class="akz">für dich</span> da.</h1>' +
+    '<h1>Wir sind bald <span class="akz">für Sie</span> da.</h1>' +
     '<p class="ws-sub">Unsere neue Website steht in den Startlöchern &ndash; gleich alles rund um Reifen und Fahrzeugtechnik, bequem online.</p>' +
     '<div class="ws-line"></div>' +
     '<p class="ws-datum">' + datumSatz + '</p>' +

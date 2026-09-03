@@ -10,6 +10,7 @@ const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
+const widerruf = require('../lib/widerruf');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
@@ -31,7 +32,8 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   const nurUuid = (a) => (Array.isArray(a) ? a : []).filter((x) => UUID_RE.test(String(x))).slice(0, 20);
   mainIds = nurUuid(mainIds); zusatzIds = nurUuid(zusatzIds);
   const ids = mainIds.concat(zusatzIds);
-  const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [] };
+  const leer = { positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 30, gewaehlt: [],
+                 rabatt_summe: 0, brutto_nach_rabatt: 0, gutschein: null, rabatt_zeilen: [] };
   if (!ids.length) return leer;
   const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false; // Standard: Preise inkl. MwSt (Brutto)
   // Nur Leistungen, die im Admin ausdruecklich fuer die Online-Buchung freigegeben sind.
@@ -83,13 +85,14 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   //  (2) Gerundet wird EINMAL je Gruppe auf die Summe, nicht je Zeile.
   //  (3) Gruppiert wird nach Rabattsatz UND Steuersatz (heute alles 19 %, der Aufbau muss
   //      aber mehrere Saetze aushalten).
-  let rabattSumme = 0, gutscheinInfo = null;
+  let rabattSumme = 0, gutscheinInfo = null, rabattZeilen = [];
   if (gutscheinCode && positionen.length) {
     const g = await gutschein.ladeGutschein(gutscheinCode);
     if (g) {
       const saetze = await gutschein.saetzeFuer(g, positionen.map((p) => p.artikel_id));
       positionen.forEach((pos) => { pos.rabatt_prozent = saetze[pos.artikel_id] || 0; });
-      rabattSumme = gutschein.rabattAusPositionen(positionen).summe;
+      const _r = gutschein.rabattAusPositionen(positionen);
+      rabattSumme = _r.summe; rabattZeilen = _r.zeilen;
       // Effektiver Gesamtsatz nur als Anzeige- und Rueckfallwert (termine.gutschein_rabatt ist
       // ein einzelner Integer und kann die Staffelung nicht abbilden -- massgeblich ist der
       // Satz je Position oben).
@@ -100,7 +103,10 @@ async function baueKalkulation(mainIds, zusatzIds, typ, zoll, gutscheinCode) {
   return {
     positionen: positionen, netto: round2(netto), mwst: round2(brutto - netto), brutto: round2(brutto),
     dauer: Math.min(dauer || 30, 480), gewaehlt: gewaehlt,
-    rabatt_summe: rabattSumme, brutto_nach_rabatt: bruttoNach, gutschein: gutscheinInfo
+    rabatt_summe: rabattSumme, brutto_nach_rabatt: bruttoNach, gutschein: gutscheinInfo,
+    // Je Rabattsatz eine Zeile ("25 %: -10,00"). Ein einzelner Prozentsatz kann eine gestaffelte
+    // Aktion nicht abbilden; wer nur effektiv_prozent anzeigt, zeigt fast immer eine falsche Zahl.
+    rabatt_zeilen: rabattZeilen
   };
 }
 
@@ -209,7 +215,8 @@ router.get('/kalkulation', stoeberLimiter, async (req, res, next) => {
     const split = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean);
     const mainIds = split(req.query.main_ids || req.query.artikel_id);
     const zusatzIds = split(req.query.zusatz_ids);
-    if (!mainIds.length) return res.json({ positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 0, gewaehlt: [] });
+    if (!mainIds.length) return res.json({ positionen: [], netto: 0, mwst: 0, brutto: 0, dauer: 0, gewaehlt: [],
+                                           rabatt_summe: 0, brutto_nach_rabatt: 0, gutschein: null, rabatt_zeilen: [] });
     // Gutscheincode mitgeben (?gutschein= oder ?code=, wie im Frontend und auf dem Flyer):
     // Der Assistent zeigt damit ab Schritt 1 durchgehend alten und neuen Preis -- er RECHNET
     // aber nichts selbst, sondern zeigt nur, was hier herauskommt. Sonst zeigte er am Ende
@@ -289,7 +296,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     // Bleibt nichts uebrig, greift unten die Pflichtfeldpruefung (400 statt 500).
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     mainIds = mainIds.filter((x) => UUID_RE.test(String(x))).slice(0, 20);
-    const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
+    const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung, agb, vorzeitige_leistung } = b;
     // Privat- oder Firmenkunde. Unbekannte Werte gelten als 'privat' -> ein Tippfehler im Formular
     // verhindert keine Buchung. Bei 'firma' ist der Firmenname Pflicht (Rechnungsempfaenger).
     const kundentyp = (b.kundentyp === 'firma') ? 'firma' : 'privat';
@@ -298,6 +305,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
+    // AGB und Widerrufsbelehrung: Ohne diese Bestaetigung werden die AGB nicht wirksam
+    // einbezogen (Paragraf 305 Abs. 2 BGB). Die Pruefung steht hier und nicht nur im
+    // Browser, weil ein Aufruf ohne Oberflaeche sie sonst umgeht.
+    if (agb !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie AGB und Widerrufsbelehrung.' });
     // Notaus: `buchung_aktiv=false` steuerte bisher NUR, ob das Widget auf der Homepage erscheint --
     // die Route nahm weiter verbindliche Buchungen an. Wer bei Stoerung oder Ueberlastung abschaltet,
     // muss sich darauf verlassen koennen, dass wirklich nichts mehr hereinkommt.
@@ -335,6 +346,21 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
         ? b.getFullYear() + '-' + String(b.getMonth() + 1).padStart(2, '0') + '-' + String(b.getDate()).padStart(2, '0')
         : String(b).slice(0, 10);
       if (datum < bStr) return res.status(409).json({ error: 'Online-Buchungen sind erst ab dem ' + bStr.split('-').reverse().join('.') + ' möglich.' });
+    }
+
+    // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
+    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB) —
+    // sonst entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB) und die
+    // geleistete Arbeit bliebe unbezahlt. Die Rechnung liegt in lib/widerruf.js; sie stand frueher
+    // hier und verglich Mitternacht gegen 12 Uhr des Termintags -- eine halbe Tagesdifferenz, die
+    // Math.round nach oben zog. Ein Termin in 13 Tagen ergab 14 und fiel aus der Frist.
+    //
+    // Diese Pruefung steht bewusst NACH Vergangenheit und buchbar_ab: Wer vor der Eroeffnung einen
+    // Termin versuchte, bekam sonst zuerst "Bitte stimmen Sie zu" und erst nach dem Ankreuzen
+    // "Online-Buchungen sind erst ab dem 01.10. moeglich" — eine Zustimmung zu einem Termin, den es
+    // gar nicht geben kann. Die Meldung, die den Vorgang endgueltig beendet, gehoert zuerst.
+    if (widerruf.zustimmungNoetig(datum) && vorzeitige_leistung !== true) {
+      return res.status(400).json({ error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.' });
     }
     const startMin = zeitZuMin(uhrzeit_von), endeMin = startMin + dauer;
     // Muss vollstaendig in eine Oeffnungsspanne fallen (deckt Oeffnungszeiten UND Mittagspause ab).
@@ -388,9 +414,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
            kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
            kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung,
            bestaetigung_token, bestaetigung_token_ablauf, gutschein_code, gutschein_rabatt,
-           kontakt_kundentyp, kontakt_firma)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23,$24,$25)`,
-        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt, kundentyp, fa]);
+           kontakt_kundentyp, kontakt_firma, agb_am, vorzeitige_leistung, vorzeitige_leistung_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23,$24,$25,
+                 NOW(), $26, CASE WHEN $26 THEN NOW() ELSE NULL END)`,
+        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt, kundentyp, fa, vorzeitige_leistung === true]);
     });
 
     // Nur EINE Mail an den (noch unverifizierten) Gast: der Bestaetigungslink. Admin-Mail + finale
@@ -407,15 +434,22 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
       // Zollgroesse und Fahrzeugart). Der Gutschein steht bereits im Block darueber, hier nicht doppelt.
       const eurA = (n) => (Number(n) || 0).toFixed(2).replace('.', ',') + ' €';
       const posHtmlA = kalk.positionen.map(p => escAttr(p.bezeichnung) + ': ab ' + eurA(p.zeilen_brutto)).join('<br>');
+      const rabattHtmlA = (kalk.rabatt_zeilen || []).length
+        ? ('<br><br><strong>Gutschein ' + escAttr(gutscheinCode) + '</strong><br>'
+           + kalk.rabatt_zeilen.map(r => 'Nachlass ' + r.satz + ' %: −' + eurA(r.betrag)).join('<br>')
+           + '<br><strong>Summe nach Abzug: ab ' + eurA(kalk.brutto_nach_rabatt) + '</strong>'
+           + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>')
+        : '';
       const preisBlockA = posHtmlA
         ? ('<strong>Ihre Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtmlA
            + '<br><strong>Summe (Schätzung): ab ' + eurA(kalk.brutto) + '</strong>'
+           + rabattHtmlA
            + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
         : '';
       const htmlGast = portalMailHtml(einst, {
         titel: 'Bitte bestätigen Sie Ihre Terminanfrage', name: vn,
         absaetze: ['vielen Dank für Ihre Terminanfrage bei Schröder &amp; Scholz.',
-          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + gutscheinCode + ' (−' + gutscheinRabatt + ' %)' : ''),
+          '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + uhrzeit_von + ' Uhr<br><strong>Kennzeichen:</strong> ' + kz + (fzt ? ' (' + fzt + ')' : '') + (gutscheinCode ? '<br><strong>Gutschein:</strong> ' + escAttr(gutscheinCode) : ''),
           preisBlockA,
           // Bewusst kein "mit einem Klick": der Button fuehrt auf eine Seite, auf der der Termin
           // erst bestaetigt wird (der Zwischenschritt schuetzt davor, dass Mail-Scanner den Termin
@@ -536,7 +570,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       const preisBlock = posHtml
         ? ('<strong>Leistungen (unverbindliche Schätzung, inkl. MwSt):</strong><br>' + posHtml
            + '<br><strong>Summe (Schätzung): ab ' + eur(summeBrutto) + '</strong>'
-           + (t.gutschein_code && rabattHtml ? '<br><br><strong>Gutschein ' + t.gutschein_code + '</strong><br>' + rabattHtml + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>' : '')
+           + (t.gutschein_code && rabattHtml ? '<br><br><strong>Gutschein ' + escAttr(t.gutschein_code) + '</strong><br>' + rabattHtml + '<br><span style="color:#777;font-size:13px">Der Abzug erfolgt auf der Rechnung.</span>' : '')
            + '<br><a href="https://www.schroeder-scholz.de/preise/" style="color:#171717">Alle Preise ansehen</a>')
         : '';
       // #6 Konto-CTA (sekundaer) unter dem Bestaetigungstext. Statt der E-Mail in der URL geht jetzt ein
@@ -567,7 +601,7 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       if (einst.email) {
         await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: einst.email, replyTo: t.kontakt_email,
           subject: 'Neue Online-Buchung (Gast, bestätigt): ' + (t.termin_typ || '') + ' am ' + dF + ' ' + hhmm,
-          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code && rabattZeilen.length ? '<br>Gutschein ' + t.gutschein_code + ': ' + rabattZeilen.map(r => '−' + eur(r.betrag) + ' (' + r.satz + ' %)').join(', ') : '') + '</p>' });
+          html: '<p><strong>Neue (bestätigte) Gäste-Buchung über die Homepage:</strong></p><p>' + (t.kontakt_anrede ? t.kontakt_anrede + ' ' : '') + (t.kontakt_name || '') + '<br>' + (t.kontakt_strasse || '') + ', ' + (t.kontakt_plz || '') + ' ' + (t.kontakt_ort || '') + '<br>Telefon: ' + (t.kontakt_telefon || '') + '<br>E-Mail: ' + (t.kontakt_email || '') + '<br>Kennzeichen: ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' · ' + t.fahrzeugtyp : '') + '<br>Datum: ' + dF + ' ' + hhmm + ' Uhr</p><p>Leistungen:<br>' + posHtmlAdmin + (t.gutschein_code && rabattZeilen.length ? '<br>Gutschein ' + escAttr(t.gutschein_code) + ': ' + rabattZeilen.map(r => '−' + eur(r.betrag) + ' (' + r.satz + ' %)').join(', ') : '') + '</p>' });
       }
     } catch (mailErr) { console.error('[Gast-Bestaetigung-Mail]', mailErr.message); }
 

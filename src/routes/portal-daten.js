@@ -6,6 +6,8 @@ const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
+const konditionen = require('../lib/konditionen');
+const widerruf = require('../lib/widerruf');
 const { kundenMailHtml } = require('../lib/mail-template');
 const fs = require('fs');
 
@@ -165,6 +167,14 @@ function anschriftPruefen(strasse, plz, ort) {
 // ── POST /api/portal/daten/termine ──
 router.post('/termine', authKunde, async (req, res, next) => {
   try {
+    // Freitext aus der Buchung genauso saeubern wie bei Fahrzeugen und im Profil: Er landet in der
+    // internen Betriebsmail und in Admin, Werkstatt und Kalender. Ohne das konnte ein Kunde per
+    // direktem Aufruf Auszeichnung in die Mail des Inhabers schreiben -- nachgestellt mit
+    // '<img src=x onerror=...>', das woertlich gespeichert und roh in die Mail eingebaut wurde.
+    // MUSS VOR dem Auslesen stehen, sonst tragen die Konstanten unten weiter die Rohwerte.
+    const _sauber = (v, n) => v == null ? v : String(v).replace(/[<>]/g, '').trim().slice(0, n);
+    if (req.body.kennzeichen != null) req.body.kennzeichen = _sauber(req.body.kennzeichen, 20).toUpperCase();
+    if (req.body.beschreibung != null) req.body.beschreibung = _sauber(req.body.beschreibung, 500);
     const { datum, uhrzeit_von, artikel_id, beschreibung, kennzeichen, fahrzeug_id, typ, zoll } = req.body;
     if (!datum || !uhrzeit_von || !artikel_id || !/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Pflichtfelder fehlen oder ungültiges Datum/Uhrzeit' });
 
@@ -204,6 +214,23 @@ router.post('/termine', authKunde, async (req, res, next) => {
     const _sperre = vorBuchungsstart(einst && einst.buchbar_ab, datum);
     if (_sperre) return res.status(409).json({ error: _sperre });
 
+    // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
+    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB);
+    // ohne sie entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB).
+    // Dieselbe Rechnung und dieselbe Grenze wie im Gaeste-Weg (gast.js): 13 Tage ja, 14 nein.
+    // Die Pruefung steht hier und nicht nur im Formular, weil ein Aufruf ohne Oberflaeche das
+    // Haekchen sonst umgeht.
+    const _vorzeitigNoetig = widerruf.zustimmungNoetig(datum);
+    if (_vorzeitigNoetig && req.body.vorzeitige_leistung !== true) {
+      return res.status(400).json({
+        code: 'VORZEITIGE_LEISTUNG_NOETIG',
+        error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.'
+      });
+    }
+    // Nur speichern, wenn die Zustimmung auch noetig war -- sonst stuende bei einem Termin in
+    // sechs Wochen eine Einwilligung im Datensatz, die der Kunde nie abgegeben hat.
+    const _vorzeitig = _vorzeitigNoetig === true;
+
     // Gutschein (optional). Bis jetzt konnte ein angemeldeter Kunde den Flyer-Code gar nicht
     // einloesen -- wir bewerben in jeder Bestaetigungsmail ein Kundenkonto und haetten es beim
     // Rabatt bestraft. Dieselbe Logik wie im Gaeste-Weg, aus demselben Modul.
@@ -213,20 +240,36 @@ router.post('/termine', authKunde, async (req, res, next) => {
     const _zeilenBrutto = _preisInkl ? gutschein.round2(_preis) : gutschein.round2(_preis * (1 + _mwst / 100));
     const _zeilenNetto = _preisInkl ? gutschein.round2(_preis / (1 + _mwst / 100)) : gutschein.round2(_preis);
     let _gCode = null, _gEffektiv = null, _rabattSumme = 0;
-    const _position = {
-      artikel_id: artikel_id, bezeichnung: art.name, rolle: 'haupt',
-      grundpreis_netto: _zeilenNetto, zuschlag_netto: 0, fahrzeugtyp: typ || null,
-      mwst_satz: _mwst, zeilen_netto: _zeilenNetto, zeilen_brutto: _zeilenBrutto
-    };
+    // Gutscheinsatz ermitteln -- angewandt wird er erst nach dem Vergleich mit den Konditionen.
+    let _gSatz = 0, _gCodeRoh = null;
     if (req.body.gutschein_code) {
       const g = await gutschein.ladeGutschein(req.body.gutschein_code);
-      if (g) {
-        const saetze = await gutschein.saetzeFuer(g, [artikel_id]);
-        _position.rabatt_prozent = saetze[artikel_id] || 0;
-        _rabattSumme = gutschein.rabattAusPositionen([_position]).summe;
-        _gCode = g.code;
-        _gEffektiv = _zeilenBrutto > 0 ? Math.round(_rabattSumme / _zeilenBrutto * 100) : 0;
-      }
+      if (g) { _gCodeRoh = g.code; _gSatz = (await gutschein.saetzeFuer(g, [artikel_id]))[artikel_id] || 0; }
+    }
+    // Vereinbarte Konditionen des Kunden. Sie werden HIER aufgeloest und unten in zeilen_brutto
+    // bzw. rabatt_prozent eingefroren -- dieselbe Rechnung wie in der Preisanzeige, damit der
+    // Kunde beim Buchen genau den Betrag sieht, der spaeter auf dem Beleg steht.
+    const _kond = await konditionen.ladeKonditionen(kd && kd.id);
+    const _w = konditionen.preisFuer(_kond, artikel_id, _zeilenBrutto, _gSatz);
+    // Fester Kundenpreis ersetzt den Positionspreis; Netto daraus ableiten, damit Netto und
+    // Brutto der Position zueinander passen.
+    const _brutto = _w.brutto;
+    const _netto = gutschein.round2(_brutto / (1 + _mwst / 100));
+    const _position = {
+      artikel_id: artikel_id, bezeichnung: art.name, rolle: 'haupt',
+      grundpreis_netto: _netto, zuschlag_netto: 0, fahrzeugtyp: typ || null,
+      mwst_satz: _mwst, zeilen_netto: _netto, zeilen_brutto: _brutto,
+      // Herkunft mit einfrieren: Der Beleg muss spaeter unterscheiden koennen, ob eine
+      // Nachlasszeile aus einem Gutschein oder aus einer Dauervereinbarung stammt.
+      preis_quelle: _w.quelle
+    };
+    if (_w.rabatt_prozent > 0) {
+      _position.rabatt_prozent = _w.rabatt_prozent;
+      _rabattSumme = gutschein.rabattAusPositionen([_position]).summe;
+    }
+    if (_w.quelle === 'gutschein') {
+      _gCode = _gCodeRoh;
+      _gEffektiv = _brutto > 0 ? Math.round(_rabattSumme / _brutto * 100) : 0;
     }
     const _bu = await query('SELECT 1 FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
     if (_bu.rows.length) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Betriebsurlaub).' });
@@ -254,10 +297,12 @@ router.post('/termine', authKunde, async (req, res, next) => {
       const kzListe = fzs.map((f) => f.kennzeichen).filter(Boolean).join(', ') || null;
       const ins = await query(
         `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
-         datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung, artikel_id, status, portal_buchung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'angefragt',true) RETURNING *`,
+         datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung, artikel_id, status, portal_buchung,
+         vorzeitige_leistung, vorzeitige_leistung_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'angefragt',true,$12,
+                 CASE WHEN $12 THEN NOW() ELSE NULL END) RETURNING *`,
         [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
-         datum, uhrzeit_von, uhrzeit_bis, art.name, kzListe, besch, artikel_id]);
+         datum, uhrzeit_von, uhrzeit_bis, art.name, kzListe, besch, artikel_id, _vorzeitig]);
       const datumF = new Date(datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
       await sendMail(k.portal_email, 'Sammelterminanfrage eingegangen — ' + datumF,
         '<p>Hallo ' + k.vorname + ',</p>' +
@@ -305,12 +350,14 @@ router.post('/termine', authKunde, async (req, res, next) => {
         // fuer Portal-Termine bisher aus dem Artikelstamm und haette den Rabatt nicht gesehen.
         `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
          datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung,
-         artikel_id, fahrzeug_id, status, portal_buchung, leistungen, gutschein_code, gutschein_rabatt)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true,$13,$14,$15) RETURNING *`,
+         artikel_id, fahrzeug_id, status, portal_buchung, leistungen, gutschein_code, gutschein_rabatt,
+         vorzeitige_leistung, vorzeitige_leistung_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true,$13,$14,$15,$16,
+                 CASE WHEN $16 THEN NOW() ELSE NULL END) RETURNING *`,
         [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
          datum, uhrzeit_von, uhrzeit_bis, art.name,
          kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fzId,
-         JSON.stringify([_position]), _gCode, _gEffektiv]);
+         JSON.stringify([_position]), _gCode, _gEffektiv, _vorzeitig]);
       return ins.rows;
     });
 
@@ -366,6 +413,19 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
       return res.status(400).json({ error: 'Verschieben ist nur bis ' + fristH + ' Stunden vor dem Termin möglich. Bitte rufen Sie uns an: ' + (einst.telefon || '') });
     }
 
+    // Zieht der Kunde den Termin IN die Widerrufsfrist hinein, braucht es die Zustimmung genauso
+    // wie beim Buchen -- sonst waere das Verschieben der bequeme Weg an der Frage vorbei.
+    // Wer bereits zugestimmt hat, muss nicht erneut gefragt werden; die Erklaerung gilt fort.
+    const _vzNoetig = widerruf.zustimmungNoetig(datum);
+    const _vzSchonDa = t.vorzeitige_leistung === true;
+    if (_vzNoetig && !_vzSchonDa && req.body.vorzeitige_leistung !== true) {
+      return res.status(400).json({
+        code: 'VORZEITIGE_LEISTUNG_NOETIG',
+        error: 'Der neue Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.'
+      });
+    }
+    const _vzNeu = _vzNoetig && (_vzSchonDa || req.body.vorzeitige_leistung === true);
+
     let dauer = 30;
     if (t.artikel_id) {
       const a = (await query('SELECT * FROM artikel WHERE id=$1', [t.artikel_id])).rows[0];
@@ -410,8 +470,14 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
         [datum, t.id, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
       const r = await client.query(
-        'UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, geaendert_am=NOW() WHERE id=$4 RETURNING *',
-        [datum, uhrzeit_von, uhrzeit_bis, t.id]);
+        // Zustimmung mitschreiben: Sie gehoert zum neuen Termin. Der Zeitstempel bleibt stehen,
+        // wenn die Erklaerung schon vorlag -- eine erneute Erklaerung gab es dann ja nicht.
+        `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, geaendert_am=NOW(),
+         vorzeitige_leistung=$5,
+         vorzeitige_leistung_am=CASE WHEN $5 AND vorzeitige_leistung_am IS NULL THEN NOW()
+                                     WHEN $5 THEN vorzeitige_leistung_am ELSE NULL END
+         WHERE id=$4 RETURNING *`,
+        [datum, uhrzeit_von, uhrzeit_bis, t.id, _vzNeu]);
       return r.rows[0];
     });
     res.json(updated);
@@ -511,21 +577,34 @@ router.get('/artikel/:id/preis', authKunde, async (req, res, next) => {
     const preis = Number(p.preis) || 0;
     const brutto = inkl ? gutschein.round2(preis) : gutschein.round2(preis * (1 + mwst / 100));
 
+    // Vereinbarte Konditionen des angemeldeten Kunden mit einrechnen. Bisher wurden sie erst
+    // beim Erzeugen der Rechnung aufgeloest -- der Gewerbekunde sah hier den Listenpreis und
+    // bekam hinterher einen anderen Betrag. Gutschein und Konditionen schliessen sich aus,
+    // es gilt der guenstigere; entschieden wird in lib/konditionen.js.
+    const kond = await konditionen.ladeKonditionen(req.kunde && req.kunde.id);
     const code = req.query.gutschein || req.query.code || null;
+    let gCode = null, gSatz = 0;
     if (code) {
       const g = await gutschein.ladeGutschein(code);
-      if (g) {
-        const saetze = await gutschein.saetzeFuer(g, [req.params.id]);
-        const satz = saetze[req.params.id] || 0;
-        const r = gutschein.rabattAusPositionen([{ zeilen_brutto: brutto, mwst_satz: mwst, rabatt_prozent: satz }]);
-        return res.json(Object.assign({}, p, {
-          gutschein: { code: g.code, rabatt_prozent: satz },
-          brutto_vor_rabatt: brutto, rabatt_summe: r.summe, brutto_nach_rabatt: gutschein.round2(brutto - r.summe)
-        }));
-      }
-      return res.json(Object.assign({}, p, { gutschein: null, brutto_vor_rabatt: brutto, rabatt_summe: 0, brutto_nach_rabatt: brutto }));
+      if (g) { gCode = g.code; gSatz = (await gutschein.saetzeFuer(g, [req.params.id]))[req.params.id] || 0; }
     }
-    res.json(Object.assign({}, p, { brutto_vor_rabatt: brutto, rabatt_summe: 0, brutto_nach_rabatt: brutto }));
+    const w = konditionen.preisFuer(kond, req.params.id, brutto, gSatz);
+    const r = gutschein.rabattAusPositionen([{ zeilen_brutto: w.brutto, mwst_satz: mwst, rabatt_prozent: w.rabatt_prozent }]);
+    res.json(Object.assign({}, p, {
+      // `gutschein` bleibt nur gesetzt, wenn er auch tatsaechlich angewandt wurde -- sonst zeigte
+      // die Oberflaeche einen Code als aktiv an, der am Preis nichts geaendert hat.
+      gutschein: w.quelle === 'gutschein' ? { code: gCode, rabatt_prozent: w.rabatt_prozent } : null,
+      // Damit die Anzeige benennen kann, WAS gilt. Ein Betrag ohne Herkunft ist genau das,
+      // woran der Kunde zweifelt: 'liste' | 'kundenpreis' | 'konditionen' | 'gutschein'.
+      preis_quelle: w.quelle,
+      // Eingegebener Code, der wegen der guenstigeren Kondition nicht griff (oder umgekehrt) --
+      // die Oberflaeche sagt das dem Kunden, statt ihn im Unklaren zu lassen.
+      nicht_angewandt: w.verworfen === 'gutschein' && gCode ? { art: 'gutschein', code: gCode, rabatt_prozent: gSatz }
+                     : (w.verworfen === 'konditionen' ? { art: 'konditionen' } : null),
+      brutto_vor_rabatt: w.brutto, rabatt_summe: r.summe,
+      brutto_nach_rabatt: gutschein.round2(w.brutto - r.summe),
+      listen_brutto: w.listen_brutto
+    }));
   } catch (e) { next(e); }
 });
 

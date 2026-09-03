@@ -27,7 +27,12 @@ const ALLOWED = [
   // Impressumsangaben nach § 5 DDG und § 36 VSBG. Bewusst NICHT in PFLICHT: der Betrieb ist
   // noch nicht gegruendet, leere Felder duerfen die Anwendung nicht blockieren.
   'handwerkskammer', 'berufsbezeichnung', 'berufsbezeichnung_staat',
-  'berufsrechtliche_regelungen', 'schlichtung_bereit', 'schlichtung_stelle'
+  'berufsrechtliche_regelungen', 'schlichtung_bereit', 'schlichtung_stelle',
+  // Notaus fuer die Online-Buchung. Lag frueher NUR im Homepage-CMS, weil er urspruenglich nur
+  // das Buchungsfeld auf der Startseite ein- und ausblendete. Er schaltet aber die ganze
+  // Buchungsroute ab (gast.js prueft ihn vor dem Anlegen) -- das ist Betrieb, nicht Gestaltung.
+  // Wer bei einer Stoerung zumachen muss, sucht ihn dort, wo er ohnehin arbeitet.
+  'buchung_aktiv'
 ];
 
 // Spalten vom Typ time/integer/numeric: leerer String wird zu NULL,

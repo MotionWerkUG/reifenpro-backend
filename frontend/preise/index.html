@@ -134,13 +134,13 @@
 
   <div class="hinweis">
     <b>Hinweis:</b> „ab"-Preise beziehen sich auf die günstigste Variante. Der Endpreis richtet sich nach
-    Zollgröße und Fahrzeugart (PKW, SUV, Transporter) und kann vor Ort abweichen. Gerne machen wir dir ein
+    Zollgröße und Fahrzeugart (PKW, SUV, Transporter) und kann vor Ort abweichen. Gerne erstellen wir Ihnen ein
     verbindliches Angebot.
   </div>
 
   <div class="cta-band">
     <h2>Termin online buchen</h2>
-    <p>Wähle deine Leistung, dein Fahrzeug und den Wunschtermin – in wenigen Schritten.</p>
+    <p>Wählen Sie Ihre Leistung, Fahrzeug und Wunschtermin – in wenigen Schritten.</p>
     <a class="btn-lg" href="/termin/">Jetzt Termin buchen</a>
   </div>
 </main>
@@ -153,7 +153,7 @@
     </svg>
   </div>
   <div class="foot-links">
-    <a href="/">Startseite</a> · <a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a>
+    <a href="/">Startseite</a> · <a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/widerruf.html">Widerrufsbelehrung</a> · <a href="/portal/faq.html">FAQ</a>
   </div>
 </div></footer>
 
@@ -196,16 +196,16 @@
   }
   function render(d){
     var list = (d && d.leistungen) || [];
-    if(!list.length){ C.innerHTML='<div class="state">Aktuell sind keine Preise hinterlegt. Sprich uns gerne direkt an.</div>'; return; }
+    if(!list.length){ C.innerHTML='<div class="state">Aktuell sind keine Preise hinterlegt. Sprechen Sie uns gerne direkt an.</div>'; return; }
     var haupt = list.filter(function(l){return l.rolle==='haupt';});
     var zusatz = list.filter(function(l){return l.rolle==='zusatz';});
     var html='';
     if(haupt.length){
-      html += '<h2 class="sec-title">Leistungen</h2><p class="sec-sub">Unsere Kernleistungen rund um deine Räder und dein Fahrzeug.</p>';
+      html += '<h2 class="sec-title">Leistungen</h2><p class="sec-sub">Unsere Kernleistungen rund um Ihre Räder und Ihr Fahrzeug.</p>';
       html += '<div class="grid">'+haupt.map(card).join('')+'</div>';
     }
     if(zusatz.length){
-      html += '<h2 class="sec-title">Zusatzleistungen</h2><p class="sec-sub">Praktisch kombinierbar mit deinem Termin.</p>';
+      html += '<h2 class="sec-title">Zusatzleistungen</h2><p class="sec-sub">Praktisch kombinierbar mit Ihrem Termin.</p>';
       html += '<div class="grid">'+zusatz.map(card).join('')+'</div>';
     }
     C.innerHTML = html;
@@ -249,7 +249,7 @@
   });
   fetch('/api/preise').then(function(r){ if(!r.ok) throw 0; return r.json(); })
     .then(function(d){ kopfzeile(d); render(d); })
-    .catch(function(){ C.innerHTML='<div class="state">Die Preise konnten gerade nicht geladen werden. Bitte versuch es später erneut oder melde dich direkt bei uns.</div>'; });
+    .catch(function(){ C.innerHTML='<div class="state">Die Preise konnten gerade nicht geladen werden. Bitte versuchen Sie es später erneut oder kontaktieren Sie uns direkt.</div>'; });
 })();
 </script>
 </body>

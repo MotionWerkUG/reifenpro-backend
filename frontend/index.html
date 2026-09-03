@@ -797,6 +797,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div class="g2">
             <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
             <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
+            <div class="fg" style="grid-column:1/-1">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600">
+                <input id="s-buchung-aktiv" type="checkbox" checked> Online-Buchung ist eingeschaltet
+              </label>
+              <span style="font-size:11px;color:var(--muted)">Notaus. Ausgeschaltet nimmt die Website
+              <b>keine</b> Buchungen mehr an — auch nicht über einen alten Link oder einen bereits
+              geöffneten Schritt. Bestehende Termine bleiben unberührt. Für Störung, Krankheit oder
+              wenn der Kalender voll ist.</span>
+            </div>
             <div class="fg"><label>Online buchbar ab</label><input id="s-buchbar-ab" type="date"><span style="font-size:11px;color:var(--muted)">Kunden können online nur Termine ab diesem Datum buchen (Neueröffnung). Intern bleibt jeder Termin anlegbar.</span></div>
           </div>
           <div style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="saveOeffnung()">Öffnungszeiten speichern</button></div>
@@ -2860,6 +2869,9 @@ function fillEinst() {
   fv('s-vers', EINST.versicherung_name); fv('s-purl', EINST.portal_url);
   fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
   fv('s-buchbar-ab', EINST.buchbar_ab ? String(EINST.buchbar_ab).substring(0, 10) : '');
+  // Standard ist EIN: Ein fehlender Wert darf nicht als "abgeschaltet" gelesen werden, sonst
+  // stuende die Buchung nach einem leeren Datensatz still, ohne dass es jemand bemerkt.
+  var bs = document.getElementById('s-buchung-aktiv'); if (bs) bs.checked = EINST.buchung_aktiv !== false;
   fv('s-zzt', EINST.zahlungsziel_tage || 14);
   // Oeffnungszeiten
   // Öffnungszeiten (mo_fr/sa/mittagspause) laufen jetzt über das Wochenraster (loadOeffnung), nicht mehr hier.
@@ -2900,6 +2912,7 @@ function saveEinst() {
     bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
     zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
     buchbar_ab: gv('s-buchbar-ab') || null,
+      buchung_aktiv: (document.getElementById('s-buchung-aktiv') || {}).checked !== false,
     logo_url: EINST.logo_url || null,
     // Öffnungszeiten (mo_fr/sa/mittagspause) werden über /einstellungen/oeffnungszeiten gepflegt, nicht hier.
     max_parallele_termine: parseInt(gv('s-mpt')) || 1,
@@ -3359,6 +3372,13 @@ function renderK() {
     } else {
       portalBadge = '<span class="badge b-n">-</span>';
     }
+    // Hat sich selbst als Firmenkunde eingetragen, ist aber noch nicht als Gewerbekunde
+    // eingestuft. Die Selbstauskunft setzt bewusst NUR kundentyp und firma — die
+    // Gewerbe-Kennung vergibt der Betrieb, nachdem er mit dem Kunden gesprochen hat.
+    // Ohne diesen Hinweis laege der Wunsch in der Datenbank und niemand saehe ihn.
+    if (k.kundentyp === 'firma' && !k.ist_gewerbe) {
+      portalBadge += ' <span class="badge b-y" title="Hat sich als Firmenkunde registriert. Gewerbe-Kennung und Konditionen vergeben Sie in der Kundenakte.">Gewerbe offen</span>';
+    }
     return '<div class="kunden-row" onclick="zeigeK(\'' + k.id + '\')">' +
       '<span style="font-size:12px;color:var(--accent-text);font-weight:600">' + k.kunden_nr + '</span>' +
       '<span style="font-weight:600">' + kEsc(k.vorname + ' ' + k.nachname) + huWarn + (k.ist_gewerbe ? ' <span style="background:#1a3a6e;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">GEWERBE</span>' : '') + '</span>' +
@@ -3371,11 +3391,22 @@ function renderK() {
 }
 function ladeKonditionen(id) {
   var el = document.getElementById('kd-gewerbe'); if (!el) return;
+  // Wartet dieser Kunde auf die Einstufung? Dann steht das ueber den Konditionen, nicht
+  // irgendwo in der Liste — hier wird die Entscheidung getroffen.
+  var aktK2 = (typeof aktK !== 'undefined') ? aktK : null;
+  var wartet = aktK2 && aktK2.kundentyp === 'firma' && !aktK2.ist_gewerbe;
   el.innerHTML = '<div style="color:var(--muted);font-size:13px">Lädt …</div>';
   Promise.all([api('GET', '/kunden/' + id + '/konditionen'), api('GET', '/artikel')]).then(function (res) {
     var k = res[0] || {}, arts = res[1] || [];
     var preisMap = {}; (k.preise || []).forEach(function (p) { preisMap[p.artikel_id] = p.preis; });
-    var h = '<label style="display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:14px;cursor:pointer"><input type="checkbox" id="kd-g-flag"' + (k.ist_gewerbe ? ' checked' : '') + '> <b>Gewerbe-/Großkunde</b> (Sonderkonditionen)</label>';
+    var h = wartet
+      ? '<div style="background:rgba(234,179,8,.10);border:1px solid rgba(234,179,8,.45);border-left:4px solid var(--gold,#eab308);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6">' +
+        '<b>Dieser Kunde hat sich als Firmenkunde registriert' + (aktK2.firma ? ': ' + kEsc(aktK2.firma) : '') + '.</b><br>' +
+        'Die Angabe ist eine Selbstauskunft und noch nicht geprüft. Setzen Sie den Haken unten, ' +
+        'wenn Sie ihn als Gewerbekunden führen wollen — erst dann kann er Sammeltermine für ' +
+        'mehrere Fahrzeuge buchen. Konditionen vereinbaren Sie unabhängig davon.</div>'
+      : '';
+    h += '<label style="display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:14px;cursor:pointer"><input type="checkbox" id="kd-g-flag"' + (k.ist_gewerbe ? ' checked' : '') + '> <b>Gewerbe-/Großkunde</b> (Sonderkonditionen)</label>';
     h += '<div class="fg" style="max-width:240px"><label>Pauschalrabatt auf alle Leistungen (%)</label><input id="kd-g-rabatt" type="number" min="0" max="100" value="' + (k.grosskunden_rabatt || 0) + '"></div>';
     h += '<div style="font-size:12px;color:var(--muted);margin:14px 0 6px">Feste Netto-Preise je Leistung (leer = Standardpreis bzw. Rabatt):</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 120px;gap:6px 12px;align-items:center;max-width:500px">';
@@ -3384,7 +3415,15 @@ function ladeKonditionen(id) {
       h += '<input data-aid="' + a.id + '" class="kg-preis" type="number" step="0.01" placeholder="Standard" value="' + (preisMap[a.id] != null ? preisMap[a.id] : '') + '" style="width:112px">';
     });
     h += '</div><div style="margin-top:14px"><button class="btn btn-p btn-sm" onclick="konditionenSpeichern(\'' + id + '\')">Konditionen speichern</button></div>';
-    h += '<div style="font-size:12px;color:var(--muted);margin-top:8px">Bei Rechnungen aus Terminen dieses Kunden werden diese Konditionen automatisch gezogen: fester Preis → sonst Standard minus Rabatt → sonst Standard.</div>';
+    // Der frueher hier stehende Satz ("werden automatisch gezogen") war zu weit gefasst:
+    // Konditionen haengen am Kundenkonto. Bucht derselbe Mensch als Gast ueber die Website,
+    // kennt die Buchung sein Konto nicht und rechnet zum Listenpreis. Das muss dastehen,
+    // sonst wundert sich der Betrieb ueber eine Rechnung ohne den vereinbarten Rabatt.
+    h += '<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.6">' +
+      'Reihenfolge: fester Preis → sonst Standardpreis minus Pauschalrabatt → sonst Standardpreis.<br>' +
+      'Gilt für Buchungen im <b>angemeldeten</b> Kundenportal und für Rechnungen aus diesen Terminen. ' +
+      'Bei einer Gastbuchung über die Website ohne Anmeldung greifen die Konditionen <b>nicht</b> — ' +
+      'weisen Sie Gewerbekunden darauf hin, dass sie sich anmelden.</div>';
     el.innerHTML = h;
   }).catch(function () { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Konnte nicht geladen werden.</div>'; });
 }
@@ -5625,9 +5664,9 @@ function genDsgvo() {
     '<div class="para">Die Verarbeitung erfolgt auf Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Vertragserfullung) sowie Art. 6 Abs. 1 lit. c DSGVO (rechtliche Verpflichtung). Für Marketing-E-Mails und Saison-Erinnerungen auf Grundlage von Art. 6 Abs. 1 lit. a DSGVO (Einwilligung).</div>' +
     '<div class="sek">3. Speicherdauer</div>' +
     '<div class="para">Vertragsdaten werden für die Dauer der Geschäftsbeziehung verarbeitet. Nach Beendigung gelten die gesetzlichen Aufbewahrungsfristen: Buchungsbelege und Rechnungen 8 Jahre, Vertragsunterlagen 8 Jahre ab Vertragsende, sonstige Geschäftskorrespondenz 6 Jahre (§ 147 AO, § 257 HGB). Nach Ablauf dieser Fristen werden die Daten gelöscht oder anonymisiert, sofern keine weitere Rechtsgrundlage besteht.</div>' +
-    '<div class="sek">4. Auftragsverarbeiter</div>' + '<div class="para">Zur Erbringung unserer Leistungen setzen wir sorgfältig ausgewählte Dienstleister ein, mit denen Vereinbarungen zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Hosting des Servers (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe Ihrer Daten an Dritte zu anderen Zwecken erfolgt nicht.</div>' + '<div class="sek">5. Adressvorschläge bei der Eingabe</div>' + '<div class="para">Wenn Sie eine Anschrift eingeben, schlagen wir passende Straßen vor. Dazu fragt unser Server — nicht Ihr Browser — bei den Kartendiensten Photon (photon.komoot.io, OpenStreetMap-Daten) und OpenPLZ (openplzapi.org, amtliche Daten) an. Übermittelt wird ausschließlich der eingegebene Suchbegriff, also der Anfang der Straße und gegebenenfalls die Postleitzahl. Ihre IP-Adresse, Ihr Name und alle übrigen Daten bleiben bei uns; die Dienste erfahren nicht, wer sucht. Wie jeder Aufruf unserer Anwendung erscheint die Anfrage in unserem Zugriffsprotokoll auf unserem eigenen Server; diese Protokolle werden nach spätestens 14 Tagen gelöscht. Rechtsgrundlage ist unser berechtigtes Interesse an einer korrekten Anschrift (Art. 6 Abs. 1 lit. f DSGVO). Sie können die Adresse auch ohne Vorschläge von Hand eintragen.</div>' + '<div class="sek">6. Ihre Rechte</div>' +
+    '<div class="sek">4. Auftragsverarbeiter</div>' + '<div class="para">Zur Erbringung unserer Leistungen setzen wir sorgfältig ausgewählte Dienstleister ein, mit denen Vereinbarungen zur Auftragsverarbeitung nach Art. 28 DSGVO bestehen: Hosting des Servers (Contabo GmbH, München) und E-Mail-Versand (IONOS SE, Montabaur). Eine Weitergabe Ihrer Daten an Dritte zu anderen Zwecken erfolgt nicht.</div>' + '<div class="sek">5. Erinnerung an die Hauptuntersuchung</div>' + '<div class="para">Wenn Sie uns das Datum der nächsten Hauptuntersuchung Ihres Fahrzeugs nennen, erinnern wir Sie einmalig per E-Mail, sobald die Frist in vier Wochen abläuft. Verarbeitet werden dafür Ihr Name, Ihre E-Mail-Adresse, das Kennzeichen und das HU-Datum. Rechtsgrundlage ist unser berechtigtes Interesse an einem sicheren Fahrzeug unserer Kunden (Art. 6 Abs. 1 lit. f DSGVO). Sie können dieser Erinnerung jederzeit widersprechen — formlos per E-Mail oder telefonisch; wir entfernen das HU-Datum dann aus Ihrem Datensatz. Geben Sie das Datum nicht an, erhalten Sie auch keine Erinnerung.</div>' + '<div class="sek">6. Adressvorschläge bei der Eingabe</div>' + '<div class="para">Wenn Sie eine Anschrift eingeben, schlagen wir passende Straßen vor. Dazu fragt unser Server — nicht Ihr Browser — bei den Kartendiensten Photon (photon.komoot.io, OpenStreetMap-Daten) und OpenPLZ (openplzapi.org, amtliche Daten) an. Übermittelt wird ausschließlich der eingegebene Suchbegriff, also der Anfang der Straße und gegebenenfalls die Postleitzahl. Ihre IP-Adresse, Ihr Name und alle übrigen Daten bleiben bei uns; die Dienste erfahren nicht, wer sucht. Wie jeder Aufruf unserer Anwendung erscheint die Anfrage in unserem Zugriffsprotokoll auf unserem eigenen Server; diese Protokolle werden nach spätestens 14 Tagen gelöscht. Rechtsgrundlage ist unser berechtigtes Interesse an einer korrekten Anschrift (Art. 6 Abs. 1 lit. f DSGVO). Sie können die Adresse auch ohne Vorschläge von Hand eintragen.</div>' + '<div class="sek">7. Ihre Rechte</div>' +
     '<div class="para">Sie haben jederzeit das Recht auf Auskunft (Art. 15 DSGVO), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) sowie Widerspruch (Art. 21). Beschwerden können Sie bei der zuständigen Aufsichtsbehörde einreichen. Sächsische Datenschutz- und Transparenzbeauftragte, Postfach 11 01 32, 01330 Dresden, Telefon +49 351 85471-101, post@sdtb.sachsen.de.</div>' +
-    '<div class="sek">7. Einwilligung</div>' +
+    '<div class="sek">8. Einwilligung</div>' +
     '<div class="para">Mit Ihrer Unterschrift bestätigen Sie, dass Sie diese Datenschutzerklärung erhalten und verstanden haben und einer Verarbeitung Ihrer personenbezogenen Daten zum Zweck der Vertragsdurchführung zustimmen. Ihre Einwilligung ist freiwillig und kann jederzeit widerrufen werden.</div>' +
     '<div class="sig-box">' +
     '<div><div class="sig-area" id="sig-print-area">Unterschrift des Kunden</div><div class="sig-line">' + kEsc(k.vorname + ' ' + k.nachname) + ', ' + datum + '</div></div>' +
