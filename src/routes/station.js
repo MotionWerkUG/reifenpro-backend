@@ -84,7 +84,11 @@ router.post('/auftrag/:id/unterschrift', stationAuth, async (req, res, next) => 
       return res.status(400).json({ error: 'Keine gültige Unterschrift empfangen.' });
     const { rows } = await query(
       `UPDATE signatur_auftraege SET unterschrift=$1, status='unterschrieben', erledigt_am=now()
-        WHERE id=$2 AND station_id=$3 AND status='offen' RETURNING id`,
+        WHERE id=$2 AND station_id=$3 AND status='offen'
+            AND ablauf_am > now() RETURNING id`,   /* Ablauf gehoert in die Bedingung, nicht nur
+            in die Lesepruefung von GET /auftrag: Sonst haengt die Frist an einer Nebenwirkung
+            eines anderen Endpunkts, und ein laengst ueberfaelliges Dokument waere noch
+            unterschreibbar, wenn das Geraet zwischendurch offline war. */
       [String(u), req.params.id, req.station.id]);
     if (!rows.length) return res.status(409).json({ error: 'Der Auftrag ist nicht mehr offen.' });
     res.json({ message: 'Unterschrift übernommen.' });

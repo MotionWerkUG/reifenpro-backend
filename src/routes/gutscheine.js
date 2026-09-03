@@ -3,8 +3,15 @@
 // Gemountet (nur Mitarbeiter) als /api/gutscheine.
 const router = require('express').Router();
 const { query } = require('../db/index');
-const { authenticate, requireStaff } = require('../middleware/auth');
+const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 
+// LESEN darf jeder Mitarbeiter: Der Rechnungseditor muss einen Gutschein anwenden koennen.
+// SCHREIBEN nur der Inhaber -- siehe requireAdmin an den einzelnen Routen unten.
+//
+// Entscheidung des Inhabers: Gutscheine wurden frueher im Homepage-CMS angelegt und geloescht.
+// Ein Gutschein ist aber kein Gestaltungselement, sondern ein Preisnachlass, der auf der Rechnung
+// landet -- WINTER2026 kostet je Einlagerung 10 Euro. Wer Rabatte vergeben darf, entscheidet der
+// Betrieb, nicht das Werkzeug fuer die Website. Und: Im CMS durfte das jeder Mitarbeiter.
 router.use(authenticate, requireStaff);
 
 function normCode(c) { return String(c || '').trim().toUpperCase().replace(/\s+/g, ''); }
@@ -31,7 +38,7 @@ router.get('/pruefen/:code', async (req, res, next) => {
 });
 
 // Anlegen
-router.post('/', async (req, res, next) => {
+router.post('/', requireAdmin, async (req, res, next) => {
   try {
     const code = normCode(req.body.code);
     const rabatt = parseInt(req.body.rabatt_prozent);
@@ -48,7 +55,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // Aendern (aktiv-Status, Rabatt, Gueltigkeit, Beschreibung)
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', requireAdmin, async (req, res, next) => {
   try {
     const cur = (await query('SELECT * FROM gutscheine WHERE id=$1', [req.params.id])).rows[0];
     if (!cur) return res.status(404).json({ error: 'Gutschein nicht gefunden.' });
@@ -66,7 +73,7 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 // Loeschen
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireAdmin, async (req, res, next) => {
   try {
     const { rows } = await query('DELETE FROM gutscheine WHERE id=$1 RETURNING id', [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Gutschein nicht gefunden.' });

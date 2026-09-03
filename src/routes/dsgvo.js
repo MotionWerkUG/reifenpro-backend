@@ -3,7 +3,7 @@ const { execFileSync } = require('child_process');
 const path = require('path');
 const { ohneGeheimnisse } = require('../lib/kundendaten');
 const { query, withTransaction } = require('../db/index');
-const { authenticate, requireStaff } = require('../middleware/auth');
+const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 
 router.get('/', authenticate, requireStaff, async (req, res, next) => {
@@ -150,7 +150,11 @@ router.patch('/:id', authenticate, requireStaff, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/loeschung/:kundenId', authenticate, requireStaff, async (req, res, next) => {
+// Loeschen oder Anonymisieren eines ganzen Kundenkontos ist unumkehrbar und keine
+// Alltagshandlung am Tresen -- deshalb requireAdmin statt requireStaff. Dieselbe Begruendung
+// wie beim Loeschen einer Einlagerung (einlagerungen.js). Vorher durfte jeder Mitarbeiter
+// einen Kunden endgueltig entfernen.
+router.post('/loeschung/:kundenId', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const kid = req.params.kundenId;
     if (!/^[0-9a-fA-F-]{36}$/.test(kid)) return res.status(400).json({ error: 'Ungültige Kunden-ID.' });
@@ -219,6 +223,20 @@ router.post('/loeschung/:kundenId', authenticate, requireStaff, async (req, res,
         await client.query(
           'UPDATE termine SET fahrzeug_id=NULL WHERE fahrzeug_id IN (SELECT id FROM fahrzeuge WHERE kunden_id=$1)', [kid]);
         await client.query('DELETE FROM fahrzeuge WHERE kunden_id=$1', [kid]);
+        // Termine haengen mit ON DELETE SET NULL an kunden -- das DELETE geht also durch, aber
+        // der Termin behaelt seinen Kontakt-Abzug: Name, E-Mail, Telefon, Anschrift, Kennzeichen.
+        // Das ist der Snapshot, den Gast-Buchungen brauchen. Nach einer Loeschung nach Art. 17
+        // DSGVO waeren das verwaiste personenbezogene Daten, die in keiner Kundenakte mehr
+        // auftauchen: Die Loeschung haette Erfolg gemeldet und die Daten waeren geblieben.
+        // Der Termin selbst bleibt als anonyme Zeile stehen, damit Auslastung und Statistik nicht
+        // rueckwirkend verfaelscht werden. Dieser Zweig laeuft ohnehin nur, wenn KEINE
+        // Aufbewahrungspflicht besteht -- keine Einlagerung, keine Rechnung, kein Protokoll.
+        await client.query(
+          `UPDATE termine SET kontakt_name=NULL, kontakt_anrede=NULL, kontakt_vorname=NULL,
+             kontakt_nachname=NULL, kontakt_telefon=NULL, kontakt_email=NULL, kontakt_strasse=NULL,
+             kontakt_plz=NULL, kontakt_ort=NULL, kontakt_firma=NULL, kennzeichen=NULL,
+             beschreibung='(anonymisiert nach Löschung des Kundenkontos)'
+           WHERE kunden_id=$1`, [kid]);
         await client.query('DELETE FROM kunden_dokumente WHERE kunden_id=$1', [kid]);
         await client.query('DELETE FROM dsgvo_anfragen WHERE kunden_id=$1', [kid]);
         await client.query('DELETE FROM kunden WHERE id=$1', [kid]);
