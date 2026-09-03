@@ -303,7 +303,7 @@ function renderSektion(s, f, oz) {
       '<div class="hero-in">' +
       '<h1>' + esc(s.headline || '') + '</h1>' +
       (s.subline ? '<p>' + esc(s.subline) + '</p>' : '') +
-      (s.cta_text ? '<a class="btn" href="' + esc(s.cta_url || '/portal/') + '">' + esc(s.cta_text) + '</a>' : '') +
+      (s.cta_text ? '<a class="btn" href="' + esc(s.cta_url || '/termin/') + '">' + esc(s.cta_text) + '</a>' : '') +
       '</div></section>';
   }
   if (s.typ === 'oeffnungszeiten') {

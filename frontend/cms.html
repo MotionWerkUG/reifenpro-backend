@@ -267,7 +267,7 @@
         <option value="ecke-links">Ecke oben links</option>
         <option value="ecke-rechts">Ecke oben rechts</option>
       </select>
-      <label>Button-Ziel</label><input type="text" id="ak-link" placeholder="/portal/?buchen">
+      <label>Button-Ziel</label><input type="text" id="ak-link" placeholder="/termin/">
       <div class="row"><button class="btn btn-p" onclick="bannerSpeichern()">Banner speichern</button></div>
     </div></div>
 
@@ -961,7 +961,7 @@ function render() {
       h += '<div class="imghint">Beliebiges Foto möglich – es wird automatisch passend zugeschnitten (' +
         (fmt === 'hero' ? 'breites Querformat' : 'Format 4:3') + ') und fürs schnelle Laden optimiert. Die Vorschau zeigt den späteren Ausschnitt.</div>';
     }
-    if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel (z. B. /portal/?registrieren)', s.cta_url); }
+    if (s.typ === 'hero') { h += feld('ct-' + s.id, 'Button-Text', s.cta_text); h += feld('cu-' + s.id, 'Button-Ziel (z. B. /termin/ — Buchung ohne Anmeldung)', s.cta_url); }
     if (auto) h += '<div class="autohint">Der Inhalt dieses Abschnitts wird automatisch aus Ihren Firmendaten (Einstellungen) erzeugt – inklusive Adresse, Telefon und Karte.</div>';
     h += '<div class="row"><button class="btn btn-p" onclick="speichern(\'' + s.id + '\')">Speichern</button>' +
       '<button class="btn-icon" title="nach oben" onclick="move(\'' + s.id + '\',\'up\')"' + (idx === 0 ? ' disabled' : '') + '>&#8593;</button>' +
