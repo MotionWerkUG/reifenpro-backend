@@ -2582,7 +2582,12 @@ function kassieren(id, zahlart) {
   api('POST', '/rechnungen/' + id + '/barzahlung', { zahlart: zahlart }).then(function(r) {
     notify((r && r.hinweis) || 'In der Kasse gebucht.');
     loadRechnungen();
-  }).catch(function(e) { notify(e.message, 'err'); });
+  }).catch(function(e) {
+    notify(e.message, 'err');
+    // Auch im Fehlerfall neu laden: Hat ein zweiter Vorgang die Rechnung inzwischen
+    // ausgeglichen (409), stimmt die angezeigte Liste sonst nicht mehr mit der Kasse ueberein.
+    loadRechnungen();
+  });
 }
 function toggleBezahlt(id, bezahlt) {
   api('PATCH', '/rechnungen/' + id + '/bezahlt', { bezahlt: bezahlt }).then(function() { notify('Aktualisiert.'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });

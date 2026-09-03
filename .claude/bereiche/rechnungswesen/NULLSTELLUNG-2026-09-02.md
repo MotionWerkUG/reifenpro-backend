@@ -63,3 +63,34 @@ und diese Wahrheit gehört nachvollziehbar dokumentiert. Genau deshalb gibt es d
   der Kasse **vor** deren erster Echtbuchung, Meldung nach § 146a Abs. 4 AO über ELSTER.
 - Dem Datenbankbenutzer das Recht entziehen, die Rechnungstabellen zu leeren (`TRUNCATE`
   umgeht den Löschschutz, weil dabei keine Trigger auslösen).
+
+---
+
+## Nachtrag 03.09.2026 — Nullstand bestätigt, Belegordner zusätzlich gehärtet
+
+Bei der Prüfung am 03.09.2026 nachgezählt: Der produktive Belegordner
+`/home/deploy/projekte/reifenpro/rechnungen/` ist leer, `rechnungen` und
+`rechnung_positionen` sind leer, `rechnung_counter` ist unbenutzt. Der Nullstand von oben
+gilt unverändert. Die erste echte Rechnung erhält RE-2026-0001.
+
+**Wichtige Unterscheidung, an der ich mich zuerst selbst verlaufen habe:** Es gibt zwei
+Ordner dieses Namens. Der produktive ist der im Hauptordner `reifenpro/` — nur dorthin
+schreibt der laufende Prozess, denn `PDF_DIR` wird aus dem Modulpfad gebildet und PM2 startet
+aus dem Hauptordner. Der gleichnamige Ordner in einem Bereichs-Worktree
+(`reifenpro/rechnungswesen/rechnungen/`) füllt sich nur bei manuellen Läufen in diesem
+Worktree und hat mit den Geschäftsbelegen nichts zu tun.
+
+Ich hatte vier Testdateien aus dem **Worktree**-Ordner gefunden und daraus zunächst
+geschlossen, die Nullstellung sei unvollständig gewesen. Das war falsch — sie war vollständig.
+Die vier Dateien lagen nach `/var/backups/reifenpro/qa-artefakte-2026-09-03/` verschoben und
+bleiben dort; es sind Testartefakte ohne Datensatz, keine Belege.
+
+Zusätzlich umgesetzt: Beide Ordner stehen jetzt auf 0750 statt 0755, neue Belege legt der
+Code mit 0640 an. Vorher konnte jeder Unix-Nutzer des Servers die Belege lesen, und auf dem
+Server laufen mehrere Projekte.
+
+**Betriebliche Folge, die bekannt sein muss:** Der PM2-Prozess läuft als root. Neue
+Beleg-PDFs gehören damit `root:root` und sind mit 0640 für den Betriebsnutzer `deploy` nicht
+mehr ohne `sudo` lesbar. Das weicht bewusst von der Regel „Dateien im Projekt gehören
+deploy:deploy" ab — bei Belegen ist der engere Zugriff gewollt. Die nächtliche Sicherung läuft
+ebenfalls als root und ist nicht betroffen.

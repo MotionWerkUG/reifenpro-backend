@@ -173,6 +173,34 @@ test('Storno bekommt eine eigene fortlaufende Nummer, das Original bleibt besteh
   assert.ok(text.includes(f.body.rechnungsnr), 'Nummer der Originalrechnung steht auf dem Storno-Beleg');
 });
 
+test('Storno hebt einen Endpreis auf den Cent genau auf', async () => {
+  // Endpreis-Betrieb: 44,00 EUR brutto sind der zugesagte Preis. Rechnet das Storno aus dem
+  // abgeleiteten Netto (36,97) wieder hoch, kommen nur 43,99 zurueck — auf dem Debitorenkonto
+  // bliebe 1 Cent stehen, obwohl der Beleg "hebt vollstaendig auf" druckt. Die Luecke trifft
+  // rund ein Sechstel aller Cent-Betraege, deshalb ein fester Regressionsfall.
+  const id = await neuerEntwurf({
+    positionen: [{ bezeichnung: 'Raederwechsel', menge: 1, einheit: 'Stk', einzelpreis_brutto: 44.00, mwst_satz: 19 }]
+  });
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + id + '/festschreiben');
+  assert.equal(f.status, 200, JSON.stringify(f.body));
+  assert.equal(Number(f.body.brutto_summe), 44.00, 'Endpreis bleibt exakt');
+
+  const s = await h.api(token, 'POST', '/api/rechnungen/' + id + '/storno');
+  assert.equal(s.status, 201, JSON.stringify(s.body));
+  assert.equal(Number(s.body.brutto_summe), -44.00, 'Storno stellt den Bruttobetrag exakt auf null');
+  assert.equal(Number(s.body.netto_summe), -Number(f.body.netto_summe), 'auch das Netto spiegelt exakt');
+  assert.equal(Number(s.body.mwst_summe), -Number(f.body.mwst_summe), 'und die ausgewiesene Steuer');
+
+  // Summe aus Original und Storno muss in jeder Spalte glatt null sein — sonst findet der
+  // Steuerberater eine Differenz, die sich nicht aufloesen laesst.
+  const sum = await h.query(
+    `SELECT COALESCE(SUM(netto_summe),0) AS n, COALESCE(SUM(mwst_summe),0) AS m, COALESCE(SUM(brutto_summe),0) AS b
+       FROM rechnungen WHERE id=$1 OR storno_von_id=$1`, [id]);
+  assert.equal(Number(sum.rows[0].n), 0, 'Netto gleicht sich aus');
+  assert.equal(Number(sum.rows[0].m), 0, 'Steuer gleicht sich aus');
+  assert.equal(Number(sum.rows[0].b), 0, 'Brutto gleicht sich aus');
+});
+
 test('Festgeschriebene Rechnung ist unveraenderbar und nicht loeschbar', async () => {
   const id = await neuerEntwurf();
   assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + id + '/festschreiben')).status, 200);

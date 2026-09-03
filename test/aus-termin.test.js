@@ -117,6 +117,54 @@ test('Gestaffelter Gutschein: jede Leistung behaelt ihren zugesagten Satz', asyn
   assert.ok(nachlass.every((p) => p.bezeichnung.includes('WINTER2026')), 'der Code steht auf dem Beleg');
 });
 
+test('Gewerbe-Kondition wird auf dem Beleg als vereinbarter Nachlass benannt', async () => {
+  // Gewerbekunden haben Dauerkonditionen statt Aktionsgutscheine. Beides schliesst sich seit
+  // der Portal-Aenderung gegenseitig aus, es gibt also je Termin genau eine Herkunft. Auf dem
+  // Beleg muss erkennbar sein, WORAUF der Nachlass beruht — "Nachlass Auswuchten (20 %)" allein
+  // laesst offen, ob da ein Gutschein eingeloest wurde, den niemand mehr findet.
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  const leistungen = [
+    { bezeichnung: 'Auswuchten', mwst_satz: 19, zeilen_brutto: 25, zeilen_netto: 21.01,
+      grundpreis_netto: 21.01, zuschlag_netto: 0, rabatt_prozent: 20, preis_quelle: 'konditionen' }
+  ];
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen)
+     VALUES (CURRENT_DATE, '09:00', '10:00', 'Auswuchten', 'abgeschlossen', $1, $2) RETURNING id`,
+    [kunde, JSON.stringify(leistungen)]);
+
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(Number(r.body.brutto_summe), 20.00, '25,00 abzueglich 20 %');
+
+  const pos = (await h.query('SELECT bezeichnung FROM rechnung_positionen WHERE rechnung_id=$1 ORDER BY position', [r.body.id])).rows;
+  const nachlass = pos.find((p) => /Nachlass/.test(p.bezeichnung));
+  assert.ok(nachlass, JSON.stringify(pos.map((p) => p.bezeichnung)));
+  assert.ok(nachlass.bezeichnung.includes('Vereinbarter Nachlass'), 'Herkunft steht auf dem Beleg: ' + nachlass.bezeichnung);
+  assert.ok(!/Gutschein/.test(nachlass.bezeichnung), 'und wird nicht faelschlich als Gutschein ausgewiesen');
+});
+
+test('Kundenpreis erzeugt keine Nachlasszeile', async () => {
+  // Ein hinterlegter Kundenpreis IST der Preis — kein Rabatt auf einen Listenpreis. Eine
+  // Minuszeile wuerde einen Nachlass ausweisen, den es nie gab.
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  const leistungen = [
+    { bezeichnung: 'Auswuchten', mwst_satz: 19, zeilen_brutto: 24, zeilen_netto: 20.17,
+      grundpreis_netto: 20.17, zuschlag_netto: 0, rabatt_prozent: 0, preis_quelle: 'kundenpreis' }
+  ];
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen)
+     VALUES (CURRENT_DATE, '09:00', '10:00', 'Auswuchten', 'abgeschlossen', $1, $2) RETURNING id`,
+    [kunde, JSON.stringify(leistungen)]);
+
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+  assert.equal(Number(r.body.brutto_summe), 24.00, 'der Kundenpreis bleibt exakt');
+  const pos = (await h.query('SELECT bezeichnung FROM rechnung_positionen WHERE rechnung_id=$1', [r.body.id])).rows;
+  assert.equal(pos.filter((p) => /Nachlass/.test(p.bezeichnung)).length, 0, 'keine erfundene Nachlasszeile');
+});
+
 test('Kein zweiter Gutschein auf einen Termin, der schon einen Nachlass traegt', async () => {
   const { token } = await h.seedBasis({ preise_inkl_mwst: true });
   const kunde = await h.seedKunde();

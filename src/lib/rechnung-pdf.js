@@ -60,7 +60,9 @@ async function erzeugeRechnungPdf(rech, positionen) {
 
   return new Promise((resolve, reject) => {
     try {
-      if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true });
+      // Belege enthalten Namen, Anschriften und Betraege. Auf einem Server mit mehreren
+      // Projekten hat kein fremder Unix-Nutzer dort etwas zu suchen: Ordner 0750, Datei 0640.
+      if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true, mode: 0o750 });
       const pfad = path.join(PDF_DIR, safeName(rech.rechnungsnr) + '.pdf');
       const doc = new PDFDocument({ size: 'A4', margins: { top: 48, bottom: 40, left: 50, right: 50 } });
       const stream = fs.createWriteStream(pfad);
@@ -228,7 +230,10 @@ async function erzeugeRechnungPdf(rech, positionen) {
          .text(fuss || (a.firmenname || ''), left, 806, { width: rightEdge - left, align: 'center', lineBreak: false });
 
       doc.end();
-      stream.on('finish', function () { resolve(pfad); });
+      stream.on('finish', function () {
+        try { fs.chmodSync(pfad, 0o640); } catch (e) { /* Rechte nicht setzbar: Beleg trotzdem gueltig */ }
+        resolve(pfad);
+      });
       stream.on('error', reject);
     } catch (err) { reject(err); }
   });

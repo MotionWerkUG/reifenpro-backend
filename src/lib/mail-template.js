@@ -94,4 +94,4 @@ function kundenMailHtml(einst, opts) {
   });
 }
 
-module.exports = { portalMailHtml, anredeGruss, fuelleText, kundenMailHtml };
+module.exports = { portalMailHtml, anredeGruss, fuelleText, kundenMailHtml, esc };
