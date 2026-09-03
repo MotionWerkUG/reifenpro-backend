@@ -256,6 +256,13 @@ async function bewertungsAnfrage() {
 //  - Standardmaessig laeuft der Job als TROCKENLAUF: er zaehlt und protokolliert nur. Scharf wird er
 //    erst mit LOESCHLAUF_SCHARF=1 in der .env. Eine falsch gesetzte Frist ist schlimmer als gar keine,
 //    deshalb erst sehen, was passieren wuerde, dann schalten.
+// Abgelaufene Abmeldungen wegraeumen. Nach Ablauf des Merkmals ist es ohnehin ungueltig --
+// der Vermerk wird dann nicht mehr gebraucht und die Tabelle bleibt klein.
+async function abmeldungenAufraeumen() {
+  const r = await query('DELETE FROM abgemeldete_sitzungen WHERE ablauf < NOW()');
+  if (r.rowCount) console.log('[' + new Date().toISOString() + '] ' + r.rowCount + ' abgelaufene Abmeldungen weggeraeumt.');
+}
+
 async function loeschkonzept() {
   const scharf = process.env.LOESCHLAUF_SCHARF === '1';
   const zeit = '[' + new Date().toISOString() + '] Loeschkonzept' + (scharf ? '' : ' (TROCKENLAUF)') + ': ';
@@ -304,6 +311,7 @@ async function loeschkonzept() {
     await huWarnung();
     await bewertungsAnfrage();
     await loeschkonzept();
+    try { await abmeldungenAufraeumen(); } catch (e) { console.error("[abmeldungen]", e.message); }
   } catch (e) {
     console.error('Cron-Fehler:', e.message);
   } finally {

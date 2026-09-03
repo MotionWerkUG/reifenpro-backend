@@ -8,8 +8,12 @@ const { auditLog }     = require('../middleware/errorHandler');
 // Konstanter, gueltiger bcrypt-Hash fuer Timing-Angleich bei unbekannter E-Mail (verhindert User-Enumeration, analog Portal).
 const DUMMY_HASH = '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW';
 
+// jti: eigene Kennung je Anmeldung. Ohne sie liesse sich ein Merkmal nicht zurueckrufen --
+// es ist signiert und traegt seinen Zustand selbst. Das Abmelden vermerkt genau diese Kennung,
+// trifft also NUR diese eine Sitzung: Wer am Telefon angemeldet ist, bleibt es, wenn er sich
+// am Tresen abmeldet.
 const makeToken = (userId) =>
-  jwt.sign({ userId }, process.env.JWT_SECRET,
+  jwt.sign({ userId, jti: crypto.randomUUID() }, process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
 
 const makeRefresh = (userId) =>
@@ -89,9 +93,17 @@ router.post('/refresh', async (req, res, next) => {
 
 router.post('/logout', authenticate, async (req, res, next) => {
   try {
-    const { refreshToken } = req.body;
-    if (refreshToken)
-      await query('DELETE FROM refresh_tokens WHERE token=$1', [refreshToken]);
+    // Diese Sitzung ungueltig machen. Vorher blieb das Merkmal nach dem Abmelden acht Stunden
+    // lang gueltig -- wer es abgegriffen hatte, kam weiter hinein.
+    if (req.tokenJti && req.tokenAblauf) {
+      await query(
+        'INSERT INTO abgemeldete_sitzungen (jti, user_id, ablauf) VALUES ($1,$2,$3) ON CONFLICT (jti) DO NOTHING',
+        [req.tokenJti, req.user.id, new Date(req.tokenAblauf * 1000)]);
+    }
+    // Erneuerungsmerkmale dieses Nutzers ebenfalls entwerten. Frueher wurde nur eines geloescht,
+    // und auch das nur, wenn die Oberflaeche es mitschickte -- was sie nicht tat. Sie sind
+    // 30 Tage gueltig; ein vergessenes waere der laengere Weg zurueck ins System.
+    await query('DELETE FROM refresh_tokens WHERE user_id=$1', [req.user.id]).catch(() => {});
     await auditLog({ userId: req.user.id, aktion: 'auth.logout', req });
     res.json({ message: 'Erfolgreich abgemeldet.' });
   } catch (err) { next(err); }

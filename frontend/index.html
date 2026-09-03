@@ -1638,6 +1638,21 @@ window.addEventListener('load', function() {
 
   // Auth pruefen
   var ls = document.getElementById('login-screen');
+  // Grund einer vorangegangenen Abmeldung anzeigen. Er wurde vor dem Neuladen abgelegt, weil
+  // ein Rauswurf wegen Inaktivitaet sonst wie ein Fehler aussaehe.
+  try {
+    var _g = sessionStorage.getItem('rp_logout_grund');
+    if (_g) {
+      sessionStorage.removeItem('rp_logout_grund');
+      var _le = document.getElementById('lerr');
+      if (_le) {
+        _le.textContent = _g === 'idle'
+          ? 'Sie wurden aus Sicherheitsgründen wegen Inaktivität abgemeldet.'
+          : 'Ihre Sitzung ist abgelaufen. Bitte erneut anmelden.';
+        _le.style.display = 'block';
+      }
+    }
+  } catch (e) {}
   var _resetToken = new URLSearchParams(location.search).get('reset');
   if (_resetToken) { if (ls) ls.style.display = 'flex'; pwResetAbschluss(_resetToken); return; }
   if (TOKEN && USER) {
@@ -1699,8 +1714,11 @@ function doLogin() {
       TOKEN = r.token; USER = r.user;
       localStorage.setItem('rp_token', TOKEN);
       localStorage.setItem('rp_user', JSON.stringify(USER));
-      document.getElementById('login-screen').style.display = 'none';
-      startApp();
+      // Auch nach dem Anmelden neu laden: Der Anmeldebildschirm kann ueber einer Seite gelegen
+      // haben, die noch Daten des vorherigen Zugangs traegt (Sitzung abgelaufen, Abmeldung in
+      // einem anderen Reiter). Der eben hinterlegte Zugang traegt das Neuladen, der Ablauf
+      // endet also direkt im angemeldeten Bereich.
+      location.replace(location.pathname);
     })
     .catch(function(e) { err.textContent = e.message; err.style.display = 'block'; });
 }
@@ -1758,13 +1776,24 @@ function doLogout(grund) {
   Array.prototype.forEach.call(document.querySelectorAll('.ov.open'), function(m) { m.classList.remove('open'); });
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
-  // Freundlicher Hinweis statt kommentarlosem Rauswurf
-  var le = document.getElementById('lerr');
-  if (le) {
-    if (grund === 'idle') { le.textContent = 'Sie wurden aus Sicherheitsgründen wegen Inaktivität abgemeldet.'; le.style.display = 'block'; }
-    else if (grund === 'expired') { le.textContent = 'Ihre Sitzung ist abgelaufen. Bitte erneut anmelden.'; le.style.display = 'block'; }
-    else { le.style.display = 'none'; }
-  }
+
+  // SEITE VOLLSTAENDIG NEU LADEN.
+  //
+  // Vorher wurde nur die Anzeige umgeschaltet: Der angemeldete Bereich verschwand, aber ALLES
+  // blieb -- die geladenen Kunden, Termine, Rechnungen und Einstellungen in den Variablen, und
+  // die fertig gezeichneten Seiten im Dokument. Wer sich danach anmeldete, sah zuerst die Daten
+  // des Vorgaengers. Am Tresen ist das der Fall, der zaehlt: Der Inhaber meldet sich ab, ein
+  // Mitarbeiter meldet sich an -- und hat Rechnungen und Einstellungen vor sich, die seine Rolle
+  // gar nicht sehen darf.
+  // Ein Neuladen ist die einzige Loesung, die nichts vergisst. Jede Liste einzeln zu leeren waere
+  // eine Pflegeaufgabe, die beim naechsten neuen Bereich schon wieder unvollstaendig ist.
+  //
+  // Der Abmeldegrund ueberlebt das Neuladen in sessionStorage -- sonst waere der Hinweis weg und
+  // ein Rauswurf wegen Inaktivitaet saehe aus wie ein Fehler.
+  try { if (grund) sessionStorage.setItem('rp_logout_grund', grund); } catch (e) {}
+  // pathname ohne Anker und Abfrage: Der Anker koennte auf einen Bereich zeigen, den der
+  // naechste Anmeldende gar nicht sehen darf.
+  location.replace(location.pathname);
 }
 
 // ── IDLE-TIMEOUT (Sicherheit: unbeaufsichtigter Tresen-Rechner meldet sich ab) ──
