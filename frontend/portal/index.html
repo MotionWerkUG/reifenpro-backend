@@ -558,6 +558,8 @@ var I18N = {
     register_now: 'Jetzt registrieren', register_sub: 'Neues Kundenkonto erstellen',
     firstname: 'Vorname', lastname: 'Nachname', phone: 'Telefon (optional)',
     customer_type: 'Kundenart', customer_private: 'Privatkunde', customer_business: 'Firmenkunde',
+    session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
+    delete_request_pending: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen. Bis dahin können Sie sich weiterhin anmelden.',
     early_service_required: 'Bitte stimmen Sie zu, dass wir den Termin innerhalb der Widerrufsfrist ausführen dürfen.',
     company_name: 'Firma',
     company_hint: 'Bitte geben Sie den vollständigen Firmennamen mit Rechtsform an — so erscheint er auf der Rechnung. Name und Anrede darunter sind Ihre Ansprechperson.',
@@ -631,6 +633,8 @@ var I18N = {
     register_now: 'Register now', register_sub: 'Create new customer account',
     firstname: 'First name', lastname: 'Last name', phone: 'Phone (optional)',
     customer_type: 'Customer type', customer_private: 'Private customer', customer_business: 'Business customer',
+    session_expired: 'Your session has expired. Please sign in again.',
+    delete_request_pending: 'Your deletion request has been received. We will get back to you. Until then you can still sign in.',
     early_service_required: 'Please agree that we may carry out the appointment within the withdrawal period.',
     company_name: 'Company',
     company_hint: 'Please give the full company name including its legal form — this is how it appears on the invoice. The name and salutation below are your contact person.',
@@ -729,7 +733,7 @@ function papi(method, path, body) {
   if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
   if (body) opts.body = JSON.stringify(body);
   return fetch(API + path, opts).then(function(r) {
-    if (r.status === 401) { portalLogout(); throw new Error(t('login_failed')); }
+    if (r.status === 401) { portalLogout('abgelaufen'); throw new Error(t('login_failed')); }
     if (!r.ok) return r.json().then(function(e) { throw new Error(e.error || 'Fehler'); });
     return r.status === 204 ? null : r.json();
   });
@@ -759,6 +763,18 @@ function zeigeScreen(s) {
   // Fixen Sprachschalter nur auf Auth-Screens zeigen (im App-Header sitzt ein eigener)
   var ls = document.querySelector('.lang-switch');
   if (ls) ls.style.display = (s === 'app') ? 'none' : 'flex';
+  // Einmaliger Hinweis nach einer erzwungenen Abmeldung -- sonst steht der Kunde ohne Erklaerung
+  // wieder vor der Anmeldung und haelt es fuer einen Fehler.
+  if (window._abmeldeGrund && s === 'login') {
+    var _h = document.getElementById('login-err');
+    if (_h) {
+      // Je Anlass ein eigener Text: "Sitzung abgelaufen" waere nach einem Loeschauftrag falsch --
+      // das Konto bleibt aktiv, es ist nur ein Auftrag hinterlegt.
+      _h.textContent = (window._abmeldeGrund === 'geloescht') ? t('delete_request_pending') : t('session_expired');
+      _h.classList.remove('hidden');
+    }
+    window._abmeldeGrund = null;
+  }
 }
 // Token aus dem "Kundenkonto erstellen"-Link der Terminbestaetigung (?konto=...)
 var KONTO_TOKEN = '';
@@ -974,11 +990,43 @@ function portalNeuesPasswort() {
 
 function zeigePwReset() { zeigeScreen('reset'); }
 
-function portalLogout() {
+// Abmelden heisst: Es darf NICHTS vom Vorgaenger uebrig bleiben. Vorher wurde nur die Anzeige
+// umgeschaltet -- die geladenen Daten standen weiter in den Variablen, und die fertig
+// gezeichneten Seiten blieben im Dokument. Wer sich danach anmeldete, sah zuerst Einlagerungen,
+// Kennzeichen und Belege des Vorgaengers. Im Portal wechseln KUNDEN am selben Geraet: geteiltes
+// Tablet, Familie, oeffentlicher Rechner. Das waere ein Datenschutzvorfall, kein Schoenheitsfehler.
+//
+// Deshalb vollstaendiges Neuladen statt einer Liste zu leerender Variablen -- eine solche Liste
+// ist beim naechsten neuen Bereich schon wieder unvollstaendig. Neuladen vergisst nichts.
+// location.pathname statt reload(): Der Anker soll bewusst verschwinden, sonst landet der
+// naechste Anmelder auf der Seite des Vorgaengers.
+// Der Grund muss das Neuladen ueberleben, sonst sieht ein Rauswurf wegen abgelaufener Sitzung
+// aus wie ein Fehler ohne Erklaerung.
+function portalLogout(grund) {
+  var tok = TOKEN;   // nicht t -- das ist im Rest der Datei die Uebersetzungsfunktion
   TOKEN = null; KUNDE = null;
-  localStorage.removeItem('rp_portal_token');
-  zeigeScreen('login');
+  try { localStorage.removeItem('rp_portal_token'); } catch (e) {}
+  try { if (grund) sessionStorage.setItem('rp_portal_abmeldegrund', grund); } catch (e) {}
+  // Serverseitig abmelden, damit das Merkmal nicht acht Stunden weiterlebt. Das Neuladen wartet
+  // nicht darauf: Es soll auch dann passieren, wenn der Server gerade nicht erreichbar ist.
+  if (tok) {
+    try {
+      fetch(API + '/auth/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok } }).catch(function() {});
+    } catch (e) {}
+  }
+  location.replace(location.pathname);
 }
+
+// Grund einer erzwungenen Abmeldung nach dem Neuladen zeigen -- einmalig.
+(function () {
+  try {
+    var g = sessionStorage.getItem('rp_portal_abmeldegrund');
+    if (g) {
+      sessionStorage.removeItem('rp_portal_abmeldegrund');
+      window._abmeldeGrund = g;
+    }
+  } catch (e) {}
+})();
 
 function startPortal() {
   zeigeScreen('app');
@@ -1857,7 +1905,7 @@ function kontoLoeschen() {
     if (!confirm(t('delete_account_confirm'))) return;
     papi('POST', '/auth/konto-loeschen').then(function() {
       alert(t('delete_account_done'));
-      portalLogout();
+      portalLogout('geloescht');
     }).catch(function(e) { notify(e.message, 'err'); });
   }).catch(function(e) { notify(e.message, 'err'); });
 }

@@ -45,7 +45,16 @@ async function authKunde(req, res, next) {
     // Nach einer Passwortaenderung aeltere Tokens ungueltig machen (5s Toleranz)
     if (rows[0].passwort_geaendert_am && payload.iat && payload.iat * 1000 < new Date(rows[0].passwort_geaendert_am).getTime() - 5000)
       return res.status(401).json({ error: 'Sitzung abgelaufen. Bitte neu anmelden.' });
+    // Wurde genau diese Sitzung abgemeldet? Gleiche Tabelle wie im Admin-Weg, damit es EINE
+    // gibt und nicht zwei. user_id bleibt leer: Ein Kunde steht nicht in users, und der
+    // Fremdschluessel dort zeigt genau dorthin. Fuer den Rueckruf genuegt die Kennung.
+    if (payload.jti) {
+      const ab = await query('SELECT 1 FROM abgemeldete_sitzungen WHERE jti=$1', [payload.jti]);
+      if (ab.rows.length) return res.status(401).json({ error: 'Sitzung abgemeldet.', code: 'ABGEMELDET' });
+    }
     req.kunde = rows[0];
+    req.tokenJti = payload.jti || null;
+    req.tokenAblauf = payload.exp || null;
     next();
   } catch (e) {
     return res.status(401).json({ error: 'Token ungültig' });
@@ -433,7 +442,11 @@ router.post('/login', loginLimiter, async (req, res, next) => {
     // code: maschinenlesbar, damit das Portal die Meldung lokalisieren kann (DE/EN); error bleibt als Fallback
     if (!k.portal_email_bestaetigt) return res.status(401).json({ code: 'EMAIL_UNBESTAETIGT', error: 'E-Mail noch nicht bestätigt. Bitte prüfen Sie Ihr Postfach.' });
     if (!k.portal_freigegeben) return res.status(401).json({ code: 'NICHT_FREIGEGEBEN', error: 'Ihr Konto wurde noch nicht freigeschaltet. Wir melden uns in Kürze.' });
-    const token = jwt.sign({ id: k.id, typ: 'kunde' }, process.env.JWT_SECRET, { expiresIn: '8h' });
+    // Eigene Kennung je Anmeldung: Ein signiertes Merkmal laesst sich nicht zurueckrufen, also
+    // braucht das Abmelden etwas, das man vermerken kann. Ohne das blieb es nach dem Abmelden
+    // acht Stunden gueltig -- und im Portal wechseln KUNDEN am selben Geraet, nicht Mitarbeiter.
+    const jti = crypto.randomBytes(16).toString('hex');
+    const token = jwt.sign({ id: k.id, typ: 'kunde', jti: jti }, process.env.JWT_SECRET, { expiresIn: '8h' });
     res.json({
       token,
       kunde: { id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, hu_datum: k.hu_datum, ist_gewerbe: k.ist_gewerbe }
@@ -528,6 +541,22 @@ router.put('/passwort-aendern', authKunde, async (req, res, next) => {
     const hash = await bcrypt.hash(passwort, 12);
     await query('UPDATE kunden SET portal_password=$1, passwort_geaendert_am=NOW(), geaendert_am=NOW() WHERE id=$2', [hash, req.kunde.id]);
     res.json({ message: 'Passwort geändert' });
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/portal/auth/logout ──
+// Es gab im Portal gar keinen Abmelde-Endpunkt: Die Oberflaeche warf das Merkmal nur weg, gueltig
+// blieb es die vollen acht Stunden. Wer es abgegriffen hatte -- oder wer an einem geteilten Geraet
+// im Verlauf nachsah -- kam weiter an Einlagerungen, Kennzeichen und Belege.
+// Es trifft NUR diese eine Sitzung: Wer am Telefon angemeldet ist, bleibt es.
+router.post('/logout', authKunde, async (req, res, next) => {
+  try {
+    if (req.tokenJti && req.tokenAblauf) {
+      await query(
+        'INSERT INTO abgemeldete_sitzungen (jti, ablauf) VALUES ($1,$2) ON CONFLICT (jti) DO NOTHING',
+        [req.tokenJti, new Date(req.tokenAblauf * 1000)]);
+    }
+    res.json({ message: 'abgemeldet' });
   } catch (e) { next(e); }
 });
 
