@@ -3326,6 +3326,13 @@ function renderK() {
     } else {
       portalBadge = '<span class="badge b-n">-</span>';
     }
+    // Hat sich selbst als Firmenkunde eingetragen, ist aber noch nicht als Gewerbekunde
+    // eingestuft. Die Selbstauskunft setzt bewusst NUR kundentyp und firma — die
+    // Gewerbe-Kennung vergibt der Betrieb, nachdem er mit dem Kunden gesprochen hat.
+    // Ohne diesen Hinweis laege der Wunsch in der Datenbank und niemand saehe ihn.
+    if (k.kundentyp === 'firma' && !k.ist_gewerbe) {
+      portalBadge += ' <span class="badge b-y" title="Hat sich als Firmenkunde registriert. Gewerbe-Kennung und Konditionen vergeben Sie in der Kundenakte.">Gewerbe offen</span>';
+    }
     return '<div class="kunden-row" onclick="zeigeK(\'' + k.id + '\')">' +
       '<span style="font-size:12px;color:var(--accent-text);font-weight:600">' + k.kunden_nr + '</span>' +
       '<span style="font-weight:600">' + kEsc(k.vorname + ' ' + k.nachname) + huWarn + (k.ist_gewerbe ? ' <span style="background:#1a3a6e;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">GEWERBE</span>' : '') + '</span>' +
@@ -3338,11 +3345,22 @@ function renderK() {
 }
 function ladeKonditionen(id) {
   var el = document.getElementById('kd-gewerbe'); if (!el) return;
+  // Wartet dieser Kunde auf die Einstufung? Dann steht das ueber den Konditionen, nicht
+  // irgendwo in der Liste — hier wird die Entscheidung getroffen.
+  var aktK2 = (typeof aktK !== 'undefined') ? aktK : null;
+  var wartet = aktK2 && aktK2.kundentyp === 'firma' && !aktK2.ist_gewerbe;
   el.innerHTML = '<div style="color:var(--muted);font-size:13px">Lädt …</div>';
   Promise.all([api('GET', '/kunden/' + id + '/konditionen'), api('GET', '/artikel')]).then(function (res) {
     var k = res[0] || {}, arts = res[1] || [];
     var preisMap = {}; (k.preise || []).forEach(function (p) { preisMap[p.artikel_id] = p.preis; });
-    var h = '<label style="display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:14px;cursor:pointer"><input type="checkbox" id="kd-g-flag"' + (k.ist_gewerbe ? ' checked' : '') + '> <b>Gewerbe-/Großkunde</b> (Sonderkonditionen)</label>';
+    var h = wartet
+      ? '<div style="background:rgba(234,179,8,.10);border:1px solid rgba(234,179,8,.45);border-left:4px solid var(--gold,#eab308);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.6">' +
+        '<b>Dieser Kunde hat sich als Firmenkunde registriert' + (aktK2.firma ? ': ' + kEsc(aktK2.firma) : '') + '.</b><br>' +
+        'Die Angabe ist eine Selbstauskunft und noch nicht geprüft. Setzen Sie den Haken unten, ' +
+        'wenn Sie ihn als Gewerbekunden führen wollen — erst dann kann er Sammeltermine für ' +
+        'mehrere Fahrzeuge buchen. Konditionen vereinbaren Sie unabhängig davon.</div>'
+      : '';
+    h += '<label style="display:flex;align-items:center;gap:9px;margin-bottom:12px;font-size:14px;cursor:pointer"><input type="checkbox" id="kd-g-flag"' + (k.ist_gewerbe ? ' checked' : '') + '> <b>Gewerbe-/Großkunde</b> (Sonderkonditionen)</label>';
     h += '<div class="fg" style="max-width:240px"><label>Pauschalrabatt auf alle Leistungen (%)</label><input id="kd-g-rabatt" type="number" min="0" max="100" value="' + (k.grosskunden_rabatt || 0) + '"></div>';
     h += '<div style="font-size:12px;color:var(--muted);margin:14px 0 6px">Feste Netto-Preise je Leistung (leer = Standardpreis bzw. Rabatt):</div>';
     h += '<div style="display:grid;grid-template-columns:1fr 120px;gap:6px 12px;align-items:center;max-width:500px">';
