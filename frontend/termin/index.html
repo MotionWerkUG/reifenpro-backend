@@ -511,10 +511,14 @@ function vorzeitigPruefen(){
   if(!wrap) return;
   if(!vorzeitigNoetig()){ wrap.style.display='none'; document.getElementById('f-vorzeitig').checked=false; return; }
   var d=state.datum.split('-');
+  // In der ICH-Form formuliert. Der Satz ist eine Erklaerung des Kunden ueber sich selbst,
+  // keine Ansprache des Betriebs — damit ist er von der Anrede unabhaengig und bleibt bei der
+  // Umstellung auf Sie unveraendert richtig. Die frueher hier stehende Fassung ("Ja, ihr duerft
+  // den Termin ausfuehren") war an den Betrieb gerichtet und haette gesiezt schief geklungen.
   document.getElementById('vorzeitig-text').innerHTML =
-    'Ja, ihr dürft den Termin am <strong>'+d[2]+'.'+d[1]+'.'+d[0]+'</strong> ausführen, obwohl meine '
-    + '14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, dass mein Widerrufsrecht '
-    + 'erlischt, sobald die Leistung vollständig erbracht ist. *';
+    'Ich bin damit einverstanden, dass der Termin am <strong>'+d[2]+'.'+d[1]+'.'+d[0]+'</strong> '
+    + 'ausgeführt wird, obwohl meine 14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, '
+    + 'dass mein Widerrufsrecht erlischt, sobald die Leistung vollständig erbracht ist. *';
   wrap.style.display='';
 }
 function fehler(m){var e=document.getElementById('err');e.textContent=m;e.style.display='block';}
