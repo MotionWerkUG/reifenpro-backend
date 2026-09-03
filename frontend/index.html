@@ -371,6 +371,28 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .einst-rail .etab.on { background: var(--panel); color: var(--accent-text); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent-text); }
 .einst-content { min-width: 0; }
 @media (max-width: 720px) { .einst-split { grid-template-columns: 1fr; gap: 10px; } .einst-rail { flex-direction: row; flex-wrap: wrap; position: static; } .einst-rail .etab { width: auto; } .einst-rail .etab.on { box-shadow: none; border-bottom: 2px solid var(--accent-text); } }
+  /* Benutzer und Rollen: Liste links, Einzelheiten rechts. Unter 1000px untereinander,
+     damit die Seite am Tablet nicht zerquetscht wird. */
+  .urow { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1.15fr); gap:16px; align-items:start; }
+  @media (max-width: 1000px) { .urow { grid-template-columns: minmax(0,1fr); } }
+  .udet { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px 22px; min-height:220px; }
+  .ucard { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:13px 15px;
+    display:flex; align-items:center; gap:13px; cursor:pointer; margin-bottom:8px; }
+  .ucard:hover { border-color:var(--border2); }
+  .ucard.on { border-color:var(--accent); border-left:3px solid var(--accent); }
+  .uav { width:38px; height:38px; border-radius:50%; background:var(--adim); color:var(--accent-text);
+    display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0; }
+  .useg { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border:1px solid var(--border2);
+    border-radius:7px; overflow:hidden; }
+  .useg button { padding:7px 0; border:0; background:var(--panel); color:var(--muted); font-family:inherit;
+    font-size:11.5px; font-weight:600; cursor:pointer; }
+  .useg button.s-kein { background:var(--bg); color:var(--text); font-weight:700; }
+  .useg button.s-ansehen { background:var(--bdim); color:var(--blue); font-weight:700; }
+  .useg button.s-bearbeiten { background:var(--gdim); color:var(--green); font-weight:700; }
+  .brow { display:grid; grid-template-columns: minmax(0,1fr) 240px; gap:14px; align-items:center;
+    padding:9px 0; border-bottom:1px solid var(--border); }
+  .bgrp { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.1px;
+    color:var(--muted); padding:16px 0 7px; }
 </style>
 </head>
 <body>
@@ -624,7 +646,6 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="ph">
           <div class="pt" id="ws-dat">Werkstatt</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-p btn-sm" onclick="walkIn()">+ Walk-in</button>
             <button class="btn btn-g btn-sm" onclick="wsVorherig()">Vorheriger Tag</button>
             <button class="btn btn-g btn-sm" onclick="wsHeute()">Heute</button>
             <button class="btn btn-g btn-sm" onclick="wsNaechster()">Nächster Tag</button>
@@ -686,8 +707,26 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
       <!-- MITARBEITER -->
       <div class="page" id="page-users">
-        <div class="ph"><div class="pt">Mitarbeiter</div><button class="btn btn-p" onclick="openModal('nu')">+ Neuer Mitarbeiter</button></div>
-        <div id="users-liste"></div>
+        <div class="ph">
+          <div class="pt">Benutzer und Rollen</div>
+          <button class="btn btn-p" onclick="openModal('nu')">+ Benutzer anlegen</button>
+        </div>
+        <div class="stabs">
+          <button class="stab on" data-utab="benutzer" onclick="zeigeUserTab('benutzer')">Benutzer</button>
+          <button class="stab" data-utab="rollen" onclick="zeigeUserTab('rollen')">Rollen</button>
+        </div>
+        <div id="utab-benutzer">
+          <div class="urow">
+            <div id="users-liste"></div>
+            <div id="user-detail" class="udet"></div>
+          </div>
+        </div>
+        <div id="utab-rollen" style="display:none">
+          <div class="urow">
+            <div id="rollen-liste"></div>
+            <div id="rollen-detail" class="udet"></div>
+          </div>
+        </div>
       </div>
 
       <!-- DSGVO -->
@@ -4592,11 +4631,11 @@ function ntVorausfuellen(datum, zeit) {
   openModal('nt');
 }
 // Walk-in: Termin-Dialog fuer HEUTE + aktuelle Uhrzeit (auf 15 Min gerundet) oeffnen -> landet sofort aufs Werkstattbrett.
-function walkIn() {
-  var d = new Date();
-  var zeit = String(d.getHours()).padStart(2, '0') + ':' + String(Math.floor(d.getMinutes() / 15) * 15).padStart(2, '0');
-  ntVorausfuellen(isoLocal(d), zeit);
-}
+// Der Knopf "+ Walk-in" stand bis zum 03.09.2026 in der Werkstatt-Kopfzeile. Er legte aus dem
+// Werkstattbereich heraus einen Termin samt Kundendatensatz an -- also genau die Erfassung, die
+// Anschrift, Einwilligungen und Rechnungsdaten braucht und deshalb beim Inhaber liegt.
+// Entscheidung des Inhabers: Neukunden nimmt er selbst auf. Entfernt, nicht ausgeblendet -- die
+// Rolle "Werkstatt" darf Kunden ohnehin nur noch ansehen.
 function zeigeTermin(id) {
   var t = allTermine.find(function(x) { return x.id === id; });
   if (!t) { api('GET', '/termine/' + id).then(function(r) { if (r && r.id) { allTermine.push(r); zeigeTermin(id); } else notify('Termin nicht gefunden.', 'err'); }).catch(function() { notify('Termin nicht gefunden.', 'err'); }); return; }
@@ -5817,40 +5856,262 @@ function genSchein(e, typ) {
 
 // ── MITARBEITER ──
 function loadUsers() {
-  api('GET', '/users').then(function(r) {
+  ladeRollen(); api('GET', '/users').then(function(r) {
     allUsers = r || []; renderUsers();
   }).catch(function() {});
 }
+// ── Benutzer: Liste links, Einzelheiten rechts ──────────────────────────────────────────────
+var userGewaehlt = null, ROLLENDATEN = null, rolleGewaehlt = null;
+
+function zeigeUserTab(t) {
+  document.querySelectorAll('.stab[data-utab]').forEach(function(b) {
+    b.classList.toggle('on', b.getAttribute('data-utab') === t);
+  });
+  document.getElementById('utab-benutzer').style.display = t === 'benutzer' ? '' : 'none';
+  document.getElementById('utab-rollen').style.display   = t === 'rollen'   ? '' : 'none';
+  if (t === 'rollen') ladeRollen();
+}
+
+function initialen(u) {
+  return (((u.vorname || ' ')[0] || '') + ((u.nachname || ' ')[0] || '')).toUpperCase().trim() || '?';
+}
+function rollenName(sch) {
+  if (ROLLENDATEN) { var r = ROLLENDATEN.rollen.find(function(x) { return x.schluessel === sch; }); if (r) return r.name; }
+  return sch === 'admin' ? 'Inhaber' : 'Werkstatt';
+}
+
 function renderUsers() {
   var el = document.getElementById('users-liste'); if (!el) return;
   if (!allUsers.length) {
-    // Mitarbeiter duerfen die Nutzerverwaltung nicht lesen (GET /users -> 403). Ohne Hinweis
-    // sah die Seite aus wie "keine Mitarbeiter vorhanden" oder wie ein Defekt.
+    // Wer die Benutzerverwaltung nicht lesen darf, bekommt 403 und damit eine leere Liste.
+    // Ohne diesen Hinweis saehe die Seite aus wie "keine Benutzer" oder wie ein Defekt.
     el.innerHTML = '<div class="empty">' + (USER && USER.rolle === 'admin'
-      ? 'Noch keine weiteren Mitarbeiter angelegt.'
-      : 'Die Mitarbeiterverwaltung ist Administratoren vorbehalten.') + '</div>';
+      ? 'Noch keine weiteren Benutzer angelegt.'
+      : 'Die Benutzerverwaltung ist dem Inhaber vorbehalten.') + '</div>';
+    var d0 = document.getElementById('user-detail'); if (d0) d0.innerHTML = '';
     return;
   }
-  var html = '<div class="tw"><table><thead><tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Erstellt</th><th>Aktionen</th></tr></thead><tbody>';
+  var h = '';
   allUsers.forEach(function(u) {
-    var name = kEsc(u.vorname + ' ' + u.nachname);
     var aktiv = u.aktiv !== false;
-    html += '<tr' + (aktiv ? '' : ' style="opacity:.6"') + '>' +
-      '<td><strong>' + name + '</strong></td>' +
-      '<td style="font-size:12px;color:var(--muted)">' + kEsc(u.email) + '</td>' +
-      '<td><span class="badge ' + (u.rolle === 'admin' ? 'b-r' : 'b-b') + '">' + kEsc(u.rolle) + '</span></td>' +
-      '<td><span class="badge ' + (aktiv ? 'b-g' : 'b-y') + '">' + (aktiv ? 'aktiv' : 'gesperrt') + '</span></td>' +
-      '<td style="font-size:12px;color:var(--muted)">' + fd(u.erstellt_am) + '</td>' +
-      '<td><div style="display:flex;gap:5px;flex-wrap:wrap">' +
-      '<button class="btn btn-g btn-sm" data-uid="' + kEsc(u.id) + '" onclick="oeffnePW(this.getAttribute(\'data-uid\'), this.getAttribute(\'data-name\'))" data-name="' + name + '">Passwort</button>' +
-      '<button class="btn btn-g btn-sm" data-uid="' + kEsc(u.id) + '" onclick="userRolleWechseln(this.getAttribute(\'data-uid\'))">' + (u.rolle === 'admin' ? 'Zu Mitarbeiter' : 'Zu Admin') + '</button>' +
-      '<button class="btn ' + (aktiv ? 'btn-danger' : 'btn-grn') + ' btn-sm" data-uid="' + kEsc(u.id) + '" onclick="userAktivSetzen(this.getAttribute(\'data-uid\'), ' + (aktiv ? 'false' : 'true') + ')">' + (aktiv ? 'Deaktivieren' : 'Wieder freigeben') + '</button>' +
-      '<button class="btn btn-danger btn-sm" data-uid="' + kEsc(u.id) + '" onclick="loescheUser(this.getAttribute(\'data-uid\'))">Löschen</button>' +
-      '</div></td></tr>';
+    h += '<div class="ucard' + (userGewaehlt === u.id ? ' on' : '') + '"' + (aktiv ? '' : ' style="opacity:.6"') +
+      ' data-uid="' + kEsc(u.id) + '" onclick="waehleUser(this.getAttribute(\'data-uid\'))">' +
+      '<div class="uav">' + kEsc(initialen(u)) + '</div>' +
+      '<div style="flex-grow:1;min-width:0">' +
+        '<div style="font-weight:700">' + kEsc(u.vorname + ' ' + u.nachname) + '</div>' +
+        '<div style="font-size:12.5px;color:var(--muted)">' + kEsc(u.email) + '</div>' +
+      '</div>' +
+      '<span class="badge ' + (aktiv ? (u.rolle === 'admin' ? 'b-y' : 'b-b') : 'b-x') + '">' +
+        kEsc(aktiv ? rollenName(u.rolle) : 'Gesperrt') + '</span></div>';
   });
-  html += '</tbody></table></div>' +
-    '<div style="margin-top:14px"><button class="btn btn-g btn-sm" onclick="openModal(\'mypw\')">Eigenes Passwort ändern</button></div>';
-  el.innerHTML = html;
+  h += '<div style="margin-top:12px"><button class="btn btn-g btn-sm" onclick="openModal(\'mypw\')">Eigenes Passwort ändern</button></div>';
+  el.innerHTML = h;
+  if (userGewaehlt && !allUsers.some(function(u) { return u.id === userGewaehlt; })) userGewaehlt = null;
+  if (!userGewaehlt && allUsers.length) userGewaehlt = allUsers[0].id;
+  renderUserDetail();
+}
+
+function waehleUser(id) { userGewaehlt = id; renderUsers(); }
+
+function renderUserDetail() {
+  var el = document.getElementById('user-detail'); if (!el) return;
+  var u = allUsers.find(function(x) { return x.id === userGewaehlt; });
+  if (!u) { el.innerHTML = '<div class="empty">Wählen Sie links einen Benutzer.</div>'; return; }
+  var aktiv = u.aktiv !== false;
+  var istIch = USER && USER.id === u.id;
+
+  var h = '<div style="display:flex;align-items:flex-start;gap:15px">' +
+    '<div class="uav" style="width:50px;height:50px;font-size:16px">' + kEsc(initialen(u)) + '</div>' +
+    '<div style="flex-grow:1"><div style="font-size:20px;font-weight:800">' + kEsc(u.vorname + ' ' + u.nachname) + '</div>' +
+    '<div style="font-size:13px;color:var(--muted);margin-top:2px">' + kEsc(u.email) + ' · angelegt ' + fd(u.erstellt_am) + '</div></div></div>';
+
+  h += '<div class="bgrp">Rolle</div>';
+  if (ROLLENDATEN) {
+    h += '<div style="display:flex;gap:10px;flex-wrap:wrap">';
+    ROLLENDATEN.rollen.forEach(function(r) {
+      var an = u.rolle === r.schluessel;
+      h += '<div style="flex:1 1 190px;border:' + (an ? '2px solid var(--accent)' : '1px solid var(--border)') +
+        ';background:' + (an ? 'var(--adim)' : 'transparent') + ';border-radius:10px;padding:12px 14px;cursor:' +
+        (istIch ? 'default' : 'pointer') + '"' +
+        (istIch ? '' : ' data-uid="' + kEsc(u.id) + '" data-r="' + kEsc(r.schluessel) + '" onclick="setzeRolle(this.getAttribute(\'data-uid\'), this.getAttribute(\'data-r\'))"') + '>' +
+        '<div style="font-weight:700">' + kEsc(r.name) + '</div>' +
+        '<div style="font-size:12.5px;color:var(--muted);margin-top:5px;line-height:1.5">' + kEsc(r.beschreibung || '') + '</div></div>';
+    });
+    h += '</div>';
+    if (istIch) h += '<div style="font-size:12.5px;color:var(--muted);margin-top:8px">Die eigene Rolle lässt sich nicht ändern — sonst könnten Sie sich selbst aussperren.</div>';
+  } else {
+    h += '<div style="color:var(--muted);font-size:13px">Rollen werden geladen …</div>';
+  }
+
+  if (ROLLENDATEN) {
+    var rr = ROLLENDATEN.rollen.find(function(x) { return x.schluessel === u.rolle; });
+    h += '<div class="bgrp">Was ' + kEsc(u.vorname) + ' damit tun kann</div>';
+    if (rr && rr.vollzugriff) {
+      h += '<div style="font-size:13.5px">Vollzugriff auf alle Bereiche.</div>';
+    } else if (rr) {
+      var bearb = [], ans = [];
+      ROLLENDATEN.bereiche.forEach(function(b) {
+        var st = rr.rechte[b.schluessel] || 'kein';
+        if (st === 'bearbeiten') bearb.push(b.name); else if (st === 'ansehen') ans.push(b.name);
+      });
+      h += '<div style="font-size:13.5px;line-height:1.7">' +
+        (bearb.length ? '<div><b>Bearbeiten:</b> ' + kEsc(bearb.join(', ')) + '</div>' : '') +
+        (ans.length ? '<div><b>Nur ansehen:</b> ' + kEsc(ans.join(', ')) + '</div>' : '') +
+        (!bearb.length && !ans.length ? '<span style="color:var(--muted)">Kein Bereich freigegeben.</span>' : '') + '</div>';
+    }
+  }
+
+  h += '<div class="bgrp">Zugang</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">' +
+    '<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px">' +
+      '<div style="font-size:12px;color:var(--muted)">Letzte Anmeldung</div>' +
+      '<div style="font-weight:700;margin-top:3px">' + (u.letzter_login ? fd(u.letzter_login) : 'noch nie') + '</div></div>' +
+    '<div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px">' +
+      '<div style="font-size:12px;color:var(--muted)">Status</div>' +
+      '<div style="font-weight:700;margin-top:3px">' + (aktiv ? 'aktiv' : 'gesperrt') + '</div></div></div>';
+
+  h += '<div style="display:flex;gap:8px;margin-top:15px;flex-wrap:wrap">' +
+    '<button class="btn btn-g btn-sm" data-uid="' + kEsc(u.id) + '" data-name="' + kEsc(u.vorname + ' ' + u.nachname) +
+      '" onclick="oeffnePW(this.getAttribute(\'data-uid\'), this.getAttribute(\'data-name\'))">Passwort zurücksetzen</button>';
+  if (!istIch) {
+    h += '<button class="btn ' + (aktiv ? 'btn-danger' : 'btn-grn') + ' btn-sm" data-uid="' + kEsc(u.id) +
+      '" onclick="userAktivSetzen(this.getAttribute(\'data-uid\'), ' + (aktiv ? 'false' : 'true') + ')">' +
+      (aktiv ? 'Zugang sperren' : 'Zugang freigeben') + '</button>' +
+      '<button class="btn btn-danger btn-sm" data-uid="' + kEsc(u.id) + '" onclick="loescheUser(this.getAttribute(\'data-uid\'))">Löschen</button>';
+  }
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+// ── Rollen: Liste links, Rechtematrix rechts ────────────────────────────────────────────────
+function ladeRollen(erzwingen) {
+  if (ROLLENDATEN && !erzwingen) { renderRollen(); return; }
+  api('GET', '/rollen').then(function(d) {
+    ROLLENDATEN = d;
+    if (!rolleGewaehlt && d.rollen.length) {
+      // Die einschraenkbare Rolle zuerst zeigen -- an der wird tatsaechlich etwas eingestellt.
+      var erste = d.rollen.find(function(r) { return !r.vollzugriff; }) || d.rollen[0];
+      rolleGewaehlt = erste.id;
+    }
+    renderRollen(); renderUserDetail();
+  }).catch(function(e) {
+    var el = document.getElementById('rollen-liste');
+    if (el) el.innerHTML = '<div class="empty">' + kEsc(e.message || 'Rollen konnten nicht geladen werden.') + '</div>';
+  });
+}
+
+function renderRollen() {
+  var el = document.getElementById('rollen-liste'); if (!el || !ROLLENDATEN) return;
+  var h = '';
+  ROLLENDATEN.rollen.forEach(function(r) {
+    h += '<div class="ucard' + (rolleGewaehlt === r.id ? ' on' : '') + '" data-rid="' + kEsc(r.id) +
+      '" onclick="waehleRolle(this.getAttribute(\'data-rid\'))">' +
+      '<div style="flex-grow:1;min-width:0">' +
+        '<div style="font-weight:700">' + kEsc(r.name) + '</div>' +
+        '<div style="font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.45">' + kEsc(r.beschreibung || '') + '</div>' +
+      '</div>' +
+      '<span class="badge b-n">' + r.personen + (r.personen === 1 ? ' Person' : ' Personen') + '</span></div>';
+  });
+  h += '<div style="background:var(--adim);border:1px solid rgba(234,179,8,.4);border-radius:10px;padding:12px 14px;margin-top:10px;font-size:12.5px;line-height:1.55">' +
+    '<b>Minimalprinzip.</b> Was nicht ausdrücklich erlaubt ist, ist gesperrt. Ein Bereich auf „Kein Zugriff" verschwindet auch aus dem Menü.</div>';
+  el.innerHTML = h;
+  renderRollenDetail();
+}
+
+function waehleRolle(id) { rolleGewaehlt = id; renderRollen(); }
+
+function renderRollenDetail() {
+  var el = document.getElementById('rollen-detail'); if (!el || !ROLLENDATEN) return;
+  var r = ROLLENDATEN.rollen.find(function(x) { return x.id === rolleGewaehlt; });
+  if (!r) { el.innerHTML = '<div class="empty">Wählen Sie links eine Rolle.</div>'; return; }
+
+  var h = '<div style="font-size:18px;font-weight:800">Rechte der Rolle „' + kEsc(r.name) + '"</div>';
+  if (r.vollzugriff) {
+    h += '<div style="margin-top:12px;background:var(--adim);border:1px solid rgba(234,179,8,.4);border-radius:10px;padding:14px 16px;font-size:13.5px;line-height:1.6">' +
+      'Diese Rolle hat immer Vollzugriff und lässt sich nicht einschränken. Sonst gäbe es den Fall, ' +
+      'in dem niemand mehr an die Einstellungen kommt.</div>';
+    el.innerHTML = h; return;
+  }
+
+  h += '<div style="font-size:12.5px;color:var(--muted);margin-top:3px">Änderungen wirken sofort, auch für bereits angemeldete Personen.</div>';
+
+  var gruppe = null;
+  ROLLENDATEN.bereiche.forEach(function(b) {
+    if (b.gruppe !== gruppe) { gruppe = b.gruppe; h += '<div class="bgrp">' + kEsc(gruppe) + '</div>'; }
+    var st = r.rechte[b.schluessel] || 'kein';
+    h += '<div class="brow"><div>' +
+      '<div style="font-weight:600">' + kEsc(b.name) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted)">' + kEsc(b.beschreibung) + '</div></div>' +
+      '<div class="useg">';
+    ['kein', 'ansehen', 'bearbeiten'].forEach(function(x) {
+      h += '<button class="' + (st === x ? 's-' + x : '') + '" data-b="' + kEsc(b.schluessel) + '" data-s="' + x +
+        '" onclick="stufeSetzen(this.getAttribute(\'data-b\'), this.getAttribute(\'data-s\'))">' +
+        (x === 'kein' ? 'Kein' : x === 'ansehen' ? 'Ansehen' : 'Bearbeiten') + '</button>';
+    });
+    h += '</div></div>';
+  });
+
+  h += '<div class="bgrp">Einzelne Befugnisse</div>' +
+    '<div style="font-size:12.5px;color:var(--muted);line-height:1.55;margin-bottom:10px">' +
+    'Manches lässt sich mit „Ansehen oder Bearbeiten" nicht sauber trennen — eine Rechnung schreiben ' +
+    'ist etwas anderes, als sie unwiderruflich festzuschreiben.</div>';
+  ROLLENDATEN.befugnisse.forEach(function(bf) {
+    var an = r.befugnisse.indexOf(bf.schluessel) !== -1;
+    h += '<label style="display:flex;align-items:center;gap:11px;padding:9px 13px;border:1px solid ' +
+      (an ? 'rgba(26,143,82,.4)' : 'var(--border)') + ';background:' + (an ? 'var(--gdim)' : 'transparent') +
+      ';border-radius:8px;margin-bottom:7px;cursor:pointer">' +
+      '<input type="checkbox"' + (an ? ' checked' : '') + ' data-bf="' + kEsc(bf.schluessel) +
+      '" onchange="befugnisSetzen(this.getAttribute(\'data-bf\'), this.checked)">' +
+      '<div style="flex-grow:1"><div style="font-size:13.5px;font-weight:600">' + kEsc(bf.name) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted)">' + kEsc(bf.beschreibung) + '</div></div></label>';
+  });
+
+  h += '<div style="display:flex;gap:9px;align-items:center;margin-top:16px">' +
+    '<button class="btn btn-p" onclick="rollenSpeichern()">Rechte speichern</button>' +
+    '<span id="rollen-hinweis" style="font-size:12.5px;color:var(--muted)"></span></div>';
+  el.innerHTML = h;
+}
+
+// Aenderungen sammeln sich lokal, gespeichert wird bewusst erst auf Knopfdruck: Rechte sind
+// nichts, was man versehentlich im Vorbeiklicken umstellt.
+function stufeSetzen(bereich, stufe) {
+  var r = ROLLENDATEN.rollen.find(function(x) { return x.id === rolleGewaehlt; });
+  if (!r || r.vollzugriff) return;
+  r.rechte[bereich] = stufe;
+  renderRollenDetail();
+  var hw = document.getElementById('rollen-hinweis'); if (hw) hw.textContent = 'Nicht gespeichert';
+}
+function befugnisSetzen(bf, an) {
+  var r = ROLLENDATEN.rollen.find(function(x) { return x.id === rolleGewaehlt; });
+  if (!r || r.vollzugriff) return;
+  var i = r.befugnisse.indexOf(bf);
+  if (an && i === -1) r.befugnisse.push(bf);
+  if (!an && i !== -1) r.befugnisse.splice(i, 1);
+  var hw = document.getElementById('rollen-hinweis'); if (hw) hw.textContent = 'Nicht gespeichert';
+}
+function rollenSpeichern() {
+  var r = ROLLENDATEN.rollen.find(function(x) { return x.id === rolleGewaehlt; });
+  if (!r) return;
+  api('PUT', '/rollen/' + r.id, { rechte: r.rechte, befugnisse: r.befugnisse }).then(function() {
+    notify('Rechte gespeichert.');
+    ladeRollen(true);
+    // Betrifft die Aenderung die eigene Rolle, muss auch das eigene Menue neu gebaut werden.
+    if (USER && USER.rolle === r.schluessel) {
+      fetch(API + '/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
+        .then(function(x) { return x.json(); })
+        .then(function(d) { if (d && d.bereiche) { BEREICHE = d.bereiche; menueFiltern(); } })
+        .catch(function() {});
+    }
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+
+function setzeRolle(id, schluessel) {
+  var u = allUsers.find(function(x) { return x.id === id; });
+  if (!u || u.rolle === schluessel) return;
+  if (!confirm('Rolle von ' + u.vorname + ' ' + u.nachname + ' auf „' + rollenName(schluessel) + '" ändern?')) return;
+  api('PUT', '/users/' + id, { rolle: schluessel }).then(function() {
+    notify('Rolle geändert.'); loadUsers();
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function saveNU() {
   var vn = gv('nu-vn'), nn = gv('nu-nn'), mail = gv('nu-mail'), pass = gv('nu-pass'), pass2 = gv('nu-pass2');

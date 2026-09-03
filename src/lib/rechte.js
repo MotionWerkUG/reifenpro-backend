@@ -29,6 +29,7 @@ const BEREICH_JE_PFAD = {
   dsgvo:        'datenschutz',
   einstellungen:'einstellungen',
   users:        'einstellungen',   // Benutzerverwaltung liegt in den Einstellungen
+  rollen:       'einstellungen',   // Rollenverwaltung ebenso
   dokumente:    'kunden',          // Kundendokumente haengen an der Kundenakte
   zustimmung:   'kalender'         // Zustimmung gehoert zum Termin
 };
