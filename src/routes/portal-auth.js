@@ -14,6 +14,13 @@ const loginLimiter = rateLimit({
   windowMs: 900000, max: 10, skipSuccessfulRequests: true,
   message: { error: 'Zu viele fehlgeschlagene Login-Versuche. Bitte in 15 Minuten erneut versuchen.' }
 });
+// Eigener Begrenzer fuer den Reset-SCHRITT. Er teilte sich das Kontingent mit den beiden
+// Anfrage-Routen; ein Kunde, der eine Mail anfordert, sie erneut anfordert und dann das Formular
+// mit einem Tippfehler abschickt, haette sich mitten im Vorgang selbst ausgesperrt.
+const resetSchrittLimiter = rateLimit({
+  windowMs: 3600000, max: 15,
+  message: { error: 'Zu viele Versuche. Bitte später erneut versuchen.' }
+});
 const resetLimiter = rateLimit({
   windowMs: 3600000, max: 5,
   message: { error: 'Zu viele Anfragen. Bitte später erneut versuchen.' }
@@ -379,9 +386,10 @@ router.get('/bestaetigen/:token', async (req, res, next) => {
 
 // ── POST /api/portal/auth/bestaetigung-erneut ── Bestaetigungsmail erneut senden (Rettung bei verlorener Mail)
 router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
+  const _start = Date.now();
   try {
     const { email } = req.body;
-    if (!email) return res.json({ message: 'ok' });
+    if (!email) { await gleichLange(_start); return res.json({ message: 'ok' }); }
     const k = (await query('SELECT * FROM kunden WHERE LOWER(portal_email)=$1 AND portal_aktiv=true AND portal_email_bestaetigt=false', [String(email).toLowerCase()])).rows[0];
     if (k) {
       const token = crypto.randomBytes(32).toString('hex');
@@ -390,7 +398,7 @@ router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
       const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
       const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
       const link = portalUrl + '?bestaetigen=' + token;
-      await sendMail(
+      sendMail(
         k.portal_email,
         'Bitte bestätigen Sie Ihre E-Mail — Schröder & Scholz',
         portalMailHtml(einst, {
@@ -402,8 +410,9 @@ router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
       ).catch(function (e) { console.error('[Resend-Mail]', e.message); });
     }
     // Generische Antwort (keine Auskunft, ob die E-Mail existiert)
+    await gleichLange(_start);
     res.json({ message: 'ok' });
-  } catch (e) { next(e); }
+  } catch (e) { await gleichLange(_start); next(e); }
 });
 
 // ── POST /api/portal/auth/login ──
@@ -430,31 +439,44 @@ router.post('/login', loginLimiter, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Gleiche Antwortzeit fuer bekannte und unbekannte Adressen. Ohne das laesst sich am
+// Zeitunterschied ablesen, ob zu einer Adresse ein Konto existiert -- der Antworttext ist
+// zwar identisch, die Dauer war es nicht.
+const MIND_MS = 350;
+function gleichLange(start) {
+  const rest = MIND_MS - (Date.now() - start);
+  return rest > 0 ? new Promise((r) => setTimeout(r, rest)) : Promise.resolve();
+}
+
 // ── POST /api/portal/auth/passwort-vergessen ──
 router.post('/passwort-vergessen', resetLimiter, async (req, res, next) => {
+  const _start = Date.now();
   try {
     const { email } = req.body;
-    if (!email) return res.json({ message: 'ok' });
+    if (!email) { await gleichLange(_start); return res.json({ message: 'ok' }); }
     const { rows } = await query('SELECT * FROM kunden WHERE portal_email=$1 AND portal_aktiv=true', [email.toLowerCase()]);
-    if (!rows.length) return res.json({ message: 'ok' });
+    if (!rows.length) { await gleichLange(_start); return res.json({ message: 'ok' }); }
     const k = rows[0];
     const token = crypto.randomBytes(32).toString('hex');
     const ablauf = new Date(Date.now() + 3600000);
     await query('UPDATE kunden SET portal_reset_token=$1, portal_reset_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
     const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
-    await sendMail(
+    // Nicht abwarten: Sonst bestimmt die Dauer des echten Mailversands die Antwortzeit und
+    // verraet damit wieder, dass die Adresse existiert. Gleiche Loesung wie bei /registrieren.
+    sendMail(
       k.portal_email,
       'Passwort zurücksetzen — ' + (einst.firmenname || 'ReifenPro'),
       '<p>Hallo ' + k.vorname + ',</p><p>Klicken Sie auf den Link um Ihr Passwort zurückzusetzen:</p>' +
       '<p><a href="' + portalUrl + '?reset=' + token + '">Passwort zurücksetzen</a></p><p>Der Link ist 1 Stunde gültig.</p>'
     ).catch(() => {});
+    await gleichLange(_start);
     res.json({ message: 'ok' });
-  } catch (e) { next(e); }
+  } catch (e) { await gleichLange(_start); next(e); }
 });
 
 // ── POST /api/portal/auth/passwort-reset ──
-router.post('/passwort-reset', async (req, res, next) => {
+router.post('/passwort-reset', resetSchrittLimiter, async (req, res, next) => {
   try {
     const { token, passwort } = req.body;
     if (!token || !passwort || passwort.length < 8) return res.status(400).json({ error: 'Ungültige Daten' });

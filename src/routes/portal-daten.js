@@ -167,6 +167,14 @@ function anschriftPruefen(strasse, plz, ort) {
 // ── POST /api/portal/daten/termine ──
 router.post('/termine', authKunde, async (req, res, next) => {
   try {
+    // Freitext aus der Buchung genauso saeubern wie bei Fahrzeugen und im Profil: Er landet in der
+    // internen Betriebsmail und in Admin, Werkstatt und Kalender. Ohne das konnte ein Kunde per
+    // direktem Aufruf Auszeichnung in die Mail des Inhabers schreiben -- nachgestellt mit
+    // '<img src=x onerror=...>', das woertlich gespeichert und roh in die Mail eingebaut wurde.
+    // MUSS VOR dem Auslesen stehen, sonst tragen die Konstanten unten weiter die Rohwerte.
+    const _sauber = (v, n) => v == null ? v : String(v).replace(/[<>]/g, '').trim().slice(0, n);
+    if (req.body.kennzeichen != null) req.body.kennzeichen = _sauber(req.body.kennzeichen, 20).toUpperCase();
+    if (req.body.beschreibung != null) req.body.beschreibung = _sauber(req.body.beschreibung, 500);
     const { datum, uhrzeit_von, artikel_id, beschreibung, kennzeichen, fahrzeug_id, typ, zoll } = req.body;
     if (!datum || !uhrzeit_von || !artikel_id || !/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Pflichtfelder fehlen oder ungültiges Datum/Uhrzeit' });
 
@@ -405,6 +413,19 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
       return res.status(400).json({ error: 'Verschieben ist nur bis ' + fristH + ' Stunden vor dem Termin möglich. Bitte rufen Sie uns an: ' + (einst.telefon || '') });
     }
 
+    // Zieht der Kunde den Termin IN die Widerrufsfrist hinein, braucht es die Zustimmung genauso
+    // wie beim Buchen -- sonst waere das Verschieben der bequeme Weg an der Frage vorbei.
+    // Wer bereits zugestimmt hat, muss nicht erneut gefragt werden; die Erklaerung gilt fort.
+    const _vzNoetig = widerruf.zustimmungNoetig(datum);
+    const _vzSchonDa = t.vorzeitige_leistung === true;
+    if (_vzNoetig && !_vzSchonDa && req.body.vorzeitige_leistung !== true) {
+      return res.status(400).json({
+        code: 'VORZEITIGE_LEISTUNG_NOETIG',
+        error: 'Der neue Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.'
+      });
+    }
+    const _vzNeu = _vzNoetig && (_vzSchonDa || req.body.vorzeitige_leistung === true);
+
     let dauer = 30;
     if (t.artikel_id) {
       const a = (await query('SELECT * FROM artikel WHERE id=$1', [t.artikel_id])).rows[0];
@@ -449,8 +470,14 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
         [datum, t.id, uhrzeit_von, uhrzeit_bis]);
       if (parseInt(konflikt.rows[0].count) >= maxParallel) { const e = new Error('Dieser Termin ist leider nicht mehr verfügbar. Bitte wählen Sie einen anderen.'); e.status = 409; throw e; }
       const r = await client.query(
-        'UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, geaendert_am=NOW() WHERE id=$4 RETURNING *',
-        [datum, uhrzeit_von, uhrzeit_bis, t.id]);
+        // Zustimmung mitschreiben: Sie gehoert zum neuen Termin. Der Zeitstempel bleibt stehen,
+        // wenn die Erklaerung schon vorlag -- eine erneute Erklaerung gab es dann ja nicht.
+        `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, geaendert_am=NOW(),
+         vorzeitige_leistung=$5,
+         vorzeitige_leistung_am=CASE WHEN $5 AND vorzeitige_leistung_am IS NULL THEN NOW()
+                                     WHEN $5 THEN vorzeitige_leistung_am ELSE NULL END
+         WHERE id=$4 RETURNING *`,
+        [datum, uhrzeit_von, uhrzeit_bis, t.id, _vzNeu]);
       return r.rows[0];
     });
     res.json(updated);
