@@ -1396,7 +1396,7 @@ function buchenSlotsLaden() {
         + '<span style="color:var(--accent-text)">' + eur(p.brutto_nach_rabatt) + '</span>'
         + ' <span style="font-weight:400;color:var(--muted)">(' + pEsc(p.gutschein.code) + ', −' + p.gutschein.rabatt_prozent + ' %)</span>' + dauer;
     } else if (code && p.gutschein === null) {
-      preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis) * (1 + (Number(p.mwst_satz) || 0) / 100)) + dauer
+      preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis)) + dauer
         + ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';
     } else {
       // Bruttopreis kommt vom Server. Frueher rechnete die Oberflaeche hier selbst
