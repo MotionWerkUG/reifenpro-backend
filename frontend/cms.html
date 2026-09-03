@@ -143,7 +143,8 @@
     <div class="intro">Tippen Sie auf einen Abschnitt, um ihn zu <b>bearbeiten</b>. Mit dem Schalter rechts blenden Sie ihn <b>ein/aus</b>, mit den Pfeilen ändern Sie die <b>Reihenfolge</b>. Jede Speicherung aktualisiert die Homepage sofort. <b>Öffnungszeiten</b> und <b>Kontakt</b> werden automatisch aus Ihren Firmendaten (Einstellungen) gefüllt.</div>
     <div class="sprung">
       <span style="font-size:12px;color:var(--muted);align-self:center;margin-right:2px">Springe zu:</span>
-      <button class="btn btn-g" onclick="zuPanel('p-firma')">Kontakt &amp; Zeiten</button>
+      <button class="btn btn-g" onclick="zuPanel('p-firma')">Firmendaten (Ansicht)</button>
+      <button class="btn btn-g" onclick="zuPanel('p-website')">Nur für die Website</button>
       <button class="btn btn-g" onclick="zuPanel('p-design')">Design &amp; Schriften</button>
       <button class="btn btn-g" onclick="zuPanel('p-seo')">SEO</button>
       <button class="btn btn-g" onclick="zuPanel('p-banner')">Banner &amp; Gutscheine</button>
@@ -153,44 +154,32 @@
       <button class="btn btn-g" onclick="zuPanel('p-abschnitte')">Abschnitte</button>
     </div>
     <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
-      <h2 id="p-firma" style="font-size:16px;margin-bottom:4px">Kontaktdaten &amp; Öffnungszeiten</h2>
-      <div class="imghint" style="margin-top:0;margin-bottom:12px">Adresse, Telefon, E-Mail und Öffnungszeiten Ihrer Firma. Diese Angaben erscheinen auf der Startseite (Abschnitte <b>„Kontakt"</b> und <b>„Öffnungszeiten"</b>), in der Fußzeile und bei Google.</div>
+      <h2 id="p-firma" style="font-size:16px;margin-bottom:4px">Firmendaten &amp; Öffnungszeiten</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Diese Angaben werden in <b>ReifenPro unter Einstellungen</b> gepflegt – dort gehören sie hin, weil sie auch auf Rechnungen, in E-Mails und in der Terminplanung stehen. Sie erscheinen automatisch auf der Website; eine Änderung in ReifenPro erneuert die Seite sofort. Hier nur zur Ansicht.</div>
+      <div class="row" style="margin-bottom:12px"><a class="btn btn-g" href="index.html#einstellungen" target="_blank" rel="noopener">In ReifenPro öffnen</a></div>
 
-      <h3 style="font-size:14px;margin:6px 0 8px;color:var(--text)">Kontakt &amp; Adresse</h3>
-      <div id="fd-stamm-hint" style="display:none;margin-bottom:8px;font-size:12px;color:var(--accent-text);background:var(--bg);border-radius:8px;padding:8px 10px;line-height:1.5">Firmenname und Adresse sind Rechnungsangaben (§ 14 UStG) und können nur von Administratoren geändert werden. Telefon, E-Mail, Öffnungszeiten, Karte und Social können Sie bearbeiten.</div>
-      <label>Firmenname</label><input type="text" id="fd-firmenname" maxlength="120" placeholder="Schröder &amp; Scholz">
-      <label>Straße &amp; Hausnummer</label><input type="text" id="fd-strasse" maxlength="120" placeholder="Musterstraße 1">
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <div style="flex:0 0 120px"><label>PLZ</label><input type="text" id="fd-plz" maxlength="10" placeholder="12345"></div>
-        <div style="flex:1;min-width:150px"><label>Ort</label><input type="text" id="fd-ort" maxlength="80" placeholder="Musterstadt"></div>
-      </div>
-      <label>Telefon</label><input type="tel" id="fd-telefon" maxlength="40" placeholder="08856 1234567">
-      <label>E-Mail</label><input type="email" id="fd-email" maxlength="160" placeholder="info@schroeder-scholz.de">
+      <div id="fd-anzeige"></div>
 
-      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Standort für die Karte (optional)</h3>
+      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Feiertage &amp; besondere Tage</h3>
+      <div id="fd-besondere" class="imghint" style="margin-top:0"></div>
+    </div></div>
+
+    <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
+      <h2 id="p-website" style="font-size:16px;margin-bottom:4px">Nur für die Website</h2>
+      <div class="imghint" style="margin-top:0;margin-bottom:12px">Zwei Angaben, die es in ReifenPro nicht gibt, weil sie nur die Darstellung der Website betreffen.</div>
+
+      <h3 style="font-size:14px;margin:6px 0 8px;color:var(--text)">Standort für die Karte (optional)</h3>
       <div class="imghint" style="margin-top:0;margin-bottom:8px">Nur nötig, wenn die Karte nicht genau auf Ihren Betrieb zeigt. Koordinaten finden Sie bei Google Maps per Rechtsklick auf den Standort.</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div style="flex:1;min-width:130px"><label>Breite (Latitude)</label><input type="text" id="fd-geo-breite" maxlength="20" placeholder="51.3540"></div>
         <div style="flex:1;min-width:130px"><label>Länge (Longitude)</label><input type="text" id="fd-geo-laenge" maxlength="20" placeholder="12.4230"></div>
       </div>
 
-      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Social &amp; Bewertungen (optional)</h3>
-      <label>Google-Bewertungslink</label><input type="url" id="fd-google" maxlength="300" placeholder="https://g.page/...">
-      <label>Facebook-Seite</label><input type="url" id="fd-facebook" maxlength="300" placeholder="https://facebook.com/...">
-      <label>Instagram-Profil</label><input type="url" id="fd-instagram" maxlength="300" placeholder="https://instagram.com/...">
-
-      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Öffnungszeiten</h3>
-      <div class="imghint" style="margin-top:0;margin-bottom:10px">Für jeden Wochentag eigene Zeiten – mit <b>Mittagspause</b>, wenn nötig. Ausgeschaltete Tage erscheinen als „geschlossen". Diese Zeiten gelten auch für die <b>Online-Terminbuchung</b>.</div>
-      <div id="fd-woche"></div>
-      <div class="row" style="margin-top:4px"><button class="btn btn-g" onclick="ozMoUebernehmen()">Zeiten von Montag auf Di – Fr übernehmen</button></div>
       <label style="margin-top:14px">Hinweis unter den Öffnungszeiten (optional)</label>
       <input type="text" id="fd-oz-hinweis" maxlength="300" placeholder="z. B. Termine auch nach Vereinbarung">
-      <div class="imghint" style="margin-top:6px">Erscheint auf der Website direkt unter der Zeiten-Tabelle.</div>
+      <div class="imghint" style="margin-top:6px">Erscheint auf der Website direkt unter der Zeiten-Tabelle. Ändert die Zeiten selbst nicht.</div>
 
-      <h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Feiertage &amp; besondere Tage</h3>
-      <div id="fd-besondere" class="imghint" style="margin-top:0"></div>
-
-      <div class="row"><button class="btn btn-p" onclick="firmendatenSpeichern()">Kontaktdaten &amp; Zeiten speichern</button></div>
+      <div class="row"><button class="btn btn-p" onclick="firmendatenSpeichern()">Karte &amp; Hinweis speichern</button></div>
     </div></div>
 
     <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
@@ -260,7 +249,10 @@
       <div class="imghint" style="margin-top:0;margin-bottom:8px">Blendet oben auf der Homepage ein Werbebanner mit Gutschein-Code ein – z. B. zum Saisonstart.</div>
       <label style="display:flex;align-items:center;gap:9px;margin:10px 0"><span class="sw"><input type="checkbox" id="ak-aktiv"></span> Banner anzeigen</label>
       <label>Text</label><input type="text" id="ak-text" placeholder="Buchen Sie jetzt Ihren Termin und sichern Sie sich 10 % Rabatt!">
-      <label>Gutschein-Code (optional, wird hervorgehoben)</label><input type="text" id="ak-code" placeholder="SAISON10">
+      <label>Gutschein-Code (optional, wird hervorgehoben)</label>
+      <select id="ak-code" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px"></select>
+      <div class="imghint" style="margin-top:6px">Zur Auswahl stehen nur Gutscheine, die die Buchung auch akzeptiert – aktiv, nicht abgelaufen, Rabatt über 0 %. Neue Codes legen Sie weiter unten unter <b>Gutscheine</b> an.</div>
+      <div id="ak-code-warn" style="display:none;margin-top:6px;font-size:12px;line-height:1.5;border-radius:8px;padding:8px 10px;background:var(--bg);border:1px solid var(--accent)"></div>
       <label>Position</label>
       <select id="ak-pos" style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-family:inherit;font-size:14px">
         <option value="leiste">Leiste oben (über die ganze Breite)</option>
@@ -290,7 +282,7 @@
     <div class="card" style="margin-bottom:18px"><div class="card-body" style="border-top:none;padding-top:16px">
       <h2 id="p-buchung" style="font-size:16px;margin-bottom:4px">Online-Terminbuchung (Gäste)</h2>
       <div class="imghint" style="margin-top:0;margin-bottom:10px">Buchungsbereich auf der Homepage, in dem auch Gäste ohne Konto einen Termin buchen können. Termine erscheinen direkt im Kalender.</div>
-      <label style="display:flex;align-items:center;gap:9px;margin:10px 0"><span class="sw"><input type="checkbox" id="bu-aktiv"></span> Buchungsbereich anzeigen</label>
+      <div id="bu-status" style="margin:10px 0;font-size:13px;line-height:1.5;border-radius:8px;padding:9px 11px;background:var(--bg);border:1px solid var(--border)"></div>
       <label>Überschrift</label><input type="text" id="bu-titel" placeholder="Online Termin buchen">
       <label>Einleitungstext</label><textarea id="bu-text" placeholder="Wählen Sie Ihre Leistung und einen freien Termin – schnell und ohne Anruf."></textarea>
       <div class="row"><button class="btn btn-p" onclick="buchungSpeichern()">Buchungsbereich speichern</button></div>
@@ -636,15 +628,57 @@ function laden() {
   api('GET', '/homepage/sektionen').then(function(rows){ SEK = rows || []; render(); }).catch(function(e){ notify(e.message, true); });
 }
 // ── Aktionsbanner ──
+// Der Code ist eine Auswahl aus den bewerbbaren Gutscheinen, kein Freitext mehr: Ein Tippfehler
+// oder ein abgelaufener Code hiesse sonst, dass die Startseite einen Rabatt bewirbt, den die
+// Buchung anschliessend verweigert. Gesperrt wird serverseitig (PUT /homepage/banner).
 function bannerLaden() {
-  api('GET', '/homepage/banner').then(function(b){
-    b = b || {};
+  Promise.all([
+    api('GET', '/homepage/banner').catch(function(){ return {}; }),
+    api('GET', '/homepage/gutscheine-bewerbbar').catch(function(){ return []; })
+  ]).then(function(res){
+    var b = res[0] || {}, gs = res[1] || [];
     document.getElementById('ak-aktiv').checked = !!b.aktion_aktiv;
     document.getElementById('ak-text').value = b.aktion_text || '';
-    document.getElementById('ak-code').value = b.aktion_code || '';
     document.getElementById('ak-pos').value = b.aktion_position || 'leiste';
     document.getElementById('ak-link').value = b.aktion_link || '';
-  }).catch(function(){});
+    akCodeRender(gs, b.aktion_code || '');
+  });
+}
+var GS_BEWERBBAR = [];
+function akCodeRender(gs, aktuell) {
+  GS_BEWERBBAR = gs || [];
+  var sel = document.getElementById('ak-code'); if (!sel) return;
+  var warn = document.getElementById('ak-code-warn');
+  var bekannt = gs.some(function(g){ return String(g.code).toUpperCase() === String(aktuell).toUpperCase(); });
+  var opt = ['<option value="">— kein Gutschein —</option>'];
+  gs.forEach(function(g) {
+    var bis = g.gueltig_bis ? 'gültig bis ' + datumDe(g.gueltig_bis) : 'ohne Ablauf';
+    var sel1 = String(g.code).toUpperCase() === String(aktuell).toUpperCase() ? ' selected' : '';
+    opt.push('<option value="' + esc(g.code) + '"' + sel1 + '>' + esc(g.code) + ' — ' + esc(g.rabatt_prozent) + ' % — ' + esc(bis) + '</option>');
+  });
+  // Hinterlegter, aber nicht mehr gueltiger Code: sichtbar lassen und benennen, nicht
+  // stillschweigend austauschen. Wer ihn stehen laesst, bekommt beim Speichern eine klare
+  // Absage vom Server; solange er drinsteht, blendet die Website das Banner aus.
+  if (aktuell && !bekannt) {
+    opt.push('<option value="' + esc(aktuell) + '" selected>' + esc(aktuell) + ' — nicht mehr gültig</option>');
+  }
+  sel.innerHTML = opt.join('');
+  if (warn) {
+    if (aktuell && !bekannt) {
+      warn.style.display = 'block';
+      warn.innerHTML = 'Der hinterlegte Code <b>' + esc(aktuell) + '</b> ist nicht mehr gültig (abgelaufen, deaktiviert oder gelöscht). ' +
+        'Das Banner wird deshalb auf der Website <b>nicht angezeigt</b> – sonst würde ein Rabatt beworben, den die Buchung ablehnt. ' +
+        'Bitte einen aktiven Gutschein wählen oder „kein Gutschein“ und den Text anpassen.';
+    } else if (!gs.length) {
+      warn.style.display = 'block';
+      warn.innerHTML = 'Zurzeit gibt es keinen gültigen Gutschein. Ein Banner ohne Code ist möglich – der Text darf dann aber keinen Rabatt versprechen.';
+    } else { warn.style.display = 'none'; warn.innerHTML = ''; }
+  }
+}
+function datumDe(d) {
+  var x = new Date(String(d).slice(0, 10) + 'T12:00:00');
+  if (isNaN(x)) return String(d);
+  return ('0' + x.getDate()).slice(-2) + '.' + ('0' + (x.getMonth() + 1)).slice(-2) + '.' + x.getFullYear();
 }
 // ── Buchungs-Leistungen ──
 var ARTIKEL = [], BL = [];
@@ -706,131 +740,94 @@ function leistungLoeschen(id) { if (!confirm('Leistung aus dem Buchungsassistent
 function buchungLaden() {
   api('GET', '/homepage/buchung').then(function(b){
     b = b || {};
-    document.getElementById('bu-aktiv').checked = b.buchung_aktiv !== false;
+    buchungStatusRender(b.buchung_aktiv !== false);
     document.getElementById('bu-titel').value = b.buchung_titel || '';
     document.getElementById('bu-text').value = b.buchung_text || '';
   }).catch(function(){});
 }
+// Der Ein-/Aus-Schalter der Online-Buchung liegt in ReifenPro (Einstellungen → Buchung). Hier
+// steht nur, wie er aktuell steht: Wer den Buchungsabschnitt gestaltet und sich wundert, warum
+// keine Termine hereinkommen, soll die Antwort an dieser Stelle finden statt weiterzusuchen.
+function buchungStatusRender(an) {
+  var el = document.getElementById('bu-status'); if (!el) return;
+  el.innerHTML = an
+    ? '<b>Online-Buchung ist eingeschaltet.</b> Gäste können Termine buchen. Ein- und ausgeschaltet wird sie in <b>ReifenPro → Einstellungen → Buchung</b> – nicht hier, damit es dafür nur einen Ort gibt.'
+    : '<b>Online-Buchung ist ausgeschaltet.</b> Gäste sehen den Hinweis, dass sie anrufen sollen; Überschrift und Text unten wirken sich erst wieder aus, wenn sie eingeschaltet ist. Der Schalter steht in <b>ReifenPro → Einstellungen → Buchung</b>.';
+}
 function buchungSpeichern() {
   api('PUT', '/homepage/buchung', {
-    buchung_aktiv: document.getElementById('bu-aktiv').checked,
     buchung_titel: document.getElementById('bu-titel').value,
     buchung_text: document.getElementById('bu-text').value
   }).then(function(){ notify('Buchungsbereich gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
 }
 
-// ── Firmendaten: Kontakt & Öffnungszeiten ──
+// ── Firmendaten: Anzeige (Pflege in ReifenPro) + die zwei reinen Website-Felder ──
+// Adresse, Telefon, E-Mail, Social und das Zeitenraster werden in ReifenPro gepflegt
+// (Einstellungen). Hier stehen sie nur lesbar, damit niemand sie an der falschen Stelle
+// sucht. Editierbar sind nur Kartenposition und der Hinweistext unter der Tabelle —
+// beides kennt ReifenPro nicht. Der Server ignoriert alles Uebrige ohnehin.
 function firmendatenLaden() {
   api('GET', '/homepage/firmendaten').then(function(f){
     f = f || {};
     var txt = function(id, val){ var e = document.getElementById(id); if (e) e.value = val || ''; };
-    var zeit = function(id, val){ var e = document.getElementById(id); if (e) e.value = val ? String(val).slice(0, 5) : ''; };
-    txt('fd-firmenname', f.firmenname); txt('fd-strasse', f.strasse); txt('fd-plz', f.plz); txt('fd-ort', f.ort);
-    txt('fd-telefon', f.telefon); txt('fd-email', f.email);
     txt('fd-geo-breite', f.geo_breite); txt('fd-geo-laenge', f.geo_laenge);
-    txt('fd-google', f.google_bewertung_url); txt('fd-facebook', f.facebook_url); txt('fd-instagram', f.instagram_url);
     txt('fd-oz-hinweis', f.oeffnungszeiten_hinweis);
-    ozSetzen(f.woche); ozBesondereRender(f.besondere);
-    // Firmenname/Adresse sind Rechnungsangaben: nur fuer Admins editierbar, sonst nur lesbar
-    var stamm = f.darf_stammdaten === true;
-    ['fd-firmenname', 'fd-strasse', 'fd-plz', 'fd-ort'].forEach(function(id){
-      var e = document.getElementById(id); if (e) { e.disabled = !stamm; e.style.opacity = stamm ? '' : '0.6'; }
-    });
-    var hint = document.getElementById('fd-stamm-hint'); if (hint) hint.style.display = stamm ? 'none' : 'block';
+    fdAnzeigeRender(f);
+    ozBesondereRender(f.besondere);
   }).catch(function(){});
+}
+// Schreibgeschuetzte Darstellung. Leere Werte werden als "— nicht hinterlegt" gezeigt und
+// nicht verschwiegen: sonst haelt man ein fehlendes Feld fuer einen Anzeigefehler.
+function fdAnzeigeRender(f) {
+  var el = document.getElementById('fd-anzeige'); if (!el) return;
+  var leer = '<span style="color:var(--muted)">— nicht hinterlegt</span>';
+  var wert = function(v){ return v ? esc(v) : leer; };
+  var zeile = function(k, v){
+    return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">' +
+      '<div style="flex:0 0 150px;color:var(--muted);font-size:13px">' + k + '</div>' +
+      '<div style="flex:1;min-width:160px;font-size:14px">' + v + '</div></div>';
+  };
+  var anschrift = [f.strasse, [f.plz, f.ort].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  el.innerHTML =
+    '<h3 style="font-size:14px;margin:6px 0 8px;color:var(--text)">Kontakt &amp; Adresse</h3>' +
+    zeile('Firmenname', wert(f.firmenname)) +
+    zeile('Anschrift', wert(anschrift)) +
+    zeile('Telefon', wert(f.telefon)) +
+    zeile('E-Mail', wert(f.email)) +
+    '<h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Social &amp; Bewertungen</h3>' +
+    zeile('Google-Bewertung', wert(f.google_bewertung_url)) +
+    zeile('Facebook', wert(f.facebook_url)) +
+    zeile('Instagram', wert(f.instagram_url)) +
+    '<h3 style="font-size:14px;margin:18px 0 8px;color:var(--text)">Öffnungszeiten</h3>' +
+    '<div class="imghint" style="margin-top:0;margin-bottom:8px">Diese Zeiten gelten gleichzeitig für die <b>Online-Terminbuchung</b>. Deshalb werden sie nur an einer Stelle gepflegt.</div>' +
+    ozAnzeigeHtml(f.woche);
+}
+var OZ_TAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+function ozAnzeigeHtml(woche) {
+  if (!woche || woche.length !== 7) {
+    return '<div class="imghint" style="margin:0">Die Öffnungszeiten konnten nicht geladen werden. Bitte die Seite neu laden.</div>';
+  }
+  return woche.map(function(t, i) {
+    var sp = (t && t.spannen) || [];
+    var zu = !sp.length || (t && t.geschlossen === true && !sp.length);
+    var zeit = zu ? '<span style="color:var(--muted)">geschlossen</span>'
+      : sp.map(function(s){ return esc(String(s[0]).slice(0,5)) + ' – ' + esc(String(s[1]).slice(0,5)); }).join(' und ');
+    return '<div style="display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--border)">' +
+      '<div style="flex:0 0 150px;color:var(--muted);font-size:13px">' + OZ_TAGE[i] + '</div>' +
+      '<div style="flex:1;font-size:14px">' + zeit + '</div></div>';
+  }).join('');
 }
 function firmendatenSpeichern() {
   var val = function(id){ var e = document.getElementById(id); return e ? e.value.trim() : ''; };
-  // Sicherheitsnetz: Eine Woche ganz ohne offene Tage schaltet auch die Online-Buchung ab.
-  if (OZ_VERFUEGBAR && OZ_WOCHE.every(function(d){ return d.geschlossen; })
-      && !confirm('Alle Wochentage sind auf „geschlossen“ gestellt. Damit zeigt die Website keine Öffnungszeiten mehr und es kann online kein Termin gebucht werden.\n\nWirklich so speichern?')) return;
   api('PUT', '/homepage/firmendaten', {
-    firmenname: val('fd-firmenname'), strasse: val('fd-strasse'), plz: val('fd-plz'), ort: val('fd-ort'),
-    telefon: val('fd-telefon'), email: val('fd-email'),
     geo_breite: val('fd-geo-breite'), geo_laenge: val('fd-geo-laenge'),
-    google_bewertung_url: val('fd-google'), facebook_url: val('fd-facebook'), instagram_url: val('fd-instagram'),
-    oeffnungszeiten_hinweis: val('fd-oz-hinweis'),
-    woche: OZ_VERFUEGBAR ? OZ_WOCHE : undefined
-  }).then(function(){ notify('Kontaktdaten gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
-}
-
-// ── Öffnungszeiten: Wochenraster (Mo=0 … So=6, bis zu 2 Spannen je Tag) ──
-var OZ_TAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
-var OZ_WOCHE = [];
-// false = Zeiten konnten nicht geladen werden -> Raster nicht bedienbar und beim Speichern
-// NICHT mitsenden (sonst wuerde eine leere Woche alle Tage schliessen).
-var OZ_VERFUEGBAR = false;
-function ozSetzen(woche) {
-  OZ_WOCHE = [];
-  OZ_VERFUEGBAR = !!(woche && woche.length === 7);
-  if (!OZ_VERFUEGBAR) {
-    var w = document.getElementById('fd-woche');
-    if (w) w.innerHTML = '<div class="imghint" style="margin:0">Die Öffnungszeiten konnten nicht geladen werden. Bitte die Seite neu laden – beim Speichern bleiben die bisherigen Zeiten unverändert.</div>';
-    return;
-  }
-  for (var wt = 0; wt < 7; wt++) {
-    var t = (woche && woche[wt]) || { geschlossen: true, spannen: [] };
-    var sp = t.spannen || [];
-    OZ_WOCHE.push({
-      wochentag: wt, geschlossen: t.geschlossen !== false && !sp.length,
-      von1: sp[0] ? sp[0][0] : '', bis1: sp[0] ? sp[0][1] : '',
-      von2: sp[1] ? sp[1][0] : '', bis2: sp[1] ? sp[1][1] : ''
-    });
-  }
-  ozRender();
-}
-function ozRender() {
-  var el = document.getElementById('fd-woche'); if (!el) return;
-  el.innerHTML = OZ_WOCHE.map(function(d, i) {
-    var offen = !d.geschlossen;
-    var pause = !!(d.von2 || d.bis2);
-    var zeiten = offen
-      ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">' +
-          '<input type="time" value="' + esc(d.von1) + '" style="width:120px" onchange="ozFeld(' + i + ',\'von1\',this.value)">' +
-          '<span style="color:var(--muted)">bis</span>' +
-          '<input type="time" value="' + esc(d.bis1) + '" style="width:120px" onchange="ozFeld(' + i + ',\'bis1\',this.value)">' +
-          '<label style="display:flex;align-items:center;gap:7px;margin:0 0 0 6px;font-size:12px;color:var(--muted)">' +
-            '<input type="checkbox"' + (pause ? ' checked' : '') + ' onchange="ozPause(' + i + ',this.checked)"> Mittagspause</label>' +
-        '</div>' +
-        (pause ? '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">' +
-          '<span style="font-size:12px;color:var(--muted);width:76px">nachmittags</span>' +
-          '<input type="time" value="' + esc(d.von2) + '" style="width:120px" onchange="ozFeld(' + i + ',\'von2\',this.value)">' +
-          '<span style="color:var(--muted)">bis</span>' +
-          '<input type="time" value="' + esc(d.bis2) + '" style="width:120px" onchange="ozFeld(' + i + ',\'bis2\',this.value)">' +
-        '</div>' : '')
-      : '';
-    return '<div style="padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px">' +
-      '<label style="display:flex;align-items:center;gap:9px;margin:0"><span class="sw"><input type="checkbox"' + (offen ? ' checked' : '') +
-        ' onchange="ozOffen(' + i + ',this.checked)"></span> <b>' + OZ_TAGE[i] + '</b>' +
-        (offen ? '' : ' <span style="color:var(--muted);font-size:12px">geschlossen</span>') + '</label>' +
-      zeiten + '</div>';
-  }).join('');
-}
-function ozOffen(i, an) {
-  OZ_WOCHE[i].geschlossen = !an;
-  if (an && !OZ_WOCHE[i].von1) { OZ_WOCHE[i].von1 = '08:00'; OZ_WOCHE[i].bis1 = '18:00'; }
-  if (!an) { OZ_WOCHE[i].von1 = ''; OZ_WOCHE[i].bis1 = ''; OZ_WOCHE[i].von2 = ''; OZ_WOCHE[i].bis2 = ''; }
-  ozRender();
-}
-function ozFeld(i, feld, wert) { OZ_WOCHE[i][feld] = wert || ''; }
-function ozPause(i, an) {
-  if (an) { OZ_WOCHE[i].von2 = OZ_WOCHE[i].von2 || '13:00'; OZ_WOCHE[i].bis2 = OZ_WOCHE[i].bis2 || (OZ_WOCHE[i].bis1 || '18:00'); if (OZ_WOCHE[i].bis1 === OZ_WOCHE[i].bis2) OZ_WOCHE[i].bis1 = '12:00'; }
-  else { OZ_WOCHE[i].von2 = ''; OZ_WOCHE[i].bis2 = ''; }
-  ozRender();
-}
-// Häufigster Fall: Mo–Fr gleiche Zeiten — einmal eintragen, dann übernehmen.
-function ozMoUebernehmen() {
-  var mo = OZ_WOCHE[0];
-  for (var i = 1; i <= 4; i++) {
-    OZ_WOCHE[i] = { wochentag: i, geschlossen: mo.geschlossen, von1: mo.von1, bis1: mo.bis1, von2: mo.von2, bis2: mo.bis2 };
-  }
-  ozRender();
-  notify('Zeiten von Montag übernommen – noch nicht gespeichert.');
+    oeffnungszeiten_hinweis: val('fd-oz-hinweis')
+  }).then(function(){ notify('Gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
 }
 // Feiertage/Betriebsurlaub kommen aus der Verwaltung (Einstellungen) — hier nur zur Info.
 function ozBesondereRender(liste) {
   var el = document.getElementById('fd-besondere'); if (!el) return;
-  var hin = 'Gepflegt in der Verwaltung unter <b>Einstellungen → Öffnungszeiten</b>. Geschlossene Tage erscheinen automatisch auf der Website und sind nicht online buchbar.';
+  var hin = 'Gepflegt in ReifenPro unter <b>Einstellungen → Öffnungszeiten</b>. Geschlossene Tage erscheinen automatisch auf der Website und sind nicht online buchbar.';
   if (!liste || !liste.length) { el.innerHTML = 'Keine kommenden Feiertage oder Schließtage hinterlegt.<br>' + hin; return; }
   el.innerHTML = liste.slice(0, 10).map(function(b) {
     var d = new Date(b.datum + 'T12:00:00');
@@ -871,14 +868,35 @@ function navSpeichern() {
   if (!clean.length) { notify('Mindestens ein Menüpunkt mit Beschriftung erforderlich.', true); return; }
   api('PUT', '/homepage/nav', clean).then(function(){ notify('Navigation gespeichert – Homepage aktualisiert.'); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
 }
+// Gleiche Regel wie in src/lib/aktion.js: Jede Prozentzahl im Text muss der gewaehlte Gutschein
+// hergeben. Hier nur, damit der Fehler am Feld steht statt nach dem Absenden — gesperrt wird am
+// Server, die Oberflaeche ist die Bequemlichkeit.
+function bannerTextFehler(text, code) {
+  if (!code) return null;
+  // NFKC und Markup raus wie am Server (src/lib/aktion.js): "30％" und "30<!---->%" sahen aus
+  // wie 30 %, rutschten aber durch die Prüfung.
+  var treffer = String(text || '').normalize('NFKC').replace(/<[^>]*>/g, '').match(/(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:%|Prozent)/gi) || [];
+  if (!treffer.length) return null;
+  var g = null;
+  GS_BEWERBBAR.forEach(function(x){ if (String(x.code).toUpperCase() === String(code).toUpperCase()) g = x; });
+  if (!g || !g.saetze || !g.saetze.length) return null;
+  var saetze = g.saetze.map(Number);
+  var imText = treffer.map(function(t){ return Number(String(t).replace(/[^\d.,]/g, '').replace(',', '.')); });
+  var falsch = imText.filter(function(p){ return saetze.indexOf(p) === -1; });
+  if (!falsch.length) return null;
+  var liste = function(arr){ return arr.map(function(x){ return String(x).replace('.', ',') + ' %'; }).join(' und '); };
+  return 'Im Text steht ' + liste(falsch) + ', der Gutschein ' + code + ' gibt ' + liste(saetze) + ' her. Bitte Text oder Gutschein anpassen.';
+}
 function bannerSpeichern() {
+  var fehler = bannerTextFehler(document.getElementById('ak-text').value, document.getElementById('ak-code').value);
+  if (fehler) { notify(fehler, true); return; }
   api('PUT', '/homepage/banner', {
     aktion_aktiv: document.getElementById('ak-aktiv').checked,
     aktion_text: document.getElementById('ak-text').value,
     aktion_code: document.getElementById('ak-code').value,
     aktion_position: document.getElementById('ak-pos').value,
     aktion_link: document.getElementById('ak-link').value
-  }).then(function(){ notify('Banner gespeichert – Homepage aktualisiert.'); }).catch(function(e){ notify(e.message, true); });
+  }).then(function(){ notify('Banner gespeichert – Homepage aktualisiert.'); bannerLaden(); reloadFrame(); }).catch(function(e){ notify(e.message, true); });
 }
 // ── Gutscheine ──
 function gutscheineLaden() {
@@ -902,11 +920,13 @@ function gutscheinAnlegen() {
   var rabatt = parseInt(document.getElementById('gs-rabatt').value);
   if (!code || !(rabatt >= 1 && rabatt <= 100)) { notify('Code und Rabatt (1–100 %) angeben.', true); return; }
   api('POST', '/gutscheine', { code: code, rabatt_prozent: rabatt, gueltig_bis: document.getElementById('gs-bis').value || null, beschreibung: document.getElementById('gs-besch').value || null })
-    .then(function(){ notify('Gutschein angelegt.'); ['gs-code','gs-rabatt','gs-bis','gs-besch'].forEach(function(i){ document.getElementById(i).value=''; }); gutscheineLaden(); })
+    .then(function(){ notify('Gutschein angelegt.'); ['gs-code','gs-rabatt','gs-bis','gs-besch'].forEach(function(i){ document.getElementById(i).value=''; }); gutscheineLaden(); bannerLaden(); })
     .catch(function(e){ notify(e.message, true); });
 }
-function gutscheinAktiv(id, val) { api('PATCH', '/gutscheine/' + id, { aktiv: val }).then(function(){ notify('Aktualisiert.'); }).catch(function(e){ notify(e.message, true); }); }
-function gutscheinLoeschen(id) { if (!confirm('Gutschein wirklich löschen?')) return; api('DELETE', '/gutscheine/' + id).then(function(){ notify('Gelöscht.'); gutscheineLaden(); }).catch(function(e){ notify(e.message, true); }); }
+// Auswahlliste des Banners mitziehen: Ein deaktivierter oder geloeschter Gutschein darf dort
+// nicht mehr waehlbar sein, und ein gerade beworbener faellt sofort als ungueltig auf.
+function gutscheinAktiv(id, val) { api('PATCH', '/gutscheine/' + id, { aktiv: val }).then(function(){ notify('Aktualisiert.'); gutscheineLaden(); bannerLaden(); }).catch(function(e){ notify(e.message, true); }); }
+function gutscheinLoeschen(id) { if (!confirm('Gutschein wirklich löschen?')) return; api('DELETE', '/gutscheine/' + id).then(function(){ notify('Gelöscht.'); gutscheineLaden(); bannerLaden(); }).catch(function(e){ notify(e.message, true); }); }
 function feld(id, label, val, ta) {
   return '<label>' + label + '</label>' + (ta
     ? '<textarea id="' + id + '">' + esc(val) + '</textarea>'
