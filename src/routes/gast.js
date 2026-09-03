@@ -10,6 +10,7 @@ const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
+const widerruf = require('../lib/widerruf');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
 const FZ_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
@@ -312,8 +313,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     // Ablauf. Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers
     // (Paragraf 356 Abs. 4 BGB) — sonst entfaellt bei einem Widerruf auch der Wertersatz
     // (Paragraf 357a Abs. 2 BGB) und die geleistete Arbeit bliebe unbezahlt.
-    const tageBis = Math.round((new Date(datum + 'T12:00:00') - new Date(new Date().toDateString())) / 86400000);
-    if (tageBis < 14 && vorzeitige_leistung !== true) {
+    // Rechnung liegt in lib/widerruf.js. Sie stand vorher hier und verglich Mitternacht gegen
+    // 12 Uhr des Termintags -- eine halbe Tagesdifferenz, die Math.round nach oben zog. Ein
+    // Termin in 13 Tagen ergab 14 und fiel aus der Frist, obwohl das Formular korrekt fragte.
+    if (widerruf.zustimmungNoetig(datum) && vorzeitige_leistung !== true) {
       return res.status(400).json({ error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.' });
     }
     // Notaus: `buchung_aktiv=false` steuerte bisher NUR, ob das Widget auf der Homepage erscheint --

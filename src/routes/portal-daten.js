@@ -7,6 +7,7 @@ const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
 const konditionen = require('../lib/konditionen');
+const widerruf = require('../lib/widerruf');
 const { kundenMailHtml } = require('../lib/mail-template');
 const fs = require('fs');
 
@@ -205,6 +206,23 @@ router.post('/termine', authKunde, async (req, res, next) => {
     const _sperre = vorBuchungsstart(einst && einst.buchbar_ab, datum);
     if (_sperre) return res.status(409).json({ error: _sperre });
 
+    // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
+    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB);
+    // ohne sie entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB).
+    // Dieselbe Rechnung und dieselbe Grenze wie im Gaeste-Weg (gast.js): 13 Tage ja, 14 nein.
+    // Die Pruefung steht hier und nicht nur im Formular, weil ein Aufruf ohne Oberflaeche das
+    // Haekchen sonst umgeht.
+    const _vorzeitigNoetig = widerruf.zustimmungNoetig(datum);
+    if (_vorzeitigNoetig && req.body.vorzeitige_leistung !== true) {
+      return res.status(400).json({
+        code: 'VORZEITIGE_LEISTUNG_NOETIG',
+        error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.'
+      });
+    }
+    // Nur speichern, wenn die Zustimmung auch noetig war -- sonst stuende bei einem Termin in
+    // sechs Wochen eine Einwilligung im Datensatz, die der Kunde nie abgegeben hat.
+    const _vorzeitig = _vorzeitigNoetig === true;
+
     // Gutschein (optional). Bis jetzt konnte ein angemeldeter Kunde den Flyer-Code gar nicht
     // einloesen -- wir bewerben in jeder Bestaetigungsmail ein Kundenkonto und haetten es beim
     // Rabatt bestraft. Dieselbe Logik wie im Gaeste-Weg, aus demselben Modul.
@@ -271,10 +289,12 @@ router.post('/termine', authKunde, async (req, res, next) => {
       const kzListe = fzs.map((f) => f.kennzeichen).filter(Boolean).join(', ') || null;
       const ins = await query(
         `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
-         datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung, artikel_id, status, portal_buchung)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'angefragt',true) RETURNING *`,
+         datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung, artikel_id, status, portal_buchung,
+         vorzeitige_leistung, vorzeitige_leistung_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'angefragt',true,$12,
+                 CASE WHEN $12 THEN NOW() ELSE NULL END) RETURNING *`,
         [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
-         datum, uhrzeit_von, uhrzeit_bis, art.name, kzListe, besch, artikel_id]);
+         datum, uhrzeit_von, uhrzeit_bis, art.name, kzListe, besch, artikel_id, _vorzeitig]);
       const datumF = new Date(datum + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
       await sendMail(k.portal_email, 'Sammelterminanfrage eingegangen — ' + datumF,
         '<p>Hallo ' + k.vorname + ',</p>' +
@@ -322,12 +342,14 @@ router.post('/termine', authKunde, async (req, res, next) => {
         // fuer Portal-Termine bisher aus dem Artikelstamm und haette den Rabatt nicht gesehen.
         `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email,
          datum, uhrzeit_von, uhrzeit_bis, termin_typ, kennzeichen, beschreibung,
-         artikel_id, fahrzeug_id, status, portal_buchung, leistungen, gutschein_code, gutschein_rabatt)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true,$13,$14,$15) RETURNING *`,
+         artikel_id, fahrzeug_id, status, portal_buchung, leistungen, gutschein_code, gutschein_rabatt,
+         vorzeitige_leistung, vorzeitige_leistung_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'bestaetigt',true,$13,$14,$15,$16,
+                 CASE WHEN $16 THEN NOW() ELSE NULL END) RETURNING *`,
         [k.id, k.vorname + ' ' + k.nachname, k.telefon, k.portal_email,
          datum, uhrzeit_von, uhrzeit_bis, art.name,
          kennzeichen || k.kennzeichen, beschreibung || null, artikel_id, fzId,
-         JSON.stringify([_position]), _gCode, _gEffektiv]);
+         JSON.stringify([_position]), _gCode, _gEffektiv, _vorzeitig]);
       return ins.rows;
     });
 
