@@ -70,7 +70,9 @@
   .kz input{min-width:0;text-align:center;font-family:monospace;text-transform:uppercase;font-weight:700;font-size:15px;border:1px solid #d5d9e0;border-radius:10px;background:#fff;color:#1a1a1a;padding:13px 4px}
   .kz input:focus{outline:none;border-color:#eab308}
   .kz input:nth-of-type(1){flex:0 0 64px}.kz input:nth-of-type(2){flex:0 0 52px}.kz input:nth-of-type(3){flex:0 0 74px}.kz input:nth-of-type(4){flex:0 0 46px}
-  .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#555;margin-top:14px;line-height:1.5}.check input{width:auto;margin-top:3px}.check a{color:#171717;text-decoration:underline}
+  .check{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#555;margin-top:14px;line-height:1.5}
+  .check.hervor{background:#fffbeb;border:1px solid #f2d675;border-left:3px solid #eab308;border-radius:10px;padding:12px 14px;margin-top:10px}
+  @media (prefers-color-scheme: dark){.check.hervor{background:#2a2413;border-color:#5c4d16}}.check input{width:auto;margin-top:3px}.check a{color:#171717;text-decoration:underline}
   .sum{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:18px 20px;margin-bottom:18px}
   .sum h3{font-size:15px;margin-bottom:10px}
   .sum .row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #f0f1f3;font-size:14px}
@@ -210,7 +212,7 @@
     <div class="info">Tipp: Straße tippen (Hausnummer kann direkt dahinter stehen), Vorschlag anklicken – PLZ &amp; Ort füllen sich; die Hausnummer bleibt erhalten. Adressvorschläge über <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> (OpenStreetMap) und <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten). Kein Tracking, keine Werbung.</div>
     <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
     <label class="check"><input type="checkbox" id="f-agb"> <span>Ich habe die <a href="/portal/agb.html" target="_blank" rel="noopener">AGB</a> und die <a href="/portal/widerruf.html" target="_blank" rel="noopener">Widerrufsbelehrung</a> gelesen und bin damit einverstanden. *</span></label>
-    <label class="check" id="vorzeitig-wrap" style="display:none"><input type="checkbox" id="f-vorzeitig"> <span id="vorzeitig-text"></span></label>
+    <label class="check hervor" id="vorzeitig-wrap" style="display:none"><input type="checkbox" id="f-vorzeitig"> <span id="vorzeitig-text"></span></label>
     <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
     <input type="text" id="f-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     </form>
