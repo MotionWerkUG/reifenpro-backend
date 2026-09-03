@@ -20,7 +20,12 @@ und logisch abgegrenzt. `DESIGN.md` gilt für die Optik.
   Leistungszeitraum, Menge/Art, Netto/MwSt-Satz/Betrag, Steuernummer/USt-IdNr).
 - **Rechnungsdatum nicht rückdatierbar** (Audit S3) — beim Festschreiben serverseitig begrenzen.
 - MwSt je Satz aggregiert, `round2` je Zeile; Client-Summen ignorieren.
-- Regelbesteuerung. Storno als eigener Beleg, nicht Löschen.
+- **Regelbesteuerung — vom Inhaber am 02.09.2026 ausdrücklich bestätigt, KEINE
+  Kleinunternehmerregelung nach § 19 UStG.** Damit weist jede Rechnung Umsatzsteuer aus.
+  Sollte sich das je ändern, ist es kein Schalter: Dann dürfte keine Steuer ausgewiesen
+  werden, es bräuchte den Hinweis auf die Steuerbefreiung, und die Prüfung auf die Sätze
+  19/7 müsste weichen.
+- Storno als eigener Beleg, nicht Löschen.
 
 ## Deploy
 Backend nach `src/…`, dann `pm2 restart reifenpro`. Frontend-Änderungen an der Rechnungen-
@@ -51,6 +56,16 @@ sudo -u postgres psql -d reifenpro -c "SELECT id, datum, kennzeichen FROM termin
 ```
 Termin gilt als abgerechnet, hat aber keine Rechnung. Solche Zeilen fallen durch jedes
 Raster: nicht unter „Abzurechnen", nicht unter die Löschfristen.
+
+Nach Kassenzahlungen zusätzlich der Abgleich mit der Kasse. Jede Kassenbuchung mit der
+Vorgangsart `zahlungseingang` muss eine Rechnung mit passender `kasse_beleg_nr` haben, und
+umgekehrt. Buchungen der Kasse holt man über `GET /api/export/verkaeufe` mit dem Kopf
+`X-ERP-Key`.
+
+Wichtig bei der Auswertung: Eine Rechnung mit `zahlungsstatus='bezahlt'` OHNE Kassenbeleg
+ist **kein** Fehler — sie kann per Überweisung bezahlt oder von Hand als bezahlt markiert
+worden sein, und jede Stornorechnung trägt den Status ohnehin. Aussagekräftig ist nur der
+Abgleich über die Belegnummern in beide Richtungen.
 
 ## Werkzeuge
 `gobd-pruefer` (Pflicht bei jeder Änderung: Nummernkreis, § 14, Aufbewahrung, Rundung),

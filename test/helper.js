@@ -56,7 +56,7 @@ async function stoppeApp() {
 // Row-Trigger aus, der GoBD-Schutztrigger blockiert das Aufraeumen also nicht.
 async function leereDaten() {
   await query(`TRUNCATE rechnung_positionen, rechnungen, rechnung_counter, termine,
-               kunden, einstellungen, audit_log, users RESTART IDENTITY CASCADE`);
+               kunden, einstellungen, audit_log, gutscheine, users RESTART IDENTITY CASCADE`);
 }
 
 // Legt die Mindestbasis an: Einstellungen (Aussteller) + ein Mitarbeiterkonto mit Token.

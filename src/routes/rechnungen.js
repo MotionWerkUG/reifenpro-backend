@@ -6,8 +6,9 @@ const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth
 const { auditLog } = require('../middleware/errorHandler');
 const { erzeugeRechnungPdf } = require('../lib/rechnung-pdf');
 const { resolvePreis } = require('../lib/preis');
-const { portalMailHtml } = require('../lib/mail-template');
+const { portalMailHtml, esc } = require('../lib/mail-template');
 const { sendMail } = require('../lib/mailer');
+const kasse = require('../lib/kasse');
 
 router.use(authenticate, requireStaff);
 
@@ -41,6 +42,45 @@ function zahlOk(v, min, max) {
   return Number.isFinite(n) && n >= min && n <= max;
 }
 
+// Nachlass je Position. Der Flyer verspricht gestaffelte Saetze (25 % auf die Einlagerung,
+// 10 % auf alles andere), also koennen in EINER Rechnung mehrere Rabattsaetze auftreten.
+//
+// Der Nachlass wird als eigene Minusposition ausgewiesen, nicht in den Preis eingerechnet:
+// § 14 Abs. 4 Nr. 7 UStG verlangt, dass eine im Voraus vereinbarte Entgeltminderung
+// erkennbar ist, und der Kunde soll sehen, was ihm der Code gebracht hat.
+//
+// Gruppiert wird je Rabattsatz UND Steuersatz — sonst waere der Steuerausweis falsch, sobald
+// unterschiedlich besteuerte Leistungen denselben Nachlass bekommen. Gerundet wird EINMAL je
+// Gruppe auf die Summe, nicht je Zeile; sonst laeuft die Summe um Cents von dem weg, was der
+// Kunde bei der Buchung gesehen hat.
+function nachlassPositionen(positionen, quelle) {
+  const gruppen = new Map();
+  (positionen || []).forEach(function (p) {
+    const rab = Number(p.rabatt_prozent);
+    if (!Number.isFinite(rab) || rab <= 0) return;
+    const satz = Number.isFinite(Number(p.mwst_satz)) ? Number(p.mwst_satz) : 19;
+    const brutto = (p.einzelpreis_brutto != null);
+    const basis = brutto
+      ? round2((Number(p.menge) || 0) * (Number(p.einzelpreis_brutto) || 0))
+      : round2((Number(p.menge) || 0) * (Number(p.einzelpreis_netto) || 0));
+    if (basis <= 0) return;
+    const key = rab + '|' + satz + '|' + (brutto ? 'b' : 'n');
+    const g = gruppen.get(key) || { rabatt: rab, satz: satz, brutto: brutto, basis: 0, namen: [] };
+    g.basis = round2(g.basis + basis);
+    g.namen.push(String(p.bezeichnung || '').trim());
+    gruppen.set(key, g);
+  });
+
+  return Array.from(gruppen.values()).map(function (g) {
+    // Bezeichnung: Bei genau einer betroffenen Leistung wird sie benannt, sonst zusammengefasst.
+    const was = g.namen.length === 1 ? g.namen[0] : 'übrige Leistungen';
+    const betrag = -round2(g.basis * g.rabatt / 100);
+    const pos = { bezeichnung: 'Nachlass ' + was + ' (' + g.rabatt + ' %)' + (quelle ? ' — ' + quelle : ''), menge: 1, einheit: null, mwst_satz: g.satz };
+    if (g.brutto) pos.einzelpreis_brutto = betrag; else pos.einzelpreis_netto = betrag;
+    return pos;
+  });
+}
+
 // Positionen aus dem Client pruefen. Liefert eine Fehlermeldung oder null.
 // Faengt ab: fehlende Bezeichnung (§ 14 Abs. 4 Nr. 5 UStG), unsinnige/unendliche Zahlen und
 // Massen-Positionen, die den gemeinsamen Datenbank-Pool blockieren wuerden.
@@ -64,12 +104,17 @@ function pruefePositionen(positionen) {
     // Die Betragsspalten sind numeric(10,2): das Produkt muss ebenfalls hineinpassen.
     if (!zahlOk(Number(p.menge) * Number(preis), -99999999.99, 99999999.99)) return nr + 'Zeilenbetrag ist zu groß.';
     if (p.mwst_satz != null && !zahlOk(p.mwst_satz, 0, 100)) return nr + 'Steuersatz ist keine gültige Zahl.';
+    if (p.rabatt_prozent != null && !zahlOk(p.rabatt_prozent, 0, 100)) return nr + 'Nachlass ist kein gültiger Prozentsatz (0 bis 100).';
   }
   return null;
 }
 
 // Summen + normalisierte Positionen serverseitig berechnen (Client-Werte werden NICHT vertraut)
-function berechneSummen(positionen) {
+// spiegeln=true erlaubt es, die gespeicherten Zeilenbetraege einer Originalposition
+// unveraendert (negiert) zu uebernehmen, statt sie neu hochzurechnen. Das ist NUR fuer den
+// Storno gedacht und wird bewusst ueber einen Parameter gesteuert: Felder aus dem Request-Body
+// koennen dadurch niemals Betraege diktieren.
+function berechneSummen(positionen, spiegeln) {
   let netto = 0, brutto = 0;
   const proSatz = {};
   const norm = (positionen || []).map(function (p, i) {
@@ -82,7 +127,15 @@ function berechneSummen(positionen) {
     // b) sonst wie bisher: Nettopreis ist die Basis, Brutto wird aufgeschlagen.
     const epBrutto = Number(p.einzelpreis_brutto);
     let ep, zNetto, zBrutto;
-    if (p.einzelpreis_netto == null && Number.isFinite(epBrutto)) {
+    if (spiegeln && p.spiegel_netto != null && p.spiegel_brutto != null) {
+      // c) Storno: Die Zeilenbetraege des Originals werden exakt uebernommen. Neu hochrechnen
+      //    wuerde bei Endpreisen bis zu einem Cent abweichen (44,00 -> 36,97 -> 43,99), und ein
+      //    Storno, der die Originalrechnung nicht auf null stellt, laesst auf dem Debitorenkonto
+      //    einen Rest stehen — obwohl der Beleg woertlich "hebt vollstaendig auf" druckt.
+      zNetto = round2(Number(p.spiegel_netto));
+      zBrutto = round2(Number(p.spiegel_brutto));
+      ep = Number(p.einzelpreis_netto) || 0;
+    } else if (p.einzelpreis_netto == null && Number.isFinite(epBrutto)) {
       zBrutto = round2(menge * epBrutto);
       zNetto = round2(zBrutto - round2(zBrutto * mwst / (100 + mwst)));
       ep = menge ? round2(zNetto / menge) : 0;
@@ -240,6 +293,13 @@ router.get('/statistik', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// ── GET /kassenstatus ── Ist die Kassenanbindung auf diesem Server eingerichtet?
+// Die Oberflaeche fragt das ab und blendet die Kassieren-Knoepfe sonst gar nicht erst ein:
+// Ein Knopf, der nur eine Fehlermeldung erzeugen kann, ist eine Sackgasse.
+router.get('/kassenstatus', async (req, res) => {
+  res.json({ konfiguriert: kasse.konfiguriert() });
+});
+
 // ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
 router.get('/export', requireAdmin, async (req, res, next) => {
   try {
@@ -282,8 +342,11 @@ router.get('/export-datev', requireAdmin, async (req, res, next) => {
     const kDeb = e.datev_konto_debitoren || '1400';
     const k19  = e.datev_konto_erloes_19 || '8400';
     const k7   = e.datev_konto_erloes_7  || '8300';
-    const berater = e.datev_berater_nr || '';
-    const mandant = e.datev_mandant_nr || '';
+    // DATEV erwartet hier unquotierte Zahlfelder. Ein Semikolon oder Anfuehrungszeichen aus den
+    // Einstellungen wuerde die Kopfzeile zerlegen, deshalb bleiben nur Ziffern stehen.
+    const nurZiffern = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+    const berater = nurZiffern(e.datev_berater_nr);
+    const mandant = nurZiffern(e.datev_mandant_nr);
     const skl = parseInt(e.datev_sachkontenlaenge) || 4;
     const { rows } = await query(
       `SELECT rechnungsnr, to_char(rechnungsdatum,'DDMM') AS beleg,
@@ -466,7 +529,11 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Bitte einen Kunden wählen oder einen Empfänger (Name oder Firma) eintragen.' });
     }
     // Gutschein/Rabatt anwenden: geprueften Code -> Rabattposition je MwSt-Satz (Aufschluesselung bleibt korrekt)
-    let posFinal = positionen;
+    // Nachlass je Position (gestaffelte Saetze) hat Vorrang: Tragen einzelne Positionen einen
+    // eigenen Rabattsatz, entstehen daraus die Minuspositionen. Der belegweite Gutscheinrabatt
+    // bleibt daneben fuer den einfachen Fall bestehen — beides zusammen waere doppelt.
+    let posFinal = positionen.concat(nachlassPositionen(positionen));
+    const gestaffelt = posFinal.length > positionen.length;
     let rabattProzent = 0, rabattLabel = null;
     const code = (req.body.gutschein_code || '').toString().trim();
     if (code) {
@@ -481,6 +548,9 @@ router.post('/', async (req, res, next) => {
       rabattLabel = 'Rabatt';
     }
     rabattProzent = Math.min(Math.max(rabattProzent, 0), 100);
+    if (gestaffelt && rabattProzent > 0) {
+      return res.status(400).json({ error: 'Es sind bereits Nachlässe je Position gesetzt. Ein zusätzlicher Rabatt auf den ganzen Beleg würde doppelt abziehen.' });
+    }
     if (rabattProzent > 0) {
       const basis = berechneSummen(positionen);
       const rabattPos = basis.mwst_aufschluesselung
@@ -489,7 +559,7 @@ router.post('/', async (req, res, next) => {
           return { bezeichnung: rabattLabel + ' (-' + rabattProzent + ' %)', menge: 1, einheit: null,
                    einzelpreis_netto: -round2(r.netto * rabattProzent / 100), mwst_satz: r.satz };
         });
-      posFinal = positionen.concat(rabattPos);
+      posFinal = posFinal.concat(rabattPos);
     }
     const s = berechneSummen(posFinal);
     const rdatum = rechnungsdatum || heute();
@@ -529,7 +599,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       const f = (await query('SELECT typ FROM fahrzeuge WHERE id=$1', [t.fahrzeug_id])).rows[0];
       if (f) typ = f.typ;
     }
-    // R4: Bei preise_inkl_mwst=true sind artikel.preis/kunden_preise Brutto -> unten zu Netto umrechnen (wie gast.js)
+    // Bei preise_inkl_mwst=true sind artikel.preis und kunden_preise BRUTTO-Endpreise. Sie
+    // werden weiter unten als Bruttopreis uebergeben und bleiben damit exakt erhalten — sie
+    // werden NICHT mehr auf Netto umgerechnet. Der frueher hier stehende Hinweis auf eine
+    // Netto-Umrechnung war seit der Endpreis-Umstellung falsch.
     const inkl = (((await query('SELECT preise_inkl_mwst FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {}).preise_inkl_mwst) !== false;
     let preis = t.artikel_preis != null ? Number(t.artikel_preis) : 0;
     let mwst = t.artikel_mwst != null ? Number(t.artikel_mwst) : 19;
@@ -554,6 +627,14 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     // sonst Fallback auf die einzelne Hauptleistung.
     let leist = t.leistungen; if (typeof leist === 'string') { try { leist = JSON.parse(leist); } catch (e) { leist = null; } }
     let positionen;
+    // Woraus der Nachlass stammt, friert die Buchung je Leistung in preis_quelle ein. Gutschein
+    // und Gewerbe-Kondition schliessen sich seit der Portal-Aenderung gegenseitig aus, es gibt
+    // also je Termin genau eine Herkunft. Der Gutscheincode steht einmal an termine.gutschein_code
+    // und wird bewusst nicht je Position dupliziert.
+    const quellen = new Set((Array.isArray(leist) ? leist : []).map((p) => String(p.preis_quelle || '').toLowerCase()));
+    const nachlassHerkunft = t.gutschein_code
+      ? 'Gutschein ' + t.gutschein_code
+      : (quellen.has('konditionen') ? 'Vereinbarter Nachlass' : null);
     if (Array.isArray(leist) && leist.length) {
       positionen = leist.map((p) => {
         const pos = {
@@ -570,6 +651,11 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         const brutto = Number(p.zeilen_brutto);
         if (Number.isFinite(brutto) && brutto !== 0) pos.einzelpreis_brutto = round2(brutto);
         else pos.einzelpreis_netto = round2((Number(p.grundpreis_netto) || 0) + (Number(p.zuschlag_netto) || 0));
+        // Der beim Buchen zugesagte Nachlasssatz ist je Leistung eingefroren. Er kann je
+        // Position unterschiedlich sein (Flyer: 25 % auf die Einlagerung, 10 % auf den Rest) —
+        // ein einziger Satz fuer den ganzen Beleg kann das nicht abbilden.
+        const rab = Number(p.rabatt_prozent);
+        if (Number.isFinite(rab) && rab > 0) pos.rabatt_prozent = rab;
         return pos;
       });
     } else {
@@ -580,17 +666,26 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
         ? Object.assign({}, basis, { einzelpreis_brutto: round2(preis) })
         : Object.assign({}, basis, { einzelpreis_netto: round2(preis) })];
     }
-    // Gutschein/Rabatt als MwSt-korrekte Position (je Steuersatz gemindert -> korrekter Steuerausweis).
-    // Vorrang: 1) manueller Staff-Override im Body (Live-Validierung gegen gutscheine),
-    //          2) sonst der auf dem Termin gespeicherte Rabatt (termine.gutschein_rabatt,
-    //             dokumentiert mit termine.gutschein_code). Diesen Wert setzt der Buchungs-Flow
-    //             (Portal, Branch portal/gutschein-pruef — noch NICHT in main); bis zu dessen Merge
-    //             ist dieser Zweig inaktiv (NULL/0 -> kein Rabatt). Bewusst KEINE erneute
-    //             Live-Validierung, damit der beim Buchen zugesagte Rabatt erhalten bleibt (analog
-    //             Aussteller-Snapshot), auch wenn der Gutschein spaeter ablaeuft/geaendert wird.
+    // Nachlass. Vorrang, von oben nach unten:
+    //  1) Saetze, die je Leistung im Termin EINGEFROREN sind (leistungen[].rabatt_prozent).
+    //     Nur die koennen einen gestaffelten Gutschein abbilden (25 % auf die Einlagerung,
+    //     10 % auf den Rest). Sie stammen aus dem Buchungsvorgang und sind eine Zusage an den
+    //     Kunden — deshalb wird NICHT erneut live gegen die Gutscheintabelle geprueft.
+    //  2) sonst ein manuell im Body mitgegebener Code (Kunde legt den Gutschein erst am Tresen
+    //     vor). Der wird live geprueft und wirkt pauschal.
+    //  3) sonst der pauschale Satz am Termin (termine.gutschein_rabatt) — Rueckfall fuer
+    //     Buchungen, die noch keine Saetze je Position mitfuehren.
     const gCode = (req.body && req.body.gutschein_code || '').toString().trim();
+    const eingefroren = nachlassPositionen(positionen, nachlassHerkunft);
     let rabattProzent = 0, rabattLabel = null, rabattQuelle = null;
-    if (gCode) {
+    if (eingefroren.length) {
+      // Ein zweiter Gutschein wuerde den Nachlass verdoppeln. Lieber klar ablehnen als still
+      // eine der beiden Zusagen unterschlagen.
+      if (gCode) return res.status(400).json({ error: 'Für diesen Termin ist bereits ein Nachlass hinterlegt. Ein weiterer Gutschein lässt sich nicht zusätzlich anwenden.' });
+      positionen = positionen.concat(eingefroren);
+      rabattQuelle = 'positionen';
+      rabattLabel = nachlassHerkunft || 'Nachlass';
+    } else if (gCode) {
       const g = (await query("SELECT code, rabatt_prozent FROM gutscheine WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)", [gCode])).rows[0];
       if (!g) return res.status(400).json({ error: 'Gutschein ungültig oder abgelaufen.' });
       rabattProzent = Number(g.rabatt_prozent) || 0;
@@ -771,12 +866,19 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       if (!aussteller.firmenname || !aussteller.strasse || !aussteller.plz || !aussteller.ort) {
         const e = new Error('Firmenname und vollständige Anschrift des Ausstellers fehlen — bitte in den Einstellungen vervollständigen (§ 14 UStG).'); e.status = 400; throw e;
       }
-      // Bei nicht im Handelsregister eingetragenen Rechtsformen (Einzelunternehmen, GbR) genuegt die
-      // Geschaeftsbezeichnung nicht — der buergerliche Name des Inhabers gehoert auf die Rechnung.
-      // Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde z. B. in
-      // "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
+      // Eine angegebene USt-IdNr. muss formal gueltig sein. Eine deutsche hat DE und neun
+      // Ziffern; steht dort etwas anderes, waere sie auf jeder Rechnung eine falsche
+      // Pflichtangabe. Leer lassen ist erlaubt — dann traegt die Steuernummer die Angabe.
+      if (aussteller.ust_id && !/^DE\s?\d{9}$/.test(String(aussteller.ust_id).replace(/\s/g, ' ').trim())) {
+        const e = new Error('Die hinterlegte USt-IdNr. ist keine gültige deutsche Nummer (Format DE gefolgt von neun Ziffern). Bitte in den Einstellungen korrigieren oder das Feld leer lassen.'); e.status = 400; throw e;
+      }
+      // Solange eine Gesellschaft nicht im Handelsregister eingetragen ist — Einzelunternehmen,
+      // GbR, oder eine Kapitalgesellschaft "i.G." vor der Eintragung — benennt die Firma allein
+      // den Unternehmer nicht. Dann gehoert der Name der vertretungsberechtigten Person auf die
+      // Rechnung. Bewusst exakter Abgleich gegen eine feste Liste: eine Teilstring-Suche wuerde
+      // z. B. in "Fahrzeugtechnik" das "ug" finden und die Pflichtangabe still aushebeln.
       if (!REGISTER_RECHTSFORMEN.includes(String(aussteller.rechtsform || '').trim()) && !aussteller.inhaber) {
-        const e = new Error('Name des Inhabers fehlt — bitte in den Einstellungen eintragen. Er ist der Name des leistenden Unternehmers (§ 14 UStG) und wird bei jeder Rechtsform verlangt, die nicht im Handelsregister eingetragen ist (Einzelunternehmen, GbR). Auch bei einer ungewöhnlichen Schreibweise der Rechtsform wird er sicherheitshalber verlangt.'); e.status = 400; throw e;
+        const e = new Error('Name der vertretungsberechtigten Person fehlt (Inhaber bzw. Geschäftsführer) — bitte in den Einstellungen eintragen. Er ist der Name des leistenden Unternehmers (§ 14 UStG) und wird bei jeder Rechtsform verlangt, die nicht im Handelsregister eingetragen ist (Einzelunternehmen, GbR). Auch bei einer ungewöhnlichen Schreibweise der Rechtsform wird er sicherheitshalber verlangt.'); e.status = 400; throw e;
       }
       if (Number(rech.brutto_summe) > 250 && (!emp.empfaenger_strasse || !emp.empfaenger_plz || !emp.empfaenger_ort)) {
         const e = new Error('Für Rechnungen über 250 € ist die vollständige Anschrift des Empfängers Pflicht (Straße, PLZ, Ort — § 14 UStG).'); e.status = 400; throw e;
@@ -868,9 +970,10 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
 
       const negPos = opos.map(function (p) {
         return { bezeichnung: 'Storno: ' + p.bezeichnung, menge: p.menge, einheit: p.einheit,
-                 einzelpreis_netto: -Number(p.einzelpreis_netto), mwst_satz: p.mwst_satz, artikel_id: p.artikel_id };
+                 einzelpreis_netto: -Number(p.einzelpreis_netto), mwst_satz: p.mwst_satz, artikel_id: p.artikel_id,
+                 spiegel_netto: -Number(p.zeilen_netto), spiegel_brutto: -Number(p.zeilen_brutto) };
       });
-      const s = berechneSummen(negPos);
+      const s = berechneSummen(negPos, true);
 
       const einst = (await client.query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
       const aussteller = ausstellerSnapshot(einst);
@@ -916,6 +1019,82 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
   }
+});
+
+// ── POST /:id/barzahlung ── Zahlung am Tresen: an die Kasse melden und die Rechnung
+// als bezahlt vermerken. Die Kasse bucht "Kasse an Forderungen" (Betragsart
+// rechnungsausgleich, 0 %) — KEIN zweiter Erloes, denn Umsatz und Steuer sind bereits mit
+// der Rechnung entstanden. Sie signiert den Vorgang (TSE) und gibt den Beleg aus.
+router.post('/:id/barzahlung', async (req, res, next) => {
+  try {
+    const r = (await query('SELECT * FROM rechnungen WHERE id=$1', [req.params.id])).rows[0];
+    if (!r) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
+    if (r.status !== 'festgeschrieben') return res.status(400).json({ error: 'Nur festgeschriebene Rechnungen können kassiert werden.' });
+    if (r.storno_von_id) return res.status(400).json({ error: 'Eine Stornorechnung wird nicht kassiert.' });
+    if (r.zahlungsstatus === 'bezahlt') return res.status(409).json({ error: 'Diese Rechnung ist bereits als bezahlt vermerkt.' });
+    if (!kasse.konfiguriert()) return res.status(503).json({ error: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+
+    const zahlart = ['bar', 'ec', 'stripe'].includes(String(req.body && req.body.zahlart || 'bar')) ? String(req.body.zahlart || 'bar') : null;
+    if (!zahlart) return res.status(400).json({ error: 'Unbekannte Zahlart. Erlaubt sind bar, ec und stripe.' });
+
+    let antwort;
+    try {
+      antwort = await kasse.meldeZahlung({
+        quelleBeleg: r.rechnungsnr,
+        ticket: r.rechnungsnr,
+        betragArt: 'rechnungsausgleich',
+        betrag: Number(r.brutto_summe),
+        zahlart: zahlart,
+        kunde: r.empfaenger_firma || r.empfaenger_name || null
+      });
+    } catch (e) {
+      // Bewusst NICHT als bezahlt markieren, wenn die Kasse den Vorgang nicht angenommen hat.
+      // Sonst stuende die Rechnung auf bezahlt, ohne dass das Geld im Kassenbuch auftaucht.
+      if (e.code === 'NICHT_ERREICHBAR') {
+        return res.status(502).json({ error: 'Die Kasse ist nicht erreichbar. Die Rechnung wurde NICHT als bezahlt markiert.' });
+      }
+      // 409: In der Kasse liegt bereits ein offener Vorgang zu dieser Rechnung, mit anderen
+      // Daten — etwa weil zuerst bar versucht wurde und jetzt mit Karte. Die Kasse laesst
+      // das bewusst nicht still ueberschreiben. Der Vorgang muss dort abgeschlossen oder
+      // abgelehnt werden.
+      if (e.status === 409) {
+        return res.status(409).json({ error: 'Zu dieser Rechnung liegt in der Kasse bereits ein offener Vorgang mit anderen Angaben. Bitte ihn dort abschließen oder ablehnen und danach erneut kassieren.' });
+      }
+      // 403: Die Kasse laesst die Betragsart nicht zu, weil das noetige Modul fehlt.
+      if (e.status === 403) {
+        return res.status(400).json({ error: 'Die Kasse nimmt den Forderungsausgleich nicht an — das Modul „Forderungen" ist dort nicht aktiv. Das ist eine Einstellung der Kasse.' });
+      }
+      return res.status(400).json({ error: 'Die Kasse hat den Vorgang abgelehnt: ' + e.message });
+    }
+
+    // Bargeld ab 10.000 EUR verlangt eine Identifizierung nach dem Geldwaeschegesetz. Die
+    // Kasse laesst den Vorgang dann bewusst offen — hier darf nichts als bezahlt gelten.
+    if (antwort && antwort.gwgErforderlich) {
+      return res.status(409).json({ error: 'Betrag über der Geldwäsche-Schwelle: Der Vorgang liegt in der Kasse und muss dort mit Identitätsnachweis bestätigt werden.' });
+    }
+
+    const beleg = kasse.belegAus(antwort);
+    const upd = await query(
+      `UPDATE rechnungen SET zahlungsstatus='bezahlt', bezahlt_am=(now() AT TIME ZONE 'Europe/Berlin')::date,
+         kasse_beleg_nr=$1, kasse_beleg_datum=(now() AT TIME ZONE 'Europe/Berlin')::date, kasse_beleg_url=$2
+       WHERE id=$3 AND zahlungsstatus<>'bezahlt' RETURNING *`,
+      [beleg, (antwort && antwort.belegUrl) || null, req.params.id]);
+
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.barzahlung', tabelle: 'rechnungen', datensatzId: r.id,
+      neueWerte: { zahlart: zahlart, kassenbeleg: beleg, bereits_verarbeitet: !!(antwort && antwort.bereitsVerarbeitet) }, req });
+    // Kein Treffer heisst: Ein zweiter Vorgang war schneller und hat die Rechnung bereits
+    // ausgeglichen. Die Kasse hat dank Idempotenz nur einmal gebucht, hier ist also nichts
+    // kaputt — aber ein 200 mit leerem Rechnungssatz wuerde einen Erfolg vortaeuschen, den
+    // dieser Aufruf nicht hatte.
+    if (!upd.rows.length) {
+      return res.status(409).json({ error: 'Die Rechnung wurde zwischenzeitlich bereits als bezahlt erfasst.' });
+    }
+    res.json(Object.assign({}, upd.rows[0], {
+      hinweis: beleg
+        ? 'In der Kasse gebucht, Kassenbeleg ' + beleg + '.'
+        : 'In der Kasse gebucht. Die Belegnummer wird beim nächsten Abgleich nachgetragen.'
+    }));
+  } catch (e) { next(e); }
 });
 
 // ── PATCH /:id/bezahlt ── Zahlungsstatus setzen
@@ -1002,6 +1181,7 @@ router.post('/:id/senden', async (req, res, next) => {
     if (!r) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
     if (r.status !== 'festgeschrieben') return res.status(400).json({ error: 'Nur festgeschriebene Rechnungen können versendet werden.' });
     let mail = (req.body && req.body.email) ? String(req.body.email).trim() : null;
+    if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return res.status(400).json({ error: 'Die angegebene E-Mail-Adresse ist ungültig.' });
     if (!mail && r.kunden_id) {
       // Vorrang: eigene Rechnungsadresse (Buchhaltung), dann die allgemeine Adresse.
       const k = (await query('SELECT rechnung_email, email, portal_email FROM kunden WHERE id=$1', [r.kunden_id])).rows[0];
@@ -1015,10 +1195,13 @@ router.post('/:id/senden', async (req, res, next) => {
       to: mail,
       subject: 'Ihre Rechnung ' + r.rechnungsnr + ' — ' + firma,
       typ: 'rechnung', bezugId: r.id,
-      html: '<p>Guten Tag' + (r.empfaenger_name ? ' ' + r.empfaenger_name : '') + ',</p>' +
-        '<p>anbei erhalten Sie Ihre Rechnung <strong>' + r.rechnungsnr + '</strong> über <strong>' +
+      // Der Empfaengername ist ein beim Festschreiben eingefrorener Freitext. Ungeschuetzt in
+      // HTML gesetzt koennte er die Mail umbauen — deshalb hier dasselbe esc() wie in den
+      // Portalmails.
+      html: '<p>Guten Tag' + (r.empfaenger_name ? ' ' + esc(r.empfaenger_name) : '') + ',</p>' +
+        '<p>anbei erhalten Sie Ihre Rechnung <strong>' + esc(r.rechnungsnr) + '</strong> über <strong>' +
         (Number(r.brutto_summe) || 0).toFixed(2).replace('.', ',') + ' €</strong> als PDF-Anhang.</p>' +
-        '<p>Mit freundlichen Grüßen,<br>' + firma + '</p>',
+        '<p>Mit freundlichen Grüßen,<br>' + esc(firma) + '</p>',
       attachments: [{ filename: r.rechnungsnr + '.pdf', path: r.pdf_pfad }]
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.versendet', tabelle: 'rechnungen', datensatzId: r.id, neueWerte: { email: mail }, req });

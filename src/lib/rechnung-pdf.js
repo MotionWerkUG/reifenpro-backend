@@ -60,7 +60,9 @@ async function erzeugeRechnungPdf(rech, positionen) {
 
   return new Promise((resolve, reject) => {
     try {
-      if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true });
+      // Belege enthalten Namen, Anschriften und Betraege. Auf einem Server mit mehreren
+      // Projekten hat kein fremder Unix-Nutzer dort etwas zu suchen: Ordner 0750, Datei 0640.
+      if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true, mode: 0o750 });
       const pfad = path.join(PDF_DIR, safeName(rech.rechnungsnr) + '.pdf');
       const doc = new PDFDocument({ size: 'A4', margins: { top: 48, bottom: 40, left: 50, right: 50 } });
       const stream = fs.createWriteStream(pfad);
@@ -212,8 +214,12 @@ async function erzeugeRechnungPdf(rech, positionen) {
       // ── Fusszeile mit Pflichtangaben (§ 14 UStG) – eine Seite garantiert ──
       const fuss = [
         a.firmenname, a.rechtsform,
-        a.inhaber ? 'Inhaber: ' + a.inhaber : null,
-        a.handelsreg_nr ? 'HRB ' + a.handelsreg_nr : null,
+        // Eine Kapitalgesellschaft hat keinen Inhaber, sondern einen Geschaeftsfuehrer.
+        // Das Feld ist dasselbe, die Beschriftung richtet sich nach der Rechtsform.
+        a.inhaber ? (/\b(UG|GmbH|AG|SE|KGaA)\b/i.test(String(a.rechtsform || '')) ? 'Geschäftsführer: ' : 'Inhaber: ') + a.inhaber : null,
+        // Die Registernummer wird oft schon mit Praefix erfasst ("HRB 12345") — dann darf
+        // nicht noch einmal "HRB " davorgesetzt werden.
+        a.handelsreg_nr ? (/^(HRA|HRB|VR|GnR)\b/i.test(String(a.handelsreg_nr).trim()) ? String(a.handelsreg_nr).trim() : 'HRB ' + a.handelsreg_nr) : null,
         a.registergericht,
         a.steuernummer ? 'Steuernr. ' + a.steuernummer : null,
         a.ust_id ? 'USt-IdNr. ' + a.ust_id : null
@@ -224,7 +230,10 @@ async function erzeugeRechnungPdf(rech, positionen) {
          .text(fuss || (a.firmenname || ''), left, 806, { width: rightEdge - left, align: 'center', lineBreak: false });
 
       doc.end();
-      stream.on('finish', function () { resolve(pfad); });
+      stream.on('finish', function () {
+        try { fs.chmodSync(pfad, 0o640); } catch (e) { /* Rechte nicht setzbar: Beleg trotzdem gueltig */ }
+        resolve(pfad);
+      });
       stream.on('error', reject);
     } catch (err) { reject(err); }
   });

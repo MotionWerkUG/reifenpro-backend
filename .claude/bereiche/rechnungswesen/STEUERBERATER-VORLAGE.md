@@ -44,6 +44,26 @@ Umsatzsteuerlich bringt die Trennung nichts — es ist reine Auswertungsqualitä
 Alle Unterkonten müssen **Automatikkonten mit 19 %** sein, sonst braucht der DATEV-Export
 je Konto einen BU-Schlüssel.
 
+## Die sieben Konten, mit denen die Kasse startet
+
+Vom Inhaber am 31.08.2026 festgelegt. Alle sieben sind SKR03-Standardkonten, keines ist
+erfunden — bitte trotzdem bestätigen oder korrigieren.
+
+| Konto | Zweck | Satz |
+|---|---|---|
+| 1000 | Kasse (Bargeld) | — |
+| 1360 | Geldtransit: EC-Zahlung bis zur Gutschrift, Bargeld zur Bank | — |
+| 1400 | Forderungen — Zahlung auf eine offene Rechnung | 0 % |
+| 8400 | Erlöse 19 % — alle Leistungen und Warenverkäufe | 19 % |
+| 1800 | Privatentnahme aus der Kasse | — |
+| 1890 | Privateinlage in die Kasse | — |
+| 4900 | Sonstige betriebliche Aufwendungen — Sammelkonto für bar bezahlte Kleinigkeiten | **ohne Steuerautomatik** |
+
+Bewusst NICHT dabei: Unterkonten je Leistungsart (die Betragsart steht im Buchungstext),
+Anzahlungen, Differenzbesteuerung, Pfand, Trinkgeld, Gutscheine, ein eigenes Stornokonto.
+Nichts davon kommt im Betrieb vor. Ein Konto lässt sich in einer Minute nachtragen; eine
+Fehlbuchung auf einem überflüssigen Konto ist TSE-signiert und nur per Storno zu korrigieren.
+
 ## Geldkonten
 
 | Zweck | Konto |
@@ -52,7 +72,6 @@ je Konto einen BU-Schlüssel.
 | Bank | 1200 |
 | Geldtransit, auch EC-Zahlung bis zur Gutschrift | 1360 |
 | Forderungen aus Lieferungen und Leistungen | 1400 |
-| Erhaltene, versteuerte Anzahlungen 19 % | 1718 |
 
 EC-Zahlung: Verkauf gegen 1360, Gutschrift der Tagessumme 1200 an 1360, Gebühren als
 Aufwand. Am Monatsende läuft 1360 gegen null. Ein EC-Umsatz darf nie ins Kassenbuch —
@@ -86,8 +105,6 @@ mit § 13b-Automatik statt des normalen Gebührenkontos.
 | einlagerung | Unterkonto | 19 % | ja |
 | zubehoer | Unterkonto | 19 % | ja |
 | entsorgung | Unterkonto | 19 % | ja |
-| anzahlung (auch Online-Vorkasse) | 1718 | 19 % | nein, aber sofort steuerpflichtig |
-| anzahlungsaufloesung | 1718 | 19 % | nein |
 | **rechnungsausgleich** | **1400** | **keine** | **nein — kein Erlös** |
 | rabatt, storno, retoure | wie Original, negativ | wie Original | negativer Erlös |
 | privatentnahme / privateinlage | 1800 / 1890 | keine | nein |
@@ -104,10 +121,11 @@ Voranmeldung.
 Offen: ob die Abgabe an einen Verwerter gegen Gutschrift unter § 13b UStG (Abfälle und
 Schrott) fällt.
 
-**Anzahlungen und Online-Vorkasse:** Die Steuer entsteht mit dem Geldeingang, nicht mit der
-Leistung. Die Anzahlungsrechnung muss die Steuer offen ausweisen, und die Schlussrechnung
-muss Anzahlung und darauf entfallende Steuer abziehen. Wird das vergessen, wird die Steuer
-doppelt geschuldet.
+**Anzahlungen gibt es nicht** (Stand 31.08.2026, Entscheidung des Inhabers). Der Punkt wäre
+nur relevant, wenn später eine Online-Vorkasse bei der Terminbuchung dazukommt: Dann
+entsteht die Steuer bereits mit dem Geldeingang, die Anzahlungsrechnung muss sie offen
+ausweisen und die Schlussrechnung sie abziehen. Wird das vergessen, wird die Steuer doppelt
+geschuldet.
 
 **Gutscheine:** Was ReifenPro heute führt, sind Prozent-Rabattcodes — der Kunde zahlt nichts
 dafür. Das ist eine Entgeltminderung, kein Gutschein im Sinne des Umsatzsteuerrechts.
@@ -131,18 +149,24 @@ Rechnungsabgrenzung, bei Einnahmen-Überschuss-Rechnung nicht.
 3. Bitte die freien Unterkonten für Werkstattleistung, Reifenverkauf, Einlagerung, Zubehör
    und Entsorgung vergeben — oder ist ein einziges Erlöskonto lieber?
 4. Sind alle Erlöskonten Automatikkonten, sodass der DATEV-Export ohne BU-Schlüssel auskommt?
-5. Stripe: Welches freie Geldkonto als Verrechnungskonto? Gebühren auf ein normales
-   Gebührenkonto oder auf ein § 13b-Automatikkonto? Brauchen wir eine USt-IdNr.?
-6. Einnahmen-Überschuss-Rechnung oder Bilanz? Davon hängen Debitorenkonten und die
+5. **Stripe, Teil a — bitte zuerst beantworten, das hält die Kasse auf:** Welches freie
+   Geldkonto nehmen wir als **Verrechnungskonto**, auf dem die Kundenzahlung landet? Mehr
+   braucht die Kasse nicht.
+6. **Stripe, Teil b — betrifft nur die Buchhaltung, nicht die Kasse:** Auf welches Konto
+   gehören die **Stripe-Gebühren**? Vertragspartner ist in der Regel Stripe Payments Europe
+   in Irland; dann greift § 13b UStG und es braucht ein Aufwandskonto mit Reverse-Charge-
+   Automatik statt eines normalen Gebührenkontos — und eine eigene USt-IdNr. Die Gebühr wird
+   erst bei der Auszahlung gebucht, nicht beim Verkauf.
+7. Einnahmen-Überschuss-Rechnung oder Bilanz? Davon hängen Debitorenkonten und die
    Abgrenzung der Einlagerung ab.
-7. Ist-Versteuerung nach § 20 UStG beantragen? Bei Neugründung möglich und liquiditätsschonend.
-8. Bezahlte Wertgutscheine: immer Einzweckgutscheine? Welches Konto, welche Steuerautomatik?
-9. Altreifen an den Verwerter gegen Gutschrift: § 13b UStG?
-10. Reifenbezug aus dem EU-Ausland: welches Konto, und was ist vor der ersten Bestellung zu
+8. Ist-Versteuerung nach § 20 UStG beantragen? Bei Neugründung möglich und liquiditätsschonend.
+9. Bezahlte Wertgutscheine: immer Einzweckgutscheine? Welches Konto, welche Steuerautomatik?
+10. Altreifen an den Verwerter gegen Gutschrift: § 13b UStG?
+11. Reifenbezug aus dem EU-Ausland: welches Konto, und was ist vor der ersten Bestellung zu
     erledigen (USt-IdNr., Zusammenfassende Meldung)?
-11. Kautionen für Leihräder: eigenes Verbindlichkeitskonto?
-12. Dürfen zwei getrennte Firmen an derselben Cloud-TSE hängen, oder braucht jede ihre eigene?
-13. DATEV-Berater- und Mandantennummer sowie Sachkontenlänge für ReifenPro. Bitte den ersten
+12. Kautionen für Leihräder: eigenes Verbindlichkeitskonto?
+13. Dürfen zwei getrennte Firmen an derselben Cloud-TSE hängen, oder braucht jede ihre eigene?
+14. DATEV-Berater- und Mandantennummer sowie Sachkontenlänge für ReifenPro. Bitte den ersten
     Buchungsstapel testweise importieren, bevor er produktiv genutzt wird.
 
 ## Zwei Warnungen
