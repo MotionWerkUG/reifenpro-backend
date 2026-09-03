@@ -5,14 +5,39 @@ const { auditLog } = require('../middleware/errorHandler');
 const { sendMail } = require('../lib/mailer');
 const { kundenMailHtml } = require('../lib/mail-template');
 const { normalisiereLagerplatz, kapazitaetFuer } = require('../lib/lagerplatz');
+const { regulaereWoche } = require('../lib/oeffnung');
 
-// Oeffnungszeiten als lesbarer Text (aus den synchron gehaltenen Firmendaten-Feldern).
-function oeffnungszeilenText(e) {
-  const hm = (t) => t ? String(t).substring(0, 5) : '';
+// Oeffnungszeiten als lesbarer Text fuer die Kundenmail.
+//
+// Quelle ist das Wochenraster aus der Tabelle oeffnungszeiten — dieselbe, aus der auch
+// gebucht wird. Frueher standen hier die Altfelder mo_fr_*/sa_*/so_* der Tabelle
+// einstellungen. Die koennen nur EINE Spanne je Tag abbilden und haben deshalb die
+// Mittagspause verschluckt: Der Kunde las „Mo–Fr 08:00–18:00 Uhr“ und stand um halb eins
+// vor verschlossener Tuer. Ausserdem tragen sie nur den Montagswert fuer Montag bis
+// Freitag, koennen also einen einzelnen abweichenden Wochentag gar nicht darstellen.
+const TAG_KURZ = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+// regulaereWoche() liefert je Tag { geschlossen, spannen: [[von,bis], ...] } —
+// zwei Spannen, wenn eine Mittagspause eingetragen ist.
+function tagesText(t) {
+  if (!t || t.geschlossen || !Array.isArray(t.spannen) || !t.spannen.length) return null;
+  return t.spannen.map((s) => s[0] + '–' + s[1]).join(' und ');
+}
+
+// Aufeinanderfolgende Tage mit gleichen Zeiten werden zusammengefasst: „Mo–Fr …, Sa …“
+function oeffnungszeilenText(woche) {
+  if (!Array.isArray(woche) || woche.length !== 7) return '';
   const z = [];
-  if (e.mo_fr_von && e.mo_fr_bis) z.push('Mo–Fr ' + hm(e.mo_fr_von) + '–' + hm(e.mo_fr_bis) + ' Uhr');
-  if (e.sa_offen && e.sa_von && e.sa_bis) z.push('Sa ' + hm(e.sa_von) + '–' + hm(e.sa_bis) + ' Uhr');
-  if (e.so_offen && e.so_von && e.so_bis) z.push('So ' + hm(e.so_von) + '–' + hm(e.so_bis) + ' Uhr');
+  let i = 0;
+  while (i < 7) {
+    const text = tagesText(woche[i]);
+    if (!text) { i++; continue; }
+    let j = i;
+    while (j + 1 < 7 && tagesText(woche[j + 1]) === text) j++;
+    const label = (i === j) ? TAG_KURZ[i] : TAG_KURZ[i] + '–' + TAG_KURZ[j];
+    z.push(label + ' ' + text + ' Uhr');
+    i = j + 1;
+  }
   return z.join(', ');
 }
 
@@ -34,7 +59,7 @@ async function ladeMailKontext(einlagerungId) {
     beleg_nr: r.beleg_nr, reifen_typ: r.reifen_typ, reifen_groesse: r.reifen_groesse,
     lagerplatz: r.lagerplatz, eingelagert_am: r.eingelagert_am,
     firmenname: einst.firmenname || 'Schröder & Scholz', telefon: einst.telefon || '',
-    portal_url: einst.portal_url || '', oeffnungszeiten: oeffnungszeilenText(einst),
+    portal_url: einst.portal_url || '', oeffnungszeiten: oeffnungszeilenText(await regulaereWoche()),
     bewertungslink: einst.google_bewertung_url || ''
   };
   return { mail, r, einst, vars };
