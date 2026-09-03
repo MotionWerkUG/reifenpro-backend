@@ -41,7 +41,11 @@ router.post('/', limiter, async (req, res, next) => {
       dokPfad = fname;
     }
 
-    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+    // Beweisdaten zur Datenschutz-Zustimmung: NUR req.ip. Der linke Teil von x-forwarded-for
+    // stammt vom Absender selbst und ist frei waehlbar; nginx haengt die echte Adresse rechts an,
+    // die req.ip mit trust proxy liefert. Nachgestellt: Client schickte 9.9.9.9, echt war
+    // 203.0.113.42 -- gespeichert wurde 9.9.9.9.
+    const ip = (req.ip || '').toString();
     const ins = await query(
       `INSERT INTO gewerbe_anfragen (firma, anrede, ansprechpartner, ust_id, telefon, email, anzahl_fahrzeuge, nachricht, dokument_pfad, dokument_name, datenschutz_ip)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
