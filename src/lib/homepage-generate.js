@@ -5,8 +5,12 @@ const fs = require('fs');
 const { query } = require('../db/index');
 const { renderHomepage, renderWartung } = require('./homepage-render');
 const { regulaereWoche, besondereTageAbHeute } = require('./oeffnung');
+const { bannerStatus } = require('./aktion');
 
-const ZIEL = '/var/www/schroeder-homepage/index.html';
+// Zielpfad der erzeugten Seite. Im Betrieb immer die echte Website; ueberschreibbar per
+// HOMEPAGE_ZIEL, damit eine Testinstanz (eigene Datenbank, eigener Port) die Live-Datei nicht
+// mit Testdaten ueberschreibt. In der produktiven .env ist die Variable NICHT gesetzt.
+const ZIEL = process.env.HOMEPAGE_ZIEL || '/var/www/schroeder-homepage/index.html';
 // Wartungs-/Coming-Soon-Modus: existiert diese Flag-Datei, wird STATT der Website die
 // Coming-Soon-Seite erzeugt (bleibt so bei jeder Neugenerierung erhalten). Ausschalten:
 // Datei loeschen + einmal regenerate() ausfuehren.
@@ -18,6 +22,17 @@ async function regenerate() {
     fs.writeFileSync(ZIEL, renderWartung(f));
     return;
   }
+  // Aktionsbanner nur ausspielen, wenn ein hinterlegter Gutschein-Code auch wirklich noch gilt.
+  // Sonst bewirbt die Seite einen Rabatt, den die Buchung anschliessend verweigert. Der
+  // naechtliche Lauf (03:15) heilt das von selbst in der Nacht nach dem Ablauf.
+  // Laesst sich die Gueltigkeit nicht pruefen, faellt ein Banner MIT Code weg — dieselbe
+  // Entscheidung wie in der Preis-API, sonst zeigten Startseite und Preisseite bei einer
+  // Stoerung Unterschiedliches. Ein Banner ohne Code ist nicht betroffen, dafuer wird gar
+  // nicht erst gefragt.
+  try {
+    const st = await bannerStatus(f);
+    if (!st.zeigen) f.aktion_aktiv = false;
+  } catch (e) { if (f.aktion_code) f.aktion_aktiv = false; }
   const sektionen = (await query('SELECT * FROM homepage_sektionen ORDER BY sortierung')).rows;
   let fonts = [];
   try { fonts = (await query('SELECT familie, datei, format FROM homepage_fonts ORDER BY erstellt_am')).rows; }

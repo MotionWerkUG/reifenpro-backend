@@ -8,6 +8,7 @@
 const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { query } = require('../db/index');
+const { bannerStatus } = require('../lib/aktion');
 
 const limiter = rateLimit({ windowMs: 60000, max: 60, message: { error: 'Zu viele Anfragen.' } });
 const round2 = function (n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; };
@@ -32,6 +33,11 @@ router.get('/', limiter, async (req, res, next) => {
       `SELECT preise_inkl_mwst, telefon, aktion_aktiv, aktion_text, aktion_code, aktion_link
          FROM einstellungen ORDER BY id LIMIT 1`)).rows[0] || {};
     const inkl = e.preise_inkl_mwst !== false;
+    // Banner nur, wenn ein hinterlegter Gutschein-Code auch noch gilt — gleiche Regel wie
+    // auf der Startseite (src/lib/aktion.js). Faellt die Pruefung aus, kein Banner: lieber
+    // keine Werbung als eine, die die Buchung anschliessend verweigert.
+    let bannerZeigen = false;
+    try { bannerZeigen = (await bannerStatus(e)).zeigen; } catch (err) { bannerZeigen = false; }
 
     // Rohpreis -> Brutto: bei inkl bereits Brutto, sonst mit (1 + satz/100) hochrechnen.
     const toBrutto = function (preis, satz) {
@@ -74,7 +80,7 @@ router.get('/', limiter, async (req, res, next) => {
     res.json({
       inkl_mwst: inkl,
       telefon: e.telefon || null,
-      aktion: e.aktion_aktiv && e.aktion_text
+      aktion: bannerZeigen && e.aktion_text
         ? { text: e.aktion_text, code: e.aktion_code || null, link: e.aktion_link || '/termin/' }
         : null,
       leistungen: leistungen

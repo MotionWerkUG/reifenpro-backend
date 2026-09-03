@@ -6,7 +6,8 @@ const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { regenerate } = require('../lib/homepage-generate');
 const { verarbeite } = require('../lib/bildverarbeitung');
-const { regulaereWoche, besondereTageAbHeute, pruefeWoche, wocheSpeichern } = require('../lib/oeffnung');
+const { regulaereWoche, besondereTageAbHeute } = require('../lib/oeffnung');
+const { bewerbbarerGutschein, normCode, CODE_GUELTIG_SQL, pruefeBannerText } = require('../lib/aktion');
 
 const UPLOAD_DIR = '/var/www/schroeder-homepage/uploads';
 const FONT_DIR = '/var/www/schroeder-homepage/uploads/fonts';
@@ -151,6 +152,21 @@ router.post('/render', async (req, res, next) => {
   try { await regenerate(); res.json({ message: 'Homepage neu erzeugt.' }); } catch (e) { next(e); }
 });
 
+// Bewerbbare Gutscheine fuers Auswahlfeld im CMS: dieselbe Bedingung, die die Buchung
+// anwendet — sonst koennte das CMS einen Code anbieten, den der Kunde nicht einloesen kann.
+router.get('/gutscheine-bewerbbar', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT g.code, g.rabatt_prozent, g.gueltig_bis,
+              ARRAY(SELECT DISTINCT x.satz FROM (
+                      SELECT g.rabatt_prozent AS satz
+                      UNION SELECT r.rabatt_prozent FROM gutschein_regeln r WHERE r.gutschein_id = g.id
+                    ) x WHERE x.satz IS NOT NULL ORDER BY x.satz DESC) AS saetze
+         FROM gutscheine g WHERE ` + CODE_GUELTIG_SQL + ' ORDER BY g.code');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
 // Aktionsbanner laden
 router.get('/banner', async (req, res, next) => {
   try {
@@ -164,10 +180,29 @@ router.put('/banner', async (req, res, next) => {
   try {
     const { aktion_aktiv, aktion_text, aktion_code, aktion_position, aktion_link } = req.body;
     const pos = ['leiste', 'ecke-links', 'ecke-rechts'].includes(aktion_position) ? aktion_position : 'leiste';
+    // Der beworbene Code muss ein Gutschein sein, den die Buchung auch akzeptiert. Vorher war
+    // das Freitext: ein Tippfehler oder ein umbenannter Gutschein, und die Seite bewirbt einen
+    // Code, den der Assistent zurueckweist. Die Auswahlliste im CMS ist nur die Bequemlichkeit,
+    // gesperrt wird hier. Ein leeres Feld bleibt erlaubt: Banner ohne Gutschein ist zulaessig.
+    // Geprueft wird nur, was auch beworben wird. Ein ausgeschaltetes Banner mit altem Code
+    // liesse sich sonst nicht einmal mehr ausschalten oder umpositionieren, ohne den Text
+    // anzufassen — die Sperre soll falsche Werbung verhindern, nicht das Aufraeumen.
+    const code = normCode(aktion_code);
+    if (code && aktion_aktiv === true) {
+      const g = await bewerbbarerGutschein(code);
+      if (!g) return res.status(400).json({
+        error: 'Der Gutschein-Code „' + code + '“ ist nicht (mehr) gültig. Bitte einen aktiven Gutschein auswählen oder das Feld leer lassen.'
+      });
+      // Harte Sperre (Davids Entscheidung): Der Text darf keinen Satz nennen, den der Gutschein
+      // nicht hergibt. Ein beworbener Rabatt, den die Buchung nicht gewaehrt, ist eine falsche
+      // Preisangabe. Teilmengen sind erlaubt — es muessen nicht alle Saetze genannt werden.
+      const textFehler = await pruefeBannerText(aktion_text, code);
+      if (textFehler) return res.status(400).json({ error: textFehler + ' Bitte Text oder Gutschein anpassen.' });
+    }
     const upd = await query(
       `UPDATE einstellungen SET aktion_aktiv=$1, aktion_text=$2, aktion_code=$3, aktion_position=$4, aktion_link=$5
        WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1) RETURNING aktion_aktiv`,
-      [aktion_aktiv === true, aktion_text || null, aktion_code || null, pos, aktion_link || null]
+      [aktion_aktiv === true, aktion_text || null, code || null, pos, aktion_link || null]
     );
     if (!upd.rows.length) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
     await regenerate();
@@ -227,11 +262,15 @@ router.get('/buchung', async (req, res, next) => {
 // Online-Buchungsbereich speichern + Homepage neu erzeugen
 router.put('/buchung', async (req, res, next) => {
   try {
-    const { buchung_aktiv, buchung_titel, buchung_text } = req.body;
+    // Nur Ueberschrift und Text — das ist Gestaltung. Der Schalter `buchung_aktiv` ist der
+    // Notaus fuer die Online-Buchung und liegt seit Davids Entscheidung (03.09.2026) allein im
+    // Admin (Einstellungen). Ein `buchung_aktiv` im Body wird hier bewusst ignoriert, damit die
+    // Buchung nicht ueber einen zweiten Weg an- oder abgeschaltet werden kann.
+    const { buchung_titel, buchung_text } = req.body;
     const upd = await query(
-      `UPDATE einstellungen SET buchung_aktiv=$1, buchung_titel=$2, buchung_text=$3
+      `UPDATE einstellungen SET buchung_titel=$1, buchung_text=$2
        WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1) RETURNING buchung_aktiv`,
-      [buchung_aktiv === true, buchung_titel || null, buchung_text || null]
+      [buchung_titel || null, buchung_text || null]
     );
     if (!upd.rows.length) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
     await regenerate();
@@ -239,14 +278,16 @@ router.put('/buchung', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── Firmendaten: Kontakt & Öffnungszeiten (fuer Redakteure ohne Admin-Zugriff) ──
-// Bearbeitet gezielt die oeffentlich sichtbaren Spalten aus `einstellungen`
-// (Adresse/Telefon/E-Mail/Geo/Social/Oeffnungszeiten) und laesst alle anderen unberuehrt.
-// Bewusste Entscheidung: Oeffnungszeiten darf hier auch die Rolle `mitarbeiter` pflegen
-// (im Admin ist die gleiche Aenderung requireAdmin). Genau das war der Audit-Befund —
-// Feiertage/geaenderte Zeiten ohne Admin eintragen zu koennen. Absicherung dagegen:
-// vollstaendige Wochenpruefung (pruefeWoche) und Rueckfrage im CMS, wenn alle Tage zu sind.
-// Firmenname/Adresse bleiben Admin-only (Rechnungspflichtangaben).
+// ── Firmendaten: Anzeige fuers CMS, Schreibrecht nur fuer die reinen Website-Felder ──
+// Davids Vorgabe (03.09.2026): Alles, was ReifenPro selbst pflegt, ist im CMS NICHT mehr
+// aenderbar — es gibt genau einen Pflegeort. Der Admin schreibt Adresse, Telefon, E-Mail,
+// Social und das Oeffnungszeiten-Raster ueber PUT /einstellungen bzw.
+// PUT /einstellungen/oeffnungszeiten (beide requireAdmin, beide erzeugen die Website neu).
+// GET liefert diese Werte weiterhin — das CMS zeigt sie schreibgeschuetzt an, damit niemand
+// sie an der falschen Stelle sucht. Geschrieben werden hier nur noch die drei Felder, die es
+// in ReifenPro nicht gibt: Kartenposition (geo_breite/geo_laenge) und der freie Hinweistext
+// unter der Zeiten-Tabelle. Die Sperre sitzt bewusst hier und nicht nur im Formular: ein
+// Aufruf ohne Oberflaeche wuerde sonst weiter schreiben.
 const FIRMA_SELECT = 'firmenname, strasse, plz, ort, telefon, email, geo_breite, geo_laenge, ' +
   'google_bewertung_url, facebook_url, instagram_url, oeffnungszeiten_hinweis';
 router.get('/firmendaten', async (req, res, next) => {
@@ -260,54 +301,35 @@ router.get('/firmendaten', async (req, res, next) => {
       data.woche = await regulaereWoche();
       data.besondere = await besondereTageAbHeute(120);
     } catch (e) { data.woche = null; data.besondere = []; }
-    // Rechnungsrelevante Stammdaten (Firmenname/Adresse) darf nur der Admin aendern.
-    // Flag steuert im CMS, ob diese Felder editierbar oder nur lesbar angezeigt werden.
-    data.darf_stammdaten = req.user.rolle === 'admin';
     res.json(data);
   } catch (e) { next(e); }
 });
 router.put('/firmendaten', async (req, res, next) => {
   try {
     const b = req.body || {};
-    const istAdmin = req.user.rolle === 'admin';
-    // Öffnungszeiten zuerst pruefen — sonst waeren die Kontaktdaten schon gespeichert,
-    // waehrend die Zeiten abgelehnt werden. Fehlende Tage duerfen NICHT stillschweigend
-    // auf „geschlossen“ fallen (das wuerde auch die Online-Buchung abschalten).
-    if (b.woche !== undefined) {
-      const fehler = pruefeWoche(b.woche);
-      if (fehler) return res.status(400).json({ error: fehler });
-    }
-    // Freitext: Winkelklammern raus (kein HTML/JS in Firmendaten), trimmen, begrenzen
+    // Alles andere aus dem Body wird bewusst ignoriert: firmenname, strasse, plz, ort,
+    // telefon, email, google_bewertung_url, facebook_url, instagram_url und woche gehoeren
+    // ReifenPro (Einstellungen). Auch ein Admin schreibt sie hier nicht — sonst gaebe es
+    // wieder zwei Wege zur selben Spalte.
     const t = (v, n) => String(v == null ? '' : v).replace(/[<>]/g, '').trim().slice(0, n) || null;
-    const url = (v) => (/^https?:\/\//i.test(String(v || '').trim()) ? String(v).trim().slice(0, 300) : null);
     // Geo-Koordinate als Dezimalzahl (Komma erlaubt), sonst NULL
     const geo = (v) => { let s = String(v || '').trim().replace(',', '.'); return /^-?\d{1,3}(\.\d{1,8})?$/.test(s) ? s : null; };
-    // Firmenname + Adresse sind Pflichtangaben fuer den Rechnungskopf (§ 14 UStG) und
-    // duerfen NUR vom Admin geaendert werden. Mitarbeiter behalten die bestehenden Werte.
-    const cur = (await query('SELECT firmenname, strasse, plz, ort FROM einstellungen ORDER BY id LIMIT 1')).rows[0];
-    if (!cur) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
-    let firmenname = cur.firmenname, strasse = cur.strasse, plz = cur.plz, ort = cur.ort;
-    if (istAdmin) {
-      firmenname = t(b.firmenname, 120); strasse = t(b.strasse, 120); plz = t(b.plz, 10); ort = t(b.ort, 80);
-      // Pflichtfelder duerfen nicht geleert werden (sonst unvollstaendiger Rechnungskopf)
-      if (!firmenname || !strasse || !plz || !ort)
-        return res.status(400).json({ error: 'Firmenname, Straße, PLZ und Ort dürfen nicht leer sein (Pflichtangaben für Rechnungen).' });
-    }
-    await query(
-      `UPDATE einstellungen SET firmenname=$1, strasse=$2, plz=$3, ort=$4, telefon=$5, email=$6,
-         geo_breite=$7, geo_laenge=$8, google_bewertung_url=$9, facebook_url=$10, instagram_url=$11,
-         oeffnungszeiten_hinweis=$12, geaendert_am=NOW()
-       WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)`,
-      [firmenname, strasse, plz, ort, t(b.telefon, 40), t(b.email, 160),
-       geo(b.geo_breite), geo(b.geo_laenge), url(b.google_bewertung_url), url(b.facebook_url), url(b.instagram_url),
-       t(b.oeffnungszeiten_hinweis, 300)]
+    // Nur mitgeschickte Felder anfassen. Sonst wuerde ein Aufruf, der bloss den Hinweistext
+    // setzt, die Kartenposition mit NULL ueberschreiben — genau die Art stiller Datenverlust,
+    // die niemandem auffaellt, bis die Karte auf den Ortsmittelpunkt zeigt.
+    const setzen = [], werte = [];
+    if (b.geo_breite !== undefined) { werte.push(geo(b.geo_breite)); setzen.push('geo_breite=$' + werte.length); }
+    if (b.geo_laenge !== undefined) { werte.push(geo(b.geo_laenge)); setzen.push('geo_laenge=$' + werte.length); }
+    if (b.oeffnungszeiten_hinweis !== undefined) { werte.push(t(b.oeffnungszeiten_hinweis, 300)); setzen.push('oeffnungszeiten_hinweis=$' + werte.length); }
+    if (!setzen.length) return res.status(400).json({ error: 'Keine änderbaren Angaben übermittelt. Im CMS sind hier nur Kartenposition und Hinweistext änderbar; alles Übrige wird in ReifenPro gepflegt.' });
+    const upd = await query(
+      'UPDATE einstellungen SET ' + setzen.join(', ') + ', geaendert_am=NOW()' +
+      ' WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1) RETURNING id',
+      werte
     );
-    // Öffnungszeiten als Wochenraster speichern (gleiche Quelle wie im Admin); die Alt-Felder
-    // mo_fr_*/sa_*/so_*/mittagspause_* werden dabei automatisch mitgezogen.
-    // Ohne `woche` im Request bleiben die Zeiten unveraendert (nur Kontaktdaten speichern).
-    if (b.woche !== undefined) await wocheSpeichern(b.woche);
+    if (!upd.rows.length) return res.status(404).json({ error: 'Einstellungen nicht gefunden.' });
     await regenerate();
-    res.json({ message: 'Firmendaten gespeichert.' });
+    res.json({ message: 'Kartenposition und Hinweis gespeichert.' });
   } catch (e) { next(e); }
 });
 
