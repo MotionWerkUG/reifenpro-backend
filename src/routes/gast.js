@@ -295,7 +295,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     // Bleibt nichts uebrig, greift unten die Pflichtfeldpruefung (400 statt 500).
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     mainIds = mainIds.filter((x) => UUID_RE.test(String(x))).slice(0, 20);
-    const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung } = b;
+    const { anrede, vorname, nachname, telefon, email, strasse, plz, ort, fahrzeugtyp, zoll, kennzeichen, datum, uhrzeit_von, datenschutz, werbung, agb, vorzeitige_leistung } = b;
     // Privat- oder Firmenkunde. Unbekannte Werte gelten als 'privat' -> ein Tippfehler im Formular
     // verhindert keine Buchung. Bei 'firma' ist der Firmenname Pflicht (Rechnungsempfaenger).
     const kundentyp = (b.kundentyp === 'firma') ? 'firma' : 'privat';
@@ -304,6 +304,18 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || !/^\d{2}:\d{2}/.test(uhrzeit_von)) return res.status(400).json({ error: 'Ungültiges Datum oder Uhrzeit.' });
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie die Kenntnisnahme der Datenschutzerklärung.' });
+    // AGB und Widerrufsbelehrung: Ohne diese Bestaetigung werden die AGB nicht wirksam
+    // einbezogen (Paragraf 305 Abs. 2 BGB). Die Pruefung steht hier und nicht nur im
+    // Browser, weil ein Aufruf ohne Oberflaeche sie sonst umgeht.
+    if (agb !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie AGB und Widerrufsbelehrung.' });
+    // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren
+    // Ablauf. Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers
+    // (Paragraf 356 Abs. 4 BGB) — sonst entfaellt bei einem Widerruf auch der Wertersatz
+    // (Paragraf 357a Abs. 2 BGB) und die geleistete Arbeit bliebe unbezahlt.
+    const tageBis = Math.round((new Date(datum + 'T12:00:00') - new Date(new Date().toDateString())) / 86400000);
+    if (tageBis < 14 && vorzeitige_leistung !== true) {
+      return res.status(400).json({ error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.' });
+    }
     // Notaus: `buchung_aktiv=false` steuerte bisher NUR, ob das Widget auf der Homepage erscheint --
     // die Route nahm weiter verbindliche Buchungen an. Wer bei Stoerung oder Ueberlastung abschaltet,
     // muss sich darauf verlassen koennen, dass wirklich nichts mehr hereinkommt.
@@ -394,9 +406,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
            kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
            kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung,
            bestaetigung_token, bestaetigung_token_ablauf, gutschein_code, gutschein_rabatt,
-           kontakt_kundentyp, kontakt_firma)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23,$24,$25)`,
-        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt, kundentyp, fa]);
+           kontakt_kundentyp, kontakt_firma, agb_am, vorzeitige_leistung, vorzeitige_leistung_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23,$24,$25,
+                 NOW(), $26, CASE WHEN $26 THEN NOW() ELSE NULL END)`,
+        [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt, kundentyp, fa, vorzeitige_leistung === true]);
     });
 
     // Nur EINE Mail an den (noch unverifizierten) Gast: der Bestaetigungslink. Admin-Mail + finale

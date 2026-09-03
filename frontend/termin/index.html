@@ -207,8 +207,10 @@
         </div>
       </div>
     </div>
-    <div class="info">Tipp: Straße tippen (Hausnummer kann direkt dahinter stehen), Vorschlag anklicken – PLZ &amp; Ort füllen sich; die Hausnummer bleibt erhalten. Adressvorschläge über <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten, kein Tracking).</div>
+    <div class="info">Tipp: Straße tippen (Hausnummer kann direkt dahinter stehen), Vorschlag anklicken – PLZ &amp; Ort füllen sich; die Hausnummer bleibt erhalten. Adressvorschläge über <a href="https://photon.komoot.io" target="_blank" rel="noopener">Photon</a> (OpenStreetMap) und <a href="https://www.openplzapi.org" target="_blank" rel="noopener">openplzapi.org</a> (amtliche Daten). Kein Tracking, keine Werbung.</div>
     <label class="check"><input type="checkbox" id="f-dsgvo"> <span>Ich habe die <a href="/portal/datenschutz.html" target="_blank" rel="noopener">Datenschutzerklärung</a> gelesen. Meine Angaben werden zur Bearbeitung und Durchführung des Termins (Art. 6 Abs. 1 b DSGVO) verarbeitet. *</span></label>
+    <label class="check"><input type="checkbox" id="f-agb"> <span>Ich habe die <a href="/portal/agb.html" target="_blank" rel="noopener">AGB</a> und die <a href="/portal/widerruf.html" target="_blank" rel="noopener">Widerrufsbelehrung</a> gelesen und bin damit einverstanden. *</span></label>
+    <label class="check" id="vorzeitig-wrap" style="display:none"><input type="checkbox" id="f-vorzeitig"> <span id="vorzeitig-text"></span></label>
     <label class="check"><input type="checkbox" id="f-werbung"> <span>Ich möchte freiwillig per E-Mail an saisonale Reifenwechsel-Termine erinnert werden (jederzeit widerrufbar).</span></label>
     <input type="text" id="f-hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
     </form>
@@ -464,8 +466,37 @@ function zeigeSchritt(n){
   for(var i=1;i<=4;i++){var s=document.getElementById('st'+i);s.classList.toggle('on',i===n);s.classList.toggle('done',i<n);}
   document.getElementById('btn-back').style.visibility = n>1 ? 'visible':'hidden';
   document.getElementById('btn-next').textContent = n===4 ? 'Termin verbindlich buchen' : 'Weiter';
-  if(n===4) renderSum();
+  if(n===4){ renderSum(); vorzeitigPruefen(); }
   window.scrollTo({top:0,behavior:'smooth'});
+}
+// Zustimmung zum vorzeitigen Leistungsbeginn (Paragraf 356 Abs. 4 BGB).
+//
+// Wer online bucht, hat als Verbraucher 14 Tage Widerrufsrecht. Fast jeder Termin liegt
+// aber INNERHALB dieser 14 Tage — wir wuerden also arbeiten, bevor die Frist abgelaufen
+// ist. Ohne die ausdrueckliche Zustimmung und den Hinweis auf den Rechtsverlust koennte
+// der Kunde nach getaner Arbeit widerrufen und muesste NICHTS zahlen (Paragraf 357a
+// Abs. 2 BGB verlangt fuer den Wertersatz genau dieses Verlangen). Mit Zustimmung
+// erlischt das Widerrufsrecht, sobald die Leistung vollstaendig erbracht ist.
+//
+// Liegt der Termin spaeter als 14 Tage, ist die Frage gegenstandslos — dann wird sie
+// nicht gestellt. Eine unnoetige Haekchenpflicht waere nur laestig.
+function tageBisTermin(){
+  if(!state.datum) return null;
+  var t=new Date(state.datum+'T12:00:00'), heute=new Date();
+  heute.setHours(12,0,0,0);
+  return Math.round((t-heute)/86400000);
+}
+function vorzeitigNoetig(){ var d=tageBisTermin(); return d!==null && d<14; }
+function vorzeitigPruefen(){
+  var wrap=document.getElementById('vorzeitig-wrap');
+  if(!wrap) return;
+  if(!vorzeitigNoetig()){ wrap.style.display='none'; document.getElementById('f-vorzeitig').checked=false; return; }
+  var d=state.datum.split('-');
+  document.getElementById('vorzeitig-text').innerHTML =
+    'Ja, ihr dürft den Termin am <strong>'+d[2]+'.'+d[1]+'.'+d[0]+'</strong> ausführen, obwohl meine '
+    + '14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, dass mein Widerrufsrecht '
+    + 'erlischt, sobald die Leistung vollständig erbracht ist. *';
+  wrap.style.display='';
 }
 function fehler(m){var e=document.getElementById('err');e.textContent=m;e.style.display='block';}
 function weiter(){
@@ -508,7 +539,9 @@ function absenden(){
     strasse:v('f-strasse'), plz:v('f-plz'), ort:v('f-ort'),
     fahrzeugtyp:state.fahrzeugtyp, zoll:state.zoll, kennzeichen:kz(),
     datum:state.datum, uhrzeit_von:state.slot, gutschein_code: state.gutschein ? state.gutschein.code : '',
-    datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked, website:v('f-hp') };
+    datenschutz:document.getElementById('f-dsgvo').checked, werbung:document.getElementById('f-werbung').checked,
+    agb:document.getElementById('f-agb').checked,
+    vorzeitige_leistung:document.getElementById('f-vorzeitig').checked, website:v('f-hp') };
   if(!d.vorname||!d.nachname||!d.telefon||!d.email||!d.strasse||!d.plz||!d.ort){fehler('Bitte alle Pflichtfelder ausfüllen (Name, Telefon, E-Mail, Anschrift).');return;}
   if(d.kundentyp==='firma'&&!d.firma){fehler('Bitte den Firmennamen angeben – er steht später auf der Rechnung.');return;}
   // Hausnummer fehlt: nachfragen statt sperren. Adressen ohne Hausnummer gibt es real
@@ -521,6 +554,10 @@ function absenden(){
     ADR_BESTAETIGT = true;
   }
   if(!d.datenschutz){fehler('Bitte bestätige, dass du die Datenschutzerklärung gelesen hast.');return;}
+  if(!d.agb){fehler('Bitte bestätige, dass du AGB und Widerrufsbelehrung gelesen hast.');return;}
+  if(vorzeitigNoetig()&&!d.vorzeitige_leistung){
+    fehler('Dein Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimme zu, dass wir ihn trotzdem ausführen dürfen — sonst können wir erst nach Ablauf der Frist arbeiten.');return;
+  }
   var b=document.getElementById('btn-next');b.disabled=true;var bt=b.textContent;b.textContent='Wird gebucht …';
   fetch(API+'/termin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)})
     .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Buchung fehlgeschlagen.');return j;});})
