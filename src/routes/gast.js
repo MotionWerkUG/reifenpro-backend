@@ -309,16 +309,6 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     // einbezogen (Paragraf 305 Abs. 2 BGB). Die Pruefung steht hier und nicht nur im
     // Browser, weil ein Aufruf ohne Oberflaeche sie sonst umgeht.
     if (agb !== true) return res.status(400).json({ error: 'Bitte bestätigen Sie AGB und Widerrufsbelehrung.' });
-    // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren
-    // Ablauf. Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers
-    // (Paragraf 356 Abs. 4 BGB) — sonst entfaellt bei einem Widerruf auch der Wertersatz
-    // (Paragraf 357a Abs. 2 BGB) und die geleistete Arbeit bliebe unbezahlt.
-    // Rechnung liegt in lib/widerruf.js. Sie stand vorher hier und verglich Mitternacht gegen
-    // 12 Uhr des Termintags -- eine halbe Tagesdifferenz, die Math.round nach oben zog. Ein
-    // Termin in 13 Tagen ergab 14 und fiel aus der Frist, obwohl das Formular korrekt fragte.
-    if (widerruf.zustimmungNoetig(datum) && vorzeitige_leistung !== true) {
-      return res.status(400).json({ error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.' });
-    }
     // Notaus: `buchung_aktiv=false` steuerte bisher NUR, ob das Widget auf der Homepage erscheint --
     // die Route nahm weiter verbindliche Buchungen an. Wer bei Stoerung oder Ueberlastung abschaltet,
     // muss sich darauf verlassen koennen, dass wirklich nichts mehr hereinkommt.
@@ -356,6 +346,21 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
         ? b.getFullYear() + '-' + String(b.getMonth() + 1).padStart(2, '0') + '-' + String(b.getDate()).padStart(2, '0')
         : String(b).slice(0, 10);
       if (datum < bStr) return res.status(409).json({ error: 'Online-Buchungen sind erst ab dem ' + bStr.split('-').reverse().join('.') + ' möglich.' });
+    }
+
+    // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
+    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB) —
+    // sonst entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB) und die
+    // geleistete Arbeit bliebe unbezahlt. Die Rechnung liegt in lib/widerruf.js; sie stand frueher
+    // hier und verglich Mitternacht gegen 12 Uhr des Termintags -- eine halbe Tagesdifferenz, die
+    // Math.round nach oben zog. Ein Termin in 13 Tagen ergab 14 und fiel aus der Frist.
+    //
+    // Diese Pruefung steht bewusst NACH Vergangenheit und buchbar_ab: Wer vor der Eroeffnung einen
+    // Termin versuchte, bekam sonst zuerst "Bitte stimmen Sie zu" und erst nach dem Ankreuzen
+    // "Online-Buchungen sind erst ab dem 01.10. moeglich" — eine Zustimmung zu einem Termin, den es
+    // gar nicht geben kann. Die Meldung, die den Vorgang endgueltig beendet, gehoert zuerst.
+    if (widerruf.zustimmungNoetig(datum) && vorzeitige_leistung !== true) {
+      return res.status(400).json({ error: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Bitte stimmen Sie zu, dass wir ihn trotzdem ausführen dürfen.' });
     }
     const startMin = zeitZuMin(uhrzeit_von), endeMin = startMin + dauer;
     // Muss vollstaendig in eine Oeffnungsspanne fallen (deckt Oeffnungszeiten UND Mittagspause ab).
