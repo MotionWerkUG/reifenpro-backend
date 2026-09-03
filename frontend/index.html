@@ -797,6 +797,15 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div class="g2">
             <div class="fg"><label>Max. parallele Termine</label><input id="s-mpt" type="number" value="1" min="1" max="10"></div>
             <div class="fg"><label>Stornierungsfrist (Stunden)</label><input id="s-sf" type="number" value="24"></div>
+            <div class="fg" style="grid-column:1/-1">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600">
+                <input id="s-buchung-aktiv" type="checkbox" checked> Online-Buchung ist eingeschaltet
+              </label>
+              <span style="font-size:11px;color:var(--muted)">Notaus. Ausgeschaltet nimmt die Website
+              <b>keine</b> Buchungen mehr an — auch nicht über einen alten Link oder einen bereits
+              geöffneten Schritt. Bestehende Termine bleiben unberührt. Für Störung, Krankheit oder
+              wenn der Kalender voll ist.</span>
+            </div>
             <div class="fg"><label>Online buchbar ab</label><input id="s-buchbar-ab" type="date"><span style="font-size:11px;color:var(--muted)">Kunden können online nur Termine ab diesem Datum buchen (Neueröffnung). Intern bleibt jeder Termin anlegbar.</span></div>
           </div>
           <div style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="saveOeffnung()">Öffnungszeiten speichern</button></div>
@@ -2827,6 +2836,9 @@ function fillEinst() {
   fv('s-vers', EINST.versicherung_name); fv('s-purl', EINST.portal_url);
   fv('s-bank', EINST.bank); fv('s-iban', EINST.iban); fv('s-bic', EINST.bic);
   fv('s-buchbar-ab', EINST.buchbar_ab ? String(EINST.buchbar_ab).substring(0, 10) : '');
+  // Standard ist EIN: Ein fehlender Wert darf nicht als "abgeschaltet" gelesen werden, sonst
+  // stuende die Buchung nach einem leeren Datensatz still, ohne dass es jemand bemerkt.
+  var bs = document.getElementById('s-buchung-aktiv'); if (bs) bs.checked = EINST.buchung_aktiv !== false;
   fv('s-zzt', EINST.zahlungsziel_tage || 14);
   // Oeffnungszeiten
   // Öffnungszeiten (mo_fr/sa/mittagspause) laufen jetzt über das Wochenraster (loadOeffnung), nicht mehr hier.
@@ -2867,6 +2879,7 @@ function saveEinst() {
     bank: gv('s-bank'), iban: gv('s-iban'), bic: gv('s-bic'),
     zahlungsziel_tage: parseInt(gv('s-zzt')) || 14,
     buchbar_ab: gv('s-buchbar-ab') || null,
+      buchung_aktiv: (document.getElementById('s-buchung-aktiv') || {}).checked !== false,
     logo_url: EINST.logo_url || null,
     // Öffnungszeiten (mo_fr/sa/mittagspause) werden über /einstellungen/oeffnungszeiten gepflegt, nicht hier.
     max_parallele_termine: parseInt(gv('s-mpt')) || 1,
