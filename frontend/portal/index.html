@@ -182,6 +182,17 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
          sind dann erledigt und der Nutzer soll nur noch lesen, wie es weitergeht. -->
     <div id="reg-form">
     <div class="g2">
+      <div class="fg" style="grid-column:1/-1"><label data-i18n="customer_type">Kundenart</label>
+        <select id="reg-kundentyp" onchange="regKundenartWechsel()">
+          <option value="privat" data-i18n="customer_private">Privatkunde</option>
+          <option value="firma" data-i18n="customer_business">Firmenkunde</option>
+        </select>
+      </div>
+      <div class="fg hidden" id="reg-firma-feld" style="grid-column:1/-1">
+        <label data-i18n="company_name">Firma</label>
+        <input id="reg-firma" autocomplete="organization" placeholder="Muster GmbH">
+        <div id="reg-firma-hinweis" data-i18n="company_hint" style="font-size:13px;color:var(--muted);margin-top:6px">Bitte geben Sie den vollständigen Firmennamen mit Rechtsform an — so erscheint er auf der Rechnung. Name und Anrede darunter sind Ihre Ansprechperson.</div>
+      </div>
       <div class="fg"><label data-i18n="firstname">Vorname</label><input id="reg-vorname"></div>
       <div class="fg"><label data-i18n="lastname">Nachname</label><input id="reg-nachname"></div>
     </div>
@@ -535,6 +546,10 @@ var I18N = {
     login_btn: 'Anmelden', forgot_pw: 'Passwort vergessen?', no_account: 'Noch kein Konto?',
     register_now: 'Jetzt registrieren', register_sub: 'Neues Kundenkonto erstellen',
     firstname: 'Vorname', lastname: 'Nachname', phone: 'Telefon (optional)',
+    customer_type: 'Kundenart', customer_private: 'Privatkunde', customer_business: 'Firmenkunde',
+    company_name: 'Firma',
+    company_hint: 'Bitte geben Sie den vollständigen Firmennamen mit Rechtsform an — so erscheint er auf der Rechnung. Name und Anrede darunter sind Ihre Ansprechperson.',
+    company_required: 'Bitte geben Sie den Firmennamen an — er steht später auf der Rechnung.',
     password_repeat: 'Passwort wiederholen', accept_dsgvo: 'Ich habe die',
     dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
     accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
@@ -603,6 +618,10 @@ var I18N = {
     login_btn: 'Sign In', forgot_pw: 'Forgot password?', no_account: 'No account yet?',
     register_now: 'Register now', register_sub: 'Create new customer account',
     firstname: 'First name', lastname: 'Last name', phone: 'Phone (optional)',
+    customer_type: 'Customer type', customer_private: 'Private customer', customer_business: 'Business customer',
+    company_name: 'Company',
+    company_hint: 'Please give the full company name including its legal form — this is how it appears on the invoice. The name and salutation below are your contact person.',
+    company_required: 'Please enter the company name — it will appear on the invoice.',
     password_repeat: 'Repeat password', accept_dsgvo: 'I have read the',
     dsgvo_link: 'Privacy Policy', accept_read: 'and accept it.',
     accept_agb: 'I accept the', agb_link: 'Terms',
@@ -734,12 +753,26 @@ var KONTO_TOKEN = '';
 // Formular aus dem gebuchten Termin vorbefuellen. Schlaegt es fehl (Link abgelaufen, Termin schon
 // einem Konto zugeordnet), bleibt der normale Registrierungsweg -- ohne Fehlermeldung, denn der
 // Nutzer kann sich hier ganz regulaer anmelden.
+// Firmenfeld nur zeigen, wenn Firmenkunde gewaehlt ist. Beim Zurueckschalten den Namen wirklich
+// leeren -- ein unsichtbar mitgeschicktes Feld waere genau die Art Datenrest, die spaeter auf
+// einer Rechnung auftaucht.
+function regKundenartWechsel() {
+  var istFirma = (document.getElementById('reg-kundentyp') || {}).value === 'firma';
+  var feld = document.getElementById('reg-firma-feld');
+  if (feld) feld.classList.toggle('hidden', !istFirma);
+  if (!istFirma) { var e = document.getElementById('reg-firma'); if (e) e.value = ''; }
+}
+
 function kontoStartLaden() {
   papi('GET', '/auth/konto-start?token=' + encodeURIComponent(KONTO_TOKEN)).then(function(d) {
     if (!d) return;
     var setz = function(id, wert) { var e = document.getElementById(id); if (e && wert) e.value = wert; };
     setz('reg-vorname', d.vorname); setz('reg-nachname', d.nachname);
     setz('reg-email', d.email); setz('reg-telefon', d.telefon);
+    // Kundenart und Firma stehen am bestaetigten Termin und kamen hier schon immer an -- gesetzt
+    // wurden sie bisher nicht, wodurch ein Gewerbekunde als Privatkunde im Stamm landete.
+    var kt = document.getElementById('reg-kundentyp');
+    if (kt && d.kundentyp === 'firma') { kt.value = 'firma'; regKundenartWechsel(); setz('reg-firma', d.firma); }
     var mail = document.getElementById('reg-email');
     if (mail && d.email) { mail.readOnly = true; mail.style.opacity = '.7'; }   // gehoert zum Nachweis
     var hin = document.getElementById('reg-konto-hinweis');
@@ -748,7 +781,9 @@ function kontoStartLaden() {
 }
 
 function resetRegForm() {
-  ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2'].forEach(function(id) {
+  var _kt = document.getElementById('reg-kundentyp');
+  if (_kt) { _kt.value = 'privat'; regKundenartWechsel(); }   // sonst bliebe "Firmenkunde" stehen
+  ['reg-vorname', 'reg-nachname', 'reg-email', 'reg-telefon', 'reg-pass', 'reg-pass2', 'reg-firma'].forEach(function(id) {
     var e = document.getElementById(id); if (e) e.value = '';
   });
   ['reg-dsgvo', 'reg-agb', 'reg-saison'].forEach(function(id) {
@@ -807,10 +842,14 @@ function portalRegister() {
   if (pass.length < 8) { errEl.textContent = t('pw_min'); errEl.classList.remove('hidden'); return; }
   if (pass !== pass2) { errEl.textContent = t('password_mismatch'); errEl.classList.remove('hidden'); return; }
   if (!dsgvo || !agb) { errEl.textContent = t('accept_required'); errEl.classList.remove('hidden'); return; }
+  var kundentyp = (document.getElementById('reg-kundentyp') || {}).value || 'privat';
+  var firma = ((document.getElementById('reg-firma') || {}).value || '').trim();
+  if (kundentyp === 'firma' && !firma) { errEl.textContent = t('company_required'); errEl.classList.remove('hidden'); return; }
 
   papi('POST', '/auth/registrieren', {
     vorname: vorname, nachname: nachname, email: email, telefon: telefon,
     passwort: pass, dsgvo: dsgvo, agb: agb, saison: saison, bewertung: bewertung,
+    kundentyp: kundentyp, firma: kundentyp === 'firma' ? firma : '',
     konto_token: KONTO_TOKEN || undefined
   }).then(function(antwort) {
     // Kam der Kunde aus einer bestaetigten Terminbuchung, ist das Konto sofort nutzbar --

@@ -6,6 +6,7 @@ const { authKunde } = require('./portal-auth');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
+const konditionen = require('../lib/konditionen');
 const { kundenMailHtml } = require('../lib/mail-template');
 const fs = require('fs');
 
@@ -213,20 +214,36 @@ router.post('/termine', authKunde, async (req, res, next) => {
     const _zeilenBrutto = _preisInkl ? gutschein.round2(_preis) : gutschein.round2(_preis * (1 + _mwst / 100));
     const _zeilenNetto = _preisInkl ? gutschein.round2(_preis / (1 + _mwst / 100)) : gutschein.round2(_preis);
     let _gCode = null, _gEffektiv = null, _rabattSumme = 0;
-    const _position = {
-      artikel_id: artikel_id, bezeichnung: art.name, rolle: 'haupt',
-      grundpreis_netto: _zeilenNetto, zuschlag_netto: 0, fahrzeugtyp: typ || null,
-      mwst_satz: _mwst, zeilen_netto: _zeilenNetto, zeilen_brutto: _zeilenBrutto
-    };
+    // Gutscheinsatz ermitteln -- angewandt wird er erst nach dem Vergleich mit den Konditionen.
+    let _gSatz = 0, _gCodeRoh = null;
     if (req.body.gutschein_code) {
       const g = await gutschein.ladeGutschein(req.body.gutschein_code);
-      if (g) {
-        const saetze = await gutschein.saetzeFuer(g, [artikel_id]);
-        _position.rabatt_prozent = saetze[artikel_id] || 0;
-        _rabattSumme = gutschein.rabattAusPositionen([_position]).summe;
-        _gCode = g.code;
-        _gEffektiv = _zeilenBrutto > 0 ? Math.round(_rabattSumme / _zeilenBrutto * 100) : 0;
-      }
+      if (g) { _gCodeRoh = g.code; _gSatz = (await gutschein.saetzeFuer(g, [artikel_id]))[artikel_id] || 0; }
+    }
+    // Vereinbarte Konditionen des Kunden. Sie werden HIER aufgeloest und unten in zeilen_brutto
+    // bzw. rabatt_prozent eingefroren -- dieselbe Rechnung wie in der Preisanzeige, damit der
+    // Kunde beim Buchen genau den Betrag sieht, der spaeter auf dem Beleg steht.
+    const _kond = await konditionen.ladeKonditionen(kd && kd.id);
+    const _w = konditionen.preisFuer(_kond, artikel_id, _zeilenBrutto, _gSatz);
+    // Fester Kundenpreis ersetzt den Positionspreis; Netto daraus ableiten, damit Netto und
+    // Brutto der Position zueinander passen.
+    const _brutto = _w.brutto;
+    const _netto = gutschein.round2(_brutto / (1 + _mwst / 100));
+    const _position = {
+      artikel_id: artikel_id, bezeichnung: art.name, rolle: 'haupt',
+      grundpreis_netto: _netto, zuschlag_netto: 0, fahrzeugtyp: typ || null,
+      mwst_satz: _mwst, zeilen_netto: _netto, zeilen_brutto: _brutto,
+      // Herkunft mit einfrieren: Der Beleg muss spaeter unterscheiden koennen, ob eine
+      // Nachlasszeile aus einem Gutschein oder aus einer Dauervereinbarung stammt.
+      preis_quelle: _w.quelle
+    };
+    if (_w.rabatt_prozent > 0) {
+      _position.rabatt_prozent = _w.rabatt_prozent;
+      _rabattSumme = gutschein.rabattAusPositionen([_position]).summe;
+    }
+    if (_w.quelle === 'gutschein') {
+      _gCode = _gCodeRoh;
+      _gEffektiv = _brutto > 0 ? Math.round(_rabattSumme / _brutto * 100) : 0;
     }
     const _bu = await query('SELECT 1 FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1', [datum]);
     if (_bu.rows.length) return res.status(409).json({ error: 'An diesem Tag ist keine Buchung möglich (Betriebsurlaub).' });
@@ -511,21 +528,34 @@ router.get('/artikel/:id/preis', authKunde, async (req, res, next) => {
     const preis = Number(p.preis) || 0;
     const brutto = inkl ? gutschein.round2(preis) : gutschein.round2(preis * (1 + mwst / 100));
 
+    // Vereinbarte Konditionen des angemeldeten Kunden mit einrechnen. Bisher wurden sie erst
+    // beim Erzeugen der Rechnung aufgeloest -- der Gewerbekunde sah hier den Listenpreis und
+    // bekam hinterher einen anderen Betrag. Gutschein und Konditionen schliessen sich aus,
+    // es gilt der guenstigere; entschieden wird in lib/konditionen.js.
+    const kond = await konditionen.ladeKonditionen(req.kunde && req.kunde.id);
     const code = req.query.gutschein || req.query.code || null;
+    let gCode = null, gSatz = 0;
     if (code) {
       const g = await gutschein.ladeGutschein(code);
-      if (g) {
-        const saetze = await gutschein.saetzeFuer(g, [req.params.id]);
-        const satz = saetze[req.params.id] || 0;
-        const r = gutschein.rabattAusPositionen([{ zeilen_brutto: brutto, mwst_satz: mwst, rabatt_prozent: satz }]);
-        return res.json(Object.assign({}, p, {
-          gutschein: { code: g.code, rabatt_prozent: satz },
-          brutto_vor_rabatt: brutto, rabatt_summe: r.summe, brutto_nach_rabatt: gutschein.round2(brutto - r.summe)
-        }));
-      }
-      return res.json(Object.assign({}, p, { gutschein: null, brutto_vor_rabatt: brutto, rabatt_summe: 0, brutto_nach_rabatt: brutto }));
+      if (g) { gCode = g.code; gSatz = (await gutschein.saetzeFuer(g, [req.params.id]))[req.params.id] || 0; }
     }
-    res.json(Object.assign({}, p, { brutto_vor_rabatt: brutto, rabatt_summe: 0, brutto_nach_rabatt: brutto }));
+    const w = konditionen.preisFuer(kond, req.params.id, brutto, gSatz);
+    const r = gutschein.rabattAusPositionen([{ zeilen_brutto: w.brutto, mwst_satz: mwst, rabatt_prozent: w.rabatt_prozent }]);
+    res.json(Object.assign({}, p, {
+      // `gutschein` bleibt nur gesetzt, wenn er auch tatsaechlich angewandt wurde -- sonst zeigte
+      // die Oberflaeche einen Code als aktiv an, der am Preis nichts geaendert hat.
+      gutschein: w.quelle === 'gutschein' ? { code: gCode, rabatt_prozent: w.rabatt_prozent } : null,
+      // Damit die Anzeige benennen kann, WAS gilt. Ein Betrag ohne Herkunft ist genau das,
+      // woran der Kunde zweifelt: 'liste' | 'kundenpreis' | 'konditionen' | 'gutschein'.
+      preis_quelle: w.quelle,
+      // Eingegebener Code, der wegen der guenstigeren Kondition nicht griff (oder umgekehrt) --
+      // die Oberflaeche sagt das dem Kunden, statt ihn im Unklaren zu lassen.
+      nicht_angewandt: w.verworfen === 'gutschein' && gCode ? { art: 'gutschein', code: gCode, rabatt_prozent: gSatz }
+                     : (w.verworfen === 'konditionen' ? { art: 'konditionen' } : null),
+      brutto_vor_rabatt: w.brutto, rabatt_summe: r.summe,
+      brutto_nach_rabatt: gutschein.round2(w.brutto - r.summe),
+      listen_brutto: w.listen_brutto
+    }));
   } catch (e) { next(e); }
 });
 
