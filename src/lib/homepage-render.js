@@ -453,7 +453,7 @@ function renderHomepage(sektionen, f, fonts, oz) {
     '<footer class="foot"><div class="inner">' +
     '<div class="foot-logo">' + logoSvg(252, 45) + '</div>' +
     socialHtml(f) +
-    '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/faq.html">FAQ</a></div>' +
+    '<div class="foot-links"><a href="/portal/">Kundenportal</a> · <a href="/portal/impressum.html">Impressum</a> · <a href="/portal/datenschutz.html">Datenschutz</a> · <a href="/portal/agb.html">AGB</a> · <a href="/portal/widerruf.html">Widerrufsbelehrung</a> · <a href="/portal/faq.html">FAQ</a></div>' +
     '</div></footer>' + script() + '</body></html>';
 }
 
