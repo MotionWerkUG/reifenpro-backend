@@ -173,7 +173,7 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
     }
     if (kontoPasst) {
       const now2 = new Date();
-      const ip2 = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+      const ip2 = req.ip || null;   // echte Adresse (trust proxy), nicht der vom Client gesetzte Kopf
       const agbV2 = 'Stand ' + now2.toISOString().substring(0, 10);
       // Anschrift und Kennzeichen aus der Buchung uebernehmen -- genau die Daten, die spaeter fuer
       // die Rechnung gebraucht werden und die der Kunde sonst ein zweites Mal eintippen muesste.
@@ -255,7 +255,9 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
     const ablauf = new Date(Date.now() + 24 * 3600000);
     const now = new Date();
     // Nachweis der Einwilligung: IP (via nginx-Header) + Stand der akzeptierten Dokumente
-    const einwilligungIp = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+    // Beweisdaten: NUR req.ip. Der linke Teil von x-forwarded-for stammt vom Client selbst und
+    // ist frei waehlbar -- nginx haengt die echte Adresse rechts an, die req.ip mit trust proxy liefert.
+    const einwilligungIp = req.ip || null;
     const agbVersion = 'Stand ' + now.toISOString().substring(0, 10);
 
     let kundeId;
