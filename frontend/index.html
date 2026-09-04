@@ -1659,8 +1659,14 @@ window.addEventListener('load', function() {
     fetch(API + '/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } })
       .then(function(r) {
         if (r.ok) {
-          // Bereiche der Rolle uebernehmen, dann das Menue danach aufbauen.
-          r.json().then(function(d) { if (d && d.bereiche) { BEREICHE = d.bereiche; menueFiltern(); } }).catch(function() {});
+          // Bereiche und Zeitgrenzen der Rolle uebernehmen, dann das Menue danach aufbauen.
+          r.json().then(function(d) {
+            if (d && d.bereiche) { BEREICHE = d.bereiche; menueFiltern(); }
+            if (d) {
+              IDLE_MS = (d.idle_minuten && d.idle_minuten > 0) ? d.idle_minuten * 60000 : null;
+              idleReset();   // mit dem neuen Wert neu ansetzen -- oder gar nicht mehr
+            }
+          }).catch(function() {});
           startApp();
         }
         else { TOKEN = null; USER = null; localStorage.removeItem('rp_token'); localStorage.removeItem('rp_user'); if (ls) ls.style.display = 'flex'; }
@@ -1799,7 +1805,11 @@ function doLogout(grund) {
 // ── IDLE-TIMEOUT (Sicherheit: unbeaufsichtigter Tresen-Rechner meldet sich ab) ──
 // Meldet nach Inaktivitaet ab; JEDE Nutzeraktivitaet (Klick, Taste, Scroll, Maus, Touch) setzt die
 // Zeit zurueck. 60s vorher Vorwarnung mit "Angemeldet bleiben". Nur aktiv wenn eingeloggt.
-var IDLE_MS = 30 * 60 * 1000;   // Inaktivitaets-Grenze (30 Min) – bei Bedarf hier anpassen
+// Untaetigkeitsgrenze. Kommt aus der Rolle (siehe Einstellungen, Reiter Rollen) und wird beim
+// Anmelden vom Server gesetzt. null bedeutet: kein automatisches Abmelden -- fuer die Werkstatt,
+// wo das Tablet am Regal steht und ein Abmelden alle 30 Minuten nur stoert. Der Wert hier ist
+// nur der Rueckfall, falls die Antwort ausbleibt.
+var IDLE_MS = 30 * 60 * 1000;
 var IDLE_WARN_MS = 60 * 1000;   // Vorwarnzeit (60 s)
 var idleTimer = null, idleWarnTimer = null, idleCountTimer = null, idleLastReset = 0;
 function idleStop() {
@@ -1811,6 +1821,9 @@ function idleReset() {
   idleStop();
   idleLastReset = Date.now();     // Drossel-Stempel auch bei direktem Reset (Button/Login) setzen
   if (!TOKEN) return;             // nur bei aktiver Sitzung timern
+  // IDLE_MS null: Diese Rolle wird nicht wegen Untaetigkeit abgemeldet. Die Sitzung endet
+  // trotzdem -- ueber die Gesamtdauer, die ebenfalls an der Rolle haengt.
+  if (!IDLE_MS) return;
   idleWarnTimer = setTimeout(idleShowWarn, Math.max(0, IDLE_MS - IDLE_WARN_MS));
   idleTimer = setTimeout(function() { doLogout('idle'); }, IDLE_MS);
 }
@@ -6055,6 +6068,25 @@ function renderRollenDetail() {
   if (!r) { el.innerHTML = '<div class="empty">Wählen Sie links eine Rolle.</div>'; return; }
 
   var h = '<div style="font-size:18px;font-weight:800">Rechte der Rolle „' + kEsc(r.name) + '"</div>';
+
+  // Zeitgrenzen stehen VOR der Vollzugriff-Abkuerzung: Sie gelten auch fuer den Inhaber, und
+  // gerade bei ihm ist die Frage, wie lange sein Bildschirm offen stehen darf, die wichtigere.
+  h += '<div class="bgrp">Automatisches Abmelden</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">' +
+      '<div><label style="font-size:12.5px;color:var(--muted);display:block;margin-bottom:5px">Bei Untätigkeit abmelden nach</label>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<input id="rz-idle" type="number" min="0" max="1440" step="5" style="max-width:110px" value="' +
+            (r.idle_minuten || 0) + '"><span style="font-size:13px;color:var(--muted)">Minuten</span></div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5">0 bedeutet: <b>kein</b> automatisches Abmelden. Sinnvoll für die Werkstatt — das Tablet steht am Regal.</div></div>' +
+      '<div><label style="font-size:12.5px;color:var(--muted);display:block;margin-bottom:5px">Anmeldung gilt höchstens</label>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
+          '<input id="rz-std" type="number" min="1" max="24" style="max-width:110px" value="' +
+            (r.sitzung_stunden || 10) + '"><span style="font-size:13px;color:var(--muted)">Stunden</span></div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5">Gilt auch bei durchgehender Arbeit. Sollte eine ganze Schicht abdecken, sonst fliegt jemand mittendrin heraus.</div></div>' +
+    '</div>' +
+    '<div style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="zeitenSpeichern()">Zeitgrenzen speichern</button>' +
+    '<span style="font-size:12.5px;color:var(--muted);margin-left:10px">Wirkt bei der nächsten Anmeldung.</span></div>';
+
   if (r.vollzugriff) {
     h += '<div style="margin-top:12px;background:var(--adim);border:1px solid rgba(234,179,8,.4);border-radius:10px;padding:14px 16px;font-size:13.5px;line-height:1.6">' +
       'Diese Rolle hat immer Vollzugriff und lässt sich nicht einschränken. Sonst gäbe es den Fall, ' +
@@ -6103,6 +6135,24 @@ function renderRollenDetail() {
 
 // Aenderungen sammeln sich lokal, gespeichert wird bewusst erst auf Knopfdruck: Rechte sind
 // nichts, was man versehentlich im Vorbeiklicken umstellt.
+function zeitenSpeichern() {
+  var r = ROLLENDATEN.rollen.find(function(x) { return x.id === rolleGewaehlt; });
+  if (!r) return;
+  var idle = parseInt(document.getElementById('rz-idle').value, 10);
+  var std  = parseInt(document.getElementById('rz-std').value, 10);
+  api('PUT', '/rollen/' + r.id, { idle_minuten: idle > 0 ? idle : null, sitzung_stunden: std })
+    .then(function() {
+      notify('Zeitgrenzen gespeichert.');
+      ladeRollen(true);
+      // Betrifft es die eigene Rolle, gilt die neue Grenze erst nach der naechsten Anmeldung --
+      // das aktuelle Merkmal traegt seine Laufzeit bereits in sich.
+      if (USER && USER.rolle === r.schluessel) {
+        notify('Die neue Sitzungsdauer gilt ab Ihrer nächsten Anmeldung.', 'info');
+      }
+    })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
 function stufeSetzen(bereich, stufe) {
   var r = ROLLENDATEN.rollen.find(function(x) { return x.id === rolleGewaehlt; });
   if (!r || r.vollzugriff) return;

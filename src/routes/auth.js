@@ -12,9 +12,11 @@ const DUMMY_HASH = '$2a$12$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW
 // es ist signiert und traegt seinen Zustand selbst. Das Abmelden vermerkt genau diese Kennung,
 // trifft also NUR diese eine Sitzung: Wer am Telefon angemeldet ist, bleibt es, wenn er sich
 // am Tresen abmeldet.
-const makeToken = (userId) =>
+// Die Gueltigkeit kommt aus der Rolle, nicht aus einer festen Zahl: Ein Werkstattzugang ohne
+// automatisches Abmelden waere sonst trotzdem nach acht Stunden mitten in der Schicht draussen.
+const makeToken = (userId, stunden) =>
   jwt.sign({ userId, jti: crypto.randomUUID() }, process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
+    { expiresIn: (parseInt(stunden, 10) > 0 ? parseInt(stunden, 10) : 10) + 'h' });
 
 const makeRefresh = (userId) =>
   jwt.sign({ userId }, process.env.JWT_SECRET,
@@ -46,7 +48,9 @@ router.post('/login', async (req, res, next) => {
         await query('UPDATE users SET password=$1 WHERE id=$2', [neuerHash, user.id]);
       } catch (e) { console.error('[Login-Rehash]', e.message); }
     }
-    const token   = makeToken(user.id);
+    // Sitzungsdauer aus der Rolle des Anmeldenden.
+    const _rz = (await query('SELECT sitzung_stunden FROM rollen WHERE schluessel=$1', [user.rolle])).rows[0];
+    const token   = makeToken(user.id, _rz && _rz.sitzung_stunden);
     const refresh = makeRefresh(user.id);
     const ablauf  = new Date(Date.now() + 30 * 86400000);
     await query(
@@ -79,7 +83,12 @@ router.post('/refresh', async (req, res, next) => {
       [refreshToken]
     );
     if (!rows.length) return res.status(401).json({ error: 'Token nicht gefunden.' });
-    const newToken   = makeToken(decoded.userId);
+    // Auch beim Erneuern gilt die Rollendauer -- sonst traege ein erneuertes Merkmal wieder
+    // die alte feste Laufzeit.
+    const _ru = (await query(
+      'SELECT r.sitzung_stunden FROM users u JOIN rollen r ON r.schluessel=u.rolle WHERE u.id=$1',
+      [decoded.userId])).rows[0];
+    const newToken   = makeToken(decoded.userId, _ru && _ru.sitzung_stunden);
     const newRefresh = makeRefresh(decoded.userId);
     const ablauf     = new Date(Date.now() + 30 * 86400000);
     await query('DELETE FROM refresh_tokens WHERE token=$1', [refreshToken]);
@@ -116,7 +125,16 @@ router.post('/logout', authenticate, async (req, res, next) => {
 router.get('/me', authenticate, async (req, res, next) => {
   try {
     const rechte = require('../lib/rechte');
-    res.json({ user: req.user, bereiche: await rechte.sichtbareBereiche(req.user.rolle) });
+    // Die Untaetigkeitsgrenze kommt aus der Rolle. Die Oberflaeche hatte sie fest verdrahtet --
+    // 30 Minuten fuer alle. In der Werkstatt hiess das: Tablet am Regal, Haende schmutzig, alle
+    // 30 Minuten neu anmelden.
+    const z = (await query('SELECT idle_minuten, sitzung_stunden FROM rollen WHERE schluessel=$1', [req.user.rolle])).rows[0] || {};
+    res.json({
+      user: req.user,
+      bereiche: await rechte.sichtbareBereiche(req.user.rolle),
+      idle_minuten: z.idle_minuten || null,
+      sitzung_stunden: z.sitzung_stunden || 10
+    });
   } catch (e) { next(e); }
 });
 

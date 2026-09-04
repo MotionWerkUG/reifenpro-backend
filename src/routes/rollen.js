@@ -43,7 +43,7 @@ const BEFUGNISSE = [
 
 router.get('/', async (req, res, next) => {
   try {
-    const rollen = (await query('SELECT id, schluessel, name, beschreibung, system, vollzugriff FROM rollen ORDER BY vollzugriff DESC, name')).rows;
+    const rollen = (await query('SELECT id, schluessel, name, beschreibung, system, vollzugriff, idle_minuten, sitzung_stunden FROM rollen ORDER BY vollzugriff DESC, name')).rows;
     const rr = (await query('SELECT rolle_id, bereich, stufe FROM rollen_rechte')).rows;
     const rb = (await query('SELECT rolle_id, befugnis FROM rollen_befugnisse')).rows;
     const zahl = (await query("SELECT rolle, COUNT(*)::int AS n FROM users WHERE aktiv GROUP BY rolle")).rows;
@@ -63,9 +63,31 @@ router.put('/:id', async (req, res, next) => {
   try {
     const r = (await query('SELECT * FROM rollen WHERE id=$1', [req.params.id])).rows[0];
     if (!r) return res.status(404).json({ error: 'Rolle nicht gefunden.' });
-    // Der Inhaber laesst sich nicht einschraenken. Ohne diese Sperre gaebe es den Fall, in dem
+    // Zeitgrenzen zuerst: Sie duerfen AUCH beim Inhaber geaendert werden. Fest sind nur seine
+    // RECHTE -- die Frage, wie lange sein Bildschirm offen stehen darf, ist eine andere und
+    // gerade bei ihm die wichtigere.
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'idle_minuten') ||
+        Object.prototype.hasOwnProperty.call(req.body || {}, 'sitzung_stunden')) {
+      let idle = req.body.idle_minuten;
+      idle = (idle === null || idle === '' || parseInt(idle, 10) <= 0) ? null : Math.min(parseInt(idle, 10), 1440);
+      let std = parseInt(req.body.sitzung_stunden, 10);
+      if (!(std > 0)) std = 10;
+      std = Math.min(std, 24);
+      // Eine Untaetigkeitsgrenze, die laenger ist als die Sitzung selbst, greift nie -- sie
+      // waere eine Einstellung, die nichts tut, und genau so etwas sucht man spaeter stundenlang.
+      if (idle !== null && idle > std * 60) {
+        return res.status(400).json({ error: 'Die Untätigkeitsgrenze (' + idle + ' Min) liegt über der Sitzungsdauer (' + std + ' h) und würde nie greifen. Bitte eines von beidem anpassen.' });
+      }
+      await query('UPDATE rollen SET idle_minuten=$1, sitzung_stunden=$2, geaendert_am=NOW() WHERE id=$3', [idle, std, r.id]);
+      rechte.leeren();
+      await auditLog({ userId: req.user.id, aktion: 'rolle.zeiten_geaendert', tabelle: 'rollen', datensatzId: r.id });
+      // Wurden NUR Zeiten geschickt, ist hier Schluss.
+      if (!req.body.rechte && !req.body.befugnisse) return res.json({ message: 'Zeitgrenzen gespeichert.' });
+    }
+
+    // Die RECHTE des Inhabers bleiben unantastbar. Ohne diese Sperre gaebe es den Fall, in dem
     // sich jemand selbst aussperrt und niemand mehr an die Einstellungen kommt.
-    if (r.vollzugriff) return res.status(409).json({ error: 'Die Rolle „' + r.name + '" hat immer Vollzugriff und lässt sich nicht einschränken.' });
+    if (r.vollzugriff) return res.status(409).json({ error: 'Die Rolle „' + r.name + '" hat immer Vollzugriff; ihre Rechte lassen sich nicht einschränken.' });
 
     const rechteNeu = req.body && req.body.rechte || {};
     const befugNeu = Array.isArray(req.body && req.body.befugnisse) ? req.body.befugnisse : [];
