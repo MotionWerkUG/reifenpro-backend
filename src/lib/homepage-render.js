@@ -111,16 +111,12 @@ function besondererTagText(b) {
   return [datum + (b.bezeichnung ? ' – ' + b.bezeichnung : ''), zeit];
 }
 
-// Hinweisblock unter der Tabelle: Feiertage/Betriebsurlaub + freier Hinweistext.
-function besondereTageHtml(oz) {
-  var liste = (oz && Array.isArray(oz.besondere) ? oz.besondere : []).slice(0, 8);
-  if (!liste.length) return '';
-  var zeilen = liste.map(function (b) {
-    var t = besondererTagText(b);
-    return '<tr><td>' + esc(t[0]) + '</td><td>' + esc(t[1]) + '</td></tr>';
-  }).join('');
-  return '<div class="oz-bes"><h3>Feiertage &amp; besondere Tage</h3><table class="oz">' + zeilen + '</table></div>';
-}
+// Feiertage und Schliesstage werden auf der Startseite BEWUSST nicht mehr aufgelistet
+// (Entscheidung des Inhabers, 07.09.2026): Der Abschnitt zeigt nur die regulaeren Zeiten.
+// Sie wirken weiterhin: Der Buchungsassistent gibt geschlossene Tage nicht frei, und die
+// strukturierten Daten fuer Suchmaschinen (specialOpeningHoursSpecification, siehe jsonLd)
+// melden sie unveraendert — dort stoeren sie niemanden und verhindern falsche Auskuenfte
+// in der Google-Anzeige.
 
 function jsonLd(f, oz) {
   var data = {
@@ -312,7 +308,7 @@ function renderSektion(s, f, oz) {
     var hinweis = f.oeffnungszeiten_hinweis && String(f.oeffnungszeiten_hinweis).trim()
       ? '<p class="oz-hinweis">' + nl2br(String(f.oeffnungszeiten_hinweis).trim()) + '</p>' : '';
     return '<section class="sec alt" id="oeffnungszeiten"><div class="inner narrow"><h2>' + esc(s.headline || 'Öffnungszeiten') + '</h2>' +
-      '<table class="oz">' + rows + '</table>' + hinweis + besondereTageHtml(oz) + '</div></section>';
+      '<table class="oz">' + rows + '</table>' + hinweis + '</div></section>';
   }
   if (s.typ === 'kontakt') {
     var hasAdr = !!(f.strasse || f.ort);
