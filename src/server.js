@@ -2,6 +2,7 @@
 require('dotenv').config();
 const express     = require('express');
 const cors        = require('cors');
+const { istProduktionsinstanz } = require('./lib/betrieb');
 const helmet      = require('helmet');
 const compression = require('compression');
 const morgan      = require('morgan');
@@ -111,6 +112,16 @@ app.use(notFound);
 app.use(errorHandler);
 
 // ── CRON JOBS ──
+// NUR in der Produktionsinstanz. Vorher registrierte JEDE gestartete Instanz dieselben
+// Auftraege — auch eine Testinstanz aus einem Bereichs-Worktree. Am 07.09.2026 hat genau das
+// die oeffentliche Website zerstoert: Eine Testinstanz mit der Datenbank reifenpro_test2 (ohne
+// Homepage-Abschnitte) hat um 03:15 die echte Seite neu erzeugt; uebrig blieben nur die fest
+// im Code stehenden Bloecke. Der 16-Uhr-Auftrag verschickt zudem E-Mails an die echte
+// Betriebsadresse — aus Testdaten. Solche Auftraege gehoeren in genau einen Prozess.
+if (!istProduktionsinstanz()) {
+  console.log('[Cron] Testinstanz — zeitgesteuerte Auftraege werden NICHT registriert.');
+} else {
+
 // Taeglich 02:00 — abgelaufene Tokens loeschen
 cron.schedule('0 2 * * *', async function() {
   try {
@@ -208,6 +219,8 @@ cron.schedule('0 16 * * *', async function() {
     console.log('[Cron 16:00] Tagesliste gesendet:', termine.rows.length, 'Termine');
   } catch (err) { console.error('[Cron 16:00]', err.message); }
 }, { timezone: 'Europe/Berlin' });
+
+} // Ende: zeitgesteuerte Auftraege nur in der Produktionsinstanz
 
 // HU-Erinnerungen laufen ueber cron-erinnerungen.js (crontab 08:00) auf Basis von fahrzeuge.hu_datum.
 // Der fruehere 09:00-Job hier nutzte kunden.hu_datum (seit dem Fuhrpark-Umbau ungenutzt) und wurde entfernt,

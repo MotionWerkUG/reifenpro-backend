@@ -6,6 +6,7 @@ const { query } = require('../db/index');
 const { renderHomepage, renderWartung } = require('./homepage-render');
 const { regulaereWoche, besondereTageAbHeute } = require('./oeffnung');
 const { bannerStatus } = require('./aktion');
+const { istProduktionsinstanz } = require('./betrieb');
 
 // Zielpfad der erzeugten Seite. Im Betrieb immer die echte Website; ueberschreibbar per
 // HOMEPAGE_ZIEL, damit eine Testinstanz (eigene Datenbank, eigener Port) die Live-Datei nicht
@@ -16,7 +17,21 @@ const ZIEL = process.env.HOMEPAGE_ZIEL || '/var/www/schroeder-homepage/index.htm
 // Datei loeschen + einmal regenerate() ausfuehren.
 const WARTUNG_FLAG = '/var/www/schroeder-homepage/.wartung';
 
+// Zweiter, unabhaengiger Riegel: Auf die ECHTE Website schreibt nur die Produktionsinstanz.
+// Eine Testinstanz darf erzeugen, so viel sie will — aber in ihr eigenes Ziel (HOMEPAGE_ZIEL).
+// Ohne eigenes Ziel bricht sie hier ab, statt die oeffentliche Seite aus einer Testdatenbank
+// zu ueberschreiben. Genau das ist am 07.09.2026 passiert.
+function darfSchreiben() {
+  if (process.env.HOMEPAGE_ZIEL) return true;          // eigenes Ziel -> nie die echte Datei
+  return istProduktionsinstanz();
+}
+
 async function regenerate() {
+  if (!darfSchreiben()) {
+    console.warn('[Homepage] Neuerzeugung abgebrochen: Diese Instanz laeuft nicht gegen die ' +
+      'Produktionsdatenbank und hat kein eigenes HOMEPAGE_ZIEL. Die oeffentliche Website bleibt unveraendert.');
+    return;
+  }
   const f = (await query('SELECT * FROM einstellungen ORDER BY id LIMIT 1')).rows[0] || {};
   if (fs.existsSync(WARTUNG_FLAG)) {
     fs.writeFileSync(ZIEL, renderWartung(f));
