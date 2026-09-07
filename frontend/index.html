@@ -740,6 +740,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
         <div class="ph"><div class="pt">Rechnungen</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-g btn-sm admin-only" onclick="rechnungExport()">CSV-Export (GoBD)</button>
+            <button class="btn btn-g btn-sm admin-only" onclick="belegPruefung()">Belege prüfen</button>
             <button class="btn btn-g btn-sm" onclick="verfahrensdoku()">Verfahrensdoku</button>
             <button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button>
           </div>
@@ -2736,6 +2737,26 @@ function rechnungExport() {
       a.remove(); setTimeout(function() { URL.revokeObjectURL(u); }, 30000);
       notify('CSV-Export erstellt.');
     }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Belegpruefung: vergleicht jede Belegdatei mit ihrer beim Festschreiben festgehaltenen
+// Pruefsumme und prueft die Belegkette. Das ist die Antwort auf die Pruefer-Frage "woher wissen
+// Sie, dass kein Beleg veraendert wurde?" — deshalb gehoert sie auf einen Knopf und nicht in
+// ein Wartungsskript.
+function belegPruefung() {
+  notify('Belege werden geprüft …');
+  api('GET', '/rechnungen/belegpruefung').then(function(r) {
+    if (!r) return;
+    if (r.in_ordnung) {
+      var zusatz = r.ohne_pruefsumme ? ' ' + r.ohne_pruefsumme + ' Beleg(e) stammen aus der Zeit vor der Prüfsumme und sind nicht prüfbar.' : '';
+      notify(r.zusammenfassung + zusatz);
+      return;
+    }
+    var text = r.zusammenfassung + '\n\n' + r.befunde.map(function(b) {
+      return '• ' + b.rechnungsnr + ' (' + (b.art === 'kette' ? 'Belegkette' : 'Datei') + '): ' + b.grund;
+    }).join('\n');
+    notify(r.befunde.length + ' Beanstandung(en) — Einzelheiten im Hinweisfenster.', 'err');
+    alert(text + '\n\nBitte den Vorgang dokumentieren und den Steuerberater informieren.');
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function einwilligungReconfirm() {
   if (!confirm('Allen Kunden, die saisonale Erinnerungen wünschen, aber noch nicht per Double-Opt-in bestätigt haben, eine Bestätigungs-E-Mail senden?\n\nKundendaten werden dabei NICHT gelöscht.')) return;
