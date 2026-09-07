@@ -100,6 +100,12 @@
     border-left:4px solid #eab308; border-radius:10px; padding:13px 15px; margin-bottom:16px;
     font-size:14px; line-height:1.6; }
   .gw-hinweis strong { display:block; margin-bottom:3px; }
+  /* Fusszeile: Das Impressum muss von jeder Seite in hoechstens zwei Klicks erreichbar sein
+     (Paragraf 5 DDG). Auf dieser Seite wird der Vertrag geschlossen — hier fehlte es. */
+  .foot{background:#171717;color:#cfcfcf;padding:34px 0;text-align:center;margin-top:28px}
+  .foot-links{font-size:13.5px;line-height:2}
+  .foot-links a{color:#cfcfcf;text-decoration:none;margin:0 4px}
+  .foot-links a:hover{color:#eab308}
 </style>
 </head>
 <body>
@@ -253,6 +259,13 @@
     <button class="btn btn-p" id="btn-next" onclick="weiter()">Weiter</button>
   </div>
 </div>
+
+<footer class="foot"><div class="foot-links">
+  <a href="/">Startseite</a> &middot; <a href="/preise/">Preise</a> &middot; <a href="/portal/">Kundenportal</a> &middot;
+  <a href="/portal/impressum.html">Impressum</a> &middot; <a href="/portal/datenschutz.html">Datenschutz</a> &middot;
+  <a href="/portal/agb.html">AGB</a> &middot; <a href="/portal/widerruf.html">Widerrufsbelehrung</a> &middot;
+  <a href="/portal/faq.html">FAQ</a>
+</div></footer>
 
 <script>
 'use strict';
