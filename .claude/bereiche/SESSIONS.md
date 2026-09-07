@@ -23,6 +23,59 @@ Eine Sparte pro Session. Was nicht dein Bereich ist, gib an die zuständige Sess
 - **Bild-Upload:** Endpunkt + sharp-Pipeline = homepage (homepage.js) · die Admin-UI, die ihn aufruft = admin.
 - **Backend-Deploy:** Bereichs-Branch → main mergen → `sudo pm2 restart reifenpro` (läuft aus dem Hauptordner).
 
+## DIE LÖSUNG: über die stabile Kennung adressieren, nicht über den Namen (Stand 2026-09-07)
+
+Es gibt **zwei getrennte Adressbücher**, und das ist die ganze Ursache:
+
+| Weg | Adresse | Verhalten |
+|---|---|---|
+| `ListAgents` + `SendMessage` | Name wie `portal-b7` | **wechselt bei jedem Neustart** |
+| `list_sessions` + `send_message` | Kennung `local_<uuid>` | **stabil, übersteht Neustarts** |
+
+Nachgewiesen am 07.09.2026: Die Admin-Sitzung trägt seit dem **28.08.** unverändert
+`local_efbc4af9…`, während ihr Agentenname an einem einzigen Tag viermal wechselte
+(`admin-1e` → `admin-c2` → `admin-45` → `admin-95`). Die Portal-Sitzung hat im selben
+Zeitraum dreimal gewechselt (`portal-f0` → `portal-4e` → `portal-b7`) — bei unverändertem
+Ordner, Zweig und Inhalt. **Wer nach Namen adressiert, adressiert eine Momentaufnahme.**
+
+### Register der stabilen Kennungen
+
+| Bereich | Stabile Kennung | Titel im Desktop | Ordner |
+|---|---|---|---|
+| admin | `local_efbc4af9-6bd3-4abb-86b3-68068bd395b5` | Admin START.md | `reifenpro/admin` |
+| portal | `local_60bfd37d-92cf-46a6-9aa9-2f82170e7a29` | Portal START.md | `reifenpro/portal` |
+| homepage | `local_09e99083-5808-4d5d-836f-72b0d0b99ed5` | Homepage START.md | `reifenpro/homepage` |
+| rechnungswesen | `local_2cd96ff1-e82d-404c-9bd4-c4e26c26c7f4` | Rechnungswesen START | `reifenpro/rechnungswesen` |
+
+Alle vier am 28.08.2026 angelegt, alle in der Desktop-Gruppe „Schröder & Scholz".
+
+### Verbindliches Vorgehen
+
+1. **`list_sessions` aufrufen**, nicht auf eine gemerkte Adresse verlassen.
+2. Empfänger über **Ordner und Zweig** zuordnen, nicht über den Titel. Titel lassen sich
+   ändern, Ordner nicht.
+3. Mit **`get_session`** bestätigen, bevor gesendet wird.
+4. **Bei Uneindeutigkeit fragen statt raten.** Am 03.09. wurde mit `portal-91` gearbeitet,
+   weil der Startzeitpunkt passte — eine Vermutung, kein Nachweis. Sie war richtig, hätte es
+   aber nicht sein müssen.
+
+### Was die Rückmeldung verrät
+`send_message` antwortet mit *„sent"* oder *„queued"*. **Queued heißt: Die Zielsitzung
+arbeitet gerade.** Diese Information gibt es über den Namensweg nicht.
+
+### Achtung: mehr Agenten als Chatfenster
+Am 07.09. zeigte `ListAgents` **72 Einträge**, `list_sessions` dagegen **27 Chatfenster**.
+Darunter vier Portal-Namen, von denen drei keinem Fenster entsprechen. Ein Name in
+`ListAgents` ist also **kein Beleg dafür, dass dort jemand sitzt** — es kann ein vergessener
+Prozess sein, der weiterhin in denselben Worktree schreibt.
+
+### Beim Ablösen unbedingt weitergeben
+Wer diese Sitzung ablöst, findet die Kennungen **hier** — nicht im Gesprächsverlauf. Genau
+deshalb steht das Register in dieser Datei. Ändert sich eine Kennung (neuer Chat, „Start
+fresh", Archivierung), gehört sie hier korrigiert, bevor jemand danach sucht.
+
+---
+
 ## 0. Warum das überhaupt ein Problem ist (Stand 2026-08-29)
 
 Drei Tatsachen, die zusammen das ganze Durcheinander erklären:
