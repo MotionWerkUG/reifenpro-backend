@@ -2370,7 +2370,7 @@ function renderRechnungen() {
         (r.kasse_beleg_url ? '<a href="' + kEsc(r.kasse_beleg_url) + '" target="_blank" rel="noopener">' + kEsc(r.kasse_beleg_nr) + '</a>' : kEsc(r.kasse_beleg_nr)) + '</div>';
     }
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
-      '<td>' + (r.kundenname || r.empfaenger_firma || r.empfaenger_name || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
+      '<td>' + (kEsc(r.empfaenger_firma || r.empfaenger_name || r.kundenname) || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
       '<td>' + rDatum(r.rechnungsdatum) + '</td>' +
       '<td>' + rEur(r.brutto_summe) + '</td>' +
       '<td>' + rStatusBadge(r.status, !!r.storno_von_id) + '</td>' +

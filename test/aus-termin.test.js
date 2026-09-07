@@ -165,6 +165,57 @@ test('Kundenpreis erzeugt keine Nachlasszeile', async () => {
   assert.equal(pos.filter((p) => /Nachlass/.test(p.bezeichnung)).length, 0, 'keine erfundene Nachlasszeile');
 });
 
+test('Anonymisierter Kunde bekommt keine Rechnung mit falschem Empfaenger', async () => {
+  // Wird ein Kunde wegen Aufbewahrungspflicht anonymisiert statt geloescht, heisst er im Stamm
+  // "Geloeschter Kunde" und hat keine Anschrift mehr. Ein Beleg daraus traegt einen falschen
+  // Empfaenger (§ 14 Abs. 4 Nr. 1 UStG) und faellt niemandem auf, weil die Anschriftspruefung
+  // erst ab 250 EUR greift. Die DSGVO-Route sperrt das inzwischen vorne; das hier ist die
+  // zweite Schicht fuer Bestandsdaten aus der Zeit davor.
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  const leistungen = [
+    { bezeichnung: 'Auswuchten', mwst_satz: 19, zeilen_brutto: 25, zeilen_netto: 21.01,
+      grundpreis_netto: 21.01, zuschlag_netto: 0, rabatt_prozent: 0 }
+  ];
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen)
+     VALUES (CURRENT_DATE, '09:00', '10:00', 'Auswuchten', 'abgeschlossen', $1, $2) RETURNING id`,
+    [kunde, JSON.stringify(leistungen)]);
+
+  await h.query(
+    `UPDATE kunden SET vorname='Geloeschter', nachname='Kunde', strasse=NULL, plz=NULL, ort=NULL,
+       anonymisiert_am=NOW(), geloescht_am=NOW() WHERE id=$1`, [kunde]);
+
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
+  assert.equal(r.status, 400, 'Rechnung aus Termin muss abgelehnt werden: ' + JSON.stringify(r.body));
+  assert.match(r.body.error, /anonymisiert/i);
+  assert.equal((await h.query('SELECT count(*)::int AS n FROM rechnungen')).rows[0].n, 0, 'kein Beleg angelegt');
+
+  // Auch der stille Rueckfall beim direkten Anlegen ist gesperrt ...
+  const direkt = await h.api(token, 'POST', '/api/rechnungen', {
+    kunden_id: kunde,
+    positionen: [{ bezeichnung: 'Auswuchten', menge: 1, einzelpreis_brutto: 25, mwst_satz: 19 }]
+  });
+  assert.equal(direkt.status, 400, 'auch ohne Termin abgelehnt: ' + JSON.stringify(direkt.body));
+
+  // ... der manuell erfasste Empfaenger bleibt aber ausdruecklich erlaubt.
+  const manuell = await h.api(token, 'POST', '/api/rechnungen', {
+    kunden_id: kunde,
+    empfaenger: { vorname: 'Max', nachname: 'Mustermann', strasse: 'Musterweg 2', plz: '54321', ort: 'Musterstadt' },
+    positionen: [{ bezeichnung: 'Auswuchten', menge: 1, einzelpreis_brutto: 25, mwst_satz: 19 }]
+  });
+  assert.equal(manuell.status, 201, 'manueller Empfaenger muss weiter gehen: ' + JSON.stringify(manuell.body));
+  assert.equal(manuell.body.empfaenger_name, 'Max Mustermann');
+
+  // Auch das Aendern eines Entwurfs darf nicht still auf die anonymisierten Stammdaten zurueckfallen.
+  const put = await h.api(token, 'PUT', '/api/rechnungen/' + manuell.body.id, {
+    kunden_id: kunde,
+    positionen: [{ bezeichnung: 'Auswuchten', menge: 1, einzelpreis_brutto: 30, mwst_satz: 19 }]
+  });
+  assert.equal(put.status, 400, 'PUT ohne Empfaenger im Body muss abgelehnt werden: ' + JSON.stringify(put.body));
+  assert.match(put.body.error, /anonymisiert/i);
+});
+
 test('Kein zweiter Gutschein auf einen Termin, der schon einen Nachlass traegt', async () => {
   const { token } = await h.seedBasis({ preise_inkl_mwst: true });
   const kunde = await h.seedKunde();
