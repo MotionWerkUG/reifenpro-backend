@@ -176,6 +176,20 @@ const LEER_EMPF = {
   empfaenger_land: null
 };
 
+// Ein datenschutzrechtlich anonymisierter Kunde heisst im Stamm "Geloeschter Kunde" und hat
+// keine Anschrift mehr. Wuerde daraus eine Rechnung entstehen, traegt der Beleg einen falschen
+// Empfaenger — ein Verstoss gegen § 14 Abs. 4 Nr. 1 UStG, der niemandem auffaellt, weil die
+// Anschriftspruefung erst ab 250 EUR greift. Die Anonymisierung wird schon in der
+// DSGVO-Route gesperrt, solange offene Termine bestehen; das hier ist die zweite Schicht,
+// denn Bestandsdaten aus der Zeit davor kennen diese Sperre nicht.
+const ANONYM_HINWEIS = 'Der Kunde wurde datenschutzrechtlich anonymisiert. Aus seinen Stammdaten lässt sich kein gültiger Rechnungsempfänger mehr bilden — bitte den Empfänger manuell erfassen.';
+
+async function istAnonymisiert(kunden_id) {
+  if (!kunden_id) return false;
+  const { rows } = await query('SELECT anonymisiert_am FROM kunden WHERE id=$1', [kunden_id]);
+  return !!(rows.length && rows[0].anonymisiert_am);
+}
+
 async function ladeEmpfaenger(kunden_id) {
   if (!kunden_id) return Object.assign({}, LEER_EMPF);
   const { rows } = await query('SELECT anrede,vorname,nachname,firma,strasse,plz,ort,land FROM kunden WHERE id=$1', [kunden_id]);
@@ -524,7 +538,11 @@ router.post('/', async (req, res, next) => {
     if (!datumPlausibel(rechnungsdatum)) return res.status(400).json({ error: 'Unplausibles Rechnungsdatum (Format JJJJ-MM-TT, Jahr ab 2020, nicht in der Zukunft).' });
     if (!datumPlausibel(leistungsdatum, true)) return res.status(400).json({ error: 'Unplausibles Leistungsdatum (Format JJJJ-MM-TT, Jahr ab 2020).' });
     // Empfaenger: explizite Eingabe (Snapshot) bevorzugen, sonst aus Kundenstamm laden
-    const emp = empfaengerAusBody(req.body) || await ladeEmpfaenger(kunden_id || null);
+    const empBody = empfaengerAusBody(req.body);
+    // Ein manuell erfasster Empfaenger bleibt ausdruecklich erlaubt — nur der stille Rueckfall
+    // auf die anonymisierten Stammdaten wird gesperrt.
+    if (!empBody && await istAnonymisiert(kunden_id)) return res.status(400).json({ error: ANONYM_HINWEIS });
+    const emp = empBody || await ladeEmpfaenger(kunden_id || null);
     if (!emp.empfaenger_name && !emp.empfaenger_firma && !kunden_id) {
       return res.status(400).json({ error: 'Bitte einen Kunden wählen oder einen Empfänger (Name oder Firma) eintragen.' });
     }
@@ -715,6 +733,7 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
     // volle Anschrift) wird wie gehabt erst beim Festschreiben geprueft; hier ist der Name das Minimum.
     let emp;
     if (t.kunden_id) {
+      if (await istAnonymisiert(t.kunden_id)) return res.status(400).json({ error: ANONYM_HINWEIS });
       emp = await ladeEmpfaenger(t.kunden_id);
     } else {
       const s2 = (v) => (v == null ? null : String(v).trim() || null);
@@ -776,6 +795,7 @@ router.put('/:id', async (req, res, next) => {
     let emp = empfaengerAusBody(req.body);
     if (!emp) {
       if (kid) {
+        if (await istAnonymisiert(kid)) return res.status(400).json({ error: ANONYM_HINWEIS });
         emp = await ladeEmpfaenger(kid);
       } else {
         const c = cur.rows[0];
