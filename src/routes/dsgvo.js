@@ -177,6 +177,37 @@ router.post('/loeschung/:kundenId', authenticate, requireAdmin, async (req, res,
     );
     const aufbewahrungspflicht = parseInt(aufb[0].cnt) > 0;
 
+    // OFFENE FORDERUNG VOR DER ANONYMISIERUNG.
+    //
+    // Die Anonymisierung leert Name und Anschrift, laesst termine.kunden_id aber bestehen --
+    // sie muss, denn der Termin gehoert zu den aufbewahrungspflichtigen Unterlagen. Gibt es dazu
+    // einen noch nicht abgerechneten Termin, entstuende daraus spaeter eine Rechnung an
+    // "Geloeschter Kunde" OHNE Anschrift. Bis 250 Euro liesse sie sich sogar festschreiben, weil
+    // die Anschriftspruefung erst darueber greift (Kleinbetragsregelung, § 33 UStDV) -- ein still
+    // falsch beschrifteter Beleg entgegen § 14 Abs. 4 Nr. 1 UStG, wegen der Unveraenderbarkeit
+    // nicht mehr zu heilen.
+    //
+    // Deshalb wird hier abgebrochen statt stillschweigend fortgefahren. Wer eine offene Forderung
+    // hat, wird nicht anonymisiert -- ob zuerst abgerechnet oder storniert wird, entscheidet der
+    // Betrieb und nicht ein Zweig im Code. Der Loeschantrag bleibt bestehen und laesst sich danach
+    // erneut ausfuehren.
+    //
+    // Gefunden vom Rechnungswesen bei der Pruefung des Storno-Releases; der Fehler ist aelter als
+    // dieses Release.
+    if (aufbewahrungspflicht) {
+      const { rows: offen } = await query(
+        `SELECT COUNT(*)::int AS c FROM termine
+          WHERE kunden_id=$1 AND rechnung_id IS NULL AND fakturiert IS NOT TRUE
+            AND status NOT IN ('storniert','abgesagt')`, [kid]);
+      if (offen[0].c > 0) {
+        return res.status(409).json({
+          code: 'OFFENE_TERMINE',
+          error: 'Für diesen Kunden ' + (offen[0].c === 1 ? 'ist noch ein Termin' : 'sind noch ' + offen[0].c + ' Termine')
+            + ' nicht abgerechnet. Bitte zuerst abrechnen oder stornieren — sonst entstünde später eine Rechnung ohne Empfängeranschrift.'
+        });
+      }
+    }
+
     // Zuerst archivieren (E-Mail + Datei)
     try {
       const scriptPfad = path.join(__dirname, '../../scripts/archiviere_kunde.js');
