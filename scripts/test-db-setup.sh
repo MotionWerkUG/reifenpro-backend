@@ -35,12 +35,31 @@ sudo -u postgres psql -v ON_ERROR_STOP=1 -q -c "CREATE DATABASE ${TEST_DB} OWNER
 sudo -u postgres pg_dump --schema-only "${SRC_DB}" \
   | sudo -u postgres psql -v ON_ERROR_STOP=1 -q -d "${TEST_DB}" > /dev/null
 
-# Noch nicht produktiv ausgefuehrte Migrationen nachziehen. Das Schema stammt aus der
-# Produktivdatenbank; liegt im Projekt eine Migration, die dort noch nicht gelaufen ist,
-# wuerden die Tests sonst gegen ein aelteres Schema laufen als der Code erwartet.
-# Die Dateien sind nach Projektkonvention mehrfach ausfuehrbar (IF NOT EXISTS).
+# Nur Migrationen nachziehen, die auf der Produktivdatenbank NOCH NICHT gelaufen sind.
+#
+# WARUM DIE PRUEFUNG NOETIG IST: Das Schema oben stammt bereits aus der Produktivdatenbank und
+# enthaelt damit alles, was jemals angewendet wurde. Frueher wurden hier trotzdem ALLE
+# migration-*.sql erneut ausgefuehrt, in alphabetischer Reihenfolge. Das war nicht nur
+# ueberfluessig, sondern gefaehrlich: Eine aeltere Datei, die dieselbe Funktion definiert wie
+# eine neuere, setzt sie auf den alten Stand zurueck.
+#
+# Genau das ist am 07.09.2026 passiert. Eine Migration ersetzte rechnung_schutz() um den Schutz
+# der Beleg-Pruefsumme; migration-rechnung-kassenbeleg.sql lief danach und stellte die alte
+# Fassung wieder her. Die Spalten waren da, der Schutz war dokumentiert, die Tests fuehlten sich
+# richtig an -- und die Pruefsumme war weiter aenderbar. Aufgefallen ist es nur, weil ein Test
+# genau diesen Fall nachstellt. Ohne ihn waere ein wirkungsloser Schutz produktiv gegangen.
+#
+# Die Reihenfolge bleibt damit unerheblich: Was im Register steht, wird nicht wiederholt.
+# Wer eine Migration produktiv ausfuehrt, traegt sie ein:
+#   INSERT INTO schema_migrationen (datei) VALUES ('migration-....sql');
+ANGEWENDET=$(sudo -u postgres psql -tAq -d "${SRC_DB}" \
+  -c "SELECT datei FROM schema_migrationen" 2>/dev/null || true)
 for f in migration-*.sql; do
   [ -e "$f" ] || continue
+  if printf '%s\n' "$ANGEWENDET" | grep -qxF "$f"; then
+    continue                      # steckt bereits im Schema
+  fi
+  echo "[Test-DB] Ziehe noch nicht angewendete Migration nach: $f"
   if ! sudo -u postgres psql -v ON_ERROR_STOP=1 -q -d "${TEST_DB}" -f "$f" > /dev/null 2>&1; then
     echo "[Test-DB] Hinweis: $f liess sich nicht anwenden (uebersprungen)." >&2
   fi

@@ -17,11 +17,16 @@
 -- Auch der Schutztrigger trg_dokument_schutz fehlte hier — der, der unterschriebene
 -- Kundendokumente vor Loeschung und Aenderung bewahrt.
 --
--- HERKUNFT: Strukturabzug der Produktionsdatenbank, erzeugt am 03.09.2026.
+-- HERKUNFT: Strukturabzug der Produktionsdatenbank, erzeugt am 07.09.2026.
 -- Neu erzeugen mit:
 --   sudo -u postgres pg_dump -d reifenpro --schema-only --no-owner --no-privileges --no-comments
 -- Danach diesen Kopf, die Erklaerungen zu den Schutztriggern und den GRANT-Block wieder
 -- voranstellen bzw. anhaengen.
+--
+-- NEU ERZEUGT AM 07.09.2026, weil die Produktion inzwischen abgewichen war: Rollen und Rechte,
+-- abgemeldete Sitzungen, das Register der angewendeten Migrationen und die Beleg-Pruefsumme
+-- (pdf_sha256, beleg_hash, beleg_hash_vorgaenger samt erweitertem Schutztrigger) fehlten hier.
+-- 37 Tabellen in der Datei gegen 42 produktiv.
 --
 -- GEGENGEPRUEFT: Auf einer leeren Wegwerf-Datenbank von vorn bis hinten durchgelaufen,
 -- 37 von 37 Tabellen, kein Unterschied zur Produktion, alle sieben Trigger vorhanden.
@@ -31,7 +36,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict di4F3LexMlj0xxXpa0HwqCopMXoSbixuKjbZcX617qqQlGCIgvLOMAoN2JBdlo7
+\restrict CjrMZdxchByza9l5zIN1oRvMUs8wNdelnMXGlxcqDG9n0rNsTEyBxTDt57pudFL
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -161,6 +166,17 @@ BEGIN
     IF OLD.pdf_pfad IS NOT NULL AND NEW.pdf_pfad IS DISTINCT FROM OLD.pdf_pfad THEN
       RAISE EXCEPTION 'GoBD: Der Beleg-PDF-Pfad der Rechnung % darf nicht ausgetauscht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
     END IF;
+    -- Pruefsumme und Kettenglieder: einmalig setzbar, danach unveraenderbar. Waeren sie
+    -- nachtraeglich aenderbar, koennte man eine ausgetauschte Datei einfach "passend machen".
+    IF OLD.pdf_sha256 IS NOT NULL AND NEW.pdf_sha256 IS DISTINCT FROM OLD.pdf_sha256 THEN
+      RAISE EXCEPTION 'GoBD: Die Prüfsumme des Belegs % darf nicht nachträglich geändert werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    IF OLD.beleg_hash IS NOT NULL AND NEW.beleg_hash IS DISTINCT FROM OLD.beleg_hash THEN
+      RAISE EXCEPTION 'GoBD: Das Kettenglied des Belegs % darf nicht nachträglich geändert werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    IF OLD.beleg_hash_vorgaenger IS NOT NULL AND NEW.beleg_hash_vorgaenger IS DISTINCT FROM OLD.beleg_hash_vorgaenger THEN
+      RAISE EXCEPTION 'GoBD: Der Kettenverweis des Belegs % darf nicht nachträglich geändert werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -181,6 +197,18 @@ $$;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
+
+--
+-- Name: abgemeldete_sitzungen; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.abgemeldete_sitzungen (
+    jti text NOT NULL,
+    user_id uuid,
+    ablauf timestamp with time zone NOT NULL,
+    erstellt_am timestamp with time zone DEFAULT now()
+);
+
 
 --
 -- Name: artikel; Type: TABLE; Schema: public; Owner: -
@@ -916,7 +944,10 @@ CREATE TABLE public.rechnungen (
     empfaenger_land text,
     kasse_beleg_nr text,
     kasse_beleg_datum date,
-    kasse_beleg_url text
+    kasse_beleg_url text,
+    pdf_sha256 text,
+    beleg_hash text,
+    beleg_hash_vorgaenger text
 );
 
 
@@ -931,6 +962,57 @@ CREATE TABLE public.refresh_tokens (
     ablauf_am timestamp with time zone NOT NULL,
     ip_adresse inet,
     erstellt_am timestamp with time zone DEFAULT now()
+);
+
+
+--
+-- Name: rollen; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rollen (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    schluessel text NOT NULL,
+    name text NOT NULL,
+    beschreibung text,
+    system boolean DEFAULT false NOT NULL,
+    vollzugriff boolean DEFAULT false NOT NULL,
+    erstellt_am timestamp with time zone DEFAULT now(),
+    geaendert_am timestamp with time zone DEFAULT now(),
+    idle_minuten integer,
+    sitzung_stunden integer DEFAULT 10 NOT NULL
+);
+
+
+--
+-- Name: rollen_befugnisse; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rollen_befugnisse (
+    rolle_id uuid NOT NULL,
+    befugnis text NOT NULL
+);
+
+
+--
+-- Name: rollen_rechte; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.rollen_rechte (
+    rolle_id uuid NOT NULL,
+    bereich text NOT NULL,
+    stufe text NOT NULL,
+    CONSTRAINT rollen_rechte_stufe_check CHECK ((stufe = ANY (ARRAY['kein'::text, 'ansehen'::text, 'bearbeiten'::text])))
+);
+
+
+--
+-- Name: schema_migrationen; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.schema_migrationen (
+    datei text NOT NULL,
+    angewendet_am timestamp with time zone DEFAULT now() NOT NULL,
+    bemerkung text
 );
 
 
@@ -1146,6 +1228,14 @@ ALTER TABLE ONLY public.lager_config ALTER COLUMN id SET DEFAULT nextval('public
 --
 
 ALTER TABLE ONLY public.sektion_historie ALTER COLUMN id SET DEFAULT nextval('public.sektion_historie_id_seq'::regclass);
+
+
+--
+-- Name: abgemeldete_sitzungen abgemeldete_sitzungen_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.abgemeldete_sitzungen
+    ADD CONSTRAINT abgemeldete_sitzungen_pkey PRIMARY KEY (jti);
 
 
 --
@@ -1477,6 +1567,46 @@ ALTER TABLE ONLY public.refresh_tokens
 
 
 --
+-- Name: rollen_befugnisse rollen_befugnisse_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rollen_befugnisse
+    ADD CONSTRAINT rollen_befugnisse_pkey PRIMARY KEY (rolle_id, befugnis);
+
+
+--
+-- Name: rollen rollen_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rollen
+    ADD CONSTRAINT rollen_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rollen_rechte rollen_rechte_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rollen_rechte
+    ADD CONSTRAINT rollen_rechte_pkey PRIMARY KEY (rolle_id, bereich);
+
+
+--
+-- Name: rollen rollen_schluessel_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rollen
+    ADD CONSTRAINT rollen_schluessel_key UNIQUE (schluessel);
+
+
+--
+-- Name: schema_migrationen schema_migrationen_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.schema_migrationen
+    ADD CONSTRAINT schema_migrationen_pkey PRIMARY KEY (datei);
+
+
+--
 -- Name: sektion_historie sektion_historie_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -1530,6 +1660,13 @@ ALTER TABLE ONLY public.users
 
 ALTER TABLE ONLY public.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: idx_abgemeldete_ablauf; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_abgemeldete_ablauf ON public.abgemeldete_sitzungen USING btree (ablauf);
 
 
 --
@@ -1806,6 +1943,14 @@ CREATE TRIGGER trg_users_ts BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE F
 
 
 --
+-- Name: abgemeldete_sitzungen abgemeldete_sitzungen_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.abgemeldete_sitzungen
+    ADD CONSTRAINT abgemeldete_sitzungen_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: artikel_preise artikel_preise_artikel_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2062,6 +2207,22 @@ ALTER TABLE ONLY public.refresh_tokens
 
 
 --
+-- Name: rollen_befugnisse rollen_befugnisse_rolle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rollen_befugnisse
+    ADD CONSTRAINT rollen_befugnisse_rolle_id_fkey FOREIGN KEY (rolle_id) REFERENCES public.rollen(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rollen_rechte rollen_rechte_rolle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.rollen_rechte
+    ADD CONSTRAINT rollen_rechte_rolle_id_fkey FOREIGN KEY (rolle_id) REFERENCES public.rollen(id) ON DELETE CASCADE;
+
+
+--
 -- Name: signatur_auftraege signatur_auftraege_erstellt_von_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -2113,7 +2274,8 @@ ALTER TABLE ONLY public.termine
 -- PostgreSQL database dump complete
 --
 
-\unrestrict di4F3LexMlj0xxXpa0HwqCopMXoSbixuKjbZcX617qqQlGCIgvLOMAoN2JBdlo7
+\unrestrict CjrMZdxchByza9l5zIN1oRvMUs8wNdelnMXGlxcqDG9n0rNsTEyBxTDt57pudFL
+
 
 
 
