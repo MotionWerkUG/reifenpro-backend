@@ -9,6 +9,8 @@ const gutschein = require('../lib/gutschein');
 const konditionen = require('../lib/konditionen');
 const widerruf = require('../lib/widerruf');
 const { kundenMailHtml } = require('../lib/mail-template');
+const { sha256Datei } = require('../lib/rechnung-pdf');
+const { auditLog } = require('../middleware/errorHandler');
 const fs = require('fs');
 
 // ── GET /api/portal/daten/einlagerungen ──
@@ -661,9 +663,20 @@ router.get('/rechnungen', authKunde, async (req, res, next) => {
 
 router.get('/rechnungen/:id/pdf', authKunde, async (req, res, next) => {
   try {
-    const r = await query('SELECT rechnungsnr, pdf_pfad FROM rechnungen WHERE id=$1 AND kunden_id=$2', [req.params.id, req.kunde.id]);
+    const r = await query('SELECT rechnungsnr, pdf_pfad, pdf_sha256 FROM rechnungen WHERE id=$1 AND kunden_id=$2', [req.params.id, req.kunde.id]);
     if (!r.rows.length || !r.rows[0].pdf_pfad) return res.status(404).json({ error: 'Kein PDF vorhanden' });
     if (!fs.existsSync(r.rows[0].pdf_pfad)) return res.status(404).json({ error: 'PDF-Datei fehlt' });
+    // Belegintegritaet (GoBD): Weicht die Datei von der beim Festschreiben festgehaltenen
+    // Pruefsumme ab, wird sie dem Kunden NICHT ausgeliefert. Belege aus der Zeit vor der
+    // Pruefsummen-Einfuehrung tragen keine und werden unveraendert durchgereicht.
+    if (r.rows[0].pdf_sha256 && sha256Datei(r.rows[0].pdf_pfad) !== r.rows[0].pdf_sha256) {
+      // Auch hier protokollieren: Der Fall, in dem ein KUNDE auf einen veraenderten Beleg
+      // stoesst, ist der wichtigste von allen — er darf nicht der einzige sein, der im
+      // Protokoll fehlt. Kein Mitarbeiter beteiligt, daher ohne user_id.
+      await auditLog({ userId: null, aktion: 'rechnung.beleg_abweichung', tabelle: 'rechnungen',
+        datensatzId: req.params.id, neueWerte: { bei: 'portal-abruf', kunde: req.kunde.id }, req });
+      return res.status(409).json({ error: 'Der Beleg konnte nicht bereitgestellt werden. Bitte wenden Sie sich an uns.' });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="' + (r.rows[0].rechnungsnr || 'rechnung') + '.pdf"');
     fs.createReadStream(r.rows[0].pdf_pfad).pipe(res);

@@ -1,10 +1,11 @@
 'use strict';
 const router = require('express').Router();
 const fs = require('fs');
+const crypto = require('crypto');
 const { query, withTransaction } = require('../db/index');
 const { authenticate, requireStaff, requireAdmin } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
-const { erzeugeRechnungPdf } = require('../lib/rechnung-pdf');
+const { erzeugeRechnungPdf, sha256Datei } = require('../lib/rechnung-pdf');
 const { resolvePreis } = require('../lib/preis');
 const { portalMailHtml, esc } = require('../lib/mail-template');
 const { sendMail } = require('../lib/mailer');
@@ -182,6 +183,51 @@ const LEER_EMPF = {
 // Anschriftspruefung erst ab 250 EUR greift. Die Anonymisierung wird schon in der
 // DSGVO-Route gesperrt, solange offene Termine bestehen; das hier ist die zweite Schicht,
 // denn Bestandsdaten aus der Zeit davor kennen diese Sperre nicht.
+// ── Belegsicherung (GoBD Rz. 110/119) ────────────────────────────────────────
+// Der Trigger schuetzt den Datensatz und den Dateipfad, nicht den INHALT der Datei. Deshalb
+// wird die Pruefsumme bei der Erzeugung festgeschrieben und jedes Kettenglied schliesst das
+// vorige ein. Eine veraenderte Datei faellt beim Ausliefern auf; ein entfernter oder
+// nachtraeglich eingeschobener Beleg bricht die Kette.
+const KETTE_LOCK = 8147147147; // fester Schluessel fuer pg_advisory_xact_lock
+
+function belegHash(vorgaenger, nr, festAm, bruttoSumme, pdfHash) {
+  return crypto.createHash('sha256').update([
+    vorgaenger || '', nr || '', festAm ? new Date(festAm).toISOString() : '',
+    Number(bruttoSumme || 0).toFixed(2), pdfHash || ''
+  ].join('|')).digest('hex');
+}
+
+// Die Kettensperre wird VOR der Nummernvergabe genommen — und zwar bevor ueberhaupt das
+// Serverdatum gelesen wird. Der Zaehler serialisiert nur je Jahr; genau an der Jahresgrenze
+// koennten sonst zwei Belege aus verschiedenen Jahren nebenlaeufig entstehen, sich in der
+// falschen Reihenfolge verketten und die Pruefung wuerde einen Bruch melden, obwohl niemand
+// etwas manipuliert hat. Ein FALSCHER Manipulationsalarm ist hier der teuerste Fehler: Er
+// kostet Vertrauen in genau die Funktion, die Vertrauen schaffen soll.
+// Mit der Sperre an dieser Stelle laufen Datum, Nummer und Kettenglied in EINER kritischen
+// Sektion; die Nummernfolge ist damit auch die Kettenfolge. Bei diesem Belegaufkommen ist die
+// globale Serialisierung ohne praktische Bedeutung.
+async function kettenSperre(client) {
+  await client.query('SELECT pg_advisory_xact_lock($1)', [KETTE_LOCK]);
+}
+
+async function letztesKettenglied(client) {
+  const { rows } = await client.query(
+    "SELECT beleg_hash FROM rechnungen WHERE beleg_hash IS NOT NULL ORDER BY rechnungsnr DESC LIMIT 1");
+  return rows.length ? rows[0].beleg_hash : '';
+}
+
+// Prueft eine einzelne Belegdatei gegen ihre festgeschriebene Pruefsumme.
+function pruefeBelegdatei(r) {
+  if (!r.pdf_pfad) return { ok: false, grund: 'Kein Beleg hinterlegt.' };
+  if (!fs.existsSync(r.pdf_pfad)) return { ok: false, grund: 'Belegdatei fehlt.' };
+  // Belege aus der Zeit vor der Pruefsummen-Einfuehrung haben keine — sie sind deshalb nicht
+  // "kaputt", aber eben auch nicht pruefbar. Das wird ehrlich so gemeldet.
+  if (!r.pdf_sha256) return { ok: true, ungeprueft: true, grund: 'Ohne Prüfsumme angelegt — nicht prüfbar.' };
+  const ist = sha256Datei(r.pdf_pfad);
+  if (ist !== r.pdf_sha256) return { ok: false, grund: 'Die Belegdatei stimmt nicht mit ihrer Prüfsumme überein.' };
+  return { ok: true };
+}
+
 const ANONYM_HINWEIS = 'Der Kunde wurde datenschutzrechtlich anonymisiert. Aus seinen Stammdaten lässt sich kein gültiger Rechnungsempfänger mehr bilden — bitte den Empfänger manuell erfassen.';
 
 async function istAnonymisiert(kunden_id) {
@@ -315,6 +361,60 @@ router.get('/kassenstatus', async (req, res) => {
 });
 
 // ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
+// ── GET /belegpruefung ── Alle Belege gegen Pruefsumme und Kette pruefen
+// Vor /:id definiert, sonst faengt die ID-Route den Pfad ab.
+// Zweck: Die Unveraenderbarkeit muss nicht nur technisch bestehen, sie muss auch NACHWEISBAR
+// sein — ein Pruefer fragt "woher wissen Sie, dass kein Beleg veraendert wurde?". Diese Route
+// beantwortet das auf Knopfdruck.
+router.get('/belegpruefung', requireAdmin, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT id, rechnungsnr, rechnungsdatum, brutto_summe, festgeschrieben_am,
+              pdf_pfad, pdf_sha256, beleg_hash, beleg_hash_vorgaenger
+         FROM rechnungen
+        WHERE status IN ('festgeschrieben','storniert')
+        ORDER BY rechnungsnr`);
+
+    const befunde = [];
+    let ohnePruefsumme = 0, vorgaenger = '';
+    for (const r of rows) {
+      const datei = pruefeBelegdatei(r);
+      if (!datei.ok) befunde.push({ rechnungsnr: r.rechnungsnr, art: 'datei', grund: datei.grund });
+      else if (datei.ungeprueft) ohnePruefsumme++;
+
+      if (r.beleg_hash) {
+        // Verweist der Beleg auf das tatsaechlich vorhergehende Glied?
+        if ((r.beleg_hash_vorgaenger || '') !== vorgaenger) {
+          befunde.push({ rechnungsnr: r.rechnungsnr, art: 'kette',
+            grund: 'Der Beleg verweist nicht auf den vorhergehenden Beleg — dazwischen fehlt einer oder wurde einer eingeschoben.' });
+        }
+        // Und stimmt sein eigenes Glied noch zu seinem Inhalt?
+        const soll = belegHash(r.beleg_hash_vorgaenger || '', r.rechnungsnr, r.festgeschrieben_am, r.brutto_summe, r.pdf_sha256);
+        if (soll !== r.beleg_hash) {
+          befunde.push({ rechnungsnr: r.rechnungsnr, art: 'kette',
+            grund: 'Das Kettenglied passt nicht mehr zum Inhalt des Belegs.' });
+        }
+        vorgaenger = r.beleg_hash;
+      }
+    }
+
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.belegpruefung', tabelle: 'rechnungen',
+      neueWerte: { geprueft: rows.length, befunde: befunde.length }, req });
+
+    res.json({
+      geprueft: rows.length,
+      ohne_pruefsumme: ohnePruefsumme,
+      in_ordnung: befunde.length === 0,
+      befunde: befunde,
+      zusammenfassung: rows.length === 0
+        ? 'Es sind noch keine Belege vorhanden.'
+        : (befunde.length === 0
+            ? rows.length + ' Beleg(e) geprüft — alle unverändert, die Belegkette ist geschlossen.'
+            : rows.length + ' Beleg(e) geprüft, ' + befunde.length + ' Beanstandung(en).')
+    });
+  } catch (e) { next(e); }
+});
+
 router.get('/export', requireAdmin, async (req, res, next) => {
   try {
     const jahr = parseInt(req.query.jahr) || new Date().getFullYear();
@@ -503,10 +603,10 @@ router.get('/verfahrensdokumentation', async (req, res, next) => {
       '<h2>1. Zweck und Geltungsbereich</h2><p>Diese Dokumentation beschreibt das eingesetzte Verfahren zur Erstellung, Festschreibung, Aufbewahrung und Stornierung von Ausgangsrechnungen gemäß GoBD und § 14 UStG.</p>' +
       '<h2>2. Rechnungsnummern</h2><p>Die Vergabe erfolgt automatisch, fortlaufend und lückenlos im Format <strong>RE-JJJJ-NNNN</strong> (Jahr + laufende Nummer). Die Vergabe geschieht atomar in einer Datenbank-Transaktion über einen Zähler je Jahr; doppelte Nummern sind durch eine Eindeutigkeits-Beschränkung technisch ausgeschlossen.</p>' +
       '<h2>3. Festschreibung und Unveränderbarkeit</h2><p>Eine Rechnung ist zunächst ein <em>Entwurf</em> und änderbar. Mit dem <em>Festschreiben</em> erhält sie die Rechnungsnummer, ein eingefrorenes Aussteller- und Empfänger-Abbild sowie ein erzeugtes PDF; danach ist sie technisch gegen Änderung und Löschung gesperrt. Pflichtangaben nach § 14 UStG (Empfänger, ab 250 € vollständige Anschrift, Steuernr./USt-IdNr.) werden vor dem Festschreiben geprüft.</p>' +
-      '<h2>4. Korrekturen / Storno</h2><p>Festgeschriebene Rechnungen werden nicht gelöscht oder geändert. Korrekturen erfolgen ausschließlich über eine <strong>Stornorechnung</strong> mit eigener fortlaufender Nummer und negativen Beträgen, die auf die Originalrechnung verweist. Das Original bleibt erhalten und wird als „storniert" gekennzeichnet.</p>' +
+      '<h2>3a. Sicherung der Belegdateien</h2><p>Beim Festschreiben wird zu jedem Beleg-PDF eine Prüfsumme (SHA-256) gebildet und im Rechnungsdatensatz festgeschrieben; sie ist dort ebenso gegen nachträgliche Änderung gesperrt wie der Rechnungsinhalt. Zusätzlich bildet jeder Beleg ein <strong>Kettenglied</strong>, das das Kettenglied des vorhergehenden Belegs einschließt. Dadurch fällt nicht nur eine veränderte Datei auf, sondern auch ein nachträglich entfernter oder eingeschobener Beleg.</p><p><strong>Prüfzeitpunkt:</strong> Die Prüfsumme wird bei <em>jeder</em> Auslieferung eines Belegs verglichen — Anzeige im Betrieb, Versand an den Kunden, Abruf im Kundenportal. Weicht sie ab, wird der Beleg <strong>nicht</strong> ausgeliefert und der Vorfall im Änderungsprotokoll festgehalten. Zusätzlich lässt sich der gesamte Bestand jederzeit über die Schaltfläche „Belege prüfen“ gegen Prüfsummen und Kette prüfen.</p><p><strong>Reaktion bei Abweichung:</strong> Der Vorfall ist zu dokumentieren und der Steuerberater zu informieren. Da die PDF-Erzeugung bitgenau wiederholbar ist (der Erzeugungszeitpunkt im PDF ist fest auf das Rechnungsdatum gesetzt), lässt sich aus dem unveränderten Rechnungsdatensatz ein inhaltsgleiches Mehrstück erzeugen (GoBD Rz. 76). Der Austausch der Datei ist zu protokollieren.</p>' + '<h2>4. Korrekturen / Storno</h2><p>Festgeschriebene Rechnungen werden nicht gelöscht oder geändert. Korrekturen erfolgen ausschließlich über eine <strong>Stornorechnung</strong> mit eigener fortlaufender Nummer und negativen Beträgen, die auf die Originalrechnung verweist. Das Original bleibt erhalten und wird als „storniert" gekennzeichnet.</p>' +
       '<h2>5. Protokollierung (Nachvollziehbarkeit)</h2><p>Alle relevanten Vorgänge (Entwurf anlegen/ändern, Festschreiben, Storno, Zahlungsstatus, Mahnung, Export) werden mit Benutzer, Zeitpunkt und Vorgang in einem Änderungs-/Audit-Protokoll erfasst.</p>' +
       '<h2>6. Aufbewahrung</h2><p>Rechnungen (Datensatz und PDF) werden gemäß § 147 Abs. 3 AO / § 14b Abs. 1 UStG <strong>8 Jahre</strong> aufbewahrt und maschinell auswertbar vorgehalten. Ein Export des Rechnungsjournals als CSV steht für die Betriebsprüfung zur Verfügung.</p>' +
-      '<h2>7. Technik und Datensicherung</h2><p>Betrieb auf einem Server (PostgreSQL-Datenbank, Node.js-Anwendung). <span class="muted">Hinweis: Das Datensicherungskonzept (regelmäßige Backups, Aufbewahrung der Sicherungen) ist organisatorisch festzulegen und hier zu ergänzen.</span></p>' +
+      '<h2>7. Technik und Datensicherung</h2><p>Betrieb auf einem eigenen Server (PostgreSQL-Datenbank, Node.js-Anwendung). Die Unveränderbarkeit festgeschriebener Rechnungen wird nicht nur in der Anwendung, sondern zusätzlich in der Datenbank selbst durch Sperren erzwungen; direkte Änderungs- und Löschversuche werden auch außerhalb der Anwendung abgewiesen.</p><p><strong>Datensicherung:</strong> Nächtlich werden die Datenbank sowie die Verzeichnisse mit Beleg-PDFs, Übergabeprotokollen und Gewerbedokumenten gesichert. Die Sicherungen werden 30 Tage vorgehalten; zusätzlich wird monatlich eine Kopie in ein Dauerarchiv gelegt, das nicht rotiert wird. Jede Datenbanksicherung wird nach dem Erstellen auf Größe und Kopfkennung geprüft; eine unbrauchbare Sicherung wird verworfen und der Lauf schlägt fehl, statt eine leere Datei zurückzulassen.</p><p><span class="muted">Zu ergänzen: Ablage einer Sicherungskopie außerhalb des Servers (räumlich getrennt) sowie das Zugriffs- und Rechtekonzept.</span></p>' +
       '<h2>8. Verantwortlich</h2><p>' + esc(e.inhaber || firma) + '</p>' +
       '<p class="muted" style="margin-top:30px">Diese Dokumentation ist eine Vorlage. Bitte durch Steuerberater prüfen und um das individuelle Datensicherungs- und Zugriffskonzept ergänzen.</p>' +
       '</body></html>';
@@ -926,6 +1026,8 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       // die Zeitzonen-Verschiebung von new Date()/toISOString() zu vermeiden.
       // Zahlungsziel 0 (sofort faellig, z. B. Barzahlung) ist eine gueltige Einstellung —
       // deshalb kein "|| 14", das die 0 stillschweigend in 14 Tage verwandeln wuerde.
+      await kettenSperre(client);
+
       const zztRoh = parseInt(einst.zahlungsziel_tage, 10);
       const zzt = Number.isFinite(zztRoh) && zztRoh >= 0 ? zztRoh : 14;
       const dq = await client.query(
@@ -954,17 +1056,25 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       // Rechnung unter demselben Namen ueberschrieben. Kein Datenverlust und kein Beleg zu
       // wenig; der umgekehrte Weg (erst DB, dann PDF) koennte dagegen eine festgeschriebene
       // Rechnung ohne Beleg hinterlassen.
-      const pdfPfad = await erzeugeRechnungPdf(
+      const beleg = await erzeugeRechnungPdf(
         Object.assign({}, rech, { rechnungsnr: nr, faelligkeit: faelligkeit, rechnungsdatum: rechnungsdatum, leistungsdatum: fdaten.ldatum, aussteller: aussteller, brutto_darstellung: einst.preise_inkl_mwst !== false }, emp),
         pos
       );
 
+      // Kettenglied bilden, bevor der Beleg festgeschrieben wird. festgeschrieben_am geht mit
+      // ein, deshalb wird der Zeitpunkt hier einmal bestimmt statt in der UPDATE-Anweisung.
+      const vorher = await letztesKettenglied(client);
+      const festAm = (await client.query('SELECT NOW() AS t')).rows[0].t;
+      const kette = belegHash(vorher, nr, festAm, rech.brutto_summe, beleg.sha256);
+
       const upd = await client.query(
         `UPDATE rechnungen SET rechnungsnr=$1, status='festgeschrieben', aussteller=$2,
            empfaenger_name=$3, empfaenger_firma=$4, empfaenger_strasse=$5, empfaenger_plz=$6, empfaenger_ort=$7,
-           rechnungsdatum=$8, faelligkeit=$9, pdf_pfad=$10, festgeschrieben_am=NOW() WHERE id=$11 RETURNING *`,
+           rechnungsdatum=$8, faelligkeit=$9, pdf_pfad=$10, festgeschrieben_am=$12,
+           pdf_sha256=$13, beleg_hash=$14, beleg_hash_vorgaenger=$15 WHERE id=$11 RETURNING *`,
         [nr, JSON.stringify(aussteller), emp.empfaenger_name, emp.empfaenger_firma, emp.empfaenger_strasse,
-         emp.empfaenger_plz, emp.empfaenger_ort, rechnungsdatum, faelligkeit, pdfPfad, req.params.id]
+         emp.empfaenger_plz, emp.empfaenger_ort, rechnungsdatum, faelligkeit, beleg.pfad, req.params.id,
+         festAm, beleg.sha256, kette, vorher]
       );
       return upd.rows[0];
     });
@@ -981,6 +1091,9 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
   try {
     const result = await withTransaction(async (client) => {
       const oRes = await client.query('SELECT * FROM rechnungen WHERE id=$1 FOR UPDATE', [req.params.id]);
+      // Gleiche Sperrreihenfolge wie beim Festschreiben: Rechnungszeile, dann Kettensperre,
+      // dann Zaehler. Zwei verschiedene Reihenfolgen waeren eine Verklemmung.
+      await kettenSperre(client);
       if (!oRes.rows.length) { const e = new Error('Rechnung nicht gefunden.'); e.status = 404; throw e; }
       const orig = oRes.rows[0];
       if (orig.status !== 'festgeschrieben') { const e = new Error('Nur festgeschriebene Rechnungen koennen storniert werden.'); e.status = 400; throw e; }
@@ -1026,12 +1139,17 @@ router.post('/:id/storno', requireAdmin, async (req, res, next) => {
       const storno = ins.rows[0];
       await insertPositionen(client, storno.id, s.positionen);
       // Eindeutiger Bezug zur Originalrechnung auf dem Beleg (Nummer + Datum), nicht nur als interne Notiz.
-      const pdfPfad = await erzeugeRechnungPdf(
+      const beleg = await erzeugeRechnungPdf(
         Object.assign({}, storno, { aussteller: aussteller, storno_von_nr: orig.rechnungsnr, storno_von_datum: orig.rechnungsdatum, brutto_darstellung: einst.preise_inkl_mwst !== false }),
         s.positionen);
-      await client.query('UPDATE rechnungen SET pdf_pfad=$1 WHERE id=$2', [pdfPfad, storno.id]);
+      // Der Storno ist ein eigener Beleg und haengt sich als eigenes Glied an die Kette.
+      const vorher = await letztesKettenglied(client);
+      const kette = belegHash(vorher, nr, storno.festgeschrieben_am, s.brutto_summe, beleg.sha256);
+      await client.query(
+        'UPDATE rechnungen SET pdf_pfad=$1, pdf_sha256=$2, beleg_hash=$3, beleg_hash_vorgaenger=$4 WHERE id=$5',
+        [beleg.pfad, beleg.sha256, kette, vorher, storno.id]);
       await client.query("UPDATE rechnungen SET status='storniert' WHERE id=$1", [orig.id]);
-      return Object.assign({}, storno, { pdf_pfad: pdfPfad });
+      return Object.assign({}, storno, { pdf_pfad: beleg.pfad, pdf_sha256: beleg.sha256, beleg_hash: kette });
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.storniert', tabelle: 'rechnungen', datensatzId: req.params.id, neueWerte: { storno_nr: result.rechnungsnr }, req });
     res.status(201).json(result);
@@ -1133,9 +1251,16 @@ router.patch('/:id/bezahlt', async (req, res, next) => {
 // ── GET /:id/pdf ── PDF ausliefern
 router.get('/:id/pdf', async (req, res, next) => {
   try {
-    const r = await query('SELECT rechnungsnr, pdf_pfad FROM rechnungen WHERE id=$1', [req.params.id]);
+    const r = await query('SELECT rechnungsnr, pdf_pfad, pdf_sha256 FROM rechnungen WHERE id=$1', [req.params.id]);
     if (!r.rows.length || !r.rows[0].pdf_pfad) return res.status(404).json({ error: 'Kein PDF vorhanden.' });
-    if (!fs.existsSync(r.rows[0].pdf_pfad)) return res.status(404).json({ error: 'PDF-Datei fehlt.' });
+    // Integritaet vor der Auslieferung pruefen: Ein veraenderter Beleg darf nicht stillschweigend
+    // weitergereicht werden. Der Vorfall wird protokolliert, damit er nachvollziehbar bleibt.
+    const pr = pruefeBelegdatei(r.rows[0]);
+    if (!pr.ok) {
+      await auditLog({ userId: req.user.id, aktion: 'rechnung.beleg_abweichung', tabelle: 'rechnungen',
+        datensatzId: req.params.id, neueWerte: { grund: pr.grund }, req });
+      return res.status(409).json({ error: pr.grund + ' Der Beleg wird nicht ausgeliefert. Bitte prüfen lassen.' });
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'inline; filename="' + (r.rows[0].rechnungsnr || 'rechnung') + '.pdf"');
     fs.createReadStream(r.rows[0].pdf_pfad).pipe(res);
@@ -1208,7 +1333,14 @@ router.post('/:id/senden', async (req, res, next) => {
       mail = k ? (k.rechnung_email || k.email || k.portal_email) : null;
     }
     if (!mail) return res.status(400).json({ error: 'Keine E-Mail-Adresse für den Empfänger hinterlegt.' });
-    if (!r.pdf_pfad || !fs.existsSync(r.pdf_pfad)) return res.status(400).json({ error: 'Rechnungs-PDF nicht gefunden.' });
+    if (!r.pdf_pfad) return res.status(400).json({ error: 'Rechnungs-PDF nicht gefunden.' });
+    // Ein Beleg, der nicht mehr seiner Pruefsumme entspricht, geht nicht an den Kunden hinaus.
+    const prMail = pruefeBelegdatei(r);
+    if (!prMail.ok) {
+      await auditLog({ userId: req.user.id, aktion: 'rechnung.beleg_abweichung', tabelle: 'rechnungen',
+        datensatzId: r.id, neueWerte: { grund: prMail.grund, bei: 'versand' }, req });
+      return res.status(409).json({ error: prMail.grund + ' Der Beleg wird nicht versendet. Bitte prüfen lassen.' });
+    }
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
     const firma = einst.firmenname || 'Schröder & Scholz';
     await sendMail({

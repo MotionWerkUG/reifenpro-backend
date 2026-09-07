@@ -2,6 +2,7 @@
 // PDF-Erzeugung fuer Rechnungen (pdfkit). Liegt auf dem Server unter src/lib/rechnung-pdf.js
 // Briefkopf mit Wortmarke, GiroCode (EPC-QR) zum Scannen mit der Banking-App, eine Seite.
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const PDFDocument = require('pdfkit');
 let QRCode = null; try { QRCode = require('qrcode'); } catch (e) { /* optional */ }
@@ -64,7 +65,18 @@ async function erzeugeRechnungPdf(rech, positionen) {
       // Projekten hat kein fremder Unix-Nutzer dort etwas zu suchen: Ordner 0750, Datei 0640.
       if (!fs.existsSync(PDF_DIR)) fs.mkdirSync(PDF_DIR, { recursive: true, mode: 0o750 });
       const pfad = path.join(PDF_DIR, safeName(rech.rechnungsnr) + '.pdf');
-      const doc = new PDFDocument({ size: 'A4', margins: { top: 48, bottom: 40, left: 50, right: 50 } });
+      // Erzeugungszeitpunkt NICHT auf "jetzt", sondern fest auf das Rechnungsdatum. PDFKit
+      // leitet daraus auch die Datei-Kennung (/ID) ab — mit now() ergibt derselbe Beleg bei
+      // jedem Lauf eine andere Datei, und ein Pruefsummenvergleich waere nicht mehr
+      // aufloesbar. Mit festem Datum ist die Erzeugung bitgenau wiederholbar: Weicht eine
+      // Datei von ihrer Pruefsumme ab, laesst sich aus dem geschuetzten Datensatz ein
+      // nachweislich inhaltsgleiches Mehrstueck erzeugen (GoBD Rz. 76).
+      const erzDatum = new Date(String(rech.rechnungsdatum || '2000-01-01').slice(0, 10) + 'T12:00:00Z');
+      const doc = new PDFDocument({
+        size: 'A4', margins: { top: 48, bottom: 40, left: 50, right: 50 },
+        info: { Title: 'Rechnung ' + (rech.rechnungsnr || ''), Author: (a.firmenname || 'Schröder & Scholz'),
+                Producer: 'ReifenPro', Creator: 'ReifenPro', CreationDate: erzDatum, ModDate: erzDatum }
+      });
       const stream = fs.createWriteStream(pfad);
       doc.pipe(stream);
 
@@ -232,12 +244,20 @@ async function erzeugeRechnungPdf(rech, positionen) {
       doc.end();
       stream.on('finish', function () {
         try { fs.chmodSync(pfad, 0o640); } catch (e) { /* Rechte nicht setzbar: Beleg trotzdem gueltig */ }
-        resolve(pfad);
+        // Die Pruefsumme wird im Moment der Erzeugung genommen und wandert in eine
+        // schreibgeschuetzte Spalte. Nur so pinnt sie genau die Datei, die der Kunde bekommt.
+        resolve({ pfad: pfad, sha256: sha256Datei(pfad) });
       });
       stream.on('error', reject);
     } catch (err) { reject(err); }
   });
 }
 
+// SHA-256 einer Belegdatei. Zentral hier, damit Erzeugung und spaetere Pruefung
+// nachweislich dasselbe Verfahren verwenden.
+function sha256Datei(pfad) {
+  return crypto.createHash('sha256').update(fs.readFileSync(pfad)).digest('hex');
+}
+
 // epcPayload wird mit exportiert, damit der GiroCode-Inhalt automatisiert pruefbar ist.
-module.exports = { erzeugeRechnungPdf, PDF_DIR, epcPayload };
+module.exports = { erzeugeRechnungPdf, sha256Datei, PDF_DIR, epcPayload };
