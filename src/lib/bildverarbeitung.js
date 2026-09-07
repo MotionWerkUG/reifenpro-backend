@@ -25,7 +25,11 @@ async function verarbeite(inputBuffer, format) {
       .toBuffer();
   }
   const z = FORMATE[format] || FORMATE.inhalt;
-  return sharp(inputBuffer)
+  // Gleiche Obergrenze wie beim Scan: 60 Millionen Bildpunkte. Ohne sie gilt die Vorgabe von
+  // sharp (268 Millionen) — eine 672 KB grosse PNG-Datei mit 15000x15000 Punkten laesst den
+  // Prozess dann auf ueber 150 MB anschwellen. Echte Fotos bleiben weit darunter: Selbst eine
+  // 50-Megapixel-Handykamera liegt bei einem Fuenftel davon.
+  return sharp(inputBuffer, { limitInputPixels: 60000000 })
     .rotate()                                  // EXIF-Ausrichtung beachten (Handyfotos)
     .resize(z.w, z.h, { fit: 'cover', position: 'centre' })
     .jpeg({ quality: 82, mozjpeg: true })
