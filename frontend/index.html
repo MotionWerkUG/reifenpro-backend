@@ -340,6 +340,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
   td .btn, td .btn-sm { min-height: 36px; display: inline-flex; align-items: center; margin: 2px 2px; }
 }
 @media (max-width: 480px) {
+  /* "Abmelden" wurde auf 390 px Breite aus dem Bild gedraengt: Der Knopf reichte bis 431 px,
+     und da die Kopfzeile nicht waagerecht scrollt, war er auf einem Telefon nicht erreichbar.
+     Gemessen am 09.09.2026. Der Benutzername entfaellt hier -- wer angemeldet ist, weiss es;
+     abmelden koennen muss man immer. */
+  #h-user, .huser-dot { display: none; }
+  header { overflow: hidden; }
+  .hlogo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .huser { flex: 0 0 auto; }
   main { padding: 12px 10px; }
   .stats { grid-template-columns: 1fr; }
   .g4 { grid-template-columns: 1fr; }
@@ -1960,6 +1968,17 @@ function darfBereich(seite) {
 function menueFiltern() {
   document.querySelectorAll('.ni[data-page]').forEach(function(el) {
     el.style.display = darfBereich(el.getAttribute('data-page')) ? '' : 'none';
+  });
+  // Eine Abschnittsueberschrift ohne Punkte darunter sieht aus wie eine kaputte Rubrik. Bei der
+  // Rolle Werkstatt standen "ANFRAGEN" und "TEAM" leer in der Leiste -- der Nutzer sucht dann
+  // nach etwas, das es fuer ihn gar nicht gibt. Jede Ueberschrift wird nur gezeigt, wenn unter
+  // ihr mindestens ein sichtbarer Punkt steht.
+  document.querySelectorAll('aside .nsec').forEach(function(sec) {
+    var hatPunkt = false;
+    for (var el = sec.nextElementSibling; el && !el.classList.contains('nsec'); el = el.nextElementSibling) {
+      if (el.classList.contains('ni') && el.style.display !== 'none') { hatPunkt = true; break; }
+    }
+    sec.style.display = hatPunkt ? '' : 'none';
   });
   if (currentPage && !darfBereich(currentPage)) {
     var erste = null;

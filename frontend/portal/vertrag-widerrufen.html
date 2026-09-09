@@ -83,7 +83,10 @@ var T = {
     okMailFehlt: 'Eingegangen am <strong>{zeit}</strong>. Ihr Widerruf ist damit wirksam. Die Bestätigungsmail an <strong>{mail}</strong> konnte gerade nicht zugestellt werden — wir senden sie Ihnen von Hand nach.',
     okTermin: 'Haben Sie einen Termin bei uns? Dann müssen Sie nichts weiter tun — wir sagen ihn für Sie ab.',
     zurueck: '← Zur Widerrufsbelehrung',
-    fehlerAllg: 'Ihr Widerruf konnte nicht übermittelt werden. Bitte versuchen Sie es erneut oder schreiben Sie uns eine E-Mail.'
+    fehlerAllg: 'Ihr Widerruf konnte nicht übermittelt werden. Bitte versuchen Sie es erneut oder schreiben Sie uns eine E-Mail.',
+    fName: 'Bitte geben Sie Ihren Namen an.',
+    fVertrag: 'Bitte geben Sie an, welchen Vertrag Sie widerrufen möchten.',
+    fMail: 'Bitte geben Sie eine gültige E-Mail-Adresse an.'
   },
   en: {
     titel: 'Withdraw from contract',
@@ -102,7 +105,10 @@ var T = {
     okMailFehlt: 'Received on <strong>{zeit}</strong>. Your withdrawal is effective. The confirmation email to <strong>{mail}</strong> could not be delivered just now — we will send it manually.',
     okTermin: 'Do you have an appointment with us? Then there is nothing further to do — we will cancel it for you.',
     zurueck: '← To the withdrawal policy',
-    fehlerAllg: 'Your withdrawal could not be transmitted. Please try again or send us an email.'
+    fehlerAllg: 'Your withdrawal could not be transmitted. Please try again or send us an email.',
+    fName: 'Please enter your name.',
+    fVertrag: 'Please state which contract you wish to withdraw from.',
+    fMail: 'Please enter a valid email address.'
   }
 };
 
@@ -119,8 +125,16 @@ function setLang(l) {
   formular();
 }
 
-function formular(fehler) {
+// Das Formular wird NEU AUFGEBAUT nur beim Sprachwechsel. Bei einem Fehler bleiben die Eingaben
+// stehen -- ein frueherer Aufbau ersetzte die ganze Karte samt Inhalt, und wer das Vertragsfeld
+// vergessen hatte, musste auch Name und E-Mail neu tippen. Bei jemandem, der gerade widerrufen
+// will, ist das die letzte Huerde, die man ihm zumuten sollte.
+function formular() {
   var x = t();
+  var alt = { name: '', vertrag: '', mail: '' };
+  ['name', 'vertrag', 'mail'].forEach(function(f) {
+    var el = document.getElementById('w-' + f); if (el) alt[f] = el.value;
+  });
   document.getElementById('inhalt').innerHTML =
     '<h1>' + esc(x.titel) + '</h1>' +
     '<div class="meta">' + esc(x.meta) + '</div>' +
@@ -133,25 +147,44 @@ function formular(fehler) {
       '<label for="w-mail">' + esc(x.lMail) + '<div class="hint">' + esc(x.hMail) + '</div></label>' +
       '<input id="w-mail" type="email" autocomplete="email" maxlength="200">' +
       '<div class="hp"><label>Website<input id="w-hp" type="text" tabindex="-1" autocomplete="off"></label></div>' +
-      (fehler ? '<div class="fehler">' + esc(fehler) + '</div>' : '') +
+      '<div id="w-fehler" hidden></div>' +
       '<button class="knopf" id="w-send" onclick="senden()">' + esc(x.knopf) + '</button>' +
     '</div>';
+  document.getElementById('w-name').value = alt.name;
+  document.getElementById('w-vertrag').value = alt.vertrag;
+  document.getElementById('w-mail').value = alt.mail;
+}
+
+// Fehler stehen gesammelt in einer Liste, nicht einer nach dem anderen. Wer alle drei Felder
+// leer laesst, soll das einmal erfahren und nicht dreimal hintereinander.
+function fehlerZeigen(liste) {
+  var el = document.getElementById('w-fehler'); if (!el) return;
+  if (!liste || !liste.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.className = 'fehler';
+  el.innerHTML = liste.length === 1 ? esc(liste[0])
+    : '<ul style="margin:0;padding-left:18px">' + liste.map(function(f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>';
+  el.hidden = false;
+  var knopf = document.getElementById('w-send');
+  if (knopf) { knopf.disabled = false; knopf.textContent = t().knopf; }
 }
 
 function senden() {
   var x = t();
   var knopf = document.getElementById('w-send');
-  knopf.disabled = true; knopf.textContent = x.sende;
+  var name = document.getElementById('w-name').value.trim();
+  var vertrag = document.getElementById('w-vertrag').value.trim();
   var mail = document.getElementById('w-mail').value.trim();
+  var fehlt = [];
+  if (!name) fehlt.push(x.fName);
+  if (!vertrag) fehlt.push(x.fVertrag);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) fehlt.push(x.fMail);
+  if (fehlt.length) { fehlerZeigen(fehlt); return; }
+  fehlerZeigen(null);
+  knopf.disabled = true; knopf.textContent = x.sende;
   fetch(API + '/widerrufe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: document.getElementById('w-name').value,
-      vertrag: document.getElementById('w-vertrag').value,
-      email: mail,
-      website: document.getElementById('w-hp').value
-    })
+    body: JSON.stringify({ name: name, vertrag: vertrag, email: mail, website: document.getElementById('w-hp').value })
   }).then(function(r) {
     return r.json().catch(function() { return {}; }).then(function(d) {
       if (!r.ok) throw new Error(d.error || x.fehlerAllg);
@@ -167,7 +200,7 @@ function senden() {
       '<div class="ok"><h2>' + esc(x.okTitel) + '</h2><p>' + text + '</p><p>' + esc(x.okTermin) + '</p></div>';
     window.scrollTo(0, 0);
   }).catch(function(e) {
-    formular(e.message || x.fehlerAllg);
+    fehlerZeigen([e.message || x.fehlerAllg]);
   });
 }
 
