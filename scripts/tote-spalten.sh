@@ -16,7 +16,9 @@
 #      liefern immer einen Treffer, also nie einen Befund.
 #   3. NUR den Anwendungscode durchsuchen. Eine Spalte kann in der DATENBANK selbst benutzt
 #      werden -- von einer Sicht, einem Index, einer Bedingung, einem Ausloeser oder einer
-#      Funktion. lager_config.reihen wurde am 09.09.2026 als tot gemeldet und stand in der Sicht
+#      Funktion. Bei DYNAMISCHEM SQL steht der Name nirgends woertlich -- das findet auch diese
+#      Suche nicht; der Befund bleibt deshalb ein Hinweis, kein Urteil.
+#      lager_config.reihen wurde am 09.09.2026 als tot gemeldet und stand in der Sicht
 #      v_statistiken; das DROP scheiterte erst am Fremdschluessel-Schutz von PostgreSQL. Ohne
 #      diesen Schutz waere eine benutzte Spalte geloescht worden. Seitdem fragt das Werkzeug
 #      auch die Datenbank.
@@ -57,6 +59,13 @@ suche_db() {
     UNION ALL
     SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
       WHERE n.nspname='public' AND p.prosrc ~ '\\m$1\\M'
+    UNION ALL
+    -- Ausloeser: Der Spaltenname kann in der WHEN-Bedingung oder in der Spaltenliste des
+    -- Ausloesers stehen, ohne im Rumpf der Funktion vorzukommen (Hinweis der Homepage-Sitzung).
+    SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+             JOIN pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='public' AND NOT t.tgisinternal
+        AND pg_get_triggerdef(t.oid) ~ '\\m$1\\M'
     LIMIT 1" 2>/dev/null)
   [ -n "$treffer" ]
 }
