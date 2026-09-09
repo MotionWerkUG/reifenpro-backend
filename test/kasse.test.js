@@ -290,3 +290,92 @@ test('Eine nicht erreichbare Kasse sperrt den Tresen NICHT wegen fehlender TSE',
     assert.equal(db.zahlungsstatus, 'offen');
   } finally { process.env.KASSE_URL = echt; }
 });
+
+// ── Erstattung nach Storno ───────────────────────────────────────────────────────────────────
+async function bezahltUndStorniert(zahlart) {
+  const r = await festgeschrieben();
+  const k = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: zahlart || 'bar' });
+  assert.equal(k.status, 200, JSON.stringify(k.body));
+  const st = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/storno');
+  assert.equal(st.status, 201, JSON.stringify(st.body));
+  empfangen = null;
+  return { original: r, storno: st.body };
+}
+
+test('Erstattung geht als eigener Vorgang mit negativem Betrag und Bezug an die Kasse', async () => {
+  const f = await bezahltUndStorniert('bar');
+
+  const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
+  assert.equal(e.status, 200, JSON.stringify(e.body));
+
+  // Genau das verlangt die DSFinV-K: eigener Beleg, negativer Betrag, Referenz auf den
+  // Ursprungsvorgang — und ausdruecklich KEIN Storno des alten Belegs.
+  assert.equal(empfangen.betrag, -119, 'negativer Betrag');
+  assert.equal(empfangen.betragArt, 'rechnungsausgleich', 'dieselbe Betragsart wie die Zahlung');
+  assert.equal(empfangen.quelleBeleg, f.storno.rechnungsnr, 'eigener Beleg: die Stornorechnung');
+  assert.equal(empfangen.bezugQuelleBeleg, f.original.rechnungsnr, 'Verweis auf die Originalrechnung');
+  assert.equal(empfangen.bezugTyp, 'rechnung');
+  assert.equal(empfangen.zahlart, 'bar', 'dasselbe Zahlungsmittel wie die Zahlung');
+
+  const db = (await h.query('SELECT kasse_erstattung_beleg, kasse_zahlart FROM rechnungen WHERE id=$1', [f.original.id])).rows[0];
+  assert.ok(db.kasse_erstattung_beleg, 'Erstattungsbeleg vermerkt');
+  assert.equal(db.kasse_zahlart, 'bar');
+});
+
+test('Eine Kartenzahlung wird ueber die Karte erstattet, nicht bar', async () => {
+  // § 357 Abs. 3 BGB verlangt beim Widerruf dasselbe Zahlungsmittel. Unabhaengig davon ist
+  // "unbar herein, bar hinaus" das Muster, das die Geldwaeschestelle als Anhaltspunkt fuehrt.
+  const f = await bezahltUndStorniert('ec');
+  const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
+  assert.equal(e.status, 200, JSON.stringify(e.body));
+  assert.equal(empfangen.zahlart, 'ec', 'die Zahlart stammt aus der urspruenglichen Zahlung');
+});
+
+test('Keine zweite Erstattung zur selben Rechnung', async () => {
+  // Unsere Seite der Deckelung: Die Kasse deckelt Rechnungsbezuege bewusst NICHT, weil sie den
+  // Rechnungsbetrag nicht kennt. Also muessen wir es tun.
+  const f = await bezahltUndStorniert('bar');
+  assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung')).status, 200);
+  empfangen = null;
+  const zweite = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
+  assert.equal(zweite.status, 409, JSON.stringify(zweite.body));
+  assert.equal(empfangen, null, 'es darf nichts an die Kasse gegangen sein');
+});
+
+test('Ohne Storno und ohne Kassenzahlung wird nicht erstattet', async () => {
+  const r = await festgeschrieben();
+  const ohneStorno = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/erstattung');
+  assert.equal(ohneStorno.status, 400, 'erst stornieren');
+  assert.match(ohneStorno.body.error, /storniert/i);
+
+  const st = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/storno');
+  assert.equal(st.status, 201);
+  const nieKassiert = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/erstattung');
+  assert.equal(nieKassiert.status, 400, 'wurde nie ueber die Kasse bezahlt');
+  assert.match(nieKassiert.body.error, /Kasse bezahlt/);
+});
+
+test('Lehnt die Kasse die Erstattung ab, wird bei uns nichts vermerkt', async () => {
+  const f = await bezahltUndStorniert('bar');
+  antwortet = { status: 400, body: { error: 'bezugQuelleBeleg ist bei negativem Betrag Pflicht.' } };
+  const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
+  assert.equal(e.status, 409, JSON.stringify(e.body));
+  const db = (await h.query('SELECT kasse_erstattung_beleg FROM rechnungen WHERE id=$1', [f.original.id])).rows[0];
+  assert.equal(db.kasse_erstattung_beleg, null, 'kein Vermerk ohne Buchung in der Kasse');
+});
+
+test('Ohne TSE wird auch nicht erstattet', async () => {
+  const f = await bezahltUndStorniert('bar');
+  tseKonfiguriert = false;
+  const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
+  assert.equal(e.status, 409, JSON.stringify(e.body));
+  assert.match(e.body.error, /Sicherheitseinrichtung/);
+  assert.equal(empfangen, null);
+});
+
+test('Nur der Inhaber darf erstatten', async () => {
+  const f = await bezahltUndStorniert('bar');
+  const mitarbeiter = await h.seedNutzer('mitarbeiter');
+  const e = await h.api(mitarbeiter.token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
+  assert.equal(e.status, 403, JSON.stringify(e.body));
+});

@@ -90,6 +90,13 @@ async function meldeZahlung(v) {
     zahlart: v.zahlart || 'bar',
     kunde: v.kunde || null,
     kennzeichen: v.kennzeichen || null,
+    // Erstattung: Verweis auf den Ursprungsvorgang. Bei negativem Betrag ist er Pflicht — die
+    // DSFinV-K verlangt fuer die negative Darstellung eines Belegs ausdruecklich "eine Referenz
+    // auf den urspruenglichen Vorgang" (Anhang B). bezugTyp sagt der Kasse, ob der Ursprung ein
+    // eigener Kassenbeleg ist oder unsere Rechnung — davon haengt die Typisierung im
+    // DSFinV-K-Export ab (Transaktion gegenueber ExterneRechnung).
+    bezugQuelleBeleg: v.bezugQuelleBeleg || undefined,
+    bezugTyp: v.bezugTyp || undefined,
     // Der Kunde steht am Tresen: unmittelbar buchen und signieren (§ 146a AO), nicht in
     // eine Liste offener Vorgaenge legen. Die Kasse macht das atomar — schlaegt es fehl,
     // bleibt kein offener Rest zurueck.
