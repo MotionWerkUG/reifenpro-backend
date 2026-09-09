@@ -20,7 +20,11 @@ router.post('/', limiter, async (req, res, next) => {
     if (!EMAIL_RE.test(String(email))) return res.status(400).json({ error: 'Bitte eine gültige E-Mail-Adresse angeben.' });
     if (datenschutz !== true) return res.status(400).json({ error: 'Bitte stimmen Sie der Datenschutzerklärung zu.' });
 
-    const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+    // Beweisdaten zur Datenschutz-Zustimmung: NUR req.ip. Der linke Teil von x-forwarded-for
+    // stammt vom Absender selbst und ist frei waehlbar; nginx haengt die echte Adresse rechts an,
+    // die req.ip mit trust proxy liefert. Nachgestellt an derselben Stelle in portal-auth.js:
+    // Client schickte 9.9.9.9, echt war 203.0.113.42 -- gespeichert wurde 9.9.9.9.
+    const ip = (req.ip || '').toString();
     // Freitext entschaerfen (Winkelklammern) -> keine gespeicherte XSS im Admin-Kontaktbereich
     const noTag = (s) => String(s == null ? '' : s).replace(/[<>]/g, '');
     const nm = noTag(name).slice(0, 200);

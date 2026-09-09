@@ -28,15 +28,20 @@
 -- (pdf_sha256, beleg_hash, beleg_hash_vorgaenger samt erweitertem Schutztrigger) fehlten hier.
 -- 37 Tabellen in der Datei gegen 42 produktiv.
 --
+-- ERNEUT ERZEUGT AM 09.09.2026: Die Zustimmung zum vorzeitigen Leistungsbeginn (vier Spalten
+-- und ein Index auf termine) und die Tabelle "widerrufe" fuer die Widerrufsfunktion nach
+-- § 356a BGB waren produktiv, standen hier aber nicht. Wer aus dem Repository heraus
+-- wiederherstellt, haette beides verloren -- und mit "widerrufe" den Nachweis, wann ein
+-- Widerruf eingegangen ist. Genau dieser Zeitpunkt ist die fristwahrende Tatsache.
+--
 -- GEGENGEPRUEFT: Auf einer leeren Wegwerf-Datenbank von vorn bis hinten durchgelaufen,
--- 37 von 37 Tabellen, kein Unterschied zur Produktion, alle sieben Trigger vorhanden.
+-- Tabellenzahl und Trigger gegen die Produktion verglichen.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
-
 --
 -- PostgreSQL database dump
 --
 
-\restrict CjrMZdxchByza9l5zIN1oRvMUs8wNdelnMXGlxcqDG9n0rNsTEyBxTDt57pudFL
+\restrict outafD2J55R8qaMyQdtwZ4bzYmEpfBdhXMhdQJZa8fEVNsbVEP3ffBRY8VR8nl7
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -1158,6 +1163,11 @@ CREATE TABLE public.termine (
     agb_am timestamp with time zone,
     vorzeitige_leistung boolean DEFAULT false NOT NULL,
     vorzeitige_leistung_am timestamp with time zone,
+    zustimmung_token text,
+    zustimmung_token_ablauf timestamp with time zone,
+    zustimmung_angefragt_am timestamp with time zone,
+    vorzeitige_leistung_ip text,
+    vorzeitige_leistung_quelle text,
     CONSTRAINT termine_status_check CHECK ((status = ANY (ARRAY['angefragt'::text, 'bestaetigt'::text, 'abgeschlossen'::text, 'storniert'::text, 'abgesagt'::text, 'nicht_erschienen'::text])))
 );
 
@@ -1207,6 +1217,28 @@ CREATE VIEW public.v_statistiken AS
     ( SELECT count(*) AS count
            FROM public.termine
           WHERE ((termine.datum >= CURRENT_DATE) AND (termine.status <> 'storniert'::text))) AS termine_offen;
+
+
+--
+-- Name: widerrufe; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.widerrufe (
+    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+    eingegangen_am timestamp with time zone DEFAULT now() NOT NULL,
+    name text NOT NULL,
+    vertrag_angabe text NOT NULL,
+    kontakt_email text NOT NULL,
+    termin_id uuid,
+    kunden_id uuid,
+    ip text,
+    bestaetigung_gesendet_am timestamp with time zone,
+    status text DEFAULT 'offen'::text NOT NULL,
+    notiz text,
+    bearbeitet_am timestamp with time zone,
+    bearbeitet_von uuid,
+    CONSTRAINT widerrufe_status_check CHECK ((status = ANY (ARRAY['offen'::text, 'bearbeitet'::text, 'abgelehnt'::text])))
+);
 
 
 --
@@ -1663,6 +1695,14 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: widerrufe widerrufe_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.widerrufe
+    ADD CONSTRAINT widerrufe_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: idx_abgemeldete_ablauf; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -1891,6 +1931,27 @@ CREATE INDEX idx_termine_datum ON public.termine USING btree (datum);
 --
 
 CREATE INDEX idx_termine_status ON public.termine USING btree (status);
+
+
+--
+-- Name: idx_termine_zustimmung_token; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_termine_zustimmung_token ON public.termine USING btree (zustimmung_token) WHERE (zustimmung_token IS NOT NULL);
+
+
+--
+-- Name: idx_widerrufe_eingang; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_widerrufe_eingang ON public.widerrufe USING btree (eingegangen_am DESC);
+
+
+--
+-- Name: idx_widerrufe_status; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_widerrufe_status ON public.widerrufe USING btree (status);
 
 
 --
@@ -2271,13 +2332,34 @@ ALTER TABLE ONLY public.termine
 
 
 --
+-- Name: widerrufe widerrufe_bearbeitet_von_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.widerrufe
+    ADD CONSTRAINT widerrufe_bearbeitet_von_fkey FOREIGN KEY (bearbeitet_von) REFERENCES public.users(id);
+
+
+--
+-- Name: widerrufe widerrufe_kunden_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.widerrufe
+    ADD CONSTRAINT widerrufe_kunden_id_fkey FOREIGN KEY (kunden_id) REFERENCES public.kunden(id) ON DELETE SET NULL;
+
+
+--
+-- Name: widerrufe widerrufe_termin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.widerrufe
+    ADD CONSTRAINT widerrufe_termin_id_fkey FOREIGN KEY (termin_id) REFERENCES public.termine(id) ON DELETE SET NULL;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict CjrMZdxchByza9l5zIN1oRvMUs8wNdelnMXGlxcqDG9n0rNsTEyBxTDt57pudFL
-
-
-
+\unrestrict outafD2J55R8qaMyQdtwZ4bzYmEpfBdhXMhdQJZa8fEVNsbVEP3ffBRY8VR8nl7
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Zugriffsrechte fuer den Anwendungsnutzer.

@@ -54,23 +54,55 @@ function zustimmungNoetig(datumStr) {
 // braucht die ausdrueckliche Zustimmung (Paragraf 356 Abs. 4 BGB).
 // vertragStr = Zeitpunkt des Vertragsschlusses ('YYYY-MM-DD' oder Date/Zeitstempel),
 // terminStr  = Termindatum.
+// Bringt einen Zeitpunkt auf 'YYYY-MM-DD' -- egal ob er als Zeichenkette oder als Date-Objekt
+// kommt. NOETIG, WEIL: Der Treiber pg liefert einen timestamptz als Date-OBJEKT. String(date)
+// ergibt "Mon Aug 10 2026 ..."; die ersten zehn Zeichen sind "Mon Aug 10", und daraus wird
+// Invalid Date. Die Funktion fiel dann still auf "ab heute rechnen" zurueck -- also genau auf
+// das, was sie vermeiden soll. Gefunden von der Rechnungswesen-Sitzung am 09.09.2026 mit
+// Gegenprobe: Vertrag vor 30 Tagen, Termin heute -> als Zeichenkette false (richtig, die Frist
+// war seit 16 Tagen abgelaufen), als Date-Objekt true (falsch).
+//
+// Ein Date-Objekt ist ein Zeitpunkt, kein Kalendertag. Welcher Tag das ist, haengt an der
+// Zeitzone: 00:30 Uhr Berliner Zeit ist in UTC noch der Vortag. Deshalb wird ausdruecklich in
+// Europe/Berlin umgerechnet und nicht ueber toISOString().
+function alsTag(wert) {
+  if (wert == null || wert === '') return null;
+  if (wert instanceof Date) {
+    if (isNaN(wert)) return undefined;                       // gesetzt, aber unlesbar
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(wert);
+  }
+  const t = String(wert).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : undefined;
+}
+
 function zustimmungNoetigAbVertrag(vertragStr, terminStr) {
-  if (!terminStr || !/^\d{4}-\d{2}-\d{2}$/.test(String(terminStr).slice(0, 10))) return false;
-  const vertrag = vertragStr ? new Date(String(vertragStr).slice(0, 10) + 'T12:00:00') : null;
-  if (!vertrag || isNaN(vertrag)) return zustimmungNoetig(String(terminStr).slice(0, 10));
+  const terminTag = alsTag(terminStr);
+  if (!terminTag) return false;                              // ohne Termindatum keine Aussage
+  const vertragTag = alsTag(vertragStr);
+  // KEIN stiller Rueckfall mehr bei unlesbarer Eingabe: Der frueherer Rueckfall auf "ab heute"
+  // sah wie eine Absicherung aus, verwandelte aber einen Programmierfehler in ein falsches
+  // Ergebnis, statt ihn sichtbar zu machen. Genau daran ist der Date-Objekt-Fehler oben zwei
+  // Tage unbemerkt geblieben. NULL bleibt erlaubt -- ein unbekannter Vertragszeitpunkt ist ein
+  // echter Fall, und dann ist "ab heute" die vorsichtige Annahme.
+  if (vertragTag === undefined) {
+    throw new TypeError('zustimmungNoetigAbVertrag: Vertragszeitpunkt ist nicht lesbar (' +
+      JSON.stringify(vertragStr) + '). Erwartet wird YYYY-MM-DD, ein Date-Objekt oder null.');
+  }
+  if (vertragTag === null) return zustimmungNoetig(terminTag);
   // Fristende: 14 volle Tage nach Vertragsschluss.
-  const fristende = new Date(vertrag.getTime() + 14 * 86400000);
-  const termin = new Date(String(terminStr).slice(0, 10) + 'T12:00:00');
-  return termin < fristende;
+  const fristende = new Date(vertragTag + 'T12:00:00');
+  fristende.setTime(fristende.getTime() + 14 * 86400000);
+  return new Date(terminTag + 'T12:00:00') < fristende;
 }
 
 // Wann laeuft die Frist ab? Fuer die Anzeige im Admin und den Text der Bestaetigungsmail --
 // "Ihre Frist laeuft bis zum ..." ist nachvollziehbar, "14 Tage" nicht.
 function fristendeAbVertrag(vertragStr) {
-  const vertrag = vertragStr ? new Date(String(vertragStr).slice(0, 10) + 'T12:00:00') : null;
-  if (!vertrag || isNaN(vertrag)) return null;
+  const tag = alsTag(vertragStr);
+  if (!tag) return null;                                     // unbekannt oder unlesbar -> keine Anzeige
+  const vertrag = new Date(tag + 'T12:00:00');
   const ende = new Date(vertrag.getTime() + 14 * 86400000);
   return ende.getFullYear() + '-' + String(ende.getMonth() + 1).padStart(2, '0') + '-' + String(ende.getDate()).padStart(2, '0');
 }
 
-module.exports = { tageBisTermin, zustimmungNoetig, zustimmungNoetigAbVertrag, fristendeAbVertrag };
+module.exports = { tageBisTermin, zustimmungNoetig, zustimmungNoetigAbVertrag, fristendeAbVertrag, alsTag };

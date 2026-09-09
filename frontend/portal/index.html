@@ -198,8 +198,18 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     </div>
     <div class="fg"><label data-i18n="email">E-Mail</label><input id="reg-email" type="email" autocapitalize="none" autocorrect="off"></div>
     <div class="fg"><label data-i18n="phone">Telefon (optional)</label><input id="reg-telefon" type="tel"></div>
-    <div class="fg"><label data-i18n="password">Passwort (mind. 8 Zeichen)</label><input id="reg-pass" type="password"></div>
-    <div class="fg"><label data-i18n="password_repeat">Passwort wiederholen</label><input id="reg-pass2" type="password"></div>
+    <div class="fg"><label data-i18n="password">Passwort (mind. 8 Zeichen)</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="reg-pass" type="password" style="flex:1">
+        <button type="button" class="btn btn-g btn-sm" onclick="pwZeigen('reg-pass', this)" data-i18n="show_password">Anzeigen</button>
+      </div>
+    </div>
+    <div class="fg"><label data-i18n="password_repeat">Passwort wiederholen</label>
+      <div style="display:flex;gap:6px;align-items:center">
+        <input id="reg-pass2" type="password" style="flex:1">
+        <button type="button" class="btn btn-g btn-sm" onclick="pwZeigen('reg-pass2', this)" data-i18n="show_password">Anzeigen</button>
+      </div>
+    </div>
     <label class="check-row">
       <input type="checkbox" id="reg-dsgvo">
       <span><span data-i18n="accept_dsgvo">Ich habe die</span> <a onclick="zeigeDsgvo()" data-i18n="dsgvo_link">Datenschutzerklärung</a> <span data-i18n="accept_read">gelesen und akzeptiere sie.</span></span>
@@ -508,7 +518,8 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
       <div class="card">
         <div class="card-titel" data-i18n="consent_title">Einwilligungen</div>
         <div id="consent-state" style="font-size:13px;color:var(--muted);margin-bottom:14px"></div>
-        <button class="btn btn-g btn-sm" onclick="einwilligungWiderrufen()" data-i18n="consent_revoke">Werbe-/Saison-Erinnerungen abbestellen</button>
+        <button class="btn btn-g btn-sm" id="btn-consent-off" onclick="einwilligungWiderrufen()" data-i18n="consent_revoke">Werbe-/Saison-Erinnerungen abbestellen</button>
+        <button class="btn btn-g btn-sm hidden" id="btn-consent-on" onclick="einwilligungErneuern()" data-i18n="consent_renew">Erinnerungen wieder einschalten</button>
       </div>
       <div class="card">
         <div class="card-titel" data-i18n="change_password">Passwort ändern</div>
@@ -561,6 +572,9 @@ var I18N = {
     firstname: 'Vorname', lastname: 'Nachname', phone: 'Telefon (optional)',
     customer_type: 'Kundenart', customer_private: 'Privatkunde', customer_business: 'Firmenkunde',
     session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
+    consent_renew: 'Erinnerungen wieder einschalten',
+    show_password: 'Anzeigen', hide_password: 'Verbergen',
+    consent_mail_sent: 'Wir haben Ihnen eine Bestätigungsmail geschickt.',
     delete_request_pending: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen. Bis dahin können Sie sich weiterhin anmelden.',
     early_service_required: 'Bitte stimmen Sie zu, dass wir den Termin innerhalb der Widerrufsfrist ausführen dürfen.',
     company_name: 'Firma',
@@ -637,6 +651,9 @@ var I18N = {
     firstname: 'First name', lastname: 'Last name', phone: 'Phone (optional)',
     customer_type: 'Customer type', customer_private: 'Private customer', customer_business: 'Business customer',
     session_expired: 'Your session has expired. Please sign in again.',
+    consent_renew: 'Turn reminders back on',
+    show_password: 'Show', hide_password: 'Hide',
+    consent_mail_sent: 'We have sent you a confirmation email.',
     delete_request_pending: 'Your deletion request has been received. We will get back to you. Until then you can still sign in.',
     early_service_required: 'Please agree that we may carry out the appointment within the withdrawal period.',
     company_name: 'Company',
@@ -789,6 +806,16 @@ var KONTO_TOKEN = '';
 // Firmenfeld nur zeigen, wenn Firmenkunde gewaehlt ist. Beim Zurueckschalten den Namen wirklich
 // leeren -- ein unsichtbar mitgeschicktes Feld waere genau die Art Datenrest, die spaeter auf
 // einer Rechnung auftaucht.
+// Passwort sichtbar machen. Wer es zweimal eingeben muss, soll nachsehen koennen, was er getippt
+// hat -- sonst scheitert er am zweiten Feld an einem Tippfehler, den er nicht sieht.
+function pwZeigen(id, knopf) {
+  var e = document.getElementById(id);
+  if (!e) return;
+  var zeigen = e.type === 'password';
+  e.type = zeigen ? 'text' : 'password';
+  if (knopf) knopf.textContent = zeigen ? t('hide_password') : t('show_password');
+}
+
 function regKundenartWechsel() {
   var istFirma = (document.getElementById('reg-kundentyp') || {}).value === 'firma';
   var feld = document.getElementById('reg-firma-feld');
@@ -828,6 +855,17 @@ function resetRegForm() {
   // stehen, wenn jemand spaeter erneut auf "Registrieren" geht).
   var form = document.getElementById('reg-form'); if (form) form.classList.remove('hidden');
   var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.add('hidden');
+  // Ohne Token gehoert der Hinweis nicht hierher -- kontoStartLaden() blendet ihn wieder ein.
+  var hinw2 = document.getElementById('reg-konto-hinweis'); if (hinw2) hinw2.classList.add('hidden');
+  // Passwortfelder wieder verdecken. Der Wert wird unten geleert, der Feldtyp blieb aber auf
+  // "text" stehen -- wer einmal "Anzeigen" geklickt hatte, tippte beim naechsten Versuch im
+  // Klartext, ohne das entschieden zu haben.
+  ['reg-pass', 'reg-pass2'].forEach(function(id) {
+    var f = document.getElementById(id);
+    if (f) f.type = 'password';
+    var kn = document.querySelector('button[onclick="pwZeigen(\'' + id + '\', this)"]');
+    if (kn) kn.textContent = t('show_password');
+  });
   var nf = document.getElementById('reg-nachfassen'); if (nf) nf.classList.add('hidden');
 }
 
@@ -896,6 +934,9 @@ function portalRegister() {
     // sprang die Seite nach 7 Sekunden von selbst — zu hektisch zum Lesen).
     var form = document.getElementById('reg-form'); if (form) form.classList.add('hidden');
     var weiter = document.getElementById('reg-weiter'); if (weiter) weiter.classList.remove('hidden');
+    // Der Hinweis aus der Terminbuchung steht AUSSERHALB von reg-form und blieb deshalb stehen:
+    // "Vergeben Sie nur noch ein Passwort", obwohl das Konto samt Passwort gerade entstanden ist.
+    var hinw = document.getElementById('reg-konto-hinweis'); if (hinw) hinw.classList.add('hidden');
     // Nachfass-Angebot nur beim normalen Weg: wer aus einer bestaetigten Buchung kommt, bekommt
     // gar keine Bestaetigungsmail und wuerde davon nur verwirrt.
     var nf = document.getElementById('reg-nachfassen');
@@ -1674,7 +1715,15 @@ function ladeProfil() {
     if (g('pf-marke')) g('pf-marke').value = k.fahrzeug_marke || '';
     if (g('pf-modell')) g('pf-modell').value = k.fahrzeug_modell || '';
     var cs = g('consent-state');
-    if (cs) { var on = k.einwilligung_saison_erinnerung || k.einwilligung_werbung; cs.textContent = on ? t('consent_on') : t('consent_off'); }
+    if (cs) {
+      var on = k.einwilligung_saison_erinnerung || k.einwilligung_werbung;
+      cs.textContent = on ? t('consent_on') : t('consent_off');
+      // Nur den Knopf zeigen, der zum Stand passt. Beide nebeneinander waeren eine Frage, die
+      // sich der Kunde nicht stellt -- er will ein- oder ausschalten, nicht beides sehen.
+      var bOff = document.getElementById('btn-consent-off'), bOn = document.getElementById('btn-consent-on');
+      if (bOff) bOff.classList.toggle('hidden', !on);
+      if (bOn) bOn.classList.toggle('hidden', !!on);
+    }
   }).catch(function() {});
 }
 
@@ -1765,6 +1814,14 @@ function profilSpeichern() {
   }
   papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell'), strasse: str, plz: plz, ort: ort })
     .then(function() { notify(t('contact_saved'), 'ok'); ladeProfil(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
+// Wiedereinschalten loest den Doppel-Opt-in aus. Dem Kunden MUSS gesagt werden, dass eine Mail
+// unterwegs ist -- sonst klickt er, sieht keine Aenderung und haelt es fuer kaputt.
+function einwilligungErneuern() {
+  papi('POST', '/auth/einwilligung-erneuern', {})
+    .then(function(r) { notify((r && r.message) || t('consent_mail_sent'), 'ok'); ladeProfil(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
 

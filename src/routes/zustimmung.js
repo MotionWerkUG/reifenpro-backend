@@ -76,7 +76,10 @@ router.post('/anfordern/:terminId', authenticate, requireStaff, async (req, res,
   try {
     const t = (await query(
       `SELECT termine.id, termine.datum, termine.uhrzeit_von, termine.uhrzeit_bis, termine.termin_typ,
-              termine.kennzeichen, termine.leistungen, termine.erstellt_am,
+              termine.kennzeichen, termine.leistungen,
+              -- Als Kalendertag in Berliner Zeit, nicht als Zeitstempel: Der Treiber lieferte
+              -- sonst ein Date-Objekt, aus dem die Fristrechnung "Mon Aug 10" las.
+              to_char(termine.erstellt_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS vertrag_tag,
               COALESCE(k.vorname, kontakt_vorname) AS vorname,
               COALESCE(k.nachname, kontakt_nachname) AS nachname,
               COALESCE(k.anrede, kontakt_anrede) AS anrede,
@@ -90,7 +93,7 @@ router.post('/anfordern/:terminId', authenticate, requireStaff, async (req, res,
     // Ab VERTRAGSSCHLUSS rechnen, nicht ab heute: Der Vertrag kam am Telefon zustande, der
     // Termin wurde danach angelegt. Wer ab heute rechnet, fragt bei Terminen, deren Frist
     // laengst abgelaufen ist -- und behauptet dabei einen Satz, der nicht stimmt.
-    if (!widerruf.zustimmungNoetigAbVertrag(t.erstellt_am, t.datum)) {
+    if (!widerruf.zustimmungNoetigAbVertrag(t.vertrag_tag, t.datum)) {
       return res.status(409).json({ error: 'Der Termin liegt außerhalb der 14-tägigen Widerrufsfrist. Eine Zustimmung ist dafür nicht nötig.' });
     }
 
@@ -198,13 +201,16 @@ router.get('/bestaetigen', linkLimiter, async (req, res, next) => {
 // Erklaerung ohne erkennbaren Zeugen waere im Streitfall wenig wert.
 router.post('/telefonisch/:terminId', authenticate, requireStaff, async (req, res, next) => {
   try {
-    const t = (await query('SELECT id, datum, erstellt_am, vorzeitige_leistung FROM termine WHERE id=$1', [req.params.terminId])).rows[0];
+    const t = (await query(
+      `SELECT id, datum, vorzeitige_leistung,
+              to_char(erstellt_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS vertrag_tag
+         FROM termine WHERE id=$1`, [req.params.terminId])).rows[0];
     if (!t) return res.status(404).json({ error: 'Termin nicht gefunden.' });
     if (t.vorzeitige_leistung === true) return res.status(409).json({ error: 'Die Zustimmung liegt bereits vor.' });
     // Ab VERTRAGSSCHLUSS rechnen, nicht ab heute: Der Vertrag kam am Telefon zustande, der
     // Termin wurde danach angelegt. Wer ab heute rechnet, fragt bei Terminen, deren Frist
     // laengst abgelaufen ist -- und behauptet dabei einen Satz, der nicht stimmt.
-    if (!widerruf.zustimmungNoetigAbVertrag(t.erstellt_am, t.datum)) {
+    if (!widerruf.zustimmungNoetigAbVertrag(t.vertrag_tag, t.datum)) {
       return res.status(409).json({ error: 'Der Termin liegt außerhalb der 14-tägigen Widerrufsfrist. Eine Zustimmung ist dafür nicht nötig.' });
     }
     const wer = [req.user.vorname, req.user.nachname].filter(Boolean).join(' ') || req.user.email || 'Mitarbeiter';

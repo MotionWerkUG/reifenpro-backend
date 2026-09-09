@@ -7,6 +7,7 @@ const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
 const konditionen = require('../lib/konditionen');
+const { spiegleFahrzeugInStamm } = require('../lib/kundendaten');
 const widerruf = require('../lib/widerruf');
 const { kundenMailHtml } = require('../lib/mail-template');
 const { sha256Datei } = require('../lib/rechnung-pdf');
@@ -786,13 +787,6 @@ function huDatumPruefen(roh) {
   return { fehler: 'Bitte geben Sie das HU-Datum als Monat und Jahr an (zum Beispiel 04/2027).' };
 }
 
-async function syncKundeFz(kundenId, fz) {
-  if (!fz) return;
-  await query(
-    'UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3, hu_datum=COALESCE($4, hu_datum) WHERE id=$5',
-    [fz.kennzeichen || null, fz.marke || null, fz.modell || null, fz.hu_datum || null, kundenId]
-  );
-}
 
 router.get('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
@@ -823,7 +817,7 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [req.kunde.id, t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, _hu.wert, notiz]
     );
-    await syncKundeFz(req.kunde.id, rows[0]);
+    await spiegleFahrzeugInStamm(query, req.kunde.id);
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
 });
@@ -846,7 +840,7 @@ router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
       [t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, _hu.wert, notiz, req.params.id, req.kunde.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden' });
-    await syncKundeFz(req.kunde.id, rows[0]);
+    await spiegleFahrzeugInStamm(query, req.kunde.id);
     res.json(rows[0]);
   } catch (e) { next(e); }
 });
@@ -855,6 +849,10 @@ router.delete('/fahrzeuge/:id', authKunde, async (req, res, next) => {
   try {
     const { rows } = await query('DELETE FROM fahrzeuge WHERE id=$1 AND kunden_id=$2 RETURNING id', [req.params.id, req.kunde.id]);
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden' });
+    // Auch nach dem Loeschen spiegeln: Bleibt genau ein Fahrzeug uebrig, gehoert es wieder in den
+    // Stamm -- sonst bliebe er leer, obwohl es nichts mehr zu verwechseln gibt. Der Weg heilt sich
+    // damit selbst, so wie im Admin.
+    await spiegleFahrzeugInStamm(query, req.kunde.id);
     res.json({ message: 'Fahrzeug gelöscht' });
   } catch (e) { next(e); }
 });
