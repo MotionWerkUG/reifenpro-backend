@@ -30,12 +30,12 @@ async function seedTermin(opt) {
   if (o.kundentyp) await h.query('UPDATE kunden SET kundentyp=$1 WHERE id=$2', [o.kundentyp, kunde]);
   const t = await h.query(
     `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen,
-                          vorzeitige_leistung, erstellt_am, portal_buchung)
+                          vorzeitige_leistung, erstellt_am, portal_buchung, vereinbart_ueber)
      VALUES ((CURRENT_DATE + ($1 || ' days')::interval)::date, '09:00', '10:00', 'Raederwechsel',
-             'abgeschlossen', $2, $3, $4, NOW() - ($5 || ' days')::interval, $6) RETURNING id`,
+             'abgeschlossen', $2, $3, $4, NOW() - ($5 || ' days')::interval, $6, $7) RETURNING id`,
     [String(o.tageVoraus == null ? 0 : o.tageVoraus), kunde, JSON.stringify(LEISTUNGEN),
      o.zustimmung === true, String(o.vertragVorTagen == null ? 0 : o.vertragVorTagen),
-     o.portalBuchung !== false]);
+     (o.weg || 'online') === 'online', o.weg || 'online']);
   return t.rows[0].id;
 }
 
@@ -65,7 +65,7 @@ test('Ein Tresentermin loest KEINEN Hinweis aus', async () => {
   // dieser Termin aus wie ein Telefontermin ohne Zustimmung — deshalb wird nur gewarnt, wo der
   // Fernabsatz belegt ist. Waere das anders, kaeme die Warnung bei fast jeder Arbeit am selben
   // Tag, und man wuerde sie wegklicken, bevor sie einmal zaehlt.
-  const terminId = await seedTermin({ tageVoraus: 0, vertragVorTagen: 0, zustimmung: false, portalBuchung: false });
+  const terminId = await seedTermin({ tageVoraus: 0, vertragVorTagen: 0, zustimmung: false, weg: 'tresen' });
   const entwurf = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + terminId);
   assert.equal(entwurf.status, 201, JSON.stringify(entwurf.body));
   assert.equal(entwurf.body.widerruf_hinweis, undefined, 'Fehlalarm im Alltagsgeschäft');
@@ -75,16 +75,28 @@ test('Ein Tresentermin loest KEINEN Hinweis aus', async () => {
   assert.equal(f.body.widerruf_hinweis, undefined, 'auch beim Festschreiben kein Fehlalarm');
 });
 
+test('Telefonisch vereinbarter Termin loest den Hinweis aus und wird als solcher benannt', async () => {
+  // Auch am Telefon entsteht ein Fernabsatzvertrag. Bis die Adminmaske den Weg festhielt, war
+  // dieser Fall von einem Tresentermin nicht zu unterscheiden — deshalb blieb er zunaechst
+  // ungewarnt. Jetzt greift er, ohne dass geraten wird.
+  const terminId = await seedTermin({ tageVoraus: 1, vertragVorTagen: 0, zustimmung: false, weg: 'telefon' });
+  const entwurf = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + terminId);
+  assert.equal(entwurf.status, 201, JSON.stringify(entwurf.body));
+  assert.ok(entwurf.body.widerruf_hinweis, 'Hinweis fehlt beim Telefontermin');
+  assert.match(entwurf.body.widerruf_hinweis, /telefonisch vereinbart/,
+    'der Weg wird benannt, nicht pauschal "online gebucht": ' + entwurf.body.widerruf_hinweis);
+});
+
 test('Gast-Firmenkunde ohne Kundensatz bekommt keinen Hinweis', async () => {
   // Bei Gast-Terminen gibt es keinen Kundensatz; die Einordnung steht am Termin selbst.
   // Ohne COALESCE waere kundentyp hier NULL und die Firmenkunden-Ausnahme liefe ins Leere.
   const t = await h.query(
     `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, leistungen,
-                          vorzeitige_leistung, erstellt_am, portal_buchung,
+                          vorzeitige_leistung, erstellt_am, portal_buchung, vereinbart_ueber,
                           kontakt_vorname, kontakt_nachname, kontakt_kundentyp,
                           kontakt_strasse, kontakt_plz, kontakt_ort)
      VALUES ((CURRENT_DATE + INTERVAL '1 day')::date, '09:00', '10:00', 'Raederwechsel',
-             'abgeschlossen', $1, false, NOW(), true,
+             'abgeschlossen', $1, false, NOW(), true, 'online',
              'Erika', 'Beispiel', 'firma', 'Beispielweg 3', '04347', 'Leipzig') RETURNING id`,
     [JSON.stringify(LEISTUNGEN)]);
   const entwurf = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
