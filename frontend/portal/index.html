@@ -647,7 +647,7 @@ var I18N = {
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
-    confirm_booking_title: 'Bitte Buchung bestätigen', agreed_discount: 'Vereinbarter Nachlass', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.',  confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
+    confirm_booking_title: 'Bitte Buchung bestätigen', no_services: 'Zurzeit sind online keine Leistungen buchbar. Bitte rufen Sie uns an{tel}.',  agreed_discount: 'Vereinbarter Nachlass', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.',  confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -733,7 +733,7 @@ var I18N = {
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
-    confirm_booking_title: 'Please confirm your booking', agreed_discount: 'Agreed discount', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.',  confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
+    confirm_booking_title: 'Please confirm your booking', no_services: 'No services can be booked online at the moment. Please give us a call{tel}.',  agreed_discount: 'Agreed discount', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.',  confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -1589,6 +1589,24 @@ function ladeArtikel() {
   papi('GET', '/daten/artikel').then(function(rows) {
     artikelListe = rows || [];
     var sel = document.getElementById('buchen-artikel');
+    // Leere Liste heisst: Der Betrieb hat online nichts freigegeben. Eine leere Auswahl ohne
+    // Erklaerung ist eine Sackgasse -- der Kunde sucht den Fehler bei sich. Also sagen, was los
+    // ist, und den Weg nennen, der bleibt.
+    if (!artikelListe.length) {
+      var box = document.getElementById('buchen-karte') || sel.parentNode;
+      sel.innerHTML = '';
+      var hinweis = document.getElementById('buchen-leer');
+      if (!hinweis) {
+        hinweis = document.createElement('div');
+        hinweis.id = 'buchen-leer';
+        hinweis.className = 'empty';
+        box.insertBefore(hinweis, box.firstChild);
+      }
+      hinweis.textContent = t('no_services').replace('{tel}', FIRMA_TEL ? ' (' + FIRMA_TEL + ')' : '');
+      return;
+    }
+    var alt = document.getElementById('buchen-leer');
+    if (alt) alt.remove();
     sel.innerHTML = artikelListe.map(function(a) {
       return '<option value="' + a.id + '">' + pEsc(a.name) + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
     }).join('');
