@@ -1305,9 +1305,10 @@ router.post('/:id/barzahlung', async (req, res, next) => {
     const beleg = kasse.belegAus(antwort);
     const upd = await query(
       `UPDATE rechnungen SET zahlungsstatus='bezahlt', bezahlt_am=(now() AT TIME ZONE 'Europe/Berlin')::date,
-         kasse_beleg_nr=$1, kasse_beleg_datum=(now() AT TIME ZONE 'Europe/Berlin')::date, kasse_beleg_url=$2
+         kasse_beleg_nr=$1, kasse_beleg_datum=(now() AT TIME ZONE 'Europe/Berlin')::date, kasse_beleg_url=$2,
+         kasse_zahlart=$4
        WHERE id=$3 AND zahlungsstatus<>'bezahlt' RETURNING *`,
-      [beleg, (antwort && antwort.belegUrl) || null, req.params.id]);
+      [beleg, (antwort && antwort.belegUrl) || null, req.params.id, zahlart]);
 
     await auditLog({ userId: req.user.id, aktion: 'rechnung.barzahlung', tabelle: 'rechnungen', datensatzId: r.id,
       neueWerte: { zahlart: zahlart, kassenbeleg: beleg, bereits_verarbeitet: !!(antwort && antwort.bereitsVerarbeitet) }, req });
@@ -1336,6 +1337,75 @@ router.patch('/:id/bezahlt', async (req, res, next) => {
     );
     if (!r.rows.length) return res.status(404).json({ error: 'Rechnung nicht gefunden oder nicht festgeschrieben.' });
     res.json(r.rows[0]);
+  } catch (e) { next(e); }
+});
+
+// ── POST /:id/erstattung ── Geld nach einem Storno ueber die Kasse zurueckzahlen
+//
+// Warum ein eigener, bewusster Schritt und nicht automatisch beim Storno: Beim Storno entsteht
+// ein Beleg, bei der Erstattung wandert Bargeld ueber den Tresen. Das ist eine Handlung des
+// Bedieners, kein Nebeneffekt einer Buchung.
+//
+// Warum ueberhaupt: Wird eine bar bezahlte Rechnung storniert, ohne dass die Kasse davon
+// erfaehrt, bleibt das Geld ohne Gegenbuchung im Kassenbestand. Der Kassensturz stimmt dann
+// nicht mehr mit den Aufzeichnungen ueberein — genau das prueft eine Kassennachschau.
+//
+// KEIN Storno des urspruenglichen Kassenbelegs: Die Zahlung hat stattgefunden, die
+// Rueckzahlung ist ein neuer Geschaeftsvorfall. Beides muss sichtbar bleiben (§ 146 Abs. 4 AO).
+// Die DSFinV-K verlangt fuer die negative Darstellung ausdruecklich den Vorgangstyp "Beleg"
+// ohne Storno-Kennzeichen, mit Referenz auf den Ursprungsvorgang (Anhang B).
+router.post('/:id/erstattung', requireAdmin, async (req, res, next) => {
+  try {
+    const r = (await query('SELECT * FROM rechnungen WHERE id=$1', [req.params.id])).rows[0];
+    if (!r) return res.status(404).json({ error: 'Rechnung nicht gefunden.' });
+    if (r.status !== 'storniert') return res.status(400).json({ error: 'Erstattet wird erst, wenn die Rechnung storniert ist. Bitte zuerst stornieren.' });
+    if (!r.kasse_beleg_nr) return res.status(400).json({ error: 'Diese Rechnung wurde nicht über die Kasse bezahlt. Eine Rückzahlung per Überweisung bucht der Steuerberater aus dem Kontoauszug.' });
+    if (r.kasse_erstattung_beleg) return res.status(409).json({ error: 'Für diese Rechnung ist bereits eine Erstattung gebucht (Beleg ' + r.kasse_erstattung_beleg + ').' });
+    if (!r.kasse_zahlart) return res.status(409).json({ error: 'Zu dieser Zahlung ist keine Zahlart hinterlegt. Die Erstattung muss über dasselbe Zahlungsmittel laufen — bitte an der Kasse von Hand buchen und hier vermerken.' });
+
+    // Die Erstattung traegt die Nummer der Stornorechnung als eigenen Beleg und verweist auf
+    // die Originalrechnung. Damit liest sich die Kette Rechnung, Zahlung, Storno, Erstattung.
+    const st = (await query('SELECT rechnungsnr FROM rechnungen WHERE storno_von_id=$1 ORDER BY rechnungsnr LIMIT 1', [r.id])).rows[0];
+    if (!st) return res.status(409).json({ error: 'Zu dieser Rechnung ist keine Stornorechnung auffindbar.' });
+
+    if (!kasse.konfiguriert()) return res.status(503).json({ error: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+    if (await kasse.tseFehltSicher()) {
+      return res.status(409).json({ error: 'Die Kasse hat noch keine technische Sicherheitseinrichtung (TSE). Bis sie eingerichtet ist, kann keine Erstattung gebucht werden.' });
+    }
+
+    let antwort;
+    try {
+      antwort = await kasse.meldeZahlung({
+        quelleBeleg: st.rechnungsnr,
+        ticket: st.rechnungsnr,
+        betragArt: 'rechnungsausgleich',
+        betrag: -Math.abs(Number(r.brutto_summe)),
+        zahlart: r.kasse_zahlart,          // dasselbe Zahlungsmittel wie die Zahlung (§ 357 Abs. 3 BGB)
+        bezugQuelleBeleg: r.rechnungsnr,
+        bezugTyp: 'rechnung',
+        kunde: r.empfaenger_firma || r.empfaenger_name || null
+      });
+    } catch (e) {
+      // Wie beim Kassieren: NICHTS vermerken, solange die Kasse nicht gebucht hat. Sonst
+      // stuende hier eine Erstattung, die im Kassenbuch nicht auftaucht.
+      if (e.code === 'NICHT_ERREICHBAR') return res.status(502).json({ error: 'Die Kasse ist nicht erreichbar. Es wurde nichts erstattet — bitte erneut versuchen.' });
+      if (e.code === 'NICHT_KONFIGURIERT') return res.status(503).json({ error: e.message });
+      return res.status(409).json({ error: 'Die Kasse hat die Erstattung abgelehnt: ' + e.message });
+    }
+
+    const beleg = kasse.belegAus(antwort);
+    await query(
+      `UPDATE rechnungen SET kasse_erstattung_beleg=$1, kasse_erstattung_am=(now() AT TIME ZONE 'Europe/Berlin')::date
+         WHERE id=$2 AND kasse_erstattung_beleg IS NULL`,
+      [beleg || ('ohne-Nr-' + st.rechnungsnr), r.id]);
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.erstattet', tabelle: 'rechnungen', datensatzId: r.id,
+      neueWerte: { storno: st.rechnungsnr, zahlart: r.kasse_zahlart, betrag: -Math.abs(Number(r.brutto_summe)), kassenbeleg: beleg }, req });
+
+    res.json({
+      message: 'Erstattung über ' + Number(r.brutto_summe).toFixed(2).replace('.', ',') + ' € in der Kasse gebucht'
+        + (beleg ? ', Kassenbeleg ' + beleg + '.' : '.'),
+      kassenbeleg: beleg, zahlart: r.kasse_zahlart
+    });
   } catch (e) { next(e); }
 });
 

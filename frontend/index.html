@@ -2402,13 +2402,23 @@ function renderRechnungen() {
         if (r.zahlungsstatus !== 'bezahlt') akt += '<button class="btn btn-g btn-sm" onclick="mahnen(\'' + r.id + '\')">Mahnen</button>';
         akt += '<button class="btn btn-danger btn-sm admin-only" onclick="stornoRechnung(\'' + r.id + '\')">Storno</button>';
       }
+      // Nach einem Storno: War ueber die Kasse bezahlt worden, muss das Geld auch ueber die
+      // Kasse zurueck — sonst bliebe es ohne Gegenbuchung im Kassenbestand. Eigener Knopf,
+      // weil dabei Bargeld ueber den Tresen wandert; das ist eine Handlung, kein Nebeneffekt.
+      if (r.status === 'storniert' && r.kasse_beleg_nr && !r.kasse_erstattung_beleg && KASSE_DA) {
+        akt += '<button class="btn btn-p btn-sm admin-only" onclick="erstatten(\'' + r.id + '\')">Erstatten</button>';
+      }
     }
     var zahlung = (r.status === 'festgeschrieben' && !r.storno_von_id) ? (r.zahlungsstatus === 'bezahlt' ? '<span style="color:var(--green)">bezahlt</span>' : '<span style="color:var(--red)">offen</span>' + (r.mahnstufe > 0 ? ' <span style="font-size:10px;color:var(--red)">(' + r.mahnstufe + 'x gemahnt)</span>' : '')) : '-';
     // Beleg der Kasse sichtbar machen: Das ist die Verknuepfung, die belegt, dass der Umsatz
     // nur einmal gebucht wurde — Rechnung hier, Zahlung dort.
     if (r.kasse_beleg_nr) {
       zahlung += '<div style="font-size:10px;color:var(--muted)">Kassenbeleg ' +
-        (r.kasse_beleg_url ? '<a href="' + kEsc(r.kasse_beleg_url) + '" target="_blank" rel="noopener">' + kEsc(r.kasse_beleg_nr) + '</a>' : kEsc(r.kasse_beleg_nr)) + '</div>';
+        (r.kasse_beleg_url ? '<a href="' + kEsc(r.kasse_beleg_url) + '" target="_blank" rel="noopener">' + kEsc(r.kasse_beleg_nr) + '</a>' : kEsc(r.kasse_beleg_nr)) +
+        (r.kasse_zahlart ? ' (' + kEsc(r.kasse_zahlart === 'ec' ? 'Karte' : r.kasse_zahlart) + ')' : '') + '</div>';
+    }
+    if (r.kasse_erstattung_beleg) {
+      zahlung += '<div style="font-size:10px;color:var(--green)">Erstattet, Beleg ' + kEsc(r.kasse_erstattung_beleg) + '</div>';
     }
     html += '<tr><td><strong>' + (r.rechnungsnr || '<em style="color:#888">Entwurf</em>') + '</strong></td>' +
       '<td>' + (kEsc(r.empfaenger_firma || r.empfaenger_name || r.kundenname) || '<em style="color:#888">Laufkundschaft</em>') + '</td>' +
@@ -2762,6 +2772,16 @@ function kassieren(id, zahlart) {
     // ausgeglichen (409), stimmt die angezeigte Liste sonst nicht mehr mit der Kasse ueberein.
     loadRechnungen();
   });
+}
+// Erstattung nach einem Storno. Der Betrag geht ueber dasselbe Zahlungsmittel zurueck wie die
+// urspruengliche Zahlung — beim Widerruf ist das ohnehin geschuldet (§ 357 Abs. 3 BGB), und es
+// verhindert, dass eine Kartenzahlung bar ausgezahlt wird.
+function erstatten(id) {
+  if (!confirm('Erstattung über die Kasse buchen?\n\nDas Geld geht über dasselbe Zahlungsmittel zurück wie die ursprüngliche Zahlung. Es entsteht ein eigener Kassenbeleg — kein Storno des alten.')) return;
+  api('POST', '/rechnungen/' + id + '/erstattung').then(function(r) {
+    if (r) notify(r.message || 'Erstattung gebucht.');
+    loadRechnungen();
+  }).catch(function(e) { notify(e.message, 'err'); loadRechnungen(); });
 }
 function toggleBezahlt(id, bezahlt) {
   api('PATCH', '/rechnungen/' + id + '/bezahlt', { bezahlt: bezahlt }).then(function() { notify('Aktualisiert.'); loadRechnungen(); }).catch(function(e) { notify(e.message, 'err'); });
