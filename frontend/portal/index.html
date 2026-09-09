@@ -635,7 +635,7 @@ var I18N = {
     consent_title: 'Einwilligungen', consent_on: 'Sie erhalten aktuell Saison-/Werbe-Erinnerungen per E-Mail.', consent_off: 'Sie erhalten aktuell keine Werbe-Erinnerungen.',
     consent_revoke: 'Werbe-/Saison-Erinnerungen abbestellen', consent_revoke_confirm: 'Möchten Sie alle Werbe- und Saison-Erinnerungen abbestellen?', consent_revoked: 'Ihre Einwilligung wurde widerrufen.',
     resend_confirm: 'Bestätigungsmail erneut senden', resend_need_email: 'Bitte zuerst Ihre E-Mail-Adresse oben eingeben.', resend_sent: 'Falls die Adresse noch unbestätigt ist, haben wir die Bestätigungsmail erneut gesendet.',
-    storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', picked_up_on: 'Abgeholt am', type_and_count: 'Typ und Anzahl', wheels_n: '{n} Räder', on_rims: 'auf {felge}', dot_label: 'DOT', brand_label: 'Marke', status: 'Status',
+    storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', picked_up_on: 'Abgeholt am', alloy_rims: 'Alufelgen', steel_rims: 'Stahlfelgen', type_and_count: 'Typ und Anzahl', wheels_n: '{n} Räder', on_rims: 'auf {felge}', dot_label: 'DOT', brand_label: 'Marke', status: 'Status',
     profile_depth: 'Profiltiefe', stored_since: 'Eingelagert seit', notes_damage: 'Bemerkungen/Schäden',
     cancel: 'Stornieren', cancel_confirm: 'Eine kostenfreie Stornierung ist nur bis {h} Stunden vor dem Termin möglich. Termin jetzt stornieren?', cancel_hint: 'Hinweis: Eine kostenfreie Stornierung ist bis {h} Stunden vor dem Termin möglich. Danach kann eine Gebühr anfallen.', cancelled: 'Termin storniert',
     booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
@@ -721,7 +721,7 @@ var I18N = {
     consent_title: 'Consent', consent_on: 'You currently receive seasonal/marketing reminders by email.', consent_off: 'You currently receive no marketing reminders.',
     consent_revoke: 'Unsubscribe from marketing/seasonal reminders', consent_revoke_confirm: 'Do you want to unsubscribe from all marketing and seasonal reminders?', consent_revoked: 'Your consent has been withdrawn.',
     resend_confirm: 'Resend confirmation email', resend_need_email: 'Please enter your email address above first.', resend_sent: 'If the address is still unconfirmed, we have resent the confirmation email.',
-    storage_place: 'Storage location', tire: 'Tire', season: 'Season', picked_up_on: 'Collected on', type_and_count: 'Type and quantity', wheels_n: '{n} wheels', on_rims: 'on {felge}', dot_label: 'DOT', brand_label: 'Make', status: 'Status',
+    storage_place: 'Storage location', tire: 'Tire', season: 'Season', picked_up_on: 'Collected on', alloy_rims: 'alloy rims', steel_rims: 'steel rims', type_and_count: 'Type and quantity', wheels_n: '{n} wheels', on_rims: 'on {felge}', dot_label: 'DOT', brand_label: 'Make', status: 'Status',
     profile_depth: 'Tread depth', stored_since: 'Stored since', notes_damage: 'Notes/Damage',
     cancel: 'Cancel', cancel_confirm: 'A free cancellation is only possible up to {h} hours before the appointment. Cancel now?', cancel_hint: 'Note: A free cancellation is possible up to {h} hours before the appointment. After that a fee may apply.', cancelled: 'Appointment cancelled',
     booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
@@ -1149,6 +1149,25 @@ function saisonText(s) {
   if (sl.indexOf('ganz') !== -1 || sl.indexOf('all') !== -1) return t('ganzjahres');
   return s;
 }
+// Die Felgenart uebersetzen -- genau wie saisonText die Saison. Ohne das stand fuer einen
+// englischsprachigen Kunden "4 wheels on Alufelgen", waehrend die Saison direkt daneben korrekt
+// uebersetzt war.
+//
+// 'Nein' ist KEINE Felgenart, sondern ein Ueberbleibsel: Die Spalte war einmal ein Ja/Nein-Feld
+// ("sind Felgen dabei?") und traegt diesen Default noch im Schema (schema.sql). Der Admin bietet
+// heute nur noch Alufelgen und Stahlfelgen an. Trifft der Altwert doch auf, entfaellt die Angabe,
+// statt "4 Räder auf Nein" zu schreiben.
+// Ein unbekannter Wert wird unveraendert durchgereicht: Kommt spaeter eine dritte Felgenart dazu,
+// soll sie sichtbar sein und nicht stillschweigend verschwinden.
+function felgenText(f) {
+  var v = (f || '').trim();
+  if (!v || v.toLowerCase() === 'nein') return '';
+  var vl = v.toLowerCase();
+  if (vl.indexOf('alu') !== -1) return t('alloy_rims');
+  if (vl.indexOf('stahl') !== -1 || vl.indexOf('steel') !== -1) return t('steel_rims');
+  return v;
+}
+
 function saisonBadge(typ) {
   var sl = (typ || '').toLowerCase();
   var col = sl.indexOf('winter') !== -1 ? '#4a9eff' : (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1 ? '#eab308' : '#888');
@@ -1278,9 +1297,10 @@ function ladeEinlagerungen() {
       if (e.reifen_typ) tz.push(saisonText(e.reifen_typ));
       // Anzahl und Felgenart gehoeren zusammen ("4 Räder auf Alufelge"), nicht als zwei
       // gleichrangige Punkte nebeneinander.
-      if (e.anzahl || e.felgen) {
+      var felge = felgenText(e.felgen);
+      if (e.anzahl || felge) {
         tz.push([e.anzahl ? t('wheels_n').replace('{n}', e.anzahl) : '',
-                 e.felgen ? t('on_rims').replace('{felge}', e.felgen) : ''].filter(Boolean).join(' '));
+                 felge ? t('on_rims').replace('{felge}', felge) : ''].filter(Boolean).join(' '));
       }
       if (tz.length) html += '<div class="iz"><div class="iz-l">' + t('type_and_count') + '</div><div class="iz-v">' + pEsc(tz.join(' · ')) + '</div></div>';
       var marke = [e.reifen_marke, e.reifen_modell].filter(Boolean).join(' ');

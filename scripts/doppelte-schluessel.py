@@ -82,6 +82,20 @@ def schluessel_doppler(js):
 #
 # Gemeldet wird nur, was auch VERWENDET wird: Ein ungenutzter Schluessel in einer Sprache ist
 # folgenlos, und eine Liste voller folgenloser Meldungen liest bald niemand mehr.
+# Kommentare aus dem Text nehmen, BEVOR nach verwendeten Schluesseln gesucht wird. Ein
+# erklaerendes t('beispiel') in einem Kommentar ist keine Verwendung -- es wuerde sonst als
+# fehlender Schluessel gemeldet, und das Werkzeug faenge wieder an, Falsches zu behaupten.
+#
+# Bewusst konservativ: nur ganze Kommentarzeilen (//... am Zeilenanfang), Blockkommentare und
+# HTML-Kommentare. Ein "//" mitten in einer Zeile bleibt stehen -- dort steckt es meist in einer
+# Adresse wie https://..., und ein Schluessel-Aufruf dahinter waere ohnehin echter Code.
+def ohne_kommentare(text):
+    text = re.sub(r'<!--.*?-->', ' ', text, flags=re.S)
+    text = re.sub(r'/\*.*?\*/', ' ', text, flags=re.S)
+    text = re.sub(r'(?m)^[ \t]*//.*$', '', text)
+    return text
+
+
 def sprach_luecken(quelltext, verwendungstext=None):
     bloecke = {}
     # Sprachbloecke ueber KLAMMERZAEHLUNG finden, nicht ueber die Einrueckung. Die erste Fassung
@@ -126,6 +140,7 @@ def sprach_luecken(quelltext, verwendungstext=None):
     # auch das schliessende t von portalLogou-t('abgelaufen') und params.ge-t('reset'). Beim ersten
     # Lauf waren fuenf von sechs Treffern genau solche Falschmeldungen -- ein Werkzeug, das
     # Falsches meldet, wird nach dem dritten Mal nicht mehr gelesen.
+    verwendung = ohne_kommentare(verwendung)
     benutzte = set(re.findall(r"(?<![A-Za-z_0-9])t\(['\"]([a-zA-Z_][a-zA-Z_0-9]*)['\"]\)", verwendung))
     benutzte |= set(re.findall(r'data-i18n(?:-[a-z]+)?="([a-zA-Z_][a-zA-Z_0-9]*)"', verwendung))
 
@@ -133,7 +148,7 @@ def sprach_luecken(quelltext, verwendungstext=None):
     for name in sorted(alle):
         fehlt_in = sorted(sp for sp, keys in bloecke.items() if name not in keys)
         if fehlt_in and name in benutzte:
-            funde.append((name, fehlt_in, True))
+            funde.append((name, fehlt_in, 'luecke'))
 
     # Dritte Fehlerart, und die schwerste: ein Schluessel, den KEIN Woerterbuch kennt. Die
     # Schleife oben kann ihn nicht finden -- sie laeuft ueber die Woerterbuchschluessel, und dort
@@ -144,7 +159,7 @@ def sprach_luecken(quelltext, verwendungstext=None):
     # Das Werkzeug meldete "keine Sprachluecken" -- zum dritten Mal an einem Tag richtig geschwiegen
     # und dabei blind gewesen.
     for name in sorted(benutzte - alle):
-        funde.append((name, sorted(bloecke.keys()), True))
+        funde.append((name, sorted(bloecke.keys()), 'unbekannt'))
 
     return funde
 
@@ -212,6 +227,7 @@ PROBE_HTML = ('<html><body><span data-i18n="nur_deutsch">x</span>'
               '<span data-i18n="gibt_es_nicht">y</span>'
               '<script>' + PROBE_JS
               + "\nvar egal = params.get('kein_schluessel'); portalLogout('auch_keiner');\n"
+              + "// erklaerender Kommentar mit t('nur_im_kommentar') -- keine Verwendung\n"
               + '</script></body></html>')
 
 def selbstpruefung():
@@ -240,10 +256,12 @@ for datei in dateien:
     if f or l:
         print(datei + ':')
         for name, z1, z2 in f: print('   ' + name + '  zuerst bei Zeile ' + str(z1) + ', erneut bei ' + str(z2))
-        for name, fehlt_in, _ in l:
-            ganz = len(fehlt_in) > 1
-            print('   ' + name + ('  in KEINEM Woerterbuch (' if ganz else '  fehlt in: ')
-                  + ', '.join(fehlt_in) + (') -- angezeigt wird der rohe Schluessel' if ganz else '  (wird verwendet)'))
+        for name, fehlt_in, art in l:
+            # Die Art steht ausdruecklich dran. Sie an der ANZAHL der Sprachen abzulesen haette
+            # bei einer dritten Sprache still das Falsche behauptet.
+            print('   ' + name + ('  in KEINEM Woerterbuch (' if art == 'unbekannt' else '  fehlt in: ')
+                  + ', '.join(fehlt_in)
+                  + (') -- angezeigt wird der rohe Schluessel' if art == 'unbekannt' else '  (wird verwendet)'))
     else:
         print(datei + ': keine doppelten Schluessel' + ('' if nur_sprachen else ', keine Sprachluecken'))
     if f or l: gefunden = True
