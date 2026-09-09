@@ -101,12 +101,15 @@ function ohneGeheimnisse(zeile) {
 async function spiegleFahrzeugInStamm(query, kundenId) {
   const anzahl = parseInt((await query('SELECT count(*)::int AS n FROM fahrzeuge WHERE kunden_id=$1', [kundenId])).rows[0].n, 10);
   if (anzahl === 1) {
-    const f = (await query('SELECT kennzeichen, marke, modell, hu_datum, erstzulassung FROM fahrzeuge WHERE kunden_id=$1', [kundenId])).rows[0];
+    const f = (await query('SELECT kennzeichen, marke, modell, hu_datum, erstzulassung, erstzulassung_genauigkeit FROM fahrzeuge WHERE kunden_id=$1', [kundenId])).rows[0];
     await query(
       `UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3,
-              hu_datum=COALESCE($4, hu_datum), erstzulassung=COALESCE($5, erstzulassung)
-        WHERE id=$6`,
-      [f.kennzeichen || null, f.marke || null, f.modell || null, f.hu_datum || null, f.erstzulassung || null, kundenId]);
+              hu_datum=COALESCE($4, hu_datum),
+              erstzulassung=COALESCE($5, erstzulassung),
+              erstzulassung_genauigkeit=COALESCE($6, erstzulassung_genauigkeit)
+        WHERE id=$7`,
+      [f.kennzeichen || null, f.marke || null, f.modell || null, f.hu_datum || null,
+       f.erstzulassung || null, f.erstzulassung_genauigkeit || null, kundenId]);
     return { gespiegelt: true, anzahl };
   }
   if (anzahl > 1) {

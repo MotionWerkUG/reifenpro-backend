@@ -57,7 +57,7 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
       query('SELECT beleg_nr,reifen_groesse,reifen_typ,lagerplatz,status,eingelagert_am FROM einlagerungen WHERE kunden_id=$1', [kid]),
       query('SELECT typ,titel,erstellt_am,unterschrift_datum FROM kunden_dokumente WHERE kunden_id=$1', [kid]),
       query('SELECT typ,status,erstellt_am FROM dsgvo_anfragen WHERE kunden_id=$1', [kid]),
-      query('SELECT typ,marke,modell,kennzeichen,baujahr,erstzulassung,hu_datum,notiz,erstellt_am FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [kid]),
+      query('SELECT typ,marke,modell,kennzeichen,erstzulassung,erstzulassung_genauigkeit,hu_datum,notiz,erstellt_am FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [kid]),
       query(`SELECT datum,uhrzeit_von,uhrzeit_bis,termin_typ,kennzeichen,beschreibung,status,
                     portal_buchung,storniert_am,erstellt_am
                FROM termine WHERE kunden_id=$1 ORDER BY datum DESC`, [kid]),
@@ -223,7 +223,8 @@ router.post('/loeschung/:kundenId', authenticate, requireAdmin, async (req, res,
           vorname='Geloeschter', nachname='Kunde', telefon='geloescht',
           telefon2=NULL, email=NULL, strasse=NULL, plz=NULL, ort=NULL,
           kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL,
-          baujahr=NULL, notizen=NULL, portal_aktiv=false,
+          erstzulassung=NULL, erstzulassung_genauigkeit=NULL, hu_datum=NULL,
+          notizen=NULL, portal_aktiv=false,
           portal_email=NULL, portal_password=NULL, portal_verifiziert=false,
           portal_reset_token=NULL, portal_reset_ablauf=NULL,
           portal_bestaetigung_token=NULL, portal_token_ablauf=NULL,
@@ -233,6 +234,18 @@ router.post('/loeschung/:kundenId', authenticate, requireAdmin, async (req, res,
          WHERE id=$1`,
         [kid]
       );
+      // DIE FAHRZEUGE MUESSEN MIT. Bis zum 09.09.2026 raeumte die Anonymisierung nur die
+      // Kunden-Zeile; die Fahrzeugsaetze blieben unveraendert stehen -- mit KENNZEICHEN und
+      // freier Notiz. Ein Kennzeichen ist ein personenbezogenes Datum: Es fuehrt ueber das
+      // Fahrzeugregister direkt zum Halter. Der Kunde hiess danach "Geloeschter Kunde" und war
+      // ueber sein Auto weiterhin bestimmbar. Nachgestellt und bestaetigt, bevor es hier steht.
+      //
+      // Marke, Modell, Typ und Erstzulassung bleiben: Sie sagen ohne Kennzeichen und Namen
+      // nichts ueber eine Person, werden aber gebraucht, damit die aufbewahrungspflichtige
+      // Einlagerung noch erkennen laesst, zu welchem Fahrzeug die Raeder gehoeren.
+      // Die freie Notiz geht weg -- was dort steht, weiss niemand im Voraus.
+      await query('UPDATE fahrzeuge SET kennzeichen=NULL, notiz=NULL, hu_erinnerung_gesendet=true WHERE kunden_id=$1', [kid]);
+
       // Vorsorglich: Der Kundenportal-Reset laeuft ueber kunden.portal_reset_token (oben schon
       // genullt), die Tabelle wird heute nur fuer Mitarbeiter-Logins gefuellt. Sollte sie
       // spaeter auch fuer Kunden genutzt werden, bleibt hier kein gueltiger Einmal-Link liegen.

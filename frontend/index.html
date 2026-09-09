@@ -1055,7 +1055,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </select>
           <select id="nk-ez-jahr" style="width:90px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 8px;outline:none"><option value="">Jahr</option></select>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">Monat und Jahr genügen. Nur ein Jahr wird als Baujahr gespeichert, nicht als Erstzulassung.</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Das Jahr genügt. Monat und Tag nur, wenn sie bekannt sind — wir geben nichts an, was niemand erfasst hat.</div>
       </div>
       <div class="fsec">Nach dem Speichern</div>
       <div class="full" style="background:var(--adim);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:12px">
@@ -1393,7 +1393,14 @@ html, body { max-width: 100%; overflow-x: hidden; }
       </div>
       <div class="fg"><label>Marke</label><input id="fz-a-marke"></div>
       <div class="fg"><label>Modell</label><input id="fz-a-modell"></div>
-      <div class="fg"><label>Erstzulassung (Monat)</label><input id="fz-a-ez" type="month"></div>
+      <div class="fg"><label>Erstzulassung</label>
+        <div style="display:flex;gap:6px">
+          <select id="fz-a-ez-tag" style="width:80px"><option value="">Tag</option></select>
+          <select id="fz-a-ez-mon" style="flex:1"><option value="">Monat</option></select>
+          <select id="fz-a-ez-jahr" style="width:95px"><option value="">Jahr</option></select>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Das Jahr genügt. Monat und Tag nur, wenn sie bekannt sind — wir geben nichts an, was niemand erfasst hat.</div>
+      </div>
       <div class="fg"><label>HU fällig (Monat)</label><input id="fz-a-hu" type="month"></div>
       <div class="fg full"><label>Notiz</label><input id="fz-a-notiz"></div>
     </div>
@@ -1637,25 +1644,12 @@ window.addEventListener('load', function() {
     });
   });
 
-  // Erstzulassung Dropdown fuellen
-  var tagSel = document.getElementById('nk-ez-tag');
-  var jahrSel = document.getElementById('nk-ez-jahr');
-  if (tagSel) {
-    for (var d = 1; d <= 31; d++) {
-      var o = document.createElement('option');
-      o.value = String(d).padStart(2, '0');
-      o.textContent = d;
-      tagSel.appendChild(o);
-    }
-  }
-  if (jahrSel) {
-    var jetzt = new Date().getFullYear();
-    for (var y = jetzt; y >= 1990; y--) {
-      var oy = document.createElement('option');
-      oy.value = y; oy.textContent = y;
-      jahrSel.appendChild(oy);
-    }
-  }
+  // Erstzulassung: dieselben Auswahlfelder im Neukunden- und im Fahrzeugformular.
+  // Jahre bis 1960 zurueck (vorher nur 1990) -- Oldtimer sind bei einem Reifendienst
+  // keine Ausnahme, und ein Feld, das das Jahr des Kunden gar nicht anbietet, zwingt ihn
+  // zu einer falschen Angabe.
+  ezAuswahlFuellen('nk', false);   // Monate stehen dort fest im HTML
+  ezAuswahlFuellen('fz-a', true);
 
   // Auth pruefen
   var ls = document.getElementById('login-screen');
@@ -2833,6 +2827,59 @@ function fd(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
+// ── Erstzulassung: drei Auswahlfelder, eine Angabe ───────────────────────────────────────────
+//
+// Die Erstzulassung ist die massgebliche Angabe im Fahrzeugschein; an ihr haengt die HU. Das
+// Baujahr ist etwas anderes und wird nicht erfasst (Entscheidung des Inhabers, 09.09.2026).
+//
+// Oft ist nur das Jahr bekannt -- am Telefon der Normalfall. Das ist erlaubt. Damit die Anzeige
+// dann keinen Monat erfindet, schickt die Oberflaeche genau so viel, wie eingetragen wurde:
+// '2019', '2019-04' oder '2019-04-15'. Der Server legt die Genauigkeit daneben ab.
+// Ein Monatsfeld (type="month") kann das nicht -- es verlangt immer einen Monat.
+function ezFelder(praefix) {
+  return ['-ez-tag', '-ez-mon', '-ez-jahr'].map(function(x) { return document.getElementById(praefix + x); });
+}
+function ezWert(praefix) {
+  var f = ezFelder(praefix);
+  if (!f[2] || !f[2].value) return null;              // ohne Jahr keine Angabe
+  if (!f[1] || !f[1].value) return f[2].value;        // nur Jahr
+  if (!f[0] || !f[0].value) return f[2].value + '-' + f[1].value;
+  return f[2].value + '-' + f[1].value + '-' + f[0].value;
+}
+function ezSetzen(praefix, datum, genauigkeit) {
+  var f = ezFelder(praefix);
+  if (!f[2]) return;
+  if (!datum) { f[0].value = ''; f[1].value = ''; f[2].value = ''; return; }
+  var t = String(datum).substring(0, 10);
+  f[2].value = t.substring(0, 4);
+  f[1].value = (genauigkeit === 'jahr') ? '' : t.substring(5, 7);
+  f[0].value = (genauigkeit === 'tag') ? t.substring(8, 10) : '';
+}
+// Anzeige. Gleiche Regel wie erstzulassungText in src/lib/datum.js -- bei 'jahr' steht im Datum
+// der 1. Januar als Platzhalter, der darf NICHT sichtbar werden.
+function ezText(datum, genauigkeit) {
+  if (!datum) return '';
+  var t = String(datum).substring(0, 10);
+  if (genauigkeit === 'jahr') return t.substring(0, 4);
+  if (genauigkeit === 'monat') return t.substring(5, 7) + '/' + t.substring(0, 4);
+  return t.substring(8, 10) + '.' + t.substring(5, 7) + '.' + t.substring(0, 4);
+}
+// Fuellt Tag- und Jahr-Auswahl eines Feldpaares (Monat steht fest im HTML oder wird hier gesetzt).
+function ezAuswahlFuellen(praefix, mitMonat) {
+  var f = ezFelder(praefix);
+  if (f[0] && f[0].options.length <= 1) {
+    for (var d = 1; d <= 31; d++) f[0].add(new Option(d, String(d).padStart(2, '0')));
+  }
+  if (mitMonat && f[1] && f[1].options.length <= 1) {
+    var MON = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+    MON.forEach(function(name, i) { f[1].add(new Option(name, String(i + 1).padStart(2, '0'))); });
+  }
+  if (f[2] && f[2].options.length <= 1) {
+    var jetzt = new Date().getFullYear();
+    for (var y = jetzt + 1; y >= 1960; y--) f[2].add(new Option(y, y));
+  }
+}
+
 // Datum MIT Uhrzeit. Bei Widerrufen ist die Minute die fristwahrende Tatsache, nicht der Tag.
 function fdz(d) {
   if (!d) return '-';
@@ -3796,10 +3843,9 @@ function ladeFahrzeugeAdmin(kid) {
     var liste = rows.length ? rows.map(function(f) {
       var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
       var huTxt = f.hu_datum ? new Date(f.hu_datum + 'T12:00:00').toLocaleDateString('de-DE', { month: '2-digit', year: 'numeric' }) : '';
-      // Ein Baujahr ohne Monat wird NICHT als Erstzulassung ausgegeben -- der Monat waere erfunden.
-      var ezTxt = f.erstzulassung
-        ? 'EZ ' + new Date(String(f.erstzulassung).substring(0, 10) + 'T12:00:00').toLocaleDateString('de-DE', { month: '2-digit', year: 'numeric' })
-        : (f.baujahr ? 'Baujahr ' + f.baujahr : '');
+      // Nur so genau anzeigen, wie es erfasst wurde: bei 'jahr' steht im Datum der 1. Januar
+      // als Platzhalter, der darf nicht sichtbar werden.
+      var ezTxt = f.erstzulassung ? 'EZ ' + ezText(f.erstzulassung, f.erstzulassung_genauigkeit) : '';
       var meta = [f.typ, f.kennzeichen, ezTxt].filter(Boolean).join(' · ') + (huTxt ? ' · HU ' + huTxt : '');
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">' +
         '<div><div style="font-weight:600;font-size:13px">' + titel + '</div><div style="font-size:11px;color:var(--muted)">' + meta + '</div></div>' +
@@ -3816,7 +3862,8 @@ function fzAdminNeu() {
   document.getElementById('fz-a-id').value = '';
   document.getElementById('fz-titel').textContent = 'Neues Fahrzeug';
   document.getElementById('fz-a-typ').value = 'PKW';
-  ['fz-a-marke', 'fz-a-modell', 'fz-a-ez', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['fz-a-marke', 'fz-a-modell', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ezSetzen('fz-a', null, null);
   kzInTeile('fz-a-', '');
   openModal('fz');
 }
@@ -3830,7 +3877,7 @@ function fzAdminEdit(fid) {
     kzInTeile('fz-a-', f.kennzeichen || '');
     document.getElementById('fz-a-marke').value = f.marke || '';
     document.getElementById('fz-a-modell').value = f.modell || '';
-    document.getElementById('fz-a-ez').value = f.erstzulassung ? String(f.erstzulassung).substring(0, 7) : '';
+    ezSetzen('fz-a', f.erstzulassung, f.erstzulassung_genauigkeit);
     document.getElementById('fz-a-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
     document.getElementById('fz-a-notiz').value = f.notiz || '';
     openModal('fz');
@@ -3844,7 +3891,7 @@ function fzAdminSave() {
     // Monatsfelder werden roh gesendet: Der Server normalisiert sie ueber src/lib/datum.js --
   // eine Stelle statt einer im Admin und einer im Portal.
   var data = { typ: gv('fz-a-typ'), kennzeichen: kennz, marke: gv('fz-a-marke'), modell: gv('fz-a-modell'),
-               erstzulassung: gv('fz-a-ez') || null, hu_datum: hu || null, notiz: gv('fz-a-notiz') };
+               erstzulassung: ezWert('fz-a'), hu_datum: hu || null, notiz: gv('fz-a-notiz') };
   var fid = gv('fz-a-id');
   var p = fid ? api('PUT', '/kunden/' + aktK.id + '/fahrzeuge/' + fid, data) : api('POST', '/kunden/' + aktK.id + '/fahrzeuge', data);
   p.then(function() { notify('Fahrzeug gespeichert!'); closeModal('fz'); ladeFahrzeugeAdmin(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });
@@ -3901,15 +3948,9 @@ function saveNK() {
   var mail = gv('nk-mail');
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { notify('E-Mail-Format ungültig.', 'err'); return; }
   var kz = kzAusTeilen('nk-');
-  // Das Formular fragt Tag, Monat und Jahr der Erstzulassung ab. Bis zum 09.09.2026 wurde davon
-  // NUR das Jahr uebernommen (als baujahr) -- Tag und Monat fielen wortlos weg. Jetzt wird das
-  // vollstaendige Datum gesendet; fehlt der Tag, normalisiert der Server auf den Monatsersten.
-  var ezJahr = gv('nk-ez-jahr');
-  var ezMon = document.getElementById('nk-ez-mon') ? document.getElementById('nk-ez-mon').value : '';
-  var ezTag = document.getElementById('nk-ez-tag') ? document.getElementById('nk-ez-tag').value : '';
-  var ezWert = null;
-  if (ezJahr && ezMon) ezWert = ezJahr + '-' + ezMon + (ezTag ? '-' + ezTag : '');
-  else if (ezJahr) ezWert = null;   // nur ein Jahr ist kein Datum -- siehe Hinweis am Feld
+  // Das Formular fragt Tag, Monat und Jahr ab. Bis zum 09.09.2026 wurde davon NUR das Jahr
+  // uebernommen, und zwar als "Baujahr" -- Tag und Monat fielen wortlos weg. Jetzt geht genau
+  // das hinaus, was eingetragen wurde; der Server merkt sich, wie genau die Angabe ist.
   var moVal = document.getElementById('nk-mo-sel').value === '__man__' ? gv('nk-mo-man') : gv('nk-mo-sel');
   var istGewerbe = kundentyp === 'firma' && document.getElementById('nk-gewerbe') && document.getElementById('nk-gewerbe').checked;
   var data = {
@@ -3924,8 +3965,7 @@ function saveNK() {
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
     fahrzeug_typ: gv('nk-fztyp'),
-    erstzulassung: ezWert,
-    baujahr: (ezJahr && !ezMon) ? parseInt(ezJahr) : null
+    erstzulassung: ezWert('nk')
   };
   sendeNeuerKunde(data, false);
 }
@@ -6488,7 +6528,12 @@ function renderWiderrufe(liste) {
         : '<div style="font-size:12px;color:var(--accent);margin-top:5px">Kein Termin automatisch zugeordnet — bitte im Kalender suchen.</div>') +
       (w.bestaetigung_gesendet_am
         ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">Eingangsbestätigung gesendet ' + fdz(w.bestaetigung_gesendet_am) + '</div>'
-        : '<div style="font-size:11px;color:#c8402a;margin-top:4px;font-weight:600">Eingangsbestätigung NICHT gesendet — gesetzlich vorgeschrieben, bitte von Hand nachholen.</div>') +
+        // Der Eingangszeitpunkt steht bewusst NOCH EINMAL in dieser Zeile, obwohl er zwei Zeilen
+        // hoeher schon steht: Wer die Bestaetigung von Hand nachholt, muss sich auf den ZUGANG
+        // beziehen, nicht auf das heutige Datum. Der Widerruf ist mit dem Zugang wirksam.
+        // Hinweis der Rechnungswesen-Sitzung, und ein guter.
+        : '<div style="font-size:11px;color:#c8402a;margin-top:4px;font-weight:600">Eingangsbestätigung NICHT gesendet — gesetzlich vorgeschrieben, bitte von Hand nachholen.<br>' +
+          'In der Bestätigung muss der Zeitpunkt des Eingangs stehen: <span style="font-variant-numeric:tabular-nums">' + fdz(w.eingegangen_am) + '</span>, nicht das heutige Datum.</div>') +
       (w.notiz ? '<div style="font-size:12px;margin-top:6px;color:var(--muted)">Notiz: ' + kEsc(w.notiz) + '</div>' : '') +
       '</div>' +
       (offen ? '<div style="display:flex;flex-direction:column;gap:6px">' +

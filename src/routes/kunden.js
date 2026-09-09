@@ -3,7 +3,7 @@ const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail, ohneGeheimnisse, spiegleFahrzeugInStamm } = require('../lib/kundendaten');
-const { monatOderTag } = require('../lib/datum');
+const { monatOderTag, erstzulassungPruefen } = require('../lib/datum');
 
 // Deutsches Kennzeichen pruefen/normalisieren (z. B. WOR-AB-1234, optional E/H). Leeres Feld erlaubt.
 function normKennzeichen(raw) {
@@ -127,11 +127,12 @@ router.post('/', async (req, res, next) => {
   try {
     const { vorname, nachname, telefon, telefon2, email, firma, anrede, ust_id,
             strasse, plz, ort, kennzeichen, fahrzeug_marke,
-            fahrzeug_modell, baujahr, erstzulassung, notizen, ist_gewerbe, grosskunden_rabatt,
+            fahrzeug_modell, erstzulassung, notizen, ist_gewerbe, grosskunden_rabatt,
             kundentyp, land, rechnung_email, ohne_anschrift } = req.body;
-    // Erstzulassung: 'YYYY-MM' aus einem Monatsfeld oder 'YYYY-MM-DD'. Die Pruefung liegt in
-    // src/lib/datum.js, damit Admin und Portal dieselbe Regel anwenden.
-    const ezP = monatOderTag(erstzulassung);
+    // Erstzulassung: 'YYYY', 'YYYY-MM' oder 'YYYY-MM-DD'. Nur das Jahr ist ausdruecklich
+    // erlaubt -- dann wird die Genauigkeit mitgespeichert, damit die Anzeige keinen Monat
+    // erfindet. Die Regel liegt in src/lib/datum.js, damit Admin und Portal dieselbe anwenden.
+    const ezP = erstzulassungPruefen(erstzulassung);
     if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
     if (!vorname || !nachname || !telefon)
       return res.status(400).json({ error: 'Vorname, Nachname und Telefon sind Pflicht.' });
@@ -172,8 +173,8 @@ router.post('/', async (req, res, next) => {
       `INSERT INTO kunden
          (kunden_nr,vorname,nachname,telefon,telefon2,email,firma,anrede,ust_id,
           strasse,plz,ort,kennzeichen,fahrzeug_marke,fahrzeug_modell,
-          baujahr,notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von,
-          kundentyp,land,rechnung_email,erstzulassung)
+          notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von,
+          kundentyp,land,rechnung_email,erstzulassung,erstzulassung_genauigkeit)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING *`,
       [kunden_nr, vorname.trim(), nachname.trim(), telefon.trim(),
@@ -181,9 +182,9 @@ router.post('/', async (req, res, next) => {
        strasse||null, plz||null, ort||null,
        kzP.wert,
        fahrzeug_marke||null, fahrzeug_modell||null,
-       baujahr||null, notizen||null,
+       notizen||null,
        ist_gewerbe === true, Math.max(0, Math.min(100, parseInt(grosskunden_rabatt) || 0)), req.user.id,
-       typP.typ, landW, rechnung_email ? String(rechnung_email).trim() : null, ezP.wert]
+       typP.typ, landW, rechnung_email ? String(rechnung_email).trim() : null, ezP.wert, ezP.genauigkeit]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.erstellt',
       tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: ohneGeheimnisse(rows[0]), req });
@@ -222,7 +223,7 @@ router.put('/:id', async (req, res, next) => {
     const adr = pruefeAnschrift({ strasse: nStr, plz: nPlz, ort: nOrt, land: nLand || 'DE' }, hatteAdresse);
     if (adr && !(adr.weich && req.body.hausnummer_bestaetigt === true))
       return res.status(400).json({ error: adr.fehler, code: adr.code, rueckfrage: adr.weich === true });
-    const ezP = monatOderTag(req.body.erstzulassung);
+    const ezP = erstzulassungPruefen(req.body.erstzulassung);
     if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
     const nReMail = req.body.rechnung_email !== undefined ? req.body.rechnung_email : o.rechnung_email;
     const reFehler = pruefeRechnungEmail(nReMail);
@@ -232,9 +233,9 @@ router.put('/:id', async (req, res, next) => {
          vorname=$1, nachname=$2, telefon=$3, telefon2=$4,
          email=$5, firma=$6, strasse=$7, plz=$8, ort=$9,
          kennzeichen=$10, fahrzeug_marke=$11, fahrzeug_modell=$12,
-         baujahr=$13, notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17,
+         notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17,
          anrede=$18, ust_id=$19, kundentyp=$21, land=$22, rechnung_email=$23,
-         erstzulassung=$24
+         erstzulassung=$24, erstzulassung_genauigkeit=$13
        WHERE id=$20 RETURNING *`,
       [req.body.vorname       || o.vorname,
        req.body.nachname      || o.nachname,
@@ -248,7 +249,7 @@ router.put('/:id', async (req, res, next) => {
        kzWert,
        req.body.fahrzeug_marke  !== undefined ? req.body.fahrzeug_marke  : o.fahrzeug_marke,
        req.body.fahrzeug_modell !== undefined ? req.body.fahrzeug_modell : o.fahrzeug_modell,
-       req.body.baujahr       !== undefined ? req.body.baujahr       : o.baujahr,
+       req.body.erstzulassung !== undefined ? ezP.genauigkeit : o.erstzulassung_genauigkeit,
        req.body.notizen       !== undefined ? req.body.notizen       : o.notizen,
        req.body.aktiv         !== undefined ? req.body.aktiv         : o.aktiv,
        req.body.ist_gewerbe   !== undefined ? (req.body.ist_gewerbe === true) : o.ist_gewerbe,
@@ -295,21 +296,22 @@ router.get('/:id/fahrzeuge', async (req, res, next) => {
 
 router.post('/:id/fahrzeuge', async (req, res, next) => {
   try {
-    const { typ, marke, modell, kennzeichen, baujahr, erstzulassung, hu_datum, notiz } = req.body;
+    const { typ, marke, modell, kennzeichen, erstzulassung, hu_datum, notiz } = req.body;
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const kzF = normKennzeichen(kennzeichen);
     if (!kzF.ok) return res.status(400).json({ error: 'Kennzeichen ungültig (Format z. B. WOR-AB-1234).' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
-    // Beide Datumsfelder kommen aus Monatsfeldern. Die Normalisierung liegt in src/lib/datum.js;
-    // vorher erzeugte ein 'YYYY-MM' hier einen Serverfehler statt einer Meldung.
-    const ezP = monatOderTag(erstzulassung);
+    // Erstzulassung darf ungenau sein (auch nur das Jahr) -- dann wird die Genauigkeit
+    // mitgespeichert. Das HU-Datum dagegen NICHT: Eine Hauptuntersuchung ist auf einen Monat
+    // faellig, ein blosses Jahr waere dort keine brauchbare Angabe.
+    const ezP = erstzulassungPruefen(erstzulassung);
     if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
     const huP = monatOderTag(hu_datum);
     if (!huP.ok) return res.status(400).json({ error: 'HU-Datum: ' + huP.fehler });
     const { rows } = await query(
-      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, erstzulassung, hu_datum, notiz)
+      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, erstzulassung, erstzulassung_genauigkeit, hu_datum, notiz)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [req.params.id, t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, ezP.wert, huP.wert, notiz || null]
+      [req.params.id, t, marke || null, modell || null, kzF.wert, ezP.wert, ezP.genauigkeit, huP.wert, notiz || null]
     );
     await syncPrimaerFahrzeug(req.params.id);
     res.status(201).json(rows[0]);
@@ -318,20 +320,21 @@ router.post('/:id/fahrzeuge', async (req, res, next) => {
 
 router.put('/:id/fahrzeuge/:fid', async (req, res, next) => {
   try {
-    const { typ, marke, modell, kennzeichen, baujahr, erstzulassung, hu_datum, notiz } = req.body;
+    const { typ, marke, modell, kennzeichen, erstzulassung, hu_datum, notiz } = req.body;
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const kzF = normKennzeichen(kennzeichen);
     if (!kzF.ok) return res.status(400).json({ error: 'Kennzeichen ungültig (Format z. B. WOR-AB-1234).' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
-    const ezP = monatOderTag(erstzulassung);
+    const ezP = erstzulassungPruefen(erstzulassung);
     if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
     const huP = monatOderTag(hu_datum);
     if (!huP.ok) return res.status(400).json({ error: 'HU-Datum: ' + huP.fehler });
     const { rows } = await query(
-      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, erstzulassung=$6,
+      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4,
+              erstzulassung=$5, erstzulassung_genauigkeit=$6,
               hu_datum=$7, notiz=$8, geaendert_am=NOW()
        WHERE id=$9 AND kunden_id=$10 RETURNING *`,
-      [t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, ezP.wert, huP.wert, notiz || null, req.params.fid, req.params.id]
+      [t, marke || null, modell || null, kzF.wert, ezP.wert, ezP.genauigkeit, huP.wert, notiz || null, req.params.fid, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
     await syncPrimaerFahrzeug(req.params.id);
