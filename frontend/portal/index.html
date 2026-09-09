@@ -635,7 +635,7 @@ var I18N = {
     consent_title: 'Einwilligungen', consent_on: 'Sie erhalten aktuell Saison-/Werbe-Erinnerungen per E-Mail.', consent_off: 'Sie erhalten aktuell keine Werbe-Erinnerungen.',
     consent_revoke: 'Werbe-/Saison-Erinnerungen abbestellen', consent_revoke_confirm: 'Möchten Sie alle Werbe- und Saison-Erinnerungen abbestellen?', consent_revoked: 'Ihre Einwilligung wurde widerrufen.',
     resend_confirm: 'Bestätigungsmail erneut senden', resend_need_email: 'Bitte zuerst Ihre E-Mail-Adresse oben eingeben.', resend_sent: 'Falls die Adresse noch unbestätigt ist, haben wir die Bestätigungsmail erneut gesendet.',
-    storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', status: 'Status',
+    storage_place: 'Lagerplatz', tire: 'Reifen', season: 'Saison', picked_up_on: 'Abgeholt am', type_and_count: 'Typ und Anzahl', wheels_n: '{n} Räder', on_rims: 'auf {felge}', dot_label: 'DOT', brand_label: 'Marke', status: 'Status',
     profile_depth: 'Profiltiefe', stored_since: 'Eingelagert seit', notes_damage: 'Bemerkungen/Schäden',
     cancel: 'Stornieren', cancel_confirm: 'Eine kostenfreie Stornierung ist nur bis {h} Stunden vor dem Termin möglich. Termin jetzt stornieren?', cancel_hint: 'Hinweis: Eine kostenfreie Stornierung ist bis {h} Stunden vor dem Termin möglich. Danach kann eine Gebühr anfallen.', cancelled: 'Termin storniert',
     booked: 'Termin gebucht', select_slot: 'Bitte Zeit auswählen', pw_changed: 'Passwort geändert',
@@ -721,7 +721,7 @@ var I18N = {
     consent_title: 'Consent', consent_on: 'You currently receive seasonal/marketing reminders by email.', consent_off: 'You currently receive no marketing reminders.',
     consent_revoke: 'Unsubscribe from marketing/seasonal reminders', consent_revoke_confirm: 'Do you want to unsubscribe from all marketing and seasonal reminders?', consent_revoked: 'Your consent has been withdrawn.',
     resend_confirm: 'Resend confirmation email', resend_need_email: 'Please enter your email address above first.', resend_sent: 'If the address is still unconfirmed, we have resent the confirmation email.',
-    storage_place: 'Storage location', tire: 'Tire', season: 'Season', status: 'Status',
+    storage_place: 'Storage location', tire: 'Tire', season: 'Season', picked_up_on: 'Collected on', type_and_count: 'Type and quantity', wheels_n: '{n} wheels', on_rims: 'on {felge}', dot_label: 'DOT', brand_label: 'Make', status: 'Status',
     profile_depth: 'Tread depth', stored_since: 'Stored since', notes_damage: 'Notes/Damage',
     cancel: 'Cancel', cancel_confirm: 'A free cancellation is only possible up to {h} hours before the appointment. Cancel now?', cancel_hint: 'Note: A free cancellation is possible up to {h} hours before the appointment. After that a fee may apply.', cancelled: 'Appointment cancelled',
     booked: 'Appointment booked', select_slot: 'Please select a time', pw_changed: 'Password changed',
@@ -1155,10 +1155,31 @@ function saisonBadge(typ) {
   return '<span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + col + ';margin-right:5px"></span><strong>' + saisonText(typ) + '</strong>';
 }
 
+// Ein KALENDERTAG und ein ZEITPUNKT sind zwei verschiedene Dinge, und die Datenbank liefert
+// beides: eingelagert_am ist ein date ("2026-04-12"), abgeholt_am ein timestamptz
+// ("2026-04-11T22:00:00.000Z" -- das IST der 12. April, 00:00 Uhr Berliner Zeit).
+//
+// Die alte Fassung schnitt in beiden Faellen die ersten zehn Zeichen ab. Beim Kalendertag war das
+// richtig, beim Zeitpunkt zeigte sie den VORTAG: "Abgeholt am 11.04.2026" fuer eine Abholung am
+// 12. April. Zwischen 22 und 24 Uhr Berliner Zeit ist im Sommer jeder Zeitstempel in UTC schon
+// der Vortag. Gemessen an einer Einlagerung mit gesetztem Abholdatum.
+//
+// Dieselbe Unterscheidung trifft der Server in src/lib/datum.js (alsTag): Ein Date ist ein
+// Zeitpunkt, kein Kalendertag, und welcher Tag das ist, entscheidet die Zeitzone.
 function fmtDatum(d) {
   if (!d) return '-';
-  var dt = new Date(d.substring(0,10) + 'T12:00:00');
-  return dt.toLocaleDateString(LANG === 'en' ? 'en-GB' : 'de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  var s = String(d);
+  var ort = LANG === 'en' ? 'en-GB' : 'de-DE';
+  var wie = { day: '2-digit', month: '2-digit', year: 'numeric' };
+  // Reiner Kalendertag ohne Zeitanteil: auf 12 Uhr legen, damit ihn keine Zeitzone kippt.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s) ) {
+    return new Date(s + 'T12:00:00').toLocaleDateString(ort, wie);
+  }
+  var dt = new Date(s);
+  if (isNaN(dt.getTime())) return '-';
+  // Zeitpunkt: in Berliner Zeit umrechnen, statt die UTC-Zeichenkette abzuschneiden.
+  wie.timeZone = 'Europe/Berlin';
+  return dt.toLocaleDateString(ort, wie);
 }
 
 function ladeUeberblick() {
@@ -1248,17 +1269,37 @@ function ladeEinlagerungen() {
       html += '</div>';
       html += '<div class="g2">';
       if (e.kennzeichen) html += '<div class="iz"><div class="iz-l">' + t('license_plate') + '</div><div class="iz-v">' + pEsc(e.kennzeichen) + '</div></div>';
-      var reifen = [e.reifen_groesse, e.reifen_marke].filter(Boolean).map(pEsc).join(' ');
-      if (reifen) html += '<div class="iz"><div class="iz-l">' + t('tire') + '</div><div class="iz-v">' + reifen + '</div></div>';
-      if (e.saison) html += '<div class="iz"><div class="iz-l">' + t('season') + '</div><div class="iz-v">' + saisonText(e.saison) + '</div></div>';
-      if (e.eingelagert_am) html += '<div class="iz"><div class="iz-l">' + t('stored_since') + '</div><div class="iz-v">' + fmtDatum(e.eingelagert_am) + '</div></div>';
-      // Profiltiefen
-      var pt = [];
-      if (e.profil_vl) pt.push('VL ' + e.profil_vl);
-      if (e.profil_vr) pt.push('VR ' + e.profil_vr);
-      if (e.profil_hl) pt.push('HL ' + e.profil_hl);
-      if (e.profil_hr) pt.push('HR ' + e.profil_hr);
-      if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pt.join(', ') + ' mm</div></div>';
+      if (e.reifen_groesse) html += '<div class="iz"><div class="iz-l">' + t('tire') + '</div><div class="iz-v">' + pEsc(e.reifen_groesse) + '</div></div>';
+      // Typ und Anzahl: "Winter · 4 Räder auf Alufelge". Das Feld heisst reifen_typ -- vorher stand
+      // hier e.saison, und die gibt es in der Tabelle gar nicht. Die Zeile erschien deshalb NIE:
+      // Ein Kunde mit Winter- und Sommersatz sah nicht, welcher welcher ist. Genau die
+      // Unterscheidung, wegen der er nachsieht. Toter Code faellt nicht auf, er zeigt nur nichts.
+      var tz = [];
+      if (e.reifen_typ) tz.push(saisonText(e.reifen_typ));
+      // Anzahl und Felgenart gehoeren zusammen ("4 Räder auf Alufelge"), nicht als zwei
+      // gleichrangige Punkte nebeneinander.
+      if (e.anzahl || e.felgen) {
+        tz.push([e.anzahl ? t('wheels_n').replace('{n}', e.anzahl) : '',
+                 e.felgen ? t('on_rims').replace('{felge}', e.felgen) : ''].filter(Boolean).join(' '));
+      }
+      if (tz.length) html += '<div class="iz"><div class="iz-l">' + t('type_and_count') + '</div><div class="iz-v">' + pEsc(tz.join(' · ')) + '</div></div>';
+      var marke = [e.reifen_marke, e.reifen_modell].filter(Boolean).join(' ');
+      if (marke) html += '<div class="iz"><div class="iz-l">' + t('brand_label') + '</div><div class="iz-v">' + pEsc(marke) + '</div></div>';
+      // Eingelagert seit ODER abgeholt am -- nicht beides und nicht das Falsche. Vorher stand bei
+      // einem laengst abgeholten Satz "Eingelagert seit 24.10.2025"; der Kunde konnte glauben,
+      // seine Raeder liegen noch bei uns.
+      if (e.status === 'Abgeholt' && e.abgeholt_am) {
+        html += '<div class="iz"><div class="iz-l">' + t('picked_up_on') + '</div><div class="iz-v">' + fmtDatum(e.abgeholt_am) + '</div></div>';
+      } else if (e.eingelagert_am) {
+        html += '<div class="iz"><div class="iz-l">' + t('stored_since') + '</div><div class="iz-v">' + fmtDatum(e.eingelagert_am) + '</div></div>';
+      }
+      // Profiltiefen in der Reihenfolge des Fahrzeugs, mit deutschem Dezimalkomma. "6.5" ist eine
+      // englische Schreibweise und stand so auch in der deutschen Fassung.
+      var pt = [e.profil_vl, e.profil_vr, e.profil_hl, e.profil_hr]
+        .filter(function(w) { return w !== null && w !== undefined && w !== ''; })
+        .map(function(w) { return String(w).replace('.', LANG === 'en' ? '.' : ','); });
+      if (pt.length) html += '<div class="iz"><div class="iz-l">' + t('profile_depth') + '</div><div class="iz-v">' + pEsc(pt.join(' · ')) + ' mm</div></div>';
+      if (e.dot) html += '<div class="iz"><div class="iz-l">' + t('dot_label') + '</div><div class="iz-v">' + pEsc(e.dot) + '</div></div>';
       html += '</div>';
       if (e.bemerkungen) html += '<div class="iz" style="margin-top:8px;background:var(--ydim)"><div class="iz-l">' + t('notes_damage') + '</div><div class="iz-v" style="font-weight:400;font-size:13px">' + pEsc(e.bemerkungen) + '</div></div>';
       // Scheine zu genau dieser Einlagerung. Es erscheint nur, was im Betrieb gespeichert wurde --
