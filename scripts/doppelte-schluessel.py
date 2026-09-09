@@ -84,8 +84,38 @@ def schluessel_doppler(js):
 # folgenlos, und eine Liste voller folgenloser Meldungen liest bald niemand mehr.
 def sprach_luecken(quelltext, verwendungstext=None):
     bloecke = {}
-    for m in re.finditer(r"\n  ([a-z]{2}): \{(.*?)\n  \}", quelltext, re.S):
-        bloecke[m.group(1)] = set(re.findall(r"(?:^|[\s{,])([a-zA-Z_][a-zA-Z_0-9]*):", m.group(2)))
+    # Sprachbloecke ueber KLAMMERZAEHLUNG finden, nicht ueber die Einrueckung. Die erste Fassung
+    # suchte "\n  xx: {" mit genau zwei Leerzeichen -- ein Umbau, ein Formatierer oder eine
+    # zusaetzliche Verschachtelung haetten die Bloecke unsichtbar gemacht, und der Abgleich haette
+    # danach still "keine Luecken" gemeldet. Genau die Blindheit, gegen die es das Werkzeug gibt.
+    # Hinweis der Admin-Sitzung beim Bau der Selbstpruefung; die schuetzt hier nicht, weil sie die
+    # Probe prueft und nicht die echte Datei.
+    for m in re.finditer(r"(?:^|[\s{,])([a-z]{2})\s*:\s*\{", quelltext):
+        anfang = m.end() - 1          # Position der oeffnenden Klammer
+        tiefe, i, n = 0, anfang, len(quelltext)
+        while i < n:
+            c = quelltext[i]
+            if c == '{': tiefe += 1
+            elif c == '}':
+                tiefe -= 1
+                if tiefe == 0: break
+            i += 1
+        if tiefe != 0:
+            continue                  # unausgeglichene Klammern -> kein verwertbarer Block
+        inhalt = quelltext[anfang + 1:i]
+        # Nur was wie ein Woerterbuch aussieht: mehrere Schluessel, und keine verschachtelten
+        # Objekte dazwischen, die die Zaehlung verfaelschen wuerden.
+        namen = set(re.findall(r"(?:^|[\s{,])([a-zA-Z_][a-zA-Z_0-9]*)\s*:", inhalt))
+        if len(namen) >= 2:
+            bloecke[m.group(1)] = namen
+    # Ein zweibuchstabiger Schluessel ist noch kein Woerterbuch -- irgendwo koennte auch ein
+    # anderes Objekt so heissen. Woerterbuecher erkennt man daran, dass sie DIESELBEN Schluessel
+    # tragen: Uebersetzungen derselben Sache. Bloecke ohne jede Ueberschneidung mit dem groessten
+    # fliegen deshalb raus. Eine feste Mindestzahl an Schluesseln waere willkuerlich gewesen --
+    # die Selbstpruefung hat genau das sofort aufgedeckt, weil ihre Probe kleiner ist.
+    if len(bloecke) > 1:
+        groesster = max(bloecke.values(), key=len)
+        bloecke = {sp: k for sp, k in bloecke.items() if k is groesster or (k & groesster)}
     if len(bloecke) < 2:
         return []
     verwendung = verwendungstext if verwendungstext is not None else quelltext
