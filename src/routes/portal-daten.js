@@ -653,8 +653,24 @@ router.delete('/termine/:id', authKunde, async (req, res, next) => {
 // Buchbare Artikel fuer Portal (nur aktive mit Dauer)
 router.get('/artikel', authKunde, async (req, res, next) => {
   try {
+    // NUR online freigegebene Leistungen -- dieselbe Bedingung wie in ladeBuchbarenArtikel(),
+    // die Preisauskunft, freie Zeiten und Buchung anwenden.
+    //
+    // Vorher fehlte sie HIER, und nur hier: Die Auswahlliste zeigte alle vierzehn aktiven
+    // Leistungen, freigegeben sind vier. Wer "Bremsen-Check" waehlte, bekam kein Preisfeld
+    // (404), keine freien Zeiten (404) und beim Buchen "Artikel nicht gefunden" -- und schloss
+    // daraus, die Werkstatt sei ausgebucht. Tatsaechlich wird die Leistung online gar nicht
+    // angeboten. Die Buchung war serverseitig immer sicher gesperrt; falsch war nur, dass das
+    // Portal die Wahl ueberhaupt anbot.
+    //
+    // Was online buchbar ist, entscheidet der Betrieb im Admin ueber buchung_leistungen. Diese
+    // Abfrage darf diese Entscheidung nicht umgehen.
     const { rows } = await query(
-      'SELECT id, name, beschreibung, preis, mwst_satz, einheit, dauer_minuten, kategorie FROM artikel WHERE aktiv=true AND dauer_minuten IS NOT NULL ORDER BY sortierung, name'
+      `SELECT a.id, a.name, a.beschreibung, a.preis, a.mwst_satz, a.einheit, a.dauer_minuten, a.kategorie
+         FROM artikel a
+        WHERE a.aktiv=true AND a.dauer_minuten IS NOT NULL
+          AND EXISTS (SELECT 1 FROM buchung_leistungen bl WHERE bl.artikel_id=a.id AND bl.aktiv=true)
+        ORDER BY a.sortierung, a.name`
     );
     res.json(rows);
   } catch (e) { next(e); }
