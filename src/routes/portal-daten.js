@@ -32,17 +32,65 @@ router.get('/einlagerungen', authKunde, async (req, res, next) => {
 });
 
 // ── GET /api/portal/daten/termine ──
+// Fehlt zu diesem Termin noch die Zustimmung zum vorzeitigen Leistungsbeginn?
+//
+// Die Frage wird HIER beantwortet und als fertige Antwort mitgeliefert -- nicht im Browser
+// nachgerechnet. Der erste Anlauf tat genau das und lag damit in zwei Faellen falsch:
+//   - Tresentermin: kein Fernabsatz (Paragraf 312c BGB), also gar kein Widerrufsrecht. Das
+//     Portal behauptete trotzdem "Ihr Termin liegt innerhalb der Widerrufsfrist".
+//   - Telefontermin: Die Frist laeuft ab VERTRAGSSCHLUSS, nicht ab heute. Bei einem vor drei
+//     Wochen vereinbarten Termin ist sie laengst abgelaufen -- der Hinweis stand trotzdem da.
+// Beides sind falsche Rechtsauskuenfte an den Kunden. Massgeblich ist, was der Server auch beim
+// Anfordern der Zustimmung prueft (src/routes/zustimmung.js) -- dieselben zwei Bedingungen in
+// derselben Reihenfolge, damit Anzeige und Vorgang nicht auseinanderlaufen koennen.
+function zustimmungOffen(tm) {
+  if (tm.vorzeitige_leistung === true) return false;
+  if (tm.vereinbart_ueber === 'tresen') return false;
+  // vertrag_tag ist 'YYYY-MM-DD' oder null (erlaubt, dann rechnet die Bibliothek ab heute).
+  // Bei fehlendem Termindatum antwortet sie mit false.
+  return widerruf.zustimmungNoetigAbVertrag(tm.vertrag_tag, tm.datum);
+}
+
+// Termin um Positionen, Nachlasszeilen und Summen ergaenzen -- fertig zum Anzeigen.
+function terminMitPreisen(tm) {
+  let pos = [];
+  try { pos = Array.isArray(tm.leistungen) ? tm.leistungen : (tm.leistungen ? JSON.parse(tm.leistungen) : []); }
+  catch (e) { pos = []; }
+  const offen = zustimmungOffen(tm);
+  if (!pos.length) return Object.assign({}, tm, { zustimmung_offen: offen, positionen: [], rabatt_zeilen: [], summe_brutto: null, summe_nach_rabatt: null });
+
+  const brutto = gutschein.round2(pos.reduce((sum, p) => sum + (Number(p.zeilen_brutto) || 0), 0));
+  const r = gutschein.rabattAusPositionen(pos);
+  // Herkunft je Satz: Ein Gutschein und eine Dauervereinbarung duerfen nicht in eine Zeile
+  // fallen, auch wenn der Satz zufaellig gleich ist -- der Kunde soll sehen, worauf der
+  // Nachlass beruht. preis_quelle steht je Position am Termin.
+  const zeilen = r.zeilen.map(function (z) {
+    const quellen = new Set(pos.filter((p) => Number(p.rabatt_prozent || 0) === z.satz).map((p) => p.preis_quelle));
+    const bez = quellen.has('gutschein') && tm.gutschein_code ? 'Gutschein ' + tm.gutschein_code
+              : (quellen.has('konditionen') ? 'Vereinbarter Nachlass' : 'Nachlass');
+    return { satz: z.satz, betrag: z.betrag, bezeichnung: bez };
+  });
+  return Object.assign({}, tm, {
+    zustimmung_offen: offen,
+    positionen: pos,
+    rabatt_zeilen: zeilen,
+    summe_brutto: brutto,
+    summe_nach_rabatt: gutschein.round2(brutto - r.summe)
+  });
+}
+
 router.get('/termine', authKunde, async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT t.*, a.name as artikel_name, a.dauer_minuten
+      `SELECT t.*, a.name as artikel_name, a.dauer_minuten,
+              to_char(t.erstellt_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS vertrag_tag
        FROM termine t
        LEFT JOIN artikel a ON a.id = t.artikel_id
        WHERE t.kunden_id = $1 AND t.datum >= CURRENT_DATE
        ORDER BY t.datum, t.uhrzeit_von`,
       [req.kunde.id]
     );
-    res.json(rows);
+    res.json(rows.map(terminMitPreisen));
   } catch (e) { next(e); }
 });
 
@@ -50,15 +98,25 @@ router.get('/termine', authKunde, async (req, res, next) => {
 router.get('/termine/vergangen', authKunde, async (req, res, next) => {
   try {
     const { rows } = await query(
-      `SELECT t.*, a.name as artikel_name, a.dauer_minuten
+      `SELECT t.*, a.name as artikel_name, a.dauer_minuten,
+              to_char(t.erstellt_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS vertrag_tag
        FROM termine t
        LEFT JOIN artikel a ON a.id = t.artikel_id
        WHERE t.kunden_id = $1 AND t.datum < CURRENT_DATE
+         -- Abgesagte Termine bleiben 30 Tage sichtbar (Entscheidung des Inhabers, 09.09.2026),
+         -- danach nur AUSBLENDEN -- in der Datenbank bleiben sie unangetastet. Wer absagt und
+         -- danach nichts mehr findet, weiss nicht, ob die Absage angekommen ist, und ruft an.
+         -- Gerechnet ab dem TERMINDATUM, nicht ab der Absage: Wer weit im Voraus absagt, sieht
+         -- seine Absage sonst schon aus der Liste verschwinden, waehrend der Termin noch bevorsteht.
+         -- 'storniert' = vom Kunden, 'abgesagt' = vom Betrieb; fuer den Kunden dasselbe.
+         -- HIER und nicht im Browser gefiltert: Die Abfrage holt nur 20 Zeilen. Nachtraeglich
+         -- aussortieren wuerde die Historie stillschweigend auf wenige Eintraege schrumpfen.
+         AND NOT (t.status IN ('storniert','abgesagt') AND t.datum < CURRENT_DATE - INTERVAL '30 days')
        ORDER BY t.datum DESC, t.uhrzeit_von DESC
        LIMIT 20`,
       [req.kunde.id]
     );
-    res.json(rows);
+    res.json(rows.map(terminMitPreisen));
   } catch (e) { next(e); }
 });
 

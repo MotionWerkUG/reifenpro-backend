@@ -586,6 +586,9 @@ var I18N = {
     session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
     consent_renew: 'Erinnerungen wieder einschalten',
     your_vehicles: 'Ihre Fahrzeuge', manage_vehicles: 'Fahrzeuge verwalten',
+    total: 'Gesamt', price_estimate: 'Unverbindliche Schätzung inkl. MwSt. Der Endpreis kann je nach Aufwand abweichen.',
+    cancel_until: 'Ändern oder absagen können Sie bis {datum}.', oclock: 'Uhr',
+    early_service_pending: 'Ihr Termin liegt innerhalb der 14-tägigen Widerrufsfrist. Wir melden uns bei Ihnen.',
     day_optional: 'Tag (optional)', month_optional: 'Monat (optional)', year_label: 'Jahr',
     first_reg_hint: 'Das Jahr genügt. Monat und Tag können Sie angeben, wenn Sie sie kennen.',
     no_vehicles_profile: 'Noch kein Fahrzeug hinterlegt.', no_plate: 'ohne Kennzeichen', first_reg: 'Erstzulassung',
@@ -669,6 +672,9 @@ var I18N = {
     session_expired: 'Your session has expired. Please sign in again.',
     consent_renew: 'Turn reminders back on',
     your_vehicles: 'Your vehicles', manage_vehicles: 'Manage vehicles',
+    total: 'Total', price_estimate: 'Non-binding estimate incl. VAT. The final price may differ depending on the work required.',
+    cancel_until: 'You can change or cancel until {datum}.', oclock: '',
+    early_service_pending: 'Your appointment falls within the 14-day withdrawal period. We will get in touch with you.',
     day_optional: 'Day (optional)', month_optional: 'Month (optional)', year_label: 'Year',
     first_reg_hint: 'The year is enough. Add month and day if you know them.',
     no_vehicles_profile: 'No vehicle on file yet.', no_plate: 'no plate', first_reg: 'First registration',
@@ -1100,7 +1106,11 @@ function startPortal() {
   zeigeScreen('app');
   document.getElementById('app-username').textContent = KUNDE ? (KUNDE.vorname + ' ' + KUNDE.nachname) : '';
   ladeArtikel();
-  papi('GET', '/daten/firmendaten').then(function(f) { if (f) { if (f.stornierung_frist_h) STORNO_FRIST = f.stornierung_frist_h; FIRMA_TEL = f.telefon || ''; } }).catch(function() {});
+  papi('GET', '/daten/firmendaten').then(function(f) {
+    if (f) { if (f.stornierung_frist_h) STORNO_FRIST = f.stornierung_frist_h; FIRMA_TEL = f.telefon || ''; }
+    // Die Terminliste kann schon stehen -- dann steht dort ein Absagedatum aus dem Standardwert.
+    zeichneTermine();
+  }).catch(function() {});
   var ziel = (ZIEL_NACH_LOGIN === 'buchen') ? 'buchen' : 'ueberblick';
   ZIEL_NACH_LOGIN = null;
   portalNav(ziel, true);
@@ -1290,6 +1300,29 @@ function dokumentOeffnen(id) {
 }
 
 // Rendert eine Terminkarte. mitAktionen=true nur fuer die Sektion "kommende Termine".
+// Bis wann darf der Kunde noch absagen oder verschieben? Als lesbares DATUM, aus Termin und
+// Stornofrist. "24 Stunden vorher" zwingt zum Rechnen, und wer rechnen muss, rechnet falsch.
+// Ohne Uhrzeit gibt es keine belastbare Grenze -- dann lieber nichts behaupten.
+function stornoGrenze(tm) {
+  if (!tm.datum || !tm.uhrzeit_von) return '';
+  var dt = new Date(String(tm.datum).substring(0, 10) + 'T' + String(tm.uhrzeit_von).substring(0, 5) + ':00');
+  if (isNaN(dt.getTime())) return '';
+  var grenze = new Date(dt.getTime() - (Number(STORNO_FRIST) || 24) * 3600000);
+  if (grenze.getTime() <= Date.now()) return '';
+  var ort = (LANG === 'en') ? 'en-GB' : 'de-DE';
+  return grenze.toLocaleDateString(ort, { weekday: 'long', day: '2-digit', month: 'long' })
+       + ', ' + grenze.toLocaleTimeString(ort, { hour: '2-digit', minute: '2-digit' })
+       + (t('oclock') ? ' ' + t('oclock') : '');
+}
+
+// Betrag einheitlich formatieren. Vorher gab es das nur als lokale Hilfe in einer einzigen
+// Funktion -- eine zweite Schreibweise waere frueher oder spaeter abgewichen.
+function eurP(n) {
+  var z = Number(n);
+  if (!isFinite(z)) return '';
+  return z.toFixed(2).replace('.', ',') + ' \u20AC';
+}
+
 function terminKarte(tm, mitAktionen) {
   // "vorbei": Termin-Startzeitpunkt (Datum + Uhrzeit, lokale Zeit) liegt in der Vergangenheit.
   // Mit Uhrzeit gebaut (kein reines 'YYYY-MM-DD' -> keine UTC-Vortag-Falle).
@@ -1298,19 +1331,69 @@ function terminKarte(tm, mitAktionen) {
     var dt = new Date(tm.datum.substring(0, 10) + 'T' + (tm.uhrzeit_von || '00:00').substring(0, 5) + ':00');
     vorbei = !isNaN(dt.getTime()) && dt.getTime() <= Date.now();
   }
-  var storniert = tm.status === 'storniert';
+  // 'storniert' = vom Kunden abgesagt, 'abgesagt' = vom Betrieb. Fuer den Kunden ist beides
+  // dasselbe (terminStatusLabel schreibt bei beiden "Storniert") -- dann muss auch die Karte
+  // gleich aussehen. Vorher wurde nur 'storniert' gedaempft, und eine betriebsseitige Absage
+  // stand mit gelber Marke und voller Deckkraft da wie ein offener Termin.
+  var storniert = tm.status === 'storniert' || tm.status === 'abgesagt';
   var html = '<div class="card" style="' + (vorbei || storniert ? 'opacity:0.6' : '') + '">';
   html += '<div class="card-titel">';
   html += '<span>' + fmtDatum(tm.datum) + ' — ' + (tm.uhrzeit_von || '').substring(0,5) + '</span>';
   var badge = storniert ? 'b-r' : (tm.status === 'bestaetigt' ? 'b-g' : 'b-y');
   html += '<span class="badge ' + badge + '">' + pEsc(terminStatusLabel(tm.status)) + '</span>';
   html += '</div>';
-  html += '<div class="iz"><div class="iz-v">' + pEsc(tm.artikel_name || tm.termin_typ || '') + '</div></div>';
+  // ALLE gebuchten Leistungen, jede mit ihrem Preis -- vorher stand hier nur die erste.
+  // Die Betraege kommen unveraendert vom Server aus den am Termin EINGEFRORENEN Positionen und
+  // werden hier NICHT nachgerechnet: Sonst zeigte das Portal einen anderen Betrag als die
+  // Rechnung, und der Kunde haette recht, wenn er anruft.
+  var pos = Array.isArray(tm.positionen) ? tm.positionen : [];
+  if (pos.length) {
+    html += '<div style="margin-top:4px">';
+    pos.forEach(function(p) {
+      html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0">'
+           + '<span>' + pEsc(p.bezeichnung || '') + '</span>'
+           + '<strong style="white-space:nowrap">' + eurP(p.zeilen_brutto) + '</strong></div>';
+    });
+    // Nachlass MIT HERKUNFT, im Wortlaut der Rechnung. Bei einem festen Kundenpreis gibt es gar
+    // keine Zeile: Dort IST der Preis der Preis, ein Nachlass waere erfunden.
+    (tm.rabatt_zeilen || []).forEach(function(z) {
+      html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;color:var(--accent-text)">'
+           + '<span>' + pEsc(z.bezeichnung) + ' (\u2212' + z.satz + ' %)</span>'
+           + '<span style="white-space:nowrap">\u2212' + eurP(z.betrag) + '</span></div>';
+    });
+    if (tm.summe_brutto != null) {
+      var ermaessigt = (tm.rabatt_zeilen || []).length > 0;
+      html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 0 0;margin-top:6px;border-top:1px solid var(--border2);font-weight:700">'
+           + '<span>' + t('total') + '</span><span style="white-space:nowrap">'
+           + (ermaessigt ? '<span style="text-decoration:line-through;color:var(--muted);font-weight:400;margin-right:8px">' + eurP(tm.summe_brutto) + '</span>' : '')
+           + eurP(tm.summe_nach_rabatt != null ? tm.summe_nach_rabatt : tm.summe_brutto) + '</span></div>';
+      html += '<div style="font-size:12px;color:var(--muted);margin-top:4px">' + t('price_estimate') + '</div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="iz"><div class="iz-v">' + pEsc(tm.artikel_name || tm.termin_typ || '') + '</div></div>';
+  }
   if (tm.kennzeichen) html += '<div style="font-size:13px;color:var(--muted);margin-top:6px">' + pEsc(tm.kennzeichen) + '</div>';
   if (tm.beschreibung) html += '<div style="font-size:13px;color:var(--muted);margin-top:4px">' + pEsc(tm.beschreibung) + '</div>';
   // Aktionen nur fuer kommende, noch offene Termine (angefragt/bestaetigt) und nur solange nicht vorbei.
   // Schliesst abgeschlossen/abgesagt/storniert und bereits verstrichene (auch heutige) Termine aus.
   if (mitAktionen && !vorbei && (tm.status === 'angefragt' || tm.status === 'bestaetigt')) {
+    // Zustimmung zum vorzeitigen Leistungsbeginn: NUR anzeigen, wenn sie FEHLT und der Termin in
+    // der Frist liegt. Eine gruene Haken-Zeile beantwortet eine Frage, die der Kunde nie gestellt
+    // hat. Ob per Mail oder telefonisch zugestimmt wurde, sieht er gar nicht -- Sache des Betriebs.
+    // tm.zustimmung_offen kommt fertig vom Server (src/routes/portal-daten.js). Hier wird
+    // bewusst NICHT nachgerechnet: Der Browser kennt weder den Vertragszeitpunkt noch die
+    // Unterscheidung Tresen/Telefon, und eine zweite Fristrechnung war schon einmal die
+    // Fehlerquelle. Der ausdrueckliche Vergleich mit true haelt ein fehlendes Feld
+    // (aelterer Server, Zwischenspeicher) davon ab, als "offen" durchzugehen.
+    if (tm.zustimmung_offen === true) {
+      html += '<div style="margin-top:10px;padding:9px 11px;border-radius:8px;background:var(--panel2);'
+           + 'border-left:3px solid var(--accent);font-size:13px;color:var(--muted)">'
+           + t('early_service_pending') + '</div>';
+    }
+    var bis = stornoGrenze(tm);
+    if (bis) html += '<div style="font-size:12px;color:var(--muted);margin-top:10px">'
+                   + t('cancel_until').replace('{datum}', bis) + '</div>';
     html += '<div style="display:flex;gap:8px;margin-top:12px">' +
       '<button class="btn btn-g btn-sm" onclick="terminVerschiebenStart(\'' + tm.id + '\',\'' + (tm.artikel_id || '') + '\')">' + t('reschedule') + '</button>' +
       '<button class="btn btn-g btn-sm" style="color:var(--red)" onclick="terminStornieren(\'' + tm.id + '\')">' + t('cancel') + '</button>' +
@@ -1319,6 +1402,14 @@ function terminKarte(tm, mitAktionen) {
   html += '</div>';
   return html;
 }
+
+// Laden und Zeichnen sind getrennt, weil die Stornofrist aus einer ZWEITEN Abfrage kommt
+// (/daten/firmendaten). Kommt sie nach der Terminliste an, stand vorher ein Absagedatum auf dem
+// Bildschirm, das aus dem Standardwert 24 Stunden gerechnet war -- ein sichtbar falsches Datum,
+// nicht bloss ein ungenauer Hinweis. Deshalb nach Projektkonvention: sofort zeichnen UND nach
+// Eintreffen der Firmendaten noch einmal. Der Zwischenspeicher hier ist zugleich die Stelle, an
+// der spaeter gefiltert wird (z. B. abgesagte Termine ab einem gewissen Alter ausblenden).
+var TERMIN_DATEN = null;
 
 function ladeTermine() {
   var el = document.getElementById('termine-liste');
@@ -1329,33 +1420,46 @@ function ladeTermine() {
     papi('GET', '/daten/termine'),
     papi('GET', '/daten/termine/vergangen')
   ]).then(function(res) {
-    var kommend = res[0].status === 'fulfilled' ? (res[0].value || []) : [];
-    var vergangen = res[1].status === 'fulfilled' ? (res[1].value || []) : [];
-    if (res[0].status !== 'fulfilled' && res[1].status !== 'fulfilled') {
-      el.innerHTML = '<div class="card"><div class="empty">' + t('error_loading') + '</div></div>';
-      return;
-    }
-    if (!kommend.length && !vergangen.length) {
-      el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>';
-      return;
-    }
-    var html = '';
-    // Kommende Termine (aufsteigend, mit Aktionen) + Storno-Hinweis nur wenn welche vorhanden
-    if (kommend.length) {
-      html += '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
-      html += kommend.sort(function(a,b) { return (a.datum||'').localeCompare(b.datum||''); })
-        .map(function(tm) { return terminKarte(tm, true); }).join('');
-    } else {
-      html += '<div class="card"><div class="empty">' + t('no_upcoming_appointments') + '</div></div>';
-    }
-    // Vergangene Termine (Historie, absteigend, ohne Aktionen)
-    if (vergangen.length) {
-      html += '<div style="margin:22px 0 10px;font-size:13px;font-weight:700;color:var(--muted)">' + t('past_appointments') + '</div>';
-      html += vergangen.sort(function(a,b) { return (b.datum||'').localeCompare(a.datum||''); })
-        .map(function(tm) { return terminKarte(tm, false); }).join('');
-    }
-    el.innerHTML = html;
+    TERMIN_DATEN = {
+      kommend: res[0].status === 'fulfilled' ? (res[0].value || []) : [],
+      vergangen: res[1].status === 'fulfilled' ? (res[1].value || []) : [],
+      fehler: res[0].status !== 'fulfilled' && res[1].status !== 'fulfilled'
+    };
+    zeichneTermine();
   });
+}
+
+function zeichneTermine() {
+  var el = document.getElementById('termine-liste');
+  // Ohne geladene Daten nichts anfassen: Der Aufruf aus dem Firmendaten-Callback kann eintreffen,
+  // bevor die Terminliste da ist -- dann wuerde er die Ladeanzeige durch "keine Termine" ersetzen.
+  if (!el || !TERMIN_DATEN) return;
+  var kommend = TERMIN_DATEN.kommend;
+  var vergangen = TERMIN_DATEN.vergangen;
+  if (TERMIN_DATEN.fehler) {
+    el.innerHTML = '<div class="card"><div class="empty">' + t('error_loading') + '</div></div>';
+    return;
+  }
+  if (!kommend.length && !vergangen.length) {
+    el.innerHTML = '<div class="card"><div class="empty">' + t('no_appointments') + '</div></div>';
+    return;
+  }
+  var html = '';
+  // Kommende Termine (aufsteigend, mit Aktionen) + Storno-Hinweis nur wenn welche vorhanden
+  if (kommend.length) {
+    html += '<div style="font-size:12px;color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px">' + t('cancel_hint').replace('{h}', STORNO_FRIST) + '</div>';
+    html += kommend.sort(function(a,b) { return (a.datum||'').localeCompare(b.datum||''); })
+      .map(function(tm) { return terminKarte(tm, true); }).join('');
+  } else {
+    html += '<div class="card"><div class="empty">' + t('no_upcoming_appointments') + '</div></div>';
+  }
+  // Vergangene Termine (Historie, absteigend, ohne Aktionen)
+  if (vergangen.length) {
+    html += '<div style="margin:22px 0 10px;font-size:13px;font-weight:700;color:var(--muted)">' + t('past_appointments') + '</div>';
+    html += vergangen.sort(function(a,b) { return (b.datum||'').localeCompare(a.datum||''); })
+      .map(function(tm) { return terminKarte(tm, false); }).join('');
+  }
+  el.innerHTML = html;
 }
 
 var reschedId = null, reschedArtikel = null;
@@ -1476,8 +1580,10 @@ function buchenKzAusTeilen() {
   var kz=[k1,k2,k3].filter(Boolean).join('-'); if (k4) kz+=' '+k4; return kz.trim();
 }
 function terminStatusLabel(s) {
-  var de = { angefragt:'Angefragt', bestaetigt:'Bestätigt', abgeschlossen:'Abgeschlossen', storniert:'Storniert', abgesagt:'Storniert' };
-  var en = { angefragt:'Requested', bestaetigt:'Confirmed', abgeschlossen:'Completed', storniert:'Cancelled', abgesagt:'Cancelled' };
+  // nicht_erschienen fehlte hier: Angezeigt wurde dann der rohe Schluessel "nicht_erschienen".
+  // Wortlaut bewusst sachlich -- der Kunde liest es im eigenen Portal, nicht der Betrieb.
+  var de = { angefragt:'Angefragt', bestaetigt:'Bestätigt', abgeschlossen:'Abgeschlossen', storniert:'Storniert', abgesagt:'Storniert', nicht_erschienen:'Nicht wahrgenommen' };
+  var en = { angefragt:'Requested', bestaetigt:'Confirmed', abgeschlossen:'Completed', storniert:'Cancelled', abgesagt:'Cancelled', nicht_erschienen:'Missed' };
   return (LANG === 'en' ? en : de)[s] || s || '';
 }
 
