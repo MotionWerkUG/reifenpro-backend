@@ -647,7 +647,7 @@ var I18N = {
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
-    confirm_booking_title: 'Bitte Buchung bestätigen', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
+    confirm_booking_title: 'Bitte Buchung bestätigen', agreed_discount: 'Vereinbarter Nachlass', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.',  confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -733,7 +733,7 @@ var I18N = {
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
-    confirm_booking_title: 'Please confirm your booking', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
+    confirm_booking_title: 'Please confirm your booking', agreed_discount: 'Agreed discount', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.',  confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -1166,6 +1166,30 @@ function felgenText(f) {
   if (vl.indexOf('alu') !== -1) return t('alloy_rims');
   if (vl.indexOf('stahl') !== -1 || vl.indexOf('steel') !== -1) return t('steel_rims');
   return v;
+}
+
+// Ein eingegebener Gutschein, der NICHT gegriffen hat, weil die vereinbarte Kondition guenstiger
+// ist. Vorher stand dort "Gutscheincode ungueltig" -- eine Falschaussage: Der Gutschein ist
+// gueltig und weiter verwendbar, er war hier nur nicht der bessere Weg. Der Server liefert den
+// Fall ausdruecklich in nicht_angewandt; genutzt hat ihn bisher niemand.
+// code = der eingegebene Gutscheincode (leer, wenn keiner eingegeben wurde).
+// Drei zu unterscheidende Faelle, und der mittlere ist der, den es vorher gar nicht gab:
+//   angewandt          -> kein Hinweis, der Nachlass steht schon im Preis
+//   verworfen          -> "nicht angewandt, Ihre Kondition ist guenstiger" (Gutschein bleibt gueltig)
+//   nichts davon       -> der Code war wirklich ungueltig
+// Erster Anlauf hatte den dritten Fall fuer Gewerbekunden verschluckt: Weil deren Kondition
+// ohnehin greift, lief die Anzeige in den Nachlass-Zweig, und ein Tippfehler im Gutscheincode
+// blieb unkommentiert. Im eigenen Test aufgefallen.
+function verworfenHinweis(p, code) {
+  var na = p && p.nicht_angewandt;
+  if (na && na.art === 'gutschein' && na.code) {
+    return ' <span style="font-weight:400;color:var(--muted)">· '
+         + pEsc(t('voucher_not_applied').replace('{code}', na.code)) + '</span>';
+  }
+  if (code && !(p && p.gutschein)) {
+    return ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';
+  }
+  return '';
 }
 
 function saisonBadge(typ) {
@@ -1670,14 +1694,23 @@ function buchenSlotsLaden() {
     if (!p || p.preis == null) return;
     var eur = function(n) { return Number(n).toFixed(2).replace('.', ',') + ' €'; };
     var dauer = p.dauer_minuten ? ' · ' + p.dauer_minuten + ' min' : '';
-    if (p.gutschein && p.rabatt_summe > 0) {
-      // Alter Preis durchgestrichen, neuer daneben -- wie im Gaeste-Assistenten.
+    // JEDER Nachlass wird gezeigt, nicht nur der aus einem Gutschein. Vorher hing die Anzeige an
+    // p.gutschein: Ein Gewerbekunde mit vereinbartem Nachlass sah beim Buchen den vollen
+    // Listenpreis (39,00) und im Termin danach 31,20. Genau der Abstand, gegen den lib/konditionen.js
+    // gebaut wurde -- die Rechnung war repariert, die Anzeige nicht.
+    // Der Server liefert die Herkunft in preis_quelle ausdruecklich mit; hier wird nichts geraten
+    // und nichts nachgerechnet.
+    if (p.rabatt_summe > 0) {
+      var herkunft = p.gutschein
+        ? pEsc(p.gutschein.code) + ', \u2212' + p.gutschein.rabatt_prozent + ' %'
+        : (p.preis_quelle === 'konditionen' ? t('agreed_discount') : '');
       preisEl.innerHTML = t('price') + ': <s style="color:var(--muted);font-weight:400">' + eur(p.brutto_vor_rabatt) + '</s> '
         + '<span style="color:var(--accent-text)">' + eur(p.brutto_nach_rabatt) + '</span>'
-        + ' <span style="font-weight:400;color:var(--muted)">(' + pEsc(p.gutschein.code) + ', −' + p.gutschein.rabatt_prozent + ' %)</span>' + dauer;
+        + (herkunft ? ' <span style="font-weight:400;color:var(--muted)">(' + herkunft + ')</span>' : '') + dauer
+        + verworfenHinweis(p, code);
     } else if (code && p.gutschein === null) {
       preisEl.innerHTML = t('price') + ': ' + eur(p.brutto_vor_rabatt != null ? p.brutto_vor_rabatt : Number(p.preis)) + dauer
-        + ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';
+        + verworfenHinweis(p, code);
     } else {
       // Bruttopreis kommt vom Server. Frueher rechnete die Oberflaeche hier selbst
       // `preis * (1 + mwst/100)` -- die gepflegten Preise sind aber bereits Bruttopreise,
