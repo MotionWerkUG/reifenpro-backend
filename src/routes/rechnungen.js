@@ -11,6 +11,7 @@ const { portalMailHtml, esc } = require('../lib/mail-template');
 const { sendMail } = require('../lib/mailer');
 const kasse = require('../lib/kasse');
 const widerruf = require('../lib/widerruf');
+const gutschein = require('../lib/gutschein');
 
 router.use(authenticate, requireStaff);
 
@@ -725,12 +726,26 @@ router.post('/', async (req, res, next) => {
     let rabattProzent = 0, rabattLabel = null;
     const code = (req.body.gutschein_code || '').toString().trim();
     if (code) {
-      const g = (await query(
-        "SELECT code, rabatt_prozent FROM gutscheine WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)",
-        [code])).rows[0];
+      const g = await gutschein.ladeGutschein(code);
       if (!g) return res.status(400).json({ error: 'Gutschein ungültig oder abgelaufen.' });
-      rabattProzent = Number(g.rabatt_prozent) || 0;
-      rabattLabel = 'Gutschein ' + g.code;
+      if (gestaffelt) return res.status(400).json({ error: 'Es sind bereits Nachlässe je Position gesetzt. Ein zusätzlicher Gutschein würde doppelt abziehen.' });
+      // Ein Gutschein kann je Leistung einen anderen Satz tragen (Flyer: 25 % auf die
+      // Einlagerung, 10 % auf alles Übrige). Frueher wurde hier NUR gutscheine.rabatt_prozent
+      // gelesen und pauschal auf den ganzen Beleg gezogen — das war entweder zu viel oder zu
+      // wenig, je nachdem, welcher Satz dort stand. Die Zuordnung Leistung -> Satz trifft
+      // src/lib/gutschein.js, dieselbe Quelle, aus der auch Buchungsassistent und Portal
+      // rechnen. Sie hier nachzubauen war genau der Fehler.
+      const ids = positionen.map((p) => p.artikel_id).filter(Boolean);
+      const saetze = await gutschein.saetzeFuer(g, ids.concat(['ohne-artikel']));
+      const mitSatz = positionen.map(function (p) {
+        const satz = p.artikel_id && saetze[p.artikel_id] != null ? saetze[p.artikel_id] : saetze['ohne-artikel'];
+        return satz > 0 ? Object.assign({}, p, { rabatt_prozent: satz }) : p;
+      });
+      const zeilen = nachlassPositionen(mitSatz, 'Gutschein ' + g.code);
+      if (!zeilen.length) return res.status(400).json({ error: 'Dieser Gutschein ergibt für die erfassten Leistungen keinen Nachlass.' });
+      posFinal = positionen.concat(zeilen);
+      // rabattProzent bleibt 0: Der Nachlass steckt jetzt in den Minuspositionen, ein
+      // zusaetzlicher belegweiter Abzug weiter unten waere doppelt.
     } else if (Number(req.body.rabatt_prozent) > 0) {
       rabattProzent = Math.min(Number(req.body.rabatt_prozent), 100);
       rabattLabel = 'Rabatt';
@@ -874,11 +889,20 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       rabattQuelle = 'positionen';
       rabattLabel = nachlassHerkunft || 'Nachlass';
     } else if (gCode) {
-      const g = (await query("SELECT code, rabatt_prozent FROM gutscheine WHERE UPPER(code)=UPPER($1) AND aktiv=true AND (gueltig_bis IS NULL OR gueltig_bis >= CURRENT_DATE)", [gCode])).rows[0];
+      const g = await gutschein.ladeGutschein(gCode);
       if (!g) return res.status(400).json({ error: 'Gutschein ungültig oder abgelaufen.' });
-      rabattProzent = Number(g.rabatt_prozent) || 0;
+      // Auch hier je Leistung, nicht pauschal — siehe Begruendung bei POST /rechnungen.
+      const ids = positionen.map((p) => p.artikel_id).filter(Boolean);
+      const saetze = await gutschein.saetzeFuer(g, ids.concat(['ohne-artikel']));
+      const mitSatz = positionen.map(function (p) {
+        const satz = p.artikel_id && saetze[p.artikel_id] != null ? saetze[p.artikel_id] : saetze['ohne-artikel'];
+        return satz > 0 ? Object.assign({}, p, { rabatt_prozent: satz }) : p;
+      });
+      const zeilen = nachlassPositionen(mitSatz, 'Gutschein ' + g.code);
+      if (!zeilen.length) return res.status(400).json({ error: 'Dieser Gutschein ergibt für die erfassten Leistungen keinen Nachlass.' });
+      positionen = positionen.concat(zeilen);
+      rabattQuelle = 'body-gestaffelt';
       rabattLabel = 'Gutschein ' + g.code;
-      rabattQuelle = 'body';
     } else if (Number(t.gutschein_rabatt) > 0) {
       rabattProzent = Number(t.gutschein_rabatt) || 0;
       rabattLabel = t.gutschein_code ? 'Gutschein ' + t.gutschein_code : 'Rabatt';
