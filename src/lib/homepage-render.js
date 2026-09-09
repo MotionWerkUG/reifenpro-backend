@@ -94,13 +94,14 @@ function oeffnungszeilenAusWoche(woche) {
   return z;
 }
 
+// Einzige Quelle ist das Wochenraster (Tabelle `oeffnungszeiten`). Der fruehere Rueckfall auf
+// die Spiegelspalten in `einstellungen` (mo_fr_*, sa_*, so_*) ist bewusst entfernt: Die kennen
+// nur EINEN Mo–Fr-Block und keine Mittagspause je Tag. Waere der Rueckfall je eingesprungen,
+// haette die Seite „Mo – Fr 08:00 – 18:00“ gezeigt, obwohl von 12 bis 13 Uhr geschlossen ist —
+// ein Kunde stuende vor verschlossener Tuer. Lieber gar keine Zeiten als falsche.
 function oeffnungszeilen(f, oz) {
   if (oz && Array.isArray(oz.woche) && oz.woche.length === 7) return oeffnungszeilenAusWoche(oz.woche);
-  var z = [];
-  if (f.mo_fr_von && f.mo_fr_bis) z.push(['Mo – Fr', hm(f.mo_fr_von) + ' – ' + hm(f.mo_fr_bis)]);
-  if (f.sa_offen && f.sa_von && f.sa_bis) z.push(['Samstag', hm(f.sa_von) + ' – ' + hm(f.sa_bis)]);
-  if (f.so_offen && f.so_von && f.so_bis) z.push(['Sonntag', hm(f.so_von) + ' – ' + hm(f.so_bis)]);
-  return z;
+  return [];
 }
 
 // „Do, 03.10.2026 — Tag der Deutschen Einheit: geschlossen“
@@ -145,11 +146,10 @@ function jsonLd(f, oz) {
         oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: SCHEMA_TAG[wt], opens: hm(sp[0]), closes: hm(sp[1]) });
       });
     }
-  } else {
-    if (f.mo_fr_von && f.mo_fr_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: hm(f.mo_fr_von), closes: hm(f.mo_fr_bis) });
-    if (f.sa_offen && f.sa_von && f.sa_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: 'Saturday', opens: hm(f.sa_von), closes: hm(f.sa_bis) });
-    if (f.so_offen && f.so_von && f.so_bis) oh.push({ '@type': 'OpeningHoursSpecification', dayOfWeek: 'Sunday', opens: hm(f.so_von), closes: hm(f.so_bis) });
   }
+  // Kein Rueckfall auf die Spiegelspalten: Fehlt das Raster, melden wir Google lieber GAR KEINE
+  // Oeffnungszeiten als eine Woche ohne Mittagspause. Eine falsche Zeit in der Google-Anzeige
+  // ist schlimmer als keine — danach richtet sich, wer vor der Tuer steht.
   if (oh.length) data.openingHoursSpecification = oh;
   // Feiertage/Betriebsurlaub als Sonderzeiten -> Google zeigt „an Feiertagen geschlossen“
   var bes = (oz && Array.isArray(oz.besondere) ? oz.besondere : []).map(function (b) {
