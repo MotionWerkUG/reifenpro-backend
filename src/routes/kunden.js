@@ -3,6 +3,7 @@ const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
 const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail, ohneGeheimnisse, spiegleFahrzeugInStamm } = require('../lib/kundendaten');
+const { monatOderTag } = require('../lib/datum');
 
 // Deutsches Kennzeichen pruefen/normalisieren (z. B. WOR-AB-1234, optional E/H). Leeres Feld erlaubt.
 function normKennzeichen(raw) {
@@ -126,8 +127,12 @@ router.post('/', async (req, res, next) => {
   try {
     const { vorname, nachname, telefon, telefon2, email, firma, anrede, ust_id,
             strasse, plz, ort, kennzeichen, fahrzeug_marke,
-            fahrzeug_modell, baujahr, notizen, ist_gewerbe, grosskunden_rabatt,
+            fahrzeug_modell, baujahr, erstzulassung, notizen, ist_gewerbe, grosskunden_rabatt,
             kundentyp, land, rechnung_email, ohne_anschrift } = req.body;
+    // Erstzulassung: 'YYYY-MM' aus einem Monatsfeld oder 'YYYY-MM-DD'. Die Pruefung liegt in
+    // src/lib/datum.js, damit Admin und Portal dieselbe Regel anwenden.
+    const ezP = monatOderTag(erstzulassung);
+    if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
     if (!vorname || !nachname || !telefon)
       return res.status(400).json({ error: 'Vorname, Nachname und Telefon sind Pflicht.' });
     // Firmenkunde: der Firmenname ist der Rechnungsempfaenger, Vor-/Nachname der Ansprechpartner.
@@ -168,8 +173,8 @@ router.post('/', async (req, res, next) => {
          (kunden_nr,vorname,nachname,telefon,telefon2,email,firma,anrede,ust_id,
           strasse,plz,ort,kennzeichen,fahrzeug_marke,fahrzeug_modell,
           baujahr,notizen,ist_gewerbe,grosskunden_rabatt,erstellt_von,
-          kundentyp,land,rechnung_email)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+          kundentyp,land,rechnung_email,erstzulassung)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
        RETURNING *`,
       [kunden_nr, vorname.trim(), nachname.trim(), telefon.trim(),
        telefon2||null, email||null, firma||null, anrede||null, ust_id||null,
@@ -178,7 +183,7 @@ router.post('/', async (req, res, next) => {
        fahrzeug_marke||null, fahrzeug_modell||null,
        baujahr||null, notizen||null,
        ist_gewerbe === true, Math.max(0, Math.min(100, parseInt(grosskunden_rabatt) || 0)), req.user.id,
-       typP.typ, landW, rechnung_email ? String(rechnung_email).trim() : null]
+       typP.typ, landW, rechnung_email ? String(rechnung_email).trim() : null, ezP.wert]
     );
     await auditLog({ userId: req.user.id, aktion: 'kunden.erstellt',
       tabelle: 'kunden', datensatzId: rows[0].id, neueWerte: ohneGeheimnisse(rows[0]), req });
@@ -217,6 +222,8 @@ router.put('/:id', async (req, res, next) => {
     const adr = pruefeAnschrift({ strasse: nStr, plz: nPlz, ort: nOrt, land: nLand || 'DE' }, hatteAdresse);
     if (adr && !(adr.weich && req.body.hausnummer_bestaetigt === true))
       return res.status(400).json({ error: adr.fehler, code: adr.code, rueckfrage: adr.weich === true });
+    const ezP = monatOderTag(req.body.erstzulassung);
+    if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
     const nReMail = req.body.rechnung_email !== undefined ? req.body.rechnung_email : o.rechnung_email;
     const reFehler = pruefeRechnungEmail(nReMail);
     if (reFehler) return res.status(400).json({ error: reFehler });
@@ -226,7 +233,8 @@ router.put('/:id', async (req, res, next) => {
          email=$5, firma=$6, strasse=$7, plz=$8, ort=$9,
          kennzeichen=$10, fahrzeug_marke=$11, fahrzeug_modell=$12,
          baujahr=$13, notizen=$14, aktiv=$15, ist_gewerbe=$16, grosskunden_rabatt=$17,
-         anrede=$18, ust_id=$19, kundentyp=$21, land=$22, rechnung_email=$23
+         anrede=$18, ust_id=$19, kundentyp=$21, land=$22, rechnung_email=$23,
+         erstzulassung=$24
        WHERE id=$20 RETURNING *`,
       [req.body.vorname       || o.vorname,
        req.body.nachname      || o.nachname,
@@ -248,7 +256,8 @@ router.put('/:id', async (req, res, next) => {
        req.body.anrede !== undefined ? req.body.anrede : o.anrede,
        req.body.ust_id !== undefined ? req.body.ust_id : o.ust_id,
        req.params.id,
-       typP.typ, nLand, nReMail ? String(nReMail).trim() : null]
+       typP.typ, nLand, nReMail ? String(nReMail).trim() : null,
+       req.body.erstzulassung !== undefined ? ezP.wert : o.erstzulassung]
     );
     // Auch das Aenderungsprotokoll bekommt keine Geheimnisse: es wird aufbewahrt und
     // ueberlebt eine Kontoloeschung — ein dort abgelegter Hash oder Token waere ein Nachschluessel.
@@ -286,15 +295,21 @@ router.get('/:id/fahrzeuge', async (req, res, next) => {
 
 router.post('/:id/fahrzeuge', async (req, res, next) => {
   try {
-    const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    const { typ, marke, modell, kennzeichen, baujahr, erstzulassung, hu_datum, notiz } = req.body;
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const kzF = normKennzeichen(kennzeichen);
     if (!kzF.ok) return res.status(400).json({ error: 'Kennzeichen ungültig (Format z. B. WOR-AB-1234).' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
+    // Beide Datumsfelder kommen aus Monatsfeldern. Die Normalisierung liegt in src/lib/datum.js;
+    // vorher erzeugte ein 'YYYY-MM' hier einen Serverfehler statt einer Meldung.
+    const ezP = monatOderTag(erstzulassung);
+    if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
+    const huP = monatOderTag(hu_datum);
+    if (!huP.ok) return res.status(400).json({ error: 'HU-Datum: ' + huP.fehler });
     const { rows } = await query(
-      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [req.params.id, t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null]
+      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, erstzulassung, hu_datum, notiz)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [req.params.id, t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, ezP.wert, huP.wert, notiz || null]
     );
     await syncPrimaerFahrzeug(req.params.id);
     res.status(201).json(rows[0]);
@@ -303,15 +318,20 @@ router.post('/:id/fahrzeuge', async (req, res, next) => {
 
 router.put('/:id/fahrzeuge/:fid', async (req, res, next) => {
   try {
-    const { typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz } = req.body;
+    const { typ, marke, modell, kennzeichen, baujahr, erstzulassung, hu_datum, notiz } = req.body;
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const kzF = normKennzeichen(kennzeichen);
     if (!kzF.ok) return res.status(400).json({ error: 'Kennzeichen ungültig (Format z. B. WOR-AB-1234).' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
+    const ezP = monatOderTag(erstzulassung);
+    if (!ezP.ok) return res.status(400).json({ error: 'Erstzulassung: ' + ezP.fehler });
+    const huP = monatOderTag(hu_datum);
+    if (!huP.ok) return res.status(400).json({ error: 'HU-Datum: ' + huP.fehler });
     const { rows } = await query(
-      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, hu_datum=$6, notiz=$7, geaendert_am=NOW()
-       WHERE id=$8 AND kunden_id=$9 RETURNING *`,
-      [t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null, req.params.fid, req.params.id]
+      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, erstzulassung=$6,
+              hu_datum=$7, notiz=$8, geaendert_am=NOW()
+       WHERE id=$9 AND kunden_id=$10 RETURNING *`,
+      [t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, ezP.wert, huP.wert, notiz || null, req.params.fid, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
     await syncPrimaerFahrzeug(req.params.id);

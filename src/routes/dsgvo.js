@@ -57,7 +57,7 @@ router.get('/auskunft/:kundenId', authenticate, requireStaff, async (req, res, n
       query('SELECT beleg_nr,reifen_groesse,reifen_typ,lagerplatz,status,eingelagert_am FROM einlagerungen WHERE kunden_id=$1', [kid]),
       query('SELECT typ,titel,erstellt_am,unterschrift_datum FROM kunden_dokumente WHERE kunden_id=$1', [kid]),
       query('SELECT typ,status,erstellt_am FROM dsgvo_anfragen WHERE kunden_id=$1', [kid]),
-      query('SELECT typ,marke,modell,kennzeichen,baujahr,hu_datum,notiz,erstellt_am FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [kid]),
+      query('SELECT typ,marke,modell,kennzeichen,baujahr,erstzulassung,hu_datum,notiz,erstellt_am FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am', [kid]),
       query(`SELECT datum,uhrzeit_von,uhrzeit_bis,termin_typ,kennzeichen,beschreibung,status,
                     portal_buchung,storniert_am,erstellt_am
                FROM termine WHERE kunden_id=$1 ORDER BY datum DESC`, [kid]),

@@ -1047,6 +1047,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
           </select>
           <select id="nk-ez-jahr" style="width:90px;background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:13px;padding:9px 8px;outline:none"><option value="">Jahr</option></select>
         </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">Monat und Jahr genügen. Nur ein Jahr wird als Baujahr gespeichert, nicht als Erstzulassung.</div>
       </div>
       <div class="fsec">Nach dem Speichern</div>
       <div class="full" style="background:var(--adim);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:12px">
@@ -1377,7 +1378,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
       </div>
       <div class="fg"><label>Marke</label><input id="fz-a-marke"></div>
       <div class="fg"><label>Modell</label><input id="fz-a-modell"></div>
-      <div class="fg"><label>Baujahr</label><input id="fz-a-baujahr" type="number" min="1950" max="2099"></div>
+      <div class="fg"><label>Erstzulassung (Monat)</label><input id="fz-a-ez" type="month"></div>
       <div class="fg"><label>HU fällig (Monat)</label><input id="fz-a-hu" type="month"></div>
       <div class="fg full"><label>Notiz</label><input id="fz-a-notiz"></div>
     </div>
@@ -3759,7 +3760,11 @@ function ladeFahrzeugeAdmin(kid) {
     var liste = rows.length ? rows.map(function(f) {
       var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
       var huTxt = f.hu_datum ? new Date(f.hu_datum + 'T12:00:00').toLocaleDateString('de-DE', { month: '2-digit', year: 'numeric' }) : '';
-      var meta = [f.typ, f.kennzeichen, f.baujahr].filter(Boolean).join(' · ') + (huTxt ? ' · HU ' + huTxt : '');
+      // Ein Baujahr ohne Monat wird NICHT als Erstzulassung ausgegeben -- der Monat waere erfunden.
+      var ezTxt = f.erstzulassung
+        ? 'EZ ' + new Date(String(f.erstzulassung).substring(0, 10) + 'T12:00:00').toLocaleDateString('de-DE', { month: '2-digit', year: 'numeric' })
+        : (f.baujahr ? 'Baujahr ' + f.baujahr : '');
+      var meta = [f.typ, f.kennzeichen, ezTxt].filter(Boolean).join(' · ') + (huTxt ? ' · HU ' + huTxt : '');
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">' +
         '<div><div style="font-weight:600;font-size:13px">' + titel + '</div><div style="font-size:11px;color:var(--muted)">' + meta + '</div></div>' +
         '<div style="display:flex;gap:5px">' +
@@ -3775,7 +3780,7 @@ function fzAdminNeu() {
   document.getElementById('fz-a-id').value = '';
   document.getElementById('fz-titel').textContent = 'Neues Fahrzeug';
   document.getElementById('fz-a-typ').value = 'PKW';
-  ['fz-a-marke', 'fz-a-modell', 'fz-a-baujahr', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['fz-a-marke', 'fz-a-modell', 'fz-a-ez', 'fz-a-hu', 'fz-a-notiz'].forEach(function(id) { document.getElementById(id).value = ''; });
   kzInTeile('fz-a-', '');
   openModal('fz');
 }
@@ -3789,7 +3794,7 @@ function fzAdminEdit(fid) {
     kzInTeile('fz-a-', f.kennzeichen || '');
     document.getElementById('fz-a-marke').value = f.marke || '';
     document.getElementById('fz-a-modell').value = f.modell || '';
-    document.getElementById('fz-a-baujahr').value = f.baujahr || '';
+    document.getElementById('fz-a-ez').value = f.erstzulassung ? String(f.erstzulassung).substring(0, 7) : '';
     document.getElementById('fz-a-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
     document.getElementById('fz-a-notiz').value = f.notiz || '';
     openModal('fz');
@@ -3800,7 +3805,10 @@ function fzAdminSave() {
   var kennz = kzAusTeilen('fz-a-');
   if (!gv('fz-a-marke') || !gv('fz-a-modell') || !kennz) { notify('Kennzeichen, Marke und Modell sind Pflicht.', 'err'); return; }
   var hu = gv('fz-a-hu');
-  var data = { typ: gv('fz-a-typ'), kennzeichen: kennz, marke: gv('fz-a-marke'), modell: gv('fz-a-modell'), baujahr: gv('fz-a-baujahr') ? parseInt(gv('fz-a-baujahr')) : null, hu_datum: hu ? hu + '-01' : null, notiz: gv('fz-a-notiz') };
+    // Monatsfelder werden roh gesendet: Der Server normalisiert sie ueber src/lib/datum.js --
+  // eine Stelle statt einer im Admin und einer im Portal.
+  var data = { typ: gv('fz-a-typ'), kennzeichen: kennz, marke: gv('fz-a-marke'), modell: gv('fz-a-modell'),
+               erstzulassung: gv('fz-a-ez') || null, hu_datum: hu || null, notiz: gv('fz-a-notiz') };
   var fid = gv('fz-a-id');
   var p = fid ? api('PUT', '/kunden/' + aktK.id + '/fahrzeuge/' + fid, data) : api('POST', '/kunden/' + aktK.id + '/fahrzeuge', data);
   p.then(function() { notify('Fahrzeug gespeichert!'); closeModal('fz'); ladeFahrzeugeAdmin(aktK.id); }).catch(function(e) { notify(e.message, 'err'); });
@@ -3857,7 +3865,15 @@ function saveNK() {
   var mail = gv('nk-mail');
   if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { notify('E-Mail-Format ungültig.', 'err'); return; }
   var kz = kzAusTeilen('nk-');
+  // Das Formular fragt Tag, Monat und Jahr der Erstzulassung ab. Bis zum 09.09.2026 wurde davon
+  // NUR das Jahr uebernommen (als baujahr) -- Tag und Monat fielen wortlos weg. Jetzt wird das
+  // vollstaendige Datum gesendet; fehlt der Tag, normalisiert der Server auf den Monatsersten.
   var ezJahr = gv('nk-ez-jahr');
+  var ezMon = document.getElementById('nk-ez-mon') ? document.getElementById('nk-ez-mon').value : '';
+  var ezTag = document.getElementById('nk-ez-tag') ? document.getElementById('nk-ez-tag').value : '';
+  var ezWert = null;
+  if (ezJahr && ezMon) ezWert = ezJahr + '-' + ezMon + (ezTag ? '-' + ezTag : '');
+  else if (ezJahr) ezWert = null;   // nur ein Jahr ist kein Datum -- siehe Hinweis am Feld
   var moVal = document.getElementById('nk-mo-sel').value === '__man__' ? gv('nk-mo-man') : gv('nk-mo-sel');
   var istGewerbe = kundentyp === 'firma' && document.getElementById('nk-gewerbe') && document.getElementById('nk-gewerbe').checked;
   var data = {
@@ -3871,7 +3887,9 @@ function saveNK() {
     rechnung_email: kundentyp === 'firma' ? (gv('nk-remail') || null) : null,
     strasse: gv('nk-str'), plz: gv('nk-plz'), ort: gv('nk-ort'),
     kennzeichen: kz, fahrzeug_marke: gv('nk-mk'), fahrzeug_modell: moVal,
-    fahrzeug_typ: gv('nk-fztyp'), baujahr: ezJahr ? parseInt(ezJahr) : null
+    fahrzeug_typ: gv('nk-fztyp'),
+    erstzulassung: ezWert,
+    baujahr: (ezJahr && !ezMon) ? parseInt(ezJahr) : null
   };
   sendeNeuerKunde(data, false);
 }
