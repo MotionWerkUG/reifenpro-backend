@@ -231,7 +231,22 @@ cron.schedule('0 16 * * *', async function() {
 const start = async function() {
   const ok = await testConnection();
   if (!ok) { console.error('[Server] DB-Fehler.'); process.exit(1); }
-  app.listen(PORT, '0.0.0.0', function() {
+  // NUR auf der Loopback-Schnittstelle lauschen, nicht auf allen.
+  //
+  // WARUM: Vorher lauschte die Anwendung auf 0.0.0.0 und war damit direkt am Port erreichbar --
+  // an nginx vorbei. Geschuetzt hat sie allein die Firewall. Das ist eine Absicherung zu wenig:
+  //
+  //   1. Faellt die Firewallregel je weg (neuer Server, Umzug, versehentliches ufw allow), steht
+  //      die Anwendung ungeschuetzt im Netz, ohne dass es jemandem auffaellt.
+  //   2. Schlimmer: 'trust proxy' ist auf 1 gesetzt. Express nimmt dann das rechte Element aus
+  //      X-Forwarded-For -- richtig, solange nginx davorsteht und den Kopf selbst setzt. Wer die
+  //      Anwendung DIREKT anspricht, setzt den Kopf selbst und bestimmt damit die IP, die wir als
+  //      Nachweis speichern: bei der Zustimmung zum vorzeitigen Leistungsbeginn, beim Widerruf
+  //      und bei jeder Einwilligung. Genau die Angaben, die im Streitfall zaehlen.
+  //
+  // nginx spricht die Anwendung ohnehin ueber 127.0.0.1 an (beide Konfigurationen geprueft),
+  // es geht also nichts verloren.
+  app.listen(PORT, '127.0.0.1', function() {
     console.log('[Server] ReifenPro v1.3 laeuft auf Port ' + PORT);
   });
 };
