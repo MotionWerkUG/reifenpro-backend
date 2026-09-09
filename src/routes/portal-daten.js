@@ -779,9 +779,14 @@ router.get('/fahrzeuge', authKunde, async (req, res, next) => {
 
 router.post('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
-    const { typ, baujahr, hu_datum } = req.body;
+    const { typ, hu_datum } = req.body;
     const _hu = monatOderTag(hu_datum);
     if (!_hu.ok) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
+    // Erstzulassung als Monat: dieselbe Normalisierung wie beim HU-Datum und im Admin.
+    // baujahr wird NICHT mehr angenommen -- ein Jahr ohne Monat ist keine Erstzulassung, und
+    // eine Umrechnung wuerde einen Monat erfinden, den nie jemand erfasst hat.
+    const _ez = monatOderTag(req.body.erstzulassung);
+    if (!_ez.ok) return res.status(400).json({ code: 'ERSTZULASSUNG_UNGUELTIG', error: _ez.fehler });
     // Freitext von HTML-Zeichen befreien (landet unescaped in Werkstatt-/Bestaetigungs-/HU-Mails) + Laengen-Cap.
     const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
     const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
@@ -790,9 +795,9 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
     const { rows } = await query(
-      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz)
+      `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, hu_datum, notiz, erstzulassung)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [req.kunde.id, t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, _hu.wert, notiz]
+      [req.kunde.id, t, marke, modell, kennzeichen, _hu.wert, notiz, _ez.wert]
     );
     await spiegleFahrzeugInStamm(query, req.kunde.id);
     res.status(201).json(rows[0]);
@@ -801,9 +806,14 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
 
 router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
   try {
-    const { typ, baujahr, hu_datum } = req.body;
+    const { typ, hu_datum } = req.body;
     const _hu = monatOderTag(hu_datum);
     if (!_hu.ok) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
+    // Erstzulassung als Monat: dieselbe Normalisierung wie beim HU-Datum und im Admin.
+    // baujahr wird NICHT mehr angenommen -- ein Jahr ohne Monat ist keine Erstzulassung, und
+    // eine Umrechnung wuerde einen Monat erfinden, den nie jemand erfasst hat.
+    const _ez = monatOderTag(req.body.erstzulassung);
+    if (!_ez.ok) return res.status(400).json({ code: 'ERSTZULASSUNG_UNGUELTIG', error: _ez.fehler });
     // Freitext von HTML-Zeichen befreien (Mails) + Laengen-Cap.
     const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
     const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
@@ -812,9 +822,14 @@ router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
     if (!marke || !modell || !kennzeichen) return res.status(400).json({ error: 'Kennzeichen, Marke und Modell sind Pflicht.' });
     const t = FAHRZEUG_TYPEN.includes(typ) ? typ : 'PKW';
     const { rows } = await query(
-      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, hu_datum=$6, notiz=$7, geaendert_am=NOW()
-       WHERE id=$8 AND kunden_id=$9 RETURNING *`,
-      [t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, _hu.wert, notiz, req.params.id, req.kunde.id]
+      // baujahr steht bewusst NICHT in der SET-Liste: Das Portal erhebt es nicht mehr, und was es
+      // nicht erhebt, darf es nicht ueberschreiben. Vorher schrieb diese Zeile bei JEDEM Speichern
+      // NULL hinein -- trug die Werkstatt im Admin ein Baujahr ein und der Kunde aenderte danach
+      // im Portal nur seine HU, war es wortlos weg.
+      `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, hu_datum=$5, notiz=$6,
+       erstzulassung=$9, geaendert_am=NOW()
+       WHERE id=$7 AND kunden_id=$8 RETURNING *`,
+      [t, marke, modell, kennzeichen, _hu.wert, notiz, req.params.id, req.kunde.id, _ez.wert]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden' });
     await spiegleFahrzeugInStamm(query, req.kunde.id);
