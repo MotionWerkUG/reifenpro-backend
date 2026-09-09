@@ -190,17 +190,16 @@ const LEER_EMPF = {
 // Arbeit widerrufen und schuldet nichts — § 357a Abs. 2 BGB knuepft den Wertersatz genau an
 // dieses Verlangen.
 //
-// NUR BEI ONLINE-BUCHUNGEN (portal_buchung), und das ist eine bewusste Einschraenkung:
-// Ein Fernabsatzvertrag entsteht beim Buchen im Portal und am Telefon — nicht am Tresen. In den
-// Daten sind Tresen- und Telefontermin aber NICHT unterscheidbar: Beide legt der Betrieb ueber
-// dieselbe Route an, und ein Telefontermin OHNE Zustimmung sieht aus wie ein Tresentermin.
-// Wuerde hier auf gut Glueck gewarnt, traefe es fast jede am selben Tag angenommene und
-// abgerechnete Arbeit — das Alltagsgeschaeft eines Reifendienstes, bei dem gar kein
-// Widerrufsrecht besteht. Eine Warnung, die staendig kommt, wird weggeklickt und fehlt dann
-// genau dort, wo sie zaehlt.
-// Der Telefonfall wird deshalb dort abgefangen, wo er hingehoert: beim Termin, VOR der Arbeit
-// (src/routes/zustimmung.js). Soll er auch hier greifen, braucht der Termin ein Merkmal, wie er
-// zustande kam — siehe .claude/bereiche/rechnungswesen/.
+// NUR BEI FERNABSATZ (termine.vereinbart_ueber = 'telefon' oder 'online'). Am Tresen entsteht
+// kein Fernabsatzvertrag und es gibt kein Widerrufsrecht.
+// Diese Unterscheidung war anfangs nicht moeglich: Tresen- und Telefontermin sahen in den Daten
+// gleich aus, und die erste Fassung dieses Hinweises haette bei fast jeder am selben Tag
+// angenommenen und abgerechneten Arbeit gewarnt — dem Alltagsgeschaeft eines Reifendienstes.
+// Eine Warnung, die staendig kommt, wird weggeklickt und fehlt dann genau dort, wo sie zaehlt.
+// Seit die Adminmaske den Weg festhaelt, wird nicht mehr geraten. Ein Datenbank-Riegel erzwingt
+// zusaetzlich 'online', sobald portal_buchung gesetzt ist — eine vergessene Einfuegestelle
+// koennte einen Fernabsatzvertrag sonst still als Tresengeschaeft fuehren.
+// Bewusst positiv geprueft: Ein unbekannter Wert fuehrt zu KEINEM Hinweis, nicht zu einem.
 //
 // HINWEIS, KEINE SPERRE: Die Rechnung ist steuerlich einwandfrei. Betroffen ist die
 // Durchsetzbarkeit der Forderung, nicht die Richtigkeit des Belegs. Eine erbrachte Leistung
@@ -215,20 +214,21 @@ async function widerrufHinweis(ausfuehrer, rechnungId) {
       // kundentyp: Gast-Termine haben keinen Kundensatz, ihre Einordnung steht am Termin.
       `SELECT to_char(t.datum,'YYYY-MM-DD') AS datum,
               to_char(t.erstellt_am AT TIME ZONE 'Europe/Berlin','YYYY-MM-DD') AS vertrag_datum,
-              t.vorzeitige_leistung, t.portal_buchung,
+              t.vorzeitige_leistung, t.vereinbart_ueber,
               COALESCE(k.kundentyp, t.kontakt_kundentyp) AS kundentyp
          FROM termine t LEFT JOIN kunden k ON k.id = t.kunden_id
         WHERE t.rechnung_id = $1 LIMIT 1`, [rechnungId]);
     if (!rows.length) return null;
     const t = rows[0];
-    if (t.portal_buchung !== true) return null;
+    if (t.vereinbart_ueber !== 'telefon' && t.vereinbart_ueber !== 'online') return null;
     // Das Widerrufsrecht steht Verbrauchern zu. Bei einem Firmenkunden waere der Hinweis ein
     // Fehlalarm — und ein Fehlalarm entwertet den Hinweis fuer die Faelle, in denen er zaehlt.
     if (t.kundentyp === 'firma') return null;
     if (t.vorzeitige_leistung === true) return null;
     if (!t.datum || !t.vertrag_datum) return null;
     if (!widerruf.zustimmungNoetigAbVertrag(t.vertrag_datum, t.datum)) return null;
-    return 'Der Termin wurde online gebucht und lag innerhalb der 14-tägigen Widerrufsfrist; '
+    const weg = t.vereinbart_ueber === 'telefon' ? 'telefonisch vereinbart' : 'online gebucht';
+    return 'Der Termin wurde ' + weg + ' und lag innerhalb der 14-tägigen Widerrufsfrist; '
       + 'eine Zustimmung zum vorzeitigen Leistungsbeginn ist nicht dokumentiert. '
       + 'Die Rechnung ist korrekt — im Fall eines Widerrufs wäre die Forderung aber '
       + 'voraussichtlich nicht durchsetzbar (§ 357a Abs. 2 BGB).';
