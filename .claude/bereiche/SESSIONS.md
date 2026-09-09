@@ -69,6 +69,38 @@ Darunter vier Portal-Namen, von denen drei keinem Fenster entsprechen. Ein Name 
 `ListAgents` ist also **kein Beleg dafür, dass dort jemand sitzt** — es kann ein vergessener
 Prozess sein, der weiterhin in denselben Worktree schreibt.
 
+### Zwei Löcher, die am 09.09.2026 aufgegangen sind
+
+**a) Der MERGE macht live, nicht der Neustart.** Die Produktion läuft aus dem Hauptordner.
+`pm2 restart` lädt damit alles, was dort auf der Platte liegt — auch nicht committete Arbeit
+einer anderen Sitzung. Am 09.09. war der halbfertige Stand der Admin-Sitzung dadurch
+48 Sekunden live, ausgelöst durch einen Neustart der Portal-Sitzung.
+
+Die eigentliche Lehre stammt von der Portal-Sitzung: Der Neustart ist nur der Auslöser.
+**Sobald jemand nach `main` merged, liegt sein Code auf der Platte und geht beim nächsten
+Neustart durch irgendwen live.** Wer mit dem Neustart wartet, schützt gar nichts — er erzeugt
+nur einen halben Stand (Oberfläche schon deployt, Backend noch nicht).
+
+- Abgestimmt wird vor dem **Mergen**, nicht vor dem Neustarten.
+- Wer im Hauptordner arbeitet, **committet früh**. Uncommittete Arbeit dort ist bereits
+  produktionswirksam und wird von einem `git checkout` oder Merge-Konflikt wortlos weggeräumt.
+- Vor einem Neustart trotzdem `git status` im Hauptordner lesen und die fremde Sitzung
+  informieren — nicht als Schutz, sondern damit sie es nicht selbst merken muss.
+
+**b) Schweigen ist kein Beleg.** Am selben Tag zweimal erlebt: Die Portal-Sitzung baute einen
+Prüfer, der auf allen Dateien „keine Funde" meldete und dabei blind war (er suchte die
+Verwendungen nur in den `<script>`-Blöcken, während sie als `data-i18n` im Markup stehen). Die
+Admin-Sitzung hatte acht grüne Testfälle für eine Fristrechnung, von denen **keiner den Fehler
+überhaupt sehen konnte** — beide Rechenwege lieferten beim Testtermin zufällig dasselbe.
+
+> Ein Werkzeug oder ein Test, der Fehler finden soll, muss einmal an einem **echten** Fehler
+> gezeigt haben, dass er ihn findet. „Keine Funde" auf sauberen Daten kann Sauberkeit heißen
+> oder Blindheit — an der Ausgabe sieht man den Unterschied nicht.
+
+Umgesetzt in `scripts/doppelte-schluessel.py`: Vor jedem Lauf läuft eine Probe mit eingebauten
+Fehlern durch **dieselbe** Funktion wie eine echte Datei. Schlägt sie nicht an, bricht das
+Werkzeug ab, statt „keine Funde" zu melden.
+
 ### Beim Ablösen unbedingt weitergeben
 Wer diese Sitzung ablöst, findet die Kennungen **hier** — nicht im Gesprächsverlauf. Genau
 deshalb steht das Register in dieser Datei. Ändert sich eine Kennung (neuer Chat, „Start
