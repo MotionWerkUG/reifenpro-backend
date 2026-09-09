@@ -8,6 +8,7 @@ const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
 const konditionen = require('../lib/konditionen');
 const { spiegleFahrzeugInStamm } = require('../lib/kundendaten');
+const { monatOderTag } = require('../lib/datum');
 const widerruf = require('../lib/widerruf');
 const { kundenMailHtml } = require('../lib/mail-template');
 const { sha256Datei } = require('../lib/rechnung-pdf');
@@ -762,30 +763,6 @@ router.get('/dokumente/:id', authKunde, async (req, res, next) => {
 const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 
 // Spiegelt das zuletzt gepflegte Fahrzeug in die Kunden-Stammfelder (Suche/Profil/Buchung/HU)
-// HU-Datum aus dem Formular annehmbar machen. Ein Monatsfeld (type="month") liefert
-// 'YYYY-MM' -- ohne Tag lehnt Postgres das Einfuegen ab und die Route antwortete mit 500.
-// Rueckgabe: { wert } bei Erfolg, { fehler } bei unlesbarer Eingabe.
-function huDatumPruefen(roh) {
-  if (roh == null || String(roh).trim() === '') return { wert: null };
-  const v = String(roh).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
-    // Form allein genuegt nicht: '2027-02-30' und '2027-13-01' passen auf das Muster, sind aber
-    // keine Kalendertage und liessen die Datenbank scheitern -- also derselbe 500 wie vorher,
-    // nur fuer einen Vertipper statt fuer ein Monatsfeld. Rundlauf ueber Date: Nur wenn Jahr,
-    // Monat und Tag unveraendert zurueckkommen, hat der Tag wirklich existiert.
-    const teile = v.split('-').map(Number);
-    const d = new Date(Date.UTC(teile[0], teile[1] - 1, teile[2]));
-    if (d.getUTCFullYear() === teile[0] && d.getUTCMonth() === teile[1] - 1 && d.getUTCDate() === teile[2]) return { wert: v };
-    return { fehler: 'Dieses Datum gibt es nicht. Bitte prüfen Sie Tag und Monat.' };
-  }
-  // Monat ohne Tag: Der Kunde meint den Monat, wir legen den Ersten zugrunde.
-  const m = v.match(/^(\d{4})-(\d{1,2})$/);
-  if (m) {
-    const monat = parseInt(m[2], 10);
-    if (monat >= 1 && monat <= 12) return { wert: m[1] + '-' + String(monat).padStart(2, '0') + '-01' };
-  }
-  return { fehler: 'Bitte geben Sie das HU-Datum als Monat und Jahr an (zum Beispiel 04/2027).' };
-}
 
 
 router.get('/fahrzeuge', authKunde, async (req, res, next) => {
@@ -803,8 +780,8 @@ router.get('/fahrzeuge', authKunde, async (req, res, next) => {
 router.post('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
     const { typ, baujahr, hu_datum } = req.body;
-    const _hu = huDatumPruefen(hu_datum);
-    if (_hu.fehler) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
+    const _hu = monatOderTag(hu_datum);
+    if (!_hu.ok) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
     // Freitext von HTML-Zeichen befreien (landet unescaped in Werkstatt-/Bestaetigungs-/HU-Mails) + Laengen-Cap.
     const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
     const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
@@ -825,8 +802,8 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
 router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
   try {
     const { typ, baujahr, hu_datum } = req.body;
-    const _hu = huDatumPruefen(hu_datum);
-    if (_hu.fehler) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
+    const _hu = monatOderTag(hu_datum);
+    if (!_hu.ok) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
     // Freitext von HTML-Zeichen befreien (Mails) + Laengen-Cap.
     const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
     const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
