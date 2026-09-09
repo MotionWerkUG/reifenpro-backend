@@ -2320,8 +2320,8 @@ function rStatusBadge(s, istStorno) {
   var m = istStorno ? ['Stornorechnung', 'b-x'] : (map[s] || [s, 'b-n']);
   return '<span class="badge ' + m[1] + '">' + m[0] + '</span>';
 }
-var KASSE_DA = false;
-var KASSE_GRUND = '';   // Kassenanbindung auf diesem Server eingerichtet?
+var KASSE_DA = false;   // darf ueberhaupt kassiert werden? (eingerichtet UND TSE vorhanden)
+var KASSE_GRUND = '';   // falls nicht: der Grund im Klartext, sonst leer
 function loadRechnungen() {
   api('GET', '/rechnungen').then(function(r) { allRechnungen = r || []; renderRechnungen(); }).catch(function() {});
   loadRechnungStatistik();
