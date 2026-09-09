@@ -647,7 +647,7 @@ var I18N = {
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
-    confirm_booking_title: 'Bitte Buchung bestätigen', no_services: 'Zurzeit sind online keine Leistungen buchbar. Bitte rufen Sie uns an{tel}.',  agreed_discount: 'Vereinbarter Nachlass', voucher_no_effect: 'Gutschein {code} gilt für diese Leistung nicht. Für andere Leistungen bleibt er gültig.', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
+    confirm_booking_title: 'Bitte Buchung bestätigen', no_services: 'Zurzeit sind online keine Leistungen buchbar. Bitte rufen Sie uns an{tel}.', slots_before_start: 'Online-Buchungen sind erst ab dem {datum} möglich.', slots_holiday: 'An diesem Tag haben wir Betriebsurlaub.', slots_closed: 'An diesem Tag haben wir geschlossen.',  agreed_discount: 'Vereinbarter Nachlass', voucher_no_effect: 'Gutschein {code} gilt für diese Leistung nicht. Für andere Leistungen bleibt er gültig.', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -733,7 +733,7 @@ var I18N = {
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
-    confirm_booking_title: 'Please confirm your booking', no_services: 'No services can be booked online at the moment. Please give us a call{tel}.',  agreed_discount: 'Agreed discount', voucher_no_effect: 'Voucher {code} does not apply to this service. It remains valid for others.', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
+    confirm_booking_title: 'Please confirm your booking', no_services: 'No services can be booked online at the moment. Please give us a call{tel}.', slots_before_start: 'Online booking opens on {datum}.', slots_holiday: 'We are closed for company holidays on this day.', slots_closed: 'We are closed on this day.',  agreed_discount: 'Agreed discount', voucher_no_effect: 'Voucher {code} does not apply to this service. It remains valid for others.', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -1199,6 +1199,29 @@ function verworfenHinweis(p, code) {
   return '';
 }
 
+// Warum es an diesem Tag keine Zeiten gibt. Der Server sagt es -- er liefert grund und
+// grund_code mit --, und das Portal hat beides ignoriert und stattdessen "Keine freien Zeiten an
+// diesem Tag" angezeigt.
+//
+// Das war nicht bloss unvollstaendig, sondern UNWAHR: "keine freien Zeiten" ist eine Aussage
+// ueber die Auslastung des Betriebs. Bis zum 1. Oktober ist die Online-Buchung ueberhaupt noch
+// nicht offen -- der Kunde haette drei Wochen lang gelesen, wir seien ausgebucht. Bei
+// Betriebsurlaub klickt er sich durch vierzehn Tage, um dasselbe zu erfahren.
+// Ein leeres Feld liest man als Stoerung; dieser Satz laesst einen glauben, man habe verstanden.
+//
+// Uebersetzt wird ueber den Code. Faellt einer weg oder kommt ein neuer hinzu, bleibt der
+// deutsche Satz des Servers stehen -- lieber ein wahrer Satz in der falschen Sprache als ein
+// falscher in der richtigen.
+function slotGrundText(r) {
+  if (!r) return t('no_slots');
+  if (r.grund_code === 'vor_buchungsstart' && r.ab) {
+    return t('slots_before_start').replace('{datum}', fmtDatum(r.ab));
+  }
+  if (r.grund_code === 'urlaub') return t('slots_holiday');
+  if (r.grund_code === 'geschlossen') return t('slots_closed');
+  return r.grund || t('no_slots');
+}
+
 function saisonBadge(typ) {
   var sl = (typ || '').toLowerCase();
   var col = sl.indexOf('winter') !== -1 ? '#4a9eff' : (sl.indexOf('sommer') !== -1 || sl.indexOf('summer') !== -1 ? '#eab308' : '#888');
@@ -1572,7 +1595,7 @@ function reschedSlots() {
   el.innerHTML = '<div class="empty">' + t('loading') + '</div>';
   papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + reschedArtikel).then(function(r) {
     var slots = (r && r.slots) || [];
-    if (!slots.length) { el.innerHTML = '<div class="empty">' + t('no_slots') + '</div>'; return; }
+    if (!slots.length) { el.innerHTML = '<div class="empty">' + pEsc(slotGrundText(r)) + '</div>'; return; }
     el.innerHTML = slots.map(function(s) {
       var zeit = s.von || s.uhrzeit || s.zeit || s;
       return '<div class="slot" onclick="reschedConfirm(\'' + zeit + '\')">' + String(zeit).substring(0, 5) + '</div>';
@@ -1749,7 +1772,7 @@ function buchenSlotsLaden() {
   wrap.classList.remove('hidden');
   papi('GET', '/daten/freie-slots?datum=' + datum + '&artikel_id=' + artikelId + '&typ=' + encodeURIComponent(typ) + '&zoll=' + encodeURIComponent(zoll)).then(function(r) {
     var slots = (r && r.slots) || r || [];
-    if (!slots.length) { slotsEl.innerHTML = '<div class="empty">' + t('no_slots') + '</div>'; return; }
+    if (!slots.length) { slotsEl.innerHTML = '<div class="empty">' + pEsc(slotGrundText(r)) + '</div>'; return; }
     slotsEl.innerHTML = slots.map(function(s) {
       var zeit = typeof s === 'string' ? s : (s.von || s.uhrzeit || s.zeit);
       return '<div class="slot" data-zeit="' + zeit + '" onclick="slotWaehlen(this)">' + zeit.substring(0, 5) + '</div>';

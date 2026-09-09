@@ -147,7 +147,12 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     // Vor dem Buchungsstart gar keine Zeiten anbieten. Sonst waehlt der Kunde eine und bekommt
     // erst beim Buchen die Absage -- die Sperre stand nur in POST /termine, nicht in der Anzeige.
     const _sperreS = vorBuchungsstart(einst.buchbar_ab, datum);
-    if (_sperreS) return res.json({ slots: [], grund: _sperreS });
+    const _abTag = einst.buchbar_ab ? String(einst.buchbar_ab instanceof Date
+      ? einst.buchbar_ab.getFullYear() + '-' + String(einst.buchbar_ab.getMonth() + 1).padStart(2, '0') + '-' + String(einst.buchbar_ab.getDate()).padStart(2, '0')
+      : einst.buchbar_ab).slice(0, 10) : null;
+    // grund_code neben dem fertigen Satz: Der Satz ist deutsch, das Portal ist zweisprachig.
+    // Mit dem Code kann die Oberflaeche uebersetzen und faellt sonst auf den Satz zurueck.
+    if (_sperreS) return res.json({ slots: [], grund: _sperreS, grund_code: 'vor_buchungsstart', ab: _abTag });
 
     // Artikel + Preisstaffel laden, effektive Dauer nach Typ/Zoll ermitteln.
     // Nur online freigegebene Leistungen -- sonst zeigt das Portal freie Zeiten fuer etwas an,
@@ -163,14 +168,15 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
       'SELECT id FROM betriebsurlaub WHERE von_datum <= $1 AND bis_datum >= $1',
       [datum]
     );
-    if (urlaub.rows.length) return res.json({ slots: [], grund: 'Betriebsurlaub' });
+    if (urlaub.rows.length) return res.json({ slots: [], grund: 'Betriebsurlaub', grund_code: 'urlaub' });
 
     // Neues Modell: besondere Tage (Feiertag/Urlaub) ueberschreiben die regulaere Woche; 1-2 Spannen/Tag.
     // (Fixt zugleich den frueheren kaputten Feiertag-Check, der ein Date-Objekt an einen String-Matcher gab.)
     const off = await oeffnung.oeffnungFuerTag(datum);
     if (off.geschlossen) {
       const bt = (await query('SELECT bezeichnung FROM besondere_tage WHERE datum=$1 AND geschlossen=true', [datum])).rows[0];
-      return res.json({ slots: [], grund: (bt && bt.bezeichnung) ? bt.bezeichnung : 'Geschlossen' });
+      return res.json({ slots: [], grund: (bt && bt.bezeichnung) ? bt.bezeichnung : 'Geschlossen',
+                        grund_code: (bt && bt.bezeichnung) ? null : 'geschlossen' });
     }
     const maxParallel = einst.max_parallele_termine || 1;
 
