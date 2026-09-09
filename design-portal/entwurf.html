@@ -136,6 +136,22 @@
     Ein Nachlass wird mit seiner <b>Herkunft</b> genannt, nie als nackte Zahl.
     <b>Nicht</b> gezeigt werden Konditionen oder Rabattstufen als solche: Der Kunde sieht seinen
     Preis, nicht seine Einstufung.
+    <br><br>
+    <b>Es gibt drei Nachlassfälle, und sie sehen verschieden aus.</b> Welcher vorliegt, sagt
+    <code>preis_quelle</code> an der einzelnen Position:
+    <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">
+      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>gutschein</code></td>
+          <td style="padding:5px 0">&bdquo;Gutschein WINTER2026 (&minus;25&nbsp;%)&ldquo;, alter Preis daneben durchgestrichen</td></tr>
+      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>konditionen</code></td>
+          <td style="padding:5px 0">&bdquo;Vereinbarter Nachlass (&minus;20&nbsp;%)&ldquo; &mdash; der Fall bei jedem Gewerbekunden mit Pauschalnachlass</td></tr>
+      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>kundenpreis</code></td>
+          <td style="padding:5px 0"><b>gar keine Nachlasszeile.</b> Der Preis IST der Preis; eine Nachlasszeile w&auml;re schlicht falsch</td></tr>
+    </table>
+    <b>Der Wortlaut folgt der Rechnung</b>, nachgesehen in <code>src/routes/rechnungen.js</code>:
+    Dort hei&szlig;t es &bdquo;Gutschein WINTER2026 (-25&nbsp;%)&ldquo; und &bdquo;Vereinbarter Nachlass (-20&nbsp;%)&ldquo;.
+    Zwei Schreibweisen f&uuml;r dieselbe Sache sind f&uuml;r den Kunden ein Widerspruch, den er nicht
+    aufl&ouml;sen kann. Hinweis der Portal-Sitzung &mdash; mein erster Entwurf zeigte nur den
+    Gutscheinfall und wich im Wortlaut ab.
   </div>
 
   <div class="rahmen">
@@ -163,7 +179,7 @@
             <td class="betrag">49,00 €</td>
           </tr>
           <tr>
-            <td>Reifeneinlagerung<span class="quelle">Gutschein WINTER2026 · 25 % Nachlass</span></td>
+            <td>Reifeneinlagerung<span class="quelle">Gutschein WINTER2026 (−25 %)</span></td>
             <td class="betrag"><span class="durchgestrichen">42,50 €</span>32,00 €</td>
           </tr>
           <tr>
@@ -210,6 +226,34 @@
         <div class="knopfleiste">
           <button class="btn btn-s">Termin verschieben</button>
           <button class="btn btn-s">Termin absagen</button>
+        </div>
+      </div>
+
+      <div class="karte">
+        <div class="k-kopf">
+          <div>
+            <div class="k-datum">Montag, 26. Oktober 2026</div>
+            <div class="k-zeit">07:30 &ndash; 09:00 Uhr &middot; voraussichtlich 90 Minuten</div>
+          </div>
+          <span class="badge b-ok">Best&auml;tigt</span>
+        </div>
+        <table class="pos">
+          <tr>
+            <td>R&auml;derwechsel<span class="quelle">Vereinbarter Nachlass (&minus;20&nbsp;%)</span></td>
+            <td class="betrag"><span class="durchgestrichen">49,00&nbsp;&euro;</span>39,20&nbsp;&euro;</td>
+          </tr>
+          <tr>
+            <td>Reifeneinlagerung</td>
+            <td class="betrag">35,00&nbsp;&euro;</td>
+          </tr>
+          <tr class="summe"><td>Summe, inkl. MwSt.</td><td class="betrag">74,20&nbsp;&euro;</td></tr>
+        </table>
+        <div class="zeile"><span>L-FA-2201 &middot; Ford Transit</span><span>Firmenwagen</span></div>
+        <div class="hinweis h-info" style="font-size:12.5px">
+          <b>So ist der Entwurf zu lesen:</b> Beim R&auml;derwechsel greift der vereinbarte Nachlass des
+          Gewerbekunden &mdash; genannt wird die Herkunft, nicht die Stufe. Die Einlagerung steht zum
+          fest hinterlegten Kundenpreis: <b>keine Nachlasszeile</b>, denn es gibt keinen Nachlass,
+          der Preis ist einfach so vereinbart. Dieser Kasten geh&ouml;rt nicht ins Portal.
         </div>
       </div>
 
@@ -400,7 +444,7 @@
         <div class="k-zeit">09:30 – 10:15 Uhr</div>
         <table class="pos">
           <tr><td>Räderwechsel</td><td class="betrag">49,00 €</td></tr>
-          <tr><td>Reifeneinlagerung<span class="quelle">Gutschein WINTER2026 · 25 %</span></td><td class="betrag">32,00 €</td></tr>
+          <tr><td>Reifeneinlagerung<span class="quelle">Gutschein WINTER2026 (−25 %)</span></td><td class="betrag">32,00 €</td></tr>
           <tr><td>Wuchten, 4 Räder</td><td class="betrag">24,00 €</td></tr>
           <tr class="summe"><td>Summe</td><td class="betrag">105,00 €</td></tr>
         </table>
@@ -417,7 +461,8 @@
   <h2><span class="nr">Zum Bauen</span>Was daran verbindlich ist</h2>
   <div class="doku">
     <b>Verbindlich:</b> alle Leistungen je Termin mit Einzelpreis und Summe; eingefrorene Preise,
-    nie neu gerechnet; Herkunft eines Nachlasses statt einer nackten Zahl; keine Konditionen oder
+    nie neu gerechnet; Herkunft eines Nachlasses statt einer nackten Zahl, im Wortlaut der
+    Rechnung, und bei einem festen Kundenpreis gar keine Nachlasszeile; keine Konditionen oder
     Rabattstufen; alle Termine, nicht nur einer; Lagerplatz hervorgehoben; Fahrzeugliste statt
     einzelner Felder; Erstzulassung nur so genau wie erfasst; Stornofrist als Datum; Hinweis zur
     Zustimmung nur, wenn sie fehlt; jeder Text in beiden Sprachen; beide Themen.
