@@ -112,11 +112,18 @@ async function spiegleFahrzeugInStamm(query, kundenId) {
        f.erstzulassung || null, f.erstzulassung_genauigkeit || null, kundenId]);
     return { gespiegelt: true, anzahl };
   }
-  if (anzahl > 1) {
-    await query('UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL WHERE id=$1', [kundenId]);
-    return { gespiegelt: false, anzahl };
-  }
-  return { gespiegelt: false, anzahl };   // gar kein Fahrzeug -> Stamm unangetastet lassen
+  // Zwei oder mehr: leeren. Ein eingefrorener Stamm lieferte den Rueckfaellen sonst weiterhin
+  // ein Kennzeichen -- nur eben das falsche.
+  // KEIN Fahrzeug: ebenfalls leeren. Bis zum 09.09.2026 blieb der Stamm hier UNANGETASTET, und
+  // das war ein Fehler mit echtem Schaden: Wer ein Fahrzeug anlegt und wieder loescht, behielt
+  // im Stamm die Werte des GELOESCHTEN Fahrzeugs. Beim Durchklicken des Kundenportals ist genau
+  // das passiert -- der Datensatz einer echten Kundin trug danach Testwerte.
+  // Was hier steht, stammt IMMER aus einem Fahrzeugsatz. Gibt es keinen mehr, darf auch nichts
+  // mehr dastehen. Altdaten aus der Zeit vor der Fahrzeugliste sind kein Gegenargument: Sie
+  // werden von migration-fahrzeuge-aus-stamm.sql in echte Fahrzeugsaetze ueberfuehrt, bevor
+  // ueberhaupt jemand ein Fahrzeug anlegen kann.
+  await query('UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL WHERE id=$1', [kundenId]);
+  return { gespiegelt: false, anzahl };
 }
 
 module.exports = { spiegleFahrzeugInStamm, ohneGeheimnisse, KUNDENTYPEN, strasseHatHausnummer, plzGueltig, pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail };
