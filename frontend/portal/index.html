@@ -379,7 +379,7 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
             <input id="fz-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
           </div>
         </div>
-        <div class="fg"><label data-i18n="year">Baujahr</label><input id="fz-baujahr" type="number" min="1950" max="2099"></div>
+        <div class="fg"><label data-i18n="first_reg">Erstzulassung (Monat)</label><input id="fz-ez" type="month"></div>
         <div class="fg"><label data-i18n="hu_date">HU fällig (Monat)</label><input id="fz-hu" type="month"></div>
         <input type="hidden" id="fz-id">
         <div style="display:flex;gap:8px;margin-top:6px">
@@ -509,9 +509,14 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
             <div class="adr-drop" id="pf-orte-drop"></div>
           </div>
           <div class="fg"><label data-i18n="city">Ort</label><input id="pf-ort" autocomplete="address-level2"></div>
-          <div class="fg"><label data-i18n="license_plate">Kennzeichen</label><input id="pf-kz"></div>
-          <div class="fg"><label data-i18n="brand">Marke</label><input id="pf-marke"></div>
-          <div class="fg"><label data-i18n="model">Modell</label><input id="pf-modell"></div>
+          <!-- Fahrzeuge als LISTE, nicht als Einzelfelder: Wer zwei Autos pflegt, sah hier vorher
+               nur das zuletzt gespeicherte und hielt das erste fuer verloren. Gepflegt werden sie im
+               eigenen Reiter -- hier stehen sie nur zum Nachsehen, damit es EINE Wahrheit gibt. -->
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border2)">
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px" data-i18n="your_vehicles">Ihre Fahrzeuge</div>
+          <div id="pf-fahrzeuge" style="font-size:14px;line-height:1.7"></div>
+          <button class="btn btn-g btn-sm" style="margin-top:10px" onclick="portalNav('fahrzeuge')" data-i18n="manage_vehicles">Fahrzeuge verwalten</button>
         </div>
         <button class="btn btn-p btn-sm" style="margin-top:14px" onclick="profilSpeichern()" data-i18n="save">Speichern</button>
       </div>
@@ -573,6 +578,8 @@ var I18N = {
     customer_type: 'Kundenart', customer_private: 'Privatkunde', customer_business: 'Firmenkunde',
     session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
     consent_renew: 'Erinnerungen wieder einschalten',
+    your_vehicles: 'Ihre Fahrzeuge', manage_vehicles: 'Fahrzeuge verwalten',
+    no_vehicles: 'Noch kein Fahrzeug hinterlegt.', no_plate: 'ohne Kennzeichen', first_reg: 'Erstzulassung',
     show_password: 'Anzeigen', hide_password: 'Verbergen',
     consent_mail_sent: 'Wir haben Ihnen eine Bestätigungsmail geschickt.',
     delete_request_pending: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen. Bis dahin können Sie sich weiterhin anmelden.',
@@ -652,6 +659,8 @@ var I18N = {
     customer_type: 'Customer type', customer_private: 'Private customer', customer_business: 'Business customer',
     session_expired: 'Your session has expired. Please sign in again.',
     consent_renew: 'Turn reminders back on',
+    your_vehicles: 'Your vehicles', manage_vehicles: 'Manage vehicles',
+    no_vehicles: 'No vehicle on file yet.', no_plate: 'no plate', first_reg: 'First registration',
     show_password: 'Show', hide_password: 'Hide',
     consent_mail_sent: 'We have sent you a confirmation email.',
     delete_request_pending: 'Your deletion request has been received. We will get back to you. Until then you can still sign in.',
@@ -1711,9 +1720,25 @@ function ladeProfil() {
     if (g('pf-strasse')) g('pf-strasse').value = k.strasse || '';
     if (g('pf-plz')) g('pf-plz').value = k.plz || '';
     if (g('pf-ort')) g('pf-ort').value = k.ort || '';
-    if (g('pf-kz')) g('pf-kz').value = k.kennzeichen || '';
-    if (g('pf-marke')) g('pf-marke').value = k.fahrzeug_marke || '';
-    if (g('pf-modell')) g('pf-modell').value = k.fahrzeug_modell || '';
+    // Fahrzeuge aus der LISTE, nicht aus den Stammfeldern: Die tragen ab dem zweiten Fahrzeug
+    // bewusst nichts mehr (src/lib/kundendaten.js), damit den Rueckfaellen in Terminen und
+    // Protokollen kein falsches Kennzeichen untergeschoben wird.
+    var fzBox = g('pf-fahrzeuge');
+    if (fzBox) {
+      fzBox.textContent = t('loading');
+      papi('GET', '/daten/fahrzeuge').then(function(liste) {
+        var arr = Array.isArray(liste) ? liste : (liste && liste.fahrzeuge) || [];
+        if (!arr.length) { fzBox.textContent = t('no_vehicles'); return; }
+        fzBox.innerHTML = arr.map(function(f) {
+          var name = [f.marke, f.modell].filter(Boolean).join(' ');
+          var rechts = [f.typ, fzErstzulassung(f)].filter(Boolean).join(' · ');
+          return '<div><strong>' + pEsc(f.kennzeichen || t('no_plate')) + '</strong>'
+               + (name ? ' — ' + pEsc(name) : '')
+               + (rechts ? ' <span style="color:var(--muted)">(' + pEsc(rechts) + ')</span>' : '')
+               + '</div>';
+        }).join('');
+      }).catch(function() { fzBox.textContent = t('no_vehicles'); });
+    }
     var cs = g('consent-state');
     if (cs) {
       var on = k.einwilligung_saison_erinnerung || k.einwilligung_werbung;
@@ -1812,7 +1837,10 @@ function profilSpeichern() {
     if (!/\d/.test(str) && !/postfach/i.test(str)) { notify(t('address_no_number'), 'err'); return; }
     if (!/^\d{5}$/.test(plz)) { notify(t('address_zip'), 'err'); return; }
   }
-  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), kennzeichen: v('pf-kz'), fahrzeug_marke: v('pf-marke'), fahrzeug_modell: v('pf-modell'), strasse: str, plz: plz, ort: ort })
+  // Kennzeichen, Marke und Modell werden hier NICHT mehr gesendet: Sie stammen aus der
+  // Fahrzeugliste und werden serverseitig gespiegelt. Wuerde das Profil sie mitschicken,
+  // ueberschriebe es die Spiegelung mit dem, was zufaellig im Formular stand.
+  papi('PUT', '/auth/profil', { telefon: v('pf-tel'), strasse: str, plz: plz, ort: ort })
     .then(function() { notify(t('contact_saved'), 'ok'); ladeProfil(); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
@@ -1871,13 +1899,24 @@ function rechnungPdf(id) {
     .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
+// Erstzulassung anzeigen. Ein vorhandenes Baujahr wird NICHT zu einer Erstzulassung gemacht --
+// dort stuende sonst ein Monat, den nie jemand erfasst hat. Dann lieber ehrlich "Baujahr 1980".
+function fzErstzulassung(f) {
+  if (f.erstzulassung) {
+    var d = String(f.erstzulassung).slice(0, 10).split('-');
+    return t('first_reg') + ' ' + d[1] + '/' + d[0];
+  }
+  if (f.baujahr) return t('year') + ' ' + f.baujahr;
+  return '';
+}
+
 function ladeFahrzeuge() {
   papi('GET', '/daten/fahrzeuge').then(function(rows) {
     var el = document.getElementById('fahrzeuge-liste');
     if (!rows || !rows.length) { el.innerHTML = '<div class="empty">' + t('no_vehicles') + '</div>'; return; }
     el.innerHTML = rows.map(function(f) {
       var titel = [f.marke, f.modell].filter(Boolean).join(' ') || f.typ;
-      var meta = [f.typ, f.kennzeichen, f.baujahr].filter(Boolean).join(' · ') + (f.hu_datum ? ' · HU ' + fmtDatum(f.hu_datum) : '');
+      var meta = [f.typ, f.kennzeichen, fzErstzulassung(f)].filter(Boolean).join(' · ') + (f.hu_datum ? ' · HU ' + fmtDatum(f.hu_datum) : '');
       var huHinweis = '';
       if (f.hu_datum) {
         var diff = Math.round((new Date(String(f.hu_datum).substring(0, 10) + 'T12:00:00') - new Date()) / 86400000);
@@ -1906,7 +1945,7 @@ function fzFormZeigen() {
   document.getElementById('fz-id').value = '';
   document.getElementById('fz-form-titel').textContent = t('add_vehicle');
   document.getElementById('fz-typ').value = 'PKW';
-  ['fz-marke', 'fz-modell', 'fz-baujahr', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['fz-marke', 'fz-modell', 'fz-ez', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
   fzKzInTeile('');
   document.getElementById('fz-form-card').style.display = '';
 }
@@ -1920,7 +1959,9 @@ function fzEdit(id) {
     document.getElementById('fz-marke').value = f.marke || '';
     document.getElementById('fz-modell').value = f.modell || '';
     fzKzInTeile(f.kennzeichen || '');
-    document.getElementById('fz-baujahr').value = f.baujahr || '';
+    // Nur eine echte Erstzulassung vorbelegen. Ein Baujahr traegt keinen Monat und darf
+    // hier nicht als einer erscheinen.
+    document.getElementById('fz-ez').value = f.erstzulassung ? String(f.erstzulassung).slice(0, 7) : '';
     document.getElementById('fz-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
     document.getElementById('fz-form-card').style.display = '';
   }).catch(function(e) { notify(e.message, 'err'); });
@@ -1945,7 +1986,8 @@ function fzSpeichern() {
     marke: document.getElementById('fz-marke').value.trim(),
     modell: document.getElementById('fz-modell').value.trim(),
     kennzeichen: kennz,
-    baujahr: document.getElementById('fz-baujahr').value ? parseInt(document.getElementById('fz-baujahr').value) : null,
+    // Roh als 'YYYY-MM' senden -- der Server normalisiert ueber lib/datum.js.
+    erstzulassung: document.getElementById('fz-ez').value || null,
     hu_datum: hu ? hu + '-01' : null
   };
   var id = document.getElementById('fz-id').value;
