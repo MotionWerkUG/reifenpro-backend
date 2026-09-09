@@ -2329,9 +2329,10 @@ function rechnungAusTermin(terminId) {
     if (r && r.id) {
       notify('Rechnungsentwurf erstellt.');
       api('PATCH', '/termine/' + terminId + '/fakturiert', { fakturiert: true }).then(function() { loadAbzurechnen(); }).catch(function() {});
-      // Der Widerrufs-Hinweis darf nicht als Kurzmeldung wegblinken: Er betrifft die
-      // Durchsetzbarkeit der Forderung, und hier ist der Entwurf noch offen.
-      if (r.widerruf_hinweis) alert('Hinweis zum Widerrufsrecht\n\n' + r.widerruf_hinweis);
+      // Beim Entwurf nur eine Meldung. Der Dialog kommt beim Festschreiben — dort wird es
+      // verbindlich, und zwei fast wortgleiche Dialoge im selben Arbeitsgang wegzuklicken
+      // ist der schnellste Weg, dass man sie kuenftig gar nicht mehr liest.
+      if (r.widerruf_hinweis) notify('Hinweis zum Widerrufsrecht — Einzelheiten beim Festschreiben.', 'err');
       showPage('rechnungen'); setTimeout(function() { editRechnung(r.id); }, 300);
     }
   }).catch(function(e) { notify(e.message, 'err'); });

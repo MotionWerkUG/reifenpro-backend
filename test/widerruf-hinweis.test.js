@@ -30,15 +30,16 @@ async function seedTermin(opt) {
   if (o.kundentyp) await h.query('UPDATE kunden SET kundentyp=$1 WHERE id=$2', [o.kundentyp, kunde]);
   const t = await h.query(
     `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen,
-                          vorzeitige_leistung, erstellt_am)
+                          vorzeitige_leistung, erstellt_am, portal_buchung)
      VALUES ((CURRENT_DATE + ($1 || ' days')::interval)::date, '09:00', '10:00', 'Raederwechsel',
-             'abgeschlossen', $2, $3, $4, NOW() - ($5 || ' days')::interval) RETURNING id`,
+             'abgeschlossen', $2, $3, $4, NOW() - ($5 || ' days')::interval, $6) RETURNING id`,
     [String(o.tageVoraus == null ? 0 : o.tageVoraus), kunde, JSON.stringify(LEISTUNGEN),
-     o.zustimmung === true, String(o.vertragVorTagen == null ? 0 : o.vertragVorTagen)]);
+     o.zustimmung === true, String(o.vertragVorTagen == null ? 0 : o.vertragVorTagen),
+     o.portalBuchung !== false]);
   return t.rows[0].id;
 }
 
-test('Termin in der Widerrufsfrist ohne Zustimmung: Hinweis beim Entwurf und beim Festschreiben', async () => {
+test('Online gebuchter Termin in der Widerrufsfrist ohne Zustimmung: Hinweis', async () => {
   // Vertrag heute geschlossen, Termin morgen — die Frist laeuft noch 13 Tage weiter.
   const terminId = await seedTermin({ tageVoraus: 1, vertragVorTagen: 0, zustimmung: false });
 
@@ -56,6 +57,39 @@ test('Termin in der Widerrufsfrist ohne Zustimmung: Hinweis beim Entwurf und bei
   // Der Vorgang muss nachvollziehbar sein, nicht nur im Bildschirm aufblitzen.
   const log = await h.query("SELECT count(*)::int AS n FROM audit_log WHERE aktion='rechnung.widerruf_hinweis'");
   assert.equal(log.rows[0].n, 1, 'Hinweis wurde protokolliert');
+});
+
+test('Ein Tresentermin loest KEINEN Hinweis aus', async () => {
+  // Der wichtigste Nicht-Fall: Kunde kommt vorbei, wird sofort bedient, wird sofort abgerechnet.
+  // Dabei entsteht kein Fernabsatzvertrag und es gibt kein Widerrufsrecht. In den Daten sieht
+  // dieser Termin aus wie ein Telefontermin ohne Zustimmung — deshalb wird nur gewarnt, wo der
+  // Fernabsatz belegt ist. Waere das anders, kaeme die Warnung bei fast jeder Arbeit am selben
+  // Tag, und man wuerde sie wegklicken, bevor sie einmal zaehlt.
+  const terminId = await seedTermin({ tageVoraus: 0, vertragVorTagen: 0, zustimmung: false, portalBuchung: false });
+  const entwurf = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + terminId);
+  assert.equal(entwurf.status, 201, JSON.stringify(entwurf.body));
+  assert.equal(entwurf.body.widerruf_hinweis, undefined, 'Fehlalarm im Alltagsgeschäft');
+
+  const f = await h.api(token, 'POST', '/api/rechnungen/' + entwurf.body.id + '/festschreiben');
+  assert.equal(f.status, 200);
+  assert.equal(f.body.widerruf_hinweis, undefined, 'auch beim Festschreiben kein Fehlalarm');
+});
+
+test('Gast-Firmenkunde ohne Kundensatz bekommt keinen Hinweis', async () => {
+  // Bei Gast-Terminen gibt es keinen Kundensatz; die Einordnung steht am Termin selbst.
+  // Ohne COALESCE waere kundentyp hier NULL und die Firmenkunden-Ausnahme liefe ins Leere.
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, leistungen,
+                          vorzeitige_leistung, erstellt_am, portal_buchung,
+                          kontakt_vorname, kontakt_nachname, kontakt_kundentyp,
+                          kontakt_strasse, kontakt_plz, kontakt_ort)
+     VALUES ((CURRENT_DATE + INTERVAL '1 day')::date, '09:00', '10:00', 'Raederwechsel',
+             'abgeschlossen', $1, false, NOW(), true,
+             'Erika', 'Beispiel', 'firma', 'Beispielweg 3', '04347', 'Leipzig') RETURNING id`,
+    [JSON.stringify(LEISTUNGEN)]);
+  const entwurf = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id);
+  assert.equal(entwurf.status, 201, JSON.stringify(entwurf.body));
+  assert.equal(entwurf.body.widerruf_hinweis, undefined, 'Fehlalarm bei einem Gast-Firmenkunden');
 });
 
 test('Mit dokumentierter Zustimmung kommt kein Hinweis', async () => {
