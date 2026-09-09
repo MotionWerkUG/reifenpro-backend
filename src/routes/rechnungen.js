@@ -413,7 +413,21 @@ router.get('/statistik', async (req, res, next) => {
 // Die Oberflaeche fragt das ab und blendet die Kassieren-Knoepfe sonst gar nicht erst ein:
 // Ein Knopf, der nur eine Fehlermeldung erzeugen kann, ist eine Sackgasse.
 router.get('/kassenstatus', async (req, res) => {
-  res.json({ konfiguriert: kasse.konfiguriert() });
+  const konf = kasse.konfiguriert();
+  if (!konf) return res.json({ konfiguriert: false, kassierbar: false, grund: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+  // Zustand nur nachreichen, nicht erzwingen: Antwortet die Kasse gerade nicht, bleibt die
+  // Oberflaeche bedienbar und der Buchungsversuch meldet die Stoerung im Klartext.
+  try {
+    const z = await kasse.zustand();
+    if (z && z.tseKonfiguriert === false) {
+      return res.json({ konfiguriert: true, kassierbar: false, tse: false,
+        grund: 'Die Kasse hat noch keine technische Sicherheitseinrichtung (TSE). Bis sie eingerichtet ist, darf nicht kassiert werden.' });
+    }
+    return res.json({ konfiguriert: true, kassierbar: true, tse: true });
+  } catch (e) {
+    return res.json({ konfiguriert: true, kassierbar: true, erreichbar: false,
+      hinweis: 'Die Kasse antwortet gerade nicht. Beim Kassieren wird es erneut versucht.' });
+  }
 });
 
 // ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
@@ -1237,6 +1251,17 @@ router.post('/:id/barzahlung', async (req, res, next) => {
     if (r.storno_von_id) return res.status(400).json({ error: 'Eine Stornorechnung wird nicht kassiert.' });
     if (r.zahlungsstatus === 'bezahlt') return res.status(409).json({ error: 'Diese Rechnung ist bereits als bezahlt vermerkt.' });
     if (!kasse.konfiguriert()) return res.status(503).json({ error: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+    // Ohne technische Sicherheitseinrichtung darf keine Barbuchung entstehen (§ 146a AO).
+    // Die Kasse faengt einen TSE-AUSFALL bewusst ab und laeuft weiter — richtig bei einem
+    // Ausfall, aber kein Schutz davor, dass nie eine TSE eingerichtet war. Deshalb fragen wir
+    // vorher. Der Riegel greift NUR bei einer ausdruecklichen Auskunft "keine TSE"; eine
+    // Stoerung der Kasse deuten wir nicht als fehlende TSE, sonst sperrt ein Netzproblem den
+    // Tresen — darueber entscheidet dann der Buchungsversuch selbst.
+    if (await kasse.tseFehltSicher()) {
+      await auditLog({ userId: req.user.id, aktion: 'rechnung.kassieren_abgelehnt', tabelle: 'rechnungen',
+        datensatzId: r.id, neueWerte: { grund: 'keine TSE' }, req });
+      return res.status(409).json({ error: 'Die Kasse hat noch keine technische Sicherheitseinrichtung (TSE). Bis sie eingerichtet ist, darf nicht kassiert werden — die Buchung wäre nicht signierbar.' });
+    }
 
     const zahlart = ['bar', 'ec', 'stripe'].includes(String(req.body && req.body.zahlart || 'bar')) ? String(req.body.zahlart || 'bar') : null;
     if (!zahlart) return res.status(400).json({ error: 'Unbekannte Zahlart. Erlaubt sind bar, ec und stripe.' });
