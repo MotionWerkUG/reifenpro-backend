@@ -924,6 +924,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
               25&nbsp;% auf die Einlagerung und 10&nbsp;% auf alles &Uuml;brige. Der Nachlass rechnet immer auf den
               <strong>Bruttopreis</strong> und erscheint auf der Rechnung als eigene Zeile (&sect;&nbsp;14 Abs. 4 Nr. 7 UStG).
               Gutschein und vereinbarte Gewerbekonditionen werden <strong>nicht gestapelt</strong>: Es gilt der f&uuml;r den Kunden g&uuml;nstigere Weg.
+              <br><strong>Hinweis:</strong> Gutscheine speichern Sie je Gutschein &uuml;ber &bdquo;Staffelung speichern&ldquo; &mdash; nicht &uuml;ber den Speichern-Knopf oben, der sichert die &uuml;brigen Einstellungen.
             </div>
             <div id="gutschein-liste" style="margin-bottom:16px"></div>
             <div class="pnl" style="padding:14px">
@@ -3194,6 +3195,44 @@ function loadEinst() {
     if (r) EINST = r;
     renderDash();
   }).catch(function() {});
+  ladeOeffnungRaster();
+}
+
+// Das Wochenraster ist die einzige Quelle fuer die Oeffnungszeiten. Die Spalten
+// einstellungen.mo_fr_von/mo_fr_bis sind ein Ueberbleibsel aus der Zeit davor und stimmen
+// schon nicht mehr: Sie kennen die Mittagspause nicht. Wer den Kalender danach zeichnet,
+// zeichnet eine Woche, die es so nicht gibt.
+var OZ_WOCHE = [];
+function ladeOeffnungRaster() {
+  return api('GET', '/einstellungen/oeffnungszeiten').then(function(r) {
+    OZ_WOCHE = (r && r.woche) || [];
+    // Der Kalender kann vor der Antwort gezeichnet worden sein -- dann nochmal, mit den echten Zeiten.
+    if (currentPage === 'kalender' && typeof renderKalender === 'function') renderKalender();
+    return OZ_WOCHE;
+  }).catch(function() { return []; });
+}
+
+// Erste und letzte Stunde, die der Kalender zeigen muss: fruehester Beginn und spaetestes Ende
+// ueber alle geoeffneten Tage. Geschlossene Tage zaehlen nicht mit, sonst zoege ein leerer
+// Sonntag das Raster auf 0-24 Uhr.
+function kalenderStunden() {
+  var vonMin = null, bisMax = null;
+  (OZ_WOCHE || []).forEach(function(d) {
+    if (!d || d.geschlossen) return;
+    [d.von1, d.von2].forEach(function(t) {
+      if (!t) return; var h = parseInt(String(t).substring(0, 2), 10);
+      if (!isNaN(h) && (vonMin === null || h < vonMin)) vonMin = h;
+    });
+    [d.bis1, d.bis2].forEach(function(t) {
+      if (!t) return;
+      var h = parseInt(String(t).substring(0, 2), 10), m = parseInt(String(t).substring(3, 5), 10) || 0;
+      if (isNaN(h)) return;
+      if (m > 0) h += 1;                       // 18:30 braucht die Stunde 18 noch ganz
+      if (bisMax === null || h > bisMax) bisMax = h;
+    });
+  });
+  if (vonMin === null || bisMax === null || bisMax <= vonMin) return { von: 8, bis: 18 };
+  return { von: vonMin, bis: bisMax };
 }
 function fillEinst() {
   var fv = function(id, v) { var el = document.getElementById(id); if (el && v != null) el.value = v; };
@@ -3280,6 +3319,7 @@ var OZ_TAGE = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samst
 function loadOeffnung() {
   api('GET', '/einstellungen/oeffnungszeiten').then(function(r) {
     if (!r) return;
+    OZ_WOCHE = r.woche || [];
     renderOzGrid(r.woche || []);
     var bl = document.getElementById('s-bland'); if (bl && r.bundesland) bl.value = r.bundesland;
   }).catch(function(){});
@@ -3332,7 +3372,7 @@ function saveOeffnung(silent) {
   }
   if (!woche.length) return;
   return api('PUT', '/einstellungen/oeffnungszeiten', { woche: woche, bundesland: gv('s-bland') })
-    .then(function(){ if (!silent) notify('Öffnungszeiten gespeichert.'); })
+    .then(function(){ ladeOeffnungRaster(); if (!silent) notify('Öffnungszeiten gespeichert.'); })
     .catch(function(e){ notify(e.message, 'err'); });
 }
 function btToggleZeiten() {
@@ -4934,9 +4974,8 @@ function renderKalenderWoche() {
   mo.setDate(mo.getDate() - ((mo.getDay() + 6) % 7));
   var so = new Date(mo); so.setDate(mo.getDate() + 6);
   document.getElementById('kal-titel').textContent = fd(mo) + ' - ' + fd(so);
-  var einst = EINST;
-  var vonH = einst.mo_fr_von ? parseInt(String(einst.mo_fr_von).substring(0,2)) : 8;
-  var bisH = einst.mo_fr_bis ? parseInt(String(einst.mo_fr_bis).substring(0,2)) : 18;
+  var std = kalenderStunden();
+  var vonH = std.von, bisH = std.bis;
   var html = '<div style="overflow-x:auto"><div class="kal-woche" style="min-width:600px">';
   html += '<div></div>';
   var tage = [];
@@ -4975,9 +5014,8 @@ function renderKalenderWoche() {
 function renderKalenderTag() {
   var dStr = kalDatum.getFullYear() + '-' + String(kalDatum.getMonth() + 1).padStart(2, '0') + '-' + String(kalDatum.getDate()).padStart(2, '0');
   document.getElementById('kal-titel').textContent = kalDatum.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-  var einst = EINST;
-  var vonH = einst.mo_fr_von ? parseInt(String(einst.mo_fr_von).substring(0,2)) : 8;
-  var bisH = einst.mo_fr_bis ? parseInt(String(einst.mo_fr_bis).substring(0,2)) : 18;
+  var std = kalenderStunden();
+  var vonH = std.von, bisH = std.bis;
   var tTermine = allTermine.filter(function(t) { return t.datum && t.datum.substring(0,10) === dStr; });
   var html = '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' +
     tTermine.map(function(t) {
