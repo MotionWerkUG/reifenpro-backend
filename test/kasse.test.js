@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const h = require('./helper');
 
-let token, kasse, kassePort, empfangen, antwortet;
+let token, kasse, kassePort, empfangen, antwortet, tseKonfiguriert;
 let gebucht = [];
 
 const EMPF = { vorname: 'Max', nachname: 'Mustermann', strasse: 'Musterweg 2', plz: '54321', ort: 'Musterstadt' };
@@ -30,6 +30,11 @@ test.before(async () => {
     }
     res.status(antwortet.status || 200).json(antwortet.body);
   });
+  // Die echte Kasse gibt ihren Zustand ohne Schluessel preis. Wir fragen ihn vor dem Kassieren,
+  // um keine Buchung zu senden, die mangels TSE gar nicht signiert werden koennte.
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', app: 'autokasse-backend', db: true, tseKonfiguriert: tseKonfiguriert, erpKonfiguriert: true });
+  });
   await new Promise((ok) => { kasse = app.listen(0, '127.0.0.1', ok); });
   kassePort = kasse.address().port;
 });
@@ -41,6 +46,7 @@ test.beforeEach(async () => {
   empfangen = null;
   gebucht = [];
   antwortet = { status: 200, body: { ok: true, status: 'gebucht', beleg: 'LEI-2026-0042', belegUrl: 'https://kasse.example/bon/LEI-2026-0042/abc' } };
+  tseKonfiguriert = true;
   process.env.KASSE_URL = 'http://127.0.0.1:' + kassePort;
   process.env.KASSE_ERP_KEY = 'test-schluessel';
 });
@@ -227,4 +233,60 @@ test('Der Kassenvermerk laesst sich an einer festgeschriebenen Rechnung setzen, 
   assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung')).status, 200);
   // Gegenprobe: Der geschuetzte Inhalt bleibt gesperrt, auch das Empfaengerland.
   await assert.rejects(() => h.query("UPDATE rechnungen SET empfaenger_land='FR' WHERE id=$1", [r.id]), /.*/);
+});
+
+test('Ohne TSE wird nicht kassiert — und es geht nichts an die Kasse hinaus', async () => {
+  // § 146a AO: Eine Barbuchung ohne technische Sicherheitseinrichtung darf nicht entstehen.
+  // Die Kasse selbst faengt einen TSE-AUSFALL bewusst ab und laeuft weiter — das ist bei einem
+  // Ausfall richtig, schuetzt aber nicht davor, dass nie eine TSE eingerichtet war. Der Riegel
+  // gehoert deshalb auf unsere Seite: Wir senden keine Buchung, von der wir wissen, dass sie
+  // nicht signierbar ist.
+  tseKonfiguriert = false;
+  const r = await festgeschrieben();
+
+  const k = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'bar' });
+  assert.equal(k.status, 409, JSON.stringify(k.body));
+  assert.match(k.body.error, /Sicherheitseinrichtung/);
+  assert.equal(empfangen, null, 'es darf gar nichts an die Kasse gesendet worden sein');
+
+  const db = (await h.query('SELECT zahlungsstatus, kasse_beleg_nr FROM rechnungen WHERE id=$1', [r.id])).rows[0];
+  assert.equal(db.zahlungsstatus, 'offen', 'die Rechnung bleibt offen');
+  assert.equal(db.kasse_beleg_nr, null);
+
+  const log = await h.query("SELECT count(*)::int AS n FROM audit_log WHERE aktion='rechnung.kassieren_abgelehnt'");
+  assert.equal(log.rows[0].n, 1, 'die Ablehnung wird protokolliert');
+});
+
+test('Die Oberflaeche erfaehrt den Grund, statt einen Knopf ins Leere anzubieten', async () => {
+  tseKonfiguriert = false;
+  const ohne = await h.api(token, 'GET', '/api/rechnungen/kassenstatus');
+  assert.equal(ohne.status, 200);
+  assert.equal(ohne.body.konfiguriert, true, 'eingerichtet ist sie ja');
+  assert.equal(ohne.body.kassierbar, false, 'kassiert werden darf trotzdem nicht');
+  assert.match(ohne.body.grund, /Sicherheitseinrichtung/);
+
+  tseKonfiguriert = true;
+  const mit = await h.api(token, 'GET', '/api/rechnungen/kassenstatus');
+  assert.equal(mit.body.kassierbar, true);
+  assert.equal(mit.body.grund, undefined);
+});
+
+test('Eine nicht erreichbare Kasse sperrt den Tresen NICHT wegen fehlender TSE', async () => {
+  // Stoerung und "keine TSE" sind zwei verschiedene Dinge. Wuerde eine unbeantwortete
+  // Zustandsabfrage als fehlende TSE gedeutet, koennte ein Netzproblem das Kassieren
+  // dauerhaft sperren — mit einer Begruendung, die gar nicht stimmt.
+  const echt = process.env.KASSE_URL;
+  process.env.KASSE_URL = 'http://127.0.0.1:1';   // niemand hoert zu
+  try {
+    const st = await h.api(token, 'GET', '/api/rechnungen/kassenstatus');
+    assert.equal(st.body.kassierbar, true, 'bedienbar bleiben, der Buchungsversuch entscheidet');
+    assert.equal(st.body.erreichbar, false);
+    assert.equal(st.body.grund, undefined, 'keine falsche Begruendung "keine TSE"');
+
+    const r = await festgeschrieben();
+    const k = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'bar' });
+    assert.equal(k.status, 502, 'die Stoerung wird als Stoerung gemeldet: ' + JSON.stringify(k.body));
+    const db = (await h.query('SELECT zahlungsstatus FROM rechnungen WHERE id=$1', [r.id])).rows[0];
+    assert.equal(db.zahlungsstatus, 'offen');
+  } finally { process.env.KASSE_URL = echt; }
 });

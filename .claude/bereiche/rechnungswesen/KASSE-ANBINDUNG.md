@@ -197,3 +197,42 @@ Der Dienst `kassen-baukasten` läuft seit vier Wochen aus einem Verzeichnis, das
 nach `_archiv` verschoben wurde. Bevor eine dritte Instanz auf denselben Server kommt,
 gehört er gestoppt und abgeschaltet — sonst wird bei der nächsten Portvergabe geraten
 statt gewusst.
+
+---
+
+## Nachtrag 09.09.2026 — zwei Fallstricke bei der Verdrahtung
+
+### `erpKonfiguriert: false` ist KEIN Fehler
+
+Die Kasse liefert unter `GET /api/health` (ohne Schlüssel abrufbar) unter anderem:
+
+    {"tseKonfiguriert": false, "erpKonfiguriert": false, ...}
+
+`erpKonfiguriert` meint die **ausgehende** Richtung — ob die Kasse ihrerseits ein ERP
+anspricht (`ERP_API_URL` / `ERP_API_KEY`). Für unsere Anbindung ist das ohne Bedeutung und
+erwartungsgemäß `false`. Unser **eingehender** Aufruf wird gegen `ERP_SYNC_KEY` geprüft, und
+der ist gesetzt.
+
+Belegt wurde das nicht durch Erklären, sondern durch einen Aufruf: Der Wert aus
+`/root/.reifenpro-kasse-erpkey` gegen `POST /api/kassenvorgang` ergibt HTTP 200. Damit ist von
+Ende zu Ende gezeigt, dass genau dieser Wert der Schlüssel ist, den die Kasse annimmt — nicht
+nur, dass sie irgendeinen verlangt.
+
+Gehört so in den Connector-Vertrag v1.6, weil die Namensähnlichkeit sonst wieder jemanden Zeit
+kostet.
+
+### Unser Riegel hängt an `tseKonfiguriert`, nicht an `erpKonfiguriert`
+
+Das ist die richtige Kopplung und bleibt von der Klärung oben unberührt. `tseKonfiguriert` ist
+weiterhin `false` — ohne technische Sicherheitseinrichtung wird nicht kassiert (§ 146a AO).
+
+Abgrenzung, die dabei zählt:
+
+| Zustand | Bedeutung | Reaktion |
+|---|---|---|
+| `KASSE_URL`/`KASSE_ERP_KEY` fehlen | nicht eingerichtet | Knöpfe unsichtbar |
+| `/api/health` antwortet nicht | **Störung** | bedienbar, der Buchungsversuch meldet die Störung |
+| `tseKonfiguriert: false` | kein Signaturweg | Kassieren gesperrt, mit Begründung |
+
+Eine Störung darf niemals als fehlende TSE gedeutet werden — sonst sperrt ein Netzproblem den
+Tresen, und zwar mit einer Begründung, die nicht stimmt.

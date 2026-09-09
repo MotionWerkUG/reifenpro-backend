@@ -756,6 +756,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button>
           </div>
         </div>
+        <div id="r-kassenhinweis"></div>
         <div id="r-statistik"></div>
         <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
           <select id="r-filter-status" onchange="renderRechnungen()" style="max-width:200px">
@@ -2319,13 +2320,23 @@ function rStatusBadge(s, istStorno) {
   var m = istStorno ? ['Stornorechnung', 'b-x'] : (map[s] || [s, 'b-n']);
   return '<span class="badge ' + m[1] + '">' + m[0] + '</span>';
 }
-var KASSE_DA = false;   // Kassenanbindung auf diesem Server eingerichtet?
+var KASSE_DA = false;   // darf ueberhaupt kassiert werden? (eingerichtet UND TSE vorhanden)
+var KASSE_GRUND = '';   // falls nicht: der Grund im Klartext, sonst leer
 function loadRechnungen() {
   api('GET', '/rechnungen').then(function(r) { allRechnungen = r || []; renderRechnungen(); }).catch(function() {});
   loadRechnungStatistik();
-  // Ohne eingerichtete Kasse werden die Kassieren-Knoepfe gar nicht erst angeboten.
+  // Kassieren-Knoepfe nur anbieten, wenn auch wirklich kassiert werden DARF. Ohne technische
+  // Sicherheitseinrichtung waere die Buchung nicht signierbar (§ 146a AO) — dann steht der
+  // Grund im Kopf der Seite, statt dass ein Knopf ins Leere fuehrt.
   api('GET', '/rechnungen/kassenstatus').then(function(k) {
-    var neu = !!(k && k.konfiguriert);
+    var neu = !!(k && k.kassierbar);
+    KASSE_GRUND = (k && k.grund) || '';
+    var box = document.getElementById('r-kassenhinweis');
+    if (box) {
+      box.innerHTML = KASSE_GRUND
+        ? '<div class="card" style="border-left:3px solid var(--red);margin-bottom:14px"><strong>Kassieren nicht möglich.</strong> ' + kEsc(KASSE_GRUND) + '</div>'
+        : '';
+    }
     if (neu !== KASSE_DA) { KASSE_DA = neu; renderRechnungen(); }
   }).catch(function() {});
 }

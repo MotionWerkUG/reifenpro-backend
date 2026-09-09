@@ -14,6 +14,42 @@ function schluessel() { return process.env.KASSE_ERP_KEY || ''; }
 // soll das unterscheiden koennen von "Kasse antwortet nicht".
 function konfiguriert() { return !!(basis() && schluessel()); }
 
+// Zustand der Kasse, OHNE Schluessel und ohne Anmeldung abfragbar. Wichtig ist hier vor allem
+// tseKonfiguriert: Ohne technische Sicherheitseinrichtung darf keine Barbuchung entstehen
+// (§ 146a AO). Die Kasse selbst faengt einen TSE-AUSFALL bewusst ab und laeuft weiter — das ist
+// bei einem Ausfall richtig, schuetzt aber nicht davor, dass ueberhaupt nie eine TSE
+// eingerichtet war. Diesen Riegel setzen wir deshalb auf unserer Seite: Wir senden keine
+// Buchung, von der wir wissen, dass sie nicht signiert werden kann.
+//
+// Kurze Zeitgrenze und eigene Fehlerbehandlung: Eine nicht erreichbare Kasse ist eine STOERUNG
+// und darf NICHT als "keine TSE" gedeutet werden — sonst sperrt ein Netzproblem den Tresen.
+const ZUSTAND_MS = 2500;
+
+async function zustand() {
+  if (!basis()) { const e = new Error('Kassenanbindung ist nicht eingerichtet.'); e.code = 'NICHT_KONFIGURIERT'; throw e; }
+  const abbruch = new AbortController();
+  const uhr = setTimeout(function () { abbruch.abort(); }, ZUSTAND_MS);
+  try {
+    const res = await fetch(basis() + '/api/health', { signal: abbruch.signal });
+    if (!res.ok) { const e = new Error('Kasse antwortete mit ' + res.status); e.code = 'NICHT_ERREICHBAR'; throw e; }
+    return await res.json();
+  } catch (err) {
+    if (err.code) throw err;
+    const e = new Error('Kasse nicht erreichbar: ' + (err.name === 'AbortError' ? 'Zeitgrenze überschritten' : err.message));
+    e.code = 'NICHT_ERREICHBAR'; throw e;
+  } finally { clearTimeout(uhr); }
+}
+
+// true NUR, wenn die Kasse ausdruecklich sagt, dass keine TSE eingerichtet ist. Bei einer
+// Stoerung oder einer unbekannten Antwort ist es false — dann entscheidet der eigentliche
+// Buchungsversuch, nicht diese Vorpruefung.
+async function tseFehltSicher() {
+  try {
+    const z = await zustand();
+    return z && z.tseKonfiguriert === false;
+  } catch (e) { return false; }
+}
+
 async function anfrage(methode, pfad, koerper) {
   if (!konfiguriert()) { const e = new Error('Kassenanbindung ist nicht eingerichtet.'); e.code = 'NICHT_KONFIGURIERT'; throw e; }
   const abbruch = new AbortController();
@@ -77,4 +113,4 @@ function belegAus(antwort) {
   return a.beleg || a.belegnummer || (a.buchung && a.buchung.belegnummer) || null;
 }
 
-module.exports = { konfiguriert, meldeZahlung, holeBuchungen, belegAus };
+module.exports = { konfiguriert, zustand, tseFehltSicher, meldeZahlung, holeBuchungen, belegAus };
