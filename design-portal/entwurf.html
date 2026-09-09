@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Kundenportal — Entwurf Termine, Einlagerungen, Fahrzeuge</title>
+<style>
+  :root, :root[data-theme="light"] {
+    --bg:#f3f2ef; --panel:#ffffff; --panel2:#f6f7f9; --text:#1a1a1a; --muted:#555555;
+    --accent:#eab308; --accent-text:#87680c; --border:#e3e6ec;
+    --ok:#1a8f52; --warn:#b3781a; --err:#c8402a; --info:#2f6bd8;
+  }
+  :root[data-theme="dark"] {
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c232c; --text:#e6edf3; --muted:#8b949e;
+    --accent:#eab308; --accent-text:#eec33a; --border:#2a3441;
+    --ok:#3ecf8e; --warn:#d9a441; --err:#e06a52; --info:#6f9cf0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; font-size:15px; }
+  .seite { max-width:1180px; margin:0 auto; padding:28px 20px 80px; }
+
+  /* ── Rahmen des Entwurfs (gehoert NICHT ins Portal) ───────────────────────── */
+  .doku { background:var(--panel); border:1px solid var(--border); border-left:4px solid var(--info);
+          border-radius:10px; padding:14px 16px; margin:26px 0 14px; font-size:13.5px; color:var(--muted); }
+  .doku b { color:var(--text); }
+  .doku code { background:var(--panel2); padding:1px 5px; border-radius:4px; font-size:12.5px; }
+  h1 { font-size:30px; font-weight:800; letter-spacing:-.5px; margin-bottom:6px; }
+  h2 { font-size:20px; font-weight:800; margin:38px 0 4px; padding-top:22px; border-top:2px solid var(--border); }
+  h2 .nr { color:var(--accent-text); font-size:13px; font-weight:700; display:block; letter-spacing:.08em; text-transform:uppercase; }
+  .kopfleiste { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+  .schalter { display:flex; gap:6px; }
+  .schalter button { background:var(--panel); border:1px solid var(--border); border-radius:8px; color:var(--muted);
+                     padding:7px 13px; cursor:pointer; font-weight:700; font-size:12px; font-family:inherit; }
+  .schalter button.an { background:var(--accent); color:#171717; border-color:var(--accent-text); }
+
+  /* ── Portal-Bausteine ─────────────────────────────────────────────────────── */
+  .rahmen { background:var(--panel); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .p-kopf { background:#171717; color:#fff; padding:13px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .p-logo { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+  .p-logo .amp { color:var(--accent); }
+  .p-logo small { display:block; font-size:8.5px; font-weight:600; letter-spacing:.22em; color:#cfcfcf; margin-top:2px; }
+  .p-nav { display:flex; gap:2px; padding:0 10px; background:var(--panel2); border-bottom:1px solid var(--border); overflow-x:auto; }
+  .p-nav div { padding:12px 15px; font-size:13px; font-weight:700; color:var(--muted); white-space:nowrap; border-bottom:3px solid transparent; }
+  .p-nav div.an { color:var(--text); border-bottom-color:var(--accent); }
+  .p-inhalt { padding:18px; }
+
+  .karte { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; }
+  .karte.betont { border-left:4px solid var(--accent); }
+  .k-kopf { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .k-datum { font-size:17px; font-weight:800; }
+  .k-zeit { font-size:13px; color:var(--muted); }
+  .badge { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; letter-spacing:.02em; }
+  .b-ok   { background:color-mix(in srgb, var(--ok) 15%, transparent);   color:var(--ok); }
+  .b-warn { background:color-mix(in srgb, var(--warn) 15%, transparent); color:var(--warn); }
+  .b-info { background:color-mix(in srgb, var(--info) 15%, transparent); color:var(--info); }
+  .b-grau { background:var(--panel2); color:var(--muted); }
+
+  table.pos { width:100%; border-collapse:collapse; margin:4px 0 2px; }
+  table.pos td { padding:7px 0; border-bottom:1px solid var(--border); font-size:14px; vertical-align:top; }
+  table.pos td.betrag { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; font-weight:600; }
+  table.pos tr.summe td { border-bottom:0; border-top:2px solid var(--border); font-weight:800; font-size:15px; padding-top:9px; }
+  .quelle { display:block; font-size:11.5px; color:var(--accent-text); font-weight:600; margin-top:2px; }
+  .durchgestrichen { color:var(--muted); text-decoration:line-through; font-weight:400; font-size:12.5px; margin-right:6px; }
+
+  .zeile { display:flex; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:8px; }
+  .zeile span { background:var(--panel2); border-radius:6px; padding:3px 9px; }
+  .knopfleiste { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .btn { border:0; border-radius:8px; padding:9px 15px; font-size:13.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .btn-p { background:var(--accent); color:#171717; }
+  .btn-s { background:var(--panel2); color:var(--text); border:1px solid var(--border); }
+  .frist { font-size:12px; color:var(--muted); margin-top:7px; }
+
+  .hinweis { border-radius:9px; padding:11px 13px; font-size:13px; margin-top:12px; line-height:1.5; }
+  .h-warn { background:color-mix(in srgb, var(--warn) 10%, transparent); border:1px solid color-mix(in srgb, var(--warn) 40%, transparent); color:var(--text); }
+  .h-info { background:color-mix(in srgb, var(--info) 8%, transparent); border:1px solid color-mix(in srgb, var(--info) 32%, transparent); color:var(--text); }
+
+  .lagerplatz { display:inline-flex; align-items:center; gap:8px; background:var(--accent); color:#171717;
+                border-radius:10px; padding:8px 14px; font-weight:800; font-size:20px; letter-spacing:.04em; font-variant-numeric:tabular-nums; }
+  .lagerplatz small { font-size:9.5px; font-weight:700; letter-spacing:.16em; opacity:.72; display:block; }
+  .gitter { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; margin-top:10px; }
+  .feld { background:var(--panel2); border-radius:8px; padding:9px 11px; }
+  .feld .l { font-size:10px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted); font-weight:700; }
+  .feld .w { font-size:14px; font-weight:600; margin-top:1px; }
+
+  .leer { text-align:center; padding:34px 20px; }
+  .leer .gross { font-size:16px; font-weight:700; margin-bottom:5px; }
+  .leer p { color:var(--muted); font-size:13.5px; max-width:380px; margin:0 auto 14px; }
+
+  .zweispalt { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:820px) { .zweispalt { grid-template-columns:1fr; } }
+  .schmal { max-width:390px; margin:0 auto; border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+</style>
+<script>
+  (function(){ try { var t = localStorage.getItem('entwurf_theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch(e){} })();
+  function theme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    try { localStorage.setItem('entwurf_theme', t); } catch(e){}
+    document.getElementById('t-hell').classList.toggle('an', t === 'light');
+    document.getElementById('t-dunkel').classList.toggle('an', t === 'dark');
+  }
+</script>
+</head>
+<body>
+<div class="seite">
+
+  <div class="kopfleiste">
+    <div>
+      <h1>Kundenportal — Entwurf</h1>
+      <div style="color:var(--muted);font-size:14px">Termine mit allen Leistungen, Einlagerungen, Fahrzeuge. Grundlage für die Punkte 3, 4 und 12 aus Ivonnes Liste.</div>
+    </div>
+    <div class="schalter">
+      <button id="t-hell" class="an" onclick="theme('light')">Hell</button>
+      <button id="t-dunkel" onclick="theme('dark')">Dunkel</button>
+    </div>
+  </div>
+
+  <div class="doku" style="border-left-color:var(--accent-text)">
+    <b>Was dieser Entwurf ist.</b> Eine Vorlage, kein fertiges Portal — die Zahlen sind Beispiele.
+    Er zeigt, wie die Seiten aussehen sollen, damit die Portal-Sitzung sie bauen kann, ohne eine
+    zweite Optik zu erfinden. Farben, Schrift und Bausteine kommen aus <code>DESIGN.md</code>;
+    Gold ist der einzige Akzent und nie die Farbe für Erfolg oder Fehler.
+    <b>Umschalter oben rechts</b> zeigt beide Themen — beide sind Pflicht, nicht Kür.
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2><span class="nr">Punkt 3 und 4</span>Termine — alle Leistungen, alle Termine</h2>
+  <div class="doku">
+    <b>Der Fehler heute:</b> Am Termin steht nur eine Leistung, und bei mehreren Terminen wird nur
+    einer gezeigt. Ein Kunde, der Räderwechsel und Einlagerung gebucht hat, sieht die Hälfte
+    seines Auftrags — und beim Preis dann eine Zahl, die er nicht erklären kann.
+    <br><br>
+    <b>Die Regeln:</b> Jede gebuchte Leistung steht als eigene Zeile mit ihrem Preis, darunter die
+    Summe. Die Preise sind die am Termin <b>eingefrorenen</b> Werte (<code>leistungen[].zeilen_brutto</code>)
+    und werden <b>nie neu gerechnet</b> — sonst zeigt das Portal einen anderen Betrag als die Rechnung.
+    Ein Nachlass wird mit seiner <b>Herkunft</b> genannt, nie als nackte Zahl.
+    <b>Nicht</b> gezeigt werden Konditionen oder Rabattstufen als solche: Der Kunde sieht seinen
+    Preis, nicht seine Einstufung.
+  </div>
+
+  <div class="rahmen">
+    <div class="p-kopf">
+      <div class="p-logo">SCHRÖDER <span class="amp">&amp;</span> SCHOLZ<small>REIFENSERVICE UND FAHRZEUGTECHNIK</small></div>
+      <div style="font-size:12.5px;color:#cfcfcf">Angemeldet als A. Gabriel · <span style="color:var(--accent)">Abmelden</span></div>
+    </div>
+    <div class="p-nav">
+      <div class="an">Termine</div><div>Einlagerungen</div><div>Fahrzeuge</div><div>Belege</div><div>Konto</div>
+    </div>
+    <div class="p-inhalt">
+
+      <div class="karte betont">
+        <div class="k-kopf">
+          <div>
+            <div class="k-datum">Mittwoch, 14. Oktober 2026</div>
+            <div class="k-zeit">09:30 – 10:15 Uhr · voraussichtlich 45 Minuten</div>
+          </div>
+          <span class="badge b-ok">Bestätigt</span>
+        </div>
+
+        <table class="pos">
+          <tr>
+            <td>Räderwechsel<span class="quelle">Listenpreis</span></td>
+            <td class="betrag">49,00 €</td>
+          </tr>
+          <tr>
+            <td>Reifeneinlagerung<span class="quelle">Gutschein WINTER2026 · 25 % Nachlass</span></td>
+            <td class="betrag"><span class="durchgestrichen">42,50 €</span>32,00 €</td>
+          </tr>
+          <tr>
+            <td>Wuchten, 4 Räder<span class="quelle">Listenpreis</span></td>
+            <td class="betrag">24,00 €</td>
+          </tr>
+          <tr class="summe">
+            <td>Summe, inkl. MwSt.</td>
+            <td class="betrag">105,00 €</td>
+          </tr>
+        </table>
+
+        <div class="zeile">
+          <span>L-PT-1001 · VW Golf</span>
+          <span>Erstzulassung 04/2019</span>
+        </div>
+
+        <div class="knopfleiste">
+          <button class="btn btn-s">Termin verschieben</button>
+          <button class="btn btn-s">Termin absagen</button>
+        </div>
+        <div class="frist">Änderungen sind bis 24 Stunden vor dem Termin möglich, also bis Dienstag, 13. Oktober, 09:30 Uhr.</div>
+      </div>
+
+      <div class="karte">
+        <div class="k-kopf">
+          <div>
+            <div class="k-datum">Freitag, 23. Oktober 2026</div>
+            <div class="k-zeit">14:00 – 14:30 Uhr · voraussichtlich 30 Minuten</div>
+          </div>
+          <span class="badge b-info">Angefragt</span>
+        </div>
+        <table class="pos">
+          <tr><td>Reifen aus der Einlagerung holen<span class="quelle">Listenpreis</span></td><td class="betrag">0,00 €</td></tr>
+          <tr class="summe"><td>Summe, inkl. MwSt.</td><td class="betrag">0,00 €</td></tr>
+        </table>
+        <div class="zeile"><span>L-AB-4711 · Audi A4</span></div>
+
+        <div class="hinweis h-warn">
+          <b>Wir melden uns bei Ihnen.</b> Weil wir diesen Termin telefonisch vereinbart haben und er
+          innerhalb Ihrer vierzehntägigen Widerrufsfrist liegt, brauchen wir vor der Arbeit noch
+          kurz Ihre Zustimmung. Sie erhalten dazu eine E-Mail.
+        </div>
+        <div class="knopfleiste">
+          <button class="btn btn-s">Termin verschieben</button>
+          <button class="btn btn-s">Termin absagen</button>
+        </div>
+      </div>
+
+      <div class="karte" style="opacity:.72">
+        <div class="k-kopf">
+          <div>
+            <div class="k-datum">Dienstag, 14. April 2026</div>
+            <div class="k-zeit">08:00 – 08:45 Uhr</div>
+          </div>
+          <span class="badge b-grau">Abgeschlossen</span>
+        </div>
+        <table class="pos">
+          <tr><td>Räderwechsel</td><td class="betrag">49,00 €</td></tr>
+          <tr class="summe"><td>Summe, inkl. MwSt.</td><td class="betrag">49,00 €</td></tr>
+        </table>
+        <div class="knopfleiste"><button class="btn btn-s">Rechnung ansehen</button></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="doku">
+    <b>Drei Dinge, die im Entwurf absichtlich so sind:</b><br>
+    1. <b>Keine grüne Zeile „Zustimmung erteilt".</b> Sie beantwortet eine Frage, die der Kunde nie
+    gestellt hat. Ein Hinweis erscheint nur, wenn die Zustimmung <i>fehlt</i> und der Termin in der
+    Frist liegt. Auch die Quelle (Mail oder telefonisch) sieht der Kunde nicht — das ist eine Frage
+    des Betriebs.<br>
+    2. <b>Die Stornofrist steht als Datum da</b>, nicht als „24 Stunden vorher". Wer rechnen muss,
+    rechnet falsch.<br>
+    3. <b>Abgeschlossene Termine bleiben stehen</b>, gedämpft und mit dem Weg zur Rechnung. Sie sind
+    der häufigste Grund, warum jemand ins Portal zurückkommt.
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2><span class="nr">Punkt 12</span>Einlagerungen — der Lagerplatz zuerst</h2>
+  <div class="doku">
+    <b>Warum der Lagerplatz so groß ist:</b> Er ist die Angabe, wegen der ein Kunde anruft.
+    Steht er im Portal sofort ins Auge springend, spart das jedes Mal ein Telefonat. Dieselbe
+    Hervorhebung wie im Werkstattbereich und auf dem Etikett — dieselbe Information darf nicht
+    an drei Stellen verschieden aussehen.
+  </div>
+
+  <div class="rahmen">
+    <div class="p-kopf">
+      <div class="p-logo">SCHRÖDER <span class="amp">&amp;</span> SCHOLZ<small>REIFENSERVICE UND FAHRZEUGTECHNIK</small></div>
+      <div style="font-size:12.5px;color:#cfcfcf">Angemeldet als A. Gabriel · <span style="color:var(--accent)">Abmelden</span></div>
+    </div>
+    <div class="p-nav">
+      <div>Termine</div><div class="an">Einlagerungen</div><div>Fahrzeuge</div><div>Belege</div><div>Konto</div>
+    </div>
+    <div class="p-inhalt">
+      <div class="karte betont">
+        <div class="k-kopf">
+          <div>
+            <div class="k-datum">Winterräder · VW Golf</div>
+            <div class="k-zeit">L-PT-1001 · eingelagert seit 14. April 2026</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="badge b-ok">Eingelagert</span>
+            <span class="lagerplatz"><span><small>LAGERPLATZ</small>B&nbsp;12&nbsp;/&nbsp;3</span></span>
+          </div>
+        </div>
+        <div class="gitter">
+          <div class="feld"><div class="l">Reifen</div><div class="w">205/55 R16 91W</div></div>
+          <div class="feld"><div class="l">Typ und Anzahl</div><div class="w">Winter · 4 Räder auf Alufelge</div></div>
+          <div class="feld"><div class="l">Marke</div><div class="w">Continental WinterContact</div></div>
+          <div class="feld"><div class="l">Profiltiefe</div><div class="w">6,5 · 6,5 · 6,0 · 6,0 mm</div></div>
+          <div class="feld"><div class="l">DOT</div><div class="w">3821 · 3821 · 3821 · 3921</div></div>
+          <div class="feld"><div class="l">Einlagerungsschein</div><div class="w" style="color:var(--accent-text)">PDF ansehen</div></div>
+        </div>
+      </div>
+
+      <div class="karte">
+        <div class="k-kopf">
+          <div>
+            <div class="k-datum">Sommerräder · Audi A4</div>
+            <div class="k-zeit">L-AB-4711 · abgeholt am 12. April 2026</div>
+          </div>
+          <span class="badge b-grau">Abgeholt</span>
+        </div>
+        <div class="gitter">
+          <div class="feld"><div class="l">Reifen</div><div class="w">225/45 R17 91Y</div></div>
+          <div class="feld"><div class="l">Typ und Anzahl</div><div class="w">Sommer · 4 Räder</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2><span class="nr">Punkt 5 und 8</span>Fahrzeuge — die Liste, nicht ein Auto</h2>
+  <div class="doku">
+    Hier lag Ivonnes Verlusterlebnis: Sie trug zwei Fahrzeuge ein und sah danach nur noch eines.
+    Die Daten waren da, die Anzeige log. Der Reiter zeigt <b>alle</b> Fahrzeuge, und an jedem hängt,
+    was gerade für dieses Auto eingelagert ist — die Verbindung, die der Kunde im Kopf hat.
+    <br><br>
+    <b>Erstzulassung, nicht Baujahr.</b> Nur so genau anzeigen, wie erfasst wurde: „2019", „04/2019"
+    oder „15.04.2019". Bei einer reinen Jahresangabe steht in der Datenbank der 1. Januar als
+    Platzhalter — der darf nie sichtbar werden.
+  </div>
+
+  <div class="rahmen">
+    <div class="p-kopf">
+      <div class="p-logo">SCHRÖDER <span class="amp">&amp;</span> SCHOLZ<small>REIFENSERVICE UND FAHRZEUGTECHNIK</small></div>
+      <div style="font-size:12.5px;color:#cfcfcf">Angemeldet als A. Gabriel · <span style="color:var(--accent)">Abmelden</span></div>
+    </div>
+    <div class="p-nav">
+      <div>Termine</div><div>Einlagerungen</div><div class="an">Fahrzeuge</div><div>Belege</div><div>Konto</div>
+    </div>
+    <div class="p-inhalt">
+      <div class="karte">
+        <div class="k-kopf">
+          <div><div class="k-datum">VW Golf</div><div class="k-zeit">L-PT-1001 · PKW</div></div>
+          <div style="display:flex;gap:6px"><button class="btn btn-s">Bearbeiten</button></div>
+        </div>
+        <div class="gitter">
+          <div class="feld"><div class="l">Erstzulassung</div><div class="w">04/2019</div></div>
+          <div class="feld"><div class="l">HU fällig</div><div class="w">05/2027</div></div>
+          <div class="feld"><div class="l">Eingelagert</div><div class="w">Winterräder · Platz B 12 / 3</div></div>
+        </div>
+      </div>
+      <div class="karte">
+        <div class="k-kopf">
+          <div><div class="k-datum">Audi A4</div><div class="k-zeit">L-AB-4711 · PKW</div></div>
+          <div style="display:flex;gap:6px"><button class="btn btn-s">Bearbeiten</button></div>
+        </div>
+        <div class="gitter">
+          <div class="feld"><div class="l">Erstzulassung</div><div class="w">2016</div></div>
+          <div class="feld"><div class="l">HU fällig</div><div class="w">nicht hinterlegt</div></div>
+          <div class="feld"><div class="l">Eingelagert</div><div class="w">nichts</div></div>
+        </div>
+      </div>
+      <button class="btn btn-p" style="margin-top:4px">Fahrzeug hinzufügen</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2><span class="nr">Leicht vergessen</span>Der leere und der lange Zustand</h2>
+  <div class="doku">
+    Ein neuer Kunde hat null Termine, null Einlagerungen, null Fahrzeuge — <b>vier leere Kacheln
+    sind das Erste, was er sieht.</b> Ein leerer Bereich muss sagen, was hier stehen wird und was
+    er jetzt tun kann. „Keine Daten vorhanden" tut das nicht.
+  </div>
+
+  <div class="zweispalt">
+    <div class="rahmen">
+      <div class="p-nav"><div class="an">Termine</div><div>Einlagerungen</div><div>Fahrzeuge</div></div>
+      <div class="p-inhalt">
+        <div class="leer">
+          <div class="gross">Noch kein Termin</div>
+          <p>Sobald Sie einen Termin buchen, steht er hier mit allen gebuchten Leistungen, Preisen und Ihrem Fahrzeug.</p>
+          <button class="btn btn-p">Termin buchen</button>
+        </div>
+      </div>
+    </div>
+    <div class="rahmen">
+      <div class="p-nav"><div>Termine</div><div class="an">Einlagerungen</div><div>Fahrzeuge</div></div>
+      <div class="p-inhalt">
+        <div class="leer">
+          <div class="gross">Noch nichts eingelagert</div>
+          <p>Wenn Sie Räder bei uns einlagern, sehen Sie hier den Lagerplatz, Größe, Profiltiefen und den Einlagerungsschein.</p>
+          <button class="btn btn-s">Einlagerung anfragen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doku" style="margin-top:20px">
+    <b>Der lange Zustand</b> — ein Gewerbekunde mit acht Fahrzeugen und zwölf Terminen. Die Karten
+    dürfen dann nicht zu einer Wand werden: Kommende Termine zuerst, abgeschlossene gedämpft und
+    zusammengeklappt, bei mehr als fünf ein „Ältere anzeigen". Die Fahrzeugliste bleibt eine Liste;
+    bei mehr als vier Fahrzeugen kommt eine Suche über das Kennzeichen dazu.
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2><span class="nr">Telefon</span>Dieselbe Seite auf 390 Pixel</h2>
+  <div class="doku">
+    Die meisten Kunden öffnen das Portal auf dem Telefon. Preise bleiben rechtsbündig und
+    untereinander lesbar, der Lagerplatz bleibt groß, die Knöpfe stapeln sich statt zu schrumpfen.
+  </div>
+  <div class="schmal">
+    <div class="p-kopf" style="padding:11px 13px">
+      <div class="p-logo" style="font-size:13px">SCHRÖDER <span class="amp">&amp;</span> SCHOLZ<small style="letter-spacing:.16em;font-size:7.5px">REIFENSERVICE UND FAHRZEUGTECHNIK</small></div>
+    </div>
+    <div class="p-nav" style="padding:0 4px"><div class="an">Termine</div><div>Lager</div><div>Fahrzeuge</div><div>Belege</div></div>
+    <div class="p-inhalt" style="padding:13px">
+      <div class="karte betont" style="padding:13px">
+        <div class="k-datum" style="font-size:15px">Mi, 14. Oktober 2026</div>
+        <div class="k-zeit">09:30 – 10:15 Uhr</div>
+        <table class="pos">
+          <tr><td>Räderwechsel</td><td class="betrag">49,00 €</td></tr>
+          <tr><td>Reifeneinlagerung<span class="quelle">Gutschein WINTER2026 · 25 %</span></td><td class="betrag">32,00 €</td></tr>
+          <tr><td>Wuchten, 4 Räder</td><td class="betrag">24,00 €</td></tr>
+          <tr class="summe"><td>Summe</td><td class="betrag">105,00 €</td></tr>
+        </table>
+        <div class="zeile"><span>L-PT-1001 · VW Golf</span></div>
+        <div class="knopfleiste">
+          <button class="btn btn-s" style="flex:1">Verschieben</button>
+          <button class="btn btn-s" style="flex:1">Absagen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <h2><span class="nr">Zum Bauen</span>Was daran verbindlich ist</h2>
+  <div class="doku">
+    <b>Verbindlich:</b> alle Leistungen je Termin mit Einzelpreis und Summe; eingefrorene Preise,
+    nie neu gerechnet; Herkunft eines Nachlasses statt einer nackten Zahl; keine Konditionen oder
+    Rabattstufen; alle Termine, nicht nur einer; Lagerplatz hervorgehoben; Fahrzeugliste statt
+    einzelner Felder; Erstzulassung nur so genau wie erfasst; Stornofrist als Datum; Hinweis zur
+    Zustimmung nur, wenn sie fehlt; jeder Text in beiden Sprachen; beide Themen.
+    <br><br>
+    <b>Nicht verbindlich:</b> Abstände, Rundungen, die genaue Anordnung der Kacheln, ob der
+    Lagerplatz links oder rechts steht. Wer beim Bauen merkt, dass etwas anders besser wird, macht
+    es besser und sagt Bescheid.
+    <br><br>
+    <b>Offen und Sache des Inhabers:</b> ob abgesagte Termine sichtbar bleiben; ob der Kunde
+    Einlagerungen selbst anfragen kann oder nur einen Termin bucht.
+  </div>
+
+</div>
+</body>
+</html>
