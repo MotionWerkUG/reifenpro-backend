@@ -787,6 +787,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <button class="etab on" data-etab="firma" onclick="showEinstTab('firma')">Firma &amp; Recht</button>
             <button class="etab" data-etab="zeiten" onclick="showEinstTab('zeiten')">Öffnungszeiten &amp; Termine</button>
             <button class="etab" data-etab="preise" onclick="showEinstTab('preise')">Preise &amp; Vertrag</button>
+            <button class="etab" data-etab="gutscheine" onclick="showEinstTab('gutscheine')">Gutscheine</button>
             <button class="etab" data-etab="lager" onclick="showEinstTab('lager')">Lager</button>
             <button class="etab" data-etab="bank" onclick="showEinstTab('bank')">Bank &amp; Buchhaltung</button>
             <button class="etab" data-etab="mail" onclick="showEinstTab('mail')">E-Mail-Texte</button>
@@ -912,6 +913,30 @@ html, body { max-width: 100%; overflow-x: hidden; }
             <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">Jeder Artikel hat einen Standardpreis. Über <strong>Staffel</strong> lassen sich abweichende Preise/Dauern je <strong>Fahrzeugtyp und Zollgröße</strong> hinterlegen (z.B. SUV 18–20&quot; teurer). Beim Buchen/Rechnen wird automatisch die passendste Variante genommen, sonst der Standardpreis.</div>
             <div id="artikel-liste" style="margin-bottom:14px"></div>
             <button class="btn btn-p btn-sm" onclick="neuerArtikel()">+ Neuer Artikel</button>
+          </div>
+        </div>
+
+        <div class="etab-panel" data-epanel="gutscheine" style="display:none">
+          <div class="ssec"><h3>Gutscheine und Aktionscodes</h3>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5">
+              Ein Gutschein hat einen <strong>Standardsatz</strong>, der f&uuml;r alle Leistungen gilt. Darunter lassen sich
+              <strong>Ausnahmen je Leistung</strong> hinterlegen &mdash; so entsteht die Staffelung vom Flyer, etwa
+              25&nbsp;% auf die Einlagerung und 10&nbsp;% auf alles &Uuml;brige. Der Nachlass rechnet immer auf den
+              <strong>Bruttopreis</strong> und erscheint auf der Rechnung als eigene Zeile (&sect;&nbsp;14 Abs. 4 Nr. 7 UStG).
+              Gutschein und vereinbarte Gewerbekonditionen werden <strong>nicht gestapelt</strong>: Es gilt der f&uuml;r den Kunden g&uuml;nstigere Weg.
+            </div>
+            <div id="gutschein-liste" style="margin-bottom:16px"></div>
+            <div class="pnl" style="padding:14px">
+              <div class="ptitle" style="margin-bottom:10px">Neuen Gutschein anlegen</div>
+              <div class="fgrid">
+                <div class="fg"><label>Code *</label><input id="gs-neu-code" placeholder="z. B. WINTER2026" style="text-transform:uppercase"></div>
+                <div class="fg"><label>Standardsatz in % *</label><input id="gs-neu-proz" type="number" min="1" max="100" placeholder="10"></div>
+                <div class="fg"><label>G&uuml;ltig bis</label><input id="gs-neu-bis" type="date"></div>
+                <div class="fg full"><label>Beschreibung (nur intern)</label><input id="gs-neu-besch" placeholder="z. B. Flyer Neuer&ouml;ffnung"></div>
+              </div>
+              <div style="margin-top:10px"><button class="btn btn-p btn-sm" onclick="gutscheinAnlegen()">Gutschein anlegen</button></div>
+              <div style="font-size:12px;color:var(--muted);margin-top:8px">Ausnahmen je Leistung tragen Sie danach am angelegten Gutschein ein.</div>
+            </div>
           </div>
         </div>
 
@@ -2012,7 +2037,7 @@ function showPage(n, fromPop) {
   if (n === 'kontakt') loadKontakt();
   if (n === 'gewerbeanf') loadGewerbeAnf();
   if (n === 'rechnungen') loadRechnungen();
-  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); ladeGeraete(); }
+  if (n === 'einstellungen') { fillEinst(); loadArtikel(); loadLagerEinst(); loadUrlaub(); loadOeffnung(); ladeGeraete(); loadGutscheine(); }
   if (n === 'users') loadUsers();
   if (n === 'dsgvo') loadDsgvo();
   updateBreadcrumb();
@@ -2545,8 +2570,25 @@ function gutscheinAnwenden() {
   var basis = nrPositionsBasis();
   if (basis <= 0) { notify('Bitte zuerst Positionen erfassen, bevor ein Rabatt angewendet wird.', 'err'); return; }
   api('GET', '/gutscheine/pruefen/' + encodeURIComponent(code)).then(function(g) {
-    var rabatt = Math.round(basis * (g.rabatt_prozent / 100) * 100) / 100;
-    addPositionRow({ name: 'Gutschein ' + g.code + ' (-' + g.rabatt_prozent + '%)', einheit: '', preis: -rabatt, mwst_satz: 19 });
+    // Ein gestaffelter Gutschein hat NICHT einen Satz, sondern mehrere. Die Positionszeilen hier
+    // sind Freitext und tragen keine Leistungs-Kennung -- der Editor kann also nicht selbst
+    // entscheiden, welche Zeile welchen Satz bekommt. Frueher zog er stillschweigend EINEN Satz
+    // auf die ganze Rechnung; bei WINTER2026 waren das 25 % auf alles statt 25 % nur auf die
+    // Einlagerung. Deshalb wird die Staffelung jetzt gezeigt und der Nachlass bestaetigt.
+    var std = Number(g.rabatt_prozent || 0);
+    if (g.gestaffelt) {
+      var liste = (g.regeln || []).map(function(r) {
+        return '  ' + Number(r.rabatt_prozent) + ' % auf ' + (r.artikel_name || 'eine bestimmte Leistung');
+      }).join('\n');
+      var frage = 'Der Gutschein ' + g.code + ' ist gestaffelt:\n' + liste + '\n  ' + std + ' % auf alles Übrige\n\n'
+        + 'Diese Maske kann nur EINEN Satz auf die ganze Rechnung anwenden und weiß nicht, welche Zeile welche Leistung ist.\n\n'
+        + 'Jetzt ' + std + ' % auf die gesamte Rechnung abziehen?\n'
+        + 'Abbrechen, wenn eine Zeile einen anderen Satz braucht — dann den Nachlass von Hand als eigene Position eintragen '
+        + 'oder die Rechnung über „Rechnung aus Termin" erzeugen, dort wird je Leistung richtig gerechnet.';
+      if (!confirm(frage)) { notify('Gutschein nicht angewendet.', 'err'); return; }
+    }
+    var rabatt = Math.round(basis * (std / 100) * 100) / 100;
+    addPositionRow({ name: 'Gutschein ' + g.code + ' (-' + std + '%)', einheit: '', preis: -rabatt, mwst_satz: 19 });
     recalcRechnung();
     document.getElementById('nr-gutschein').value = '';
     notify('Gutschein ' + g.code + ' angewendet: -' + rEur(rabatt));
@@ -3373,6 +3415,160 @@ function loescheUrlaub(id) {
 }
 
 // ── ARTIKEL ──
+// ── Gutscheine und Staffelung ───────────────────────────────────────────────
+// Bis heute wurden Gutscheine im Homepage-CMS gepflegt. Ein Gutschein ist aber kein
+// Gestaltungselement, sondern ein Preisnachlass, der auf der Rechnung landet -- er gehoert
+// dorthin, wo auch die Leistungen freigegeben werden.
+var GUTSCHEINE = [];
+
+// Die Ausnahmen brauchen die Leistungsliste fuer ihre Auswahlfelder. Beides parallel zu laden
+// und dann zu zeichnen waere ein Rennen: Kommen die Gutscheine zuerst, stuenden die Auswahlfelder
+// leer da und die gespeicherte Leistung waere nicht mehr sichtbar. Darum erst beides, dann zeichnen.
+function loadGutscheine() {
+  var artikel = (allArtikel && allArtikel.length)
+    ? Promise.resolve(allArtikel)
+    : api('GET', '/artikel').then(function(r) { allArtikel = r || []; return allArtikel; });
+  Promise.all([api('GET', '/gutscheine'), artikel])
+    .then(function(res) { GUTSCHEINE = res[0] || []; renderGutscheine(); })
+    .catch(function() { var el = document.getElementById('gutschein-liste'); if (el) el.innerHTML = '<div style="color:var(--muted);font-size:13px">Gutscheine konnten nicht geladen werden.</div>'; });
+}
+
+// Der Satz, den ein Kunde fuer eine bestimmte Leistung bekommt: die Ausnahme, sonst der Standard.
+// Wortgleich mit der Aufloesung im Server (src/lib/gutschein.js) -- diese Anzeige darf nicht
+// behaupten, was die Buchung anders rechnet.
+function gsSatzFuer(g, artikelId) {
+  var a = (g.regeln || []).filter(function(r) { return r.artikel_id === artikelId; })[0];
+  return a ? Number(a.rabatt_prozent) : Number(g.rabatt_prozent || 0);
+}
+
+function gsArtikelAuswahl(gewaehlt) {
+  var opt = ['<option value="">— Leistung wählen —</option>'];
+  (allArtikel || []).forEach(function(a) {
+    opt.push('<option value="' + kEsc(a.id) + '"' + (a.id === gewaehlt ? ' selected' : '') + '>' + kEsc(a.name) + '</option>');
+  });
+  return opt.join('');
+}
+
+function gsAusnahmeZeile(artikelId, satz) {
+  return '<div class="gs-aus" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">'
+    + '<select class="gs-aus-art" style="flex:1;min-width:160px">' + gsArtikelAuswahl(artikelId) + '</select>'
+    + '<input class="gs-aus-proz" type="number" min="0" max="100" value="' + (satz == null ? '' : Number(satz)) + '" style="width:88px" placeholder="%">'
+    + '<span style="color:var(--muted);font-size:13px">%</span>'
+    + '<button class="btn btn-sm" onclick="this.parentNode.parentNode.removeChild(this.parentNode)" title="Ausnahme entfernen">Entfernen</button>'
+    + '</div>';
+}
+
+function gsAusnahmeHinzu(gid) {
+  var box = document.getElementById('gs-aus-' + gid); if (!box) return;
+  box.insertAdjacentHTML('beforeend', gsAusnahmeZeile('', ''));
+}
+
+function renderGutscheine() {
+  var el = document.getElementById('gutschein-liste'); if (!el) return;
+  if (!GUTSCHEINE.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">Noch keine Gutscheine angelegt.</div>'; return; }
+  var heute = new Date(); heute.setHours(0, 0, 0, 0);
+  var html = '';
+  GUTSCHEINE.forEach(function(g) {
+    var abgelaufen = g.gueltig_bis && new Date(String(g.gueltig_bis).slice(0, 10) + 'T12:00:00') < heute;
+    var gilt = g.aktiv && !abgelaufen;
+    var zustand = gilt ? '<span style="color:var(--ok,#1a7f37);font-weight:600">gültig</span>'
+      : (abgelaufen ? '<span style="color:var(--muted)">abgelaufen</span>' : '<span style="color:var(--muted)">abgeschaltet</span>');
+    var reg = g.regeln || [];
+    // Was der Kunde tatsaechlich bekommt -- in Worten, nicht als Rohdaten.
+    var wirkung = reg.length
+      ? reg.map(function(r) { return Number(r.rabatt_prozent) + ' % auf ' + kEsc(r.artikel_name || 'unbekannte Leistung'); }).join(', ')
+        + ', ' + Number(g.rabatt_prozent || 0) + ' % auf alles Übrige'
+      : Number(g.rabatt_prozent || 0) + ' % auf alle Leistungen';
+    html += '<div class="pnl" style="padding:14px;margin-bottom:10px">'
+      + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">'
+      +   '<div><span style="font-weight:700;font-size:16px;letter-spacing:.5px">' + kEsc(g.code) + '</span> '
+      +   '<span style="font-size:12px;margin-left:8px">' + zustand + '</span></div>'
+      +   '<div style="display:flex;gap:6px">'
+      +     '<button class="btn btn-sm" onclick="gutscheinAktiv(\'' + g.id + '\',' + (g.aktiv ? 'false' : 'true') + ')">' + (g.aktiv ? 'Abschalten' : 'Einschalten') + '</button>'
+      +     '<button class="btn btn-sm" onclick="gutscheinLoeschen(\'' + g.id + '\',\'' + kEsc(g.code) + '\')">Löschen</button>'
+      +   '</div>'
+      + '</div>'
+      + (g.beschreibung ? '<div style="font-size:12.5px;color:var(--muted);margin-top:2px">' + kEsc(g.beschreibung) + '</div>' : '')
+      + '<div style="font-size:13px;margin-top:8px;padding:8px 10px;background:var(--bg2,rgba(0,0,0,.03));border-radius:6px">'
+      +   '<strong>Der Kunde bekommt:</strong> ' + wirkung
+      +   (g.gueltig_bis ? ' &middot; gültig bis ' + kEsc(String(g.gueltig_bis).slice(0, 10).split('-').reverse().join('.')) : ' &middot; ohne Enddatum')
+      + '</div>'
+      + '<div style="margin-top:12px">'
+      +   '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">'
+      +     '<label style="font-size:12.5px;color:var(--muted)">Standardsatz für alle Leistungen</label>'
+      +     '<input id="gs-std-' + g.id + '" type="number" min="0" max="100" value="' + Number(g.rabatt_prozent || 0) + '" style="width:88px">'
+      +     '<span style="color:var(--muted);font-size:13px">%</span>'
+      +   '</div>'
+      +   '<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">Ausnahmen je Leistung (überschreiben den Standardsatz)</div>'
+      +   '<div id="gs-aus-' + g.id + '">'
+      +     reg.map(function(r) { return gsAusnahmeZeile(r.artikel_id, r.rabatt_prozent); }).join('')
+      +   '</div>'
+      +   '<div style="display:flex;gap:8px;margin-top:8px">'
+      +     '<button class="btn btn-sm" onclick="gsAusnahmeHinzu(\'' + g.id + '\')">+ Ausnahme</button>'
+      +     '<button class="btn btn-p btn-sm" onclick="gutscheinStaffelSpeichern(\'' + g.id + '\')">Staffelung speichern</button>'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function gutscheinStaffelSpeichern(gid) {
+  var std = document.getElementById('gs-std-' + gid);
+  var standard = parseInt(std && std.value, 10);
+  if (!(standard >= 0 && standard <= 100)) { notify('Der Standardsatz muss zwischen 0 und 100 % liegen.', 'err'); return; }
+  var box = document.getElementById('gs-aus-' + gid);
+  var regeln = [], leer = false, doppelt = false, gesehen = {};
+  if (box) {
+    Array.prototype.forEach.call(box.querySelectorAll('.gs-aus'), function(row) {
+      var aid = row.querySelector('.gs-aus-art').value;
+      var proz = parseInt(row.querySelector('.gs-aus-proz').value, 10);
+      if (!aid && isNaN(proz)) return;                 // vollstaendig leere Zeile: still verwerfen
+      if (!aid || !(proz >= 0 && proz <= 100)) { leer = true; return; }
+      if (gesehen[aid]) { doppelt = true; return; }
+      gesehen[aid] = true;
+      regeln.push({ artikel_id: aid, rabatt_prozent: proz });
+    });
+  }
+  if (leer) { notify('Jede Ausnahme braucht eine Leistung und einen Satz zwischen 0 und 100 %.', 'err'); return; }
+  if (doppelt) { notify('Zu einer Leistung darf nur ein Satz hinterlegt sein.', 'err'); return; }
+  api('PUT', '/gutscheine/' + gid + '/regeln', { rabatt_prozent: standard, regeln: regeln })
+    .then(function() { notify('Staffelung gespeichert.'); loadGutscheine(); })
+    .catch(function(e) { notify((e && e.message) || 'Speichern fehlgeschlagen.', 'err'); });
+}
+
+function gutscheinAnlegen() {
+  var code = (document.getElementById('gs-neu-code').value || '').trim().toUpperCase().replace(/\s+/g, '');
+  var proz = parseInt(document.getElementById('gs-neu-proz').value, 10);
+  if (!code) { notify('Bitte einen Code eingeben.', 'err'); return; }
+  if (!(proz >= 1 && proz <= 100)) { notify('Der Standardsatz muss zwischen 1 und 100 % liegen.', 'err'); return; }
+  api('POST', '/gutscheine', {
+    code: code, rabatt_prozent: proz,
+    gueltig_bis: document.getElementById('gs-neu-bis').value || null,
+    beschreibung: document.getElementById('gs-neu-besch').value || null
+  }).then(function() {
+    document.getElementById('gs-neu-code').value = '';
+    document.getElementById('gs-neu-proz').value = '';
+    document.getElementById('gs-neu-bis').value = '';
+    document.getElementById('gs-neu-besch').value = '';
+    notify('Gutschein ' + code + ' angelegt.');
+    loadGutscheine();
+  }).catch(function(e) { notify((e && e.message) || 'Anlegen fehlgeschlagen.', 'err'); });
+}
+
+function gutscheinAktiv(gid, an) {
+  api('PATCH', '/gutscheine/' + gid, { aktiv: an })
+    .then(function() { notify(an ? 'Gutschein eingeschaltet.' : 'Gutschein abgeschaltet.'); loadGutscheine(); })
+    .catch(function(e) { notify((e && e.message) || 'Änderung fehlgeschlagen.', 'err'); });
+}
+
+function gutscheinLoeschen(gid, code) {
+  if (!confirm('Gutschein ' + code + ' wirklich löschen? Bereits gebuchte Termine behalten ihren Nachlass — der Code lässt sich danach nur nicht mehr einlösen.')) return;
+  api('DELETE', '/gutscheine/' + gid)
+    .then(function() { notify('Gutschein gelöscht.'); loadGutscheine(); })
+    .catch(function(e) { notify((e && e.message) || 'Löschen fehlgeschlagen.', 'err'); });
+}
+
 function loadArtikel() {
   api('GET', '/artikel').then(function(r) { allArtikel = r || []; renderArtikel(); }).catch(function() {});
 }
