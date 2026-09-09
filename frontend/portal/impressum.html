@@ -55,7 +55,19 @@ function lade() {
 }
 function render() {
   var f = FIRMA;
-  var firma = esc(f.firmenname || 'Schröder & Scholz') + (f.rechtsform ? ' ' + esc(f.rechtsform) : '');
+
+  // Die Rechtsform IST nach Paragraf 5a GmbHG Teil der Firma: "Schröder & Scholz UG
+  // (haftungsbeschränkt) i.G." enthaelt sie bereits. Wird sie zusaetzlich angehaengt, steht sie
+  // doppelt da -- im Datenschutz sogar in verschachtelten Klammern.
+  // Ein Nutzer tippt die Rechtsform naturgemaess in den Firmennamen; deshalb wird geprueft
+  // statt sich auf getrennte Pflege zu verlassen.
+  function mitRechtsform(name, rf) {
+    if (!rf) return name;
+    var n = String(name || '').toLowerCase().replace(/\s+/g, ' ');
+    var r = String(rf).toLowerCase().replace(/\s+/g, ' ').trim();
+    return (r && n.indexOf(r) !== -1) ? name : (name + ' ' + rf);
+  }
+  var firma = mitRechtsform(esc(f.firmenname || 'Schröder & Scholz'), f.rechtsform ? esc(f.rechtsform) : '');
   var adresse = [f.strasse, (f.plz || '') + ' ' + (f.ort || '')].filter(function(x) { return x && x.trim(); }).map(esc).join('<br>');
   var inhaber = f.inhaber ? esc(f.inhaber) : '';
   var tel = f.telefon ? esc(f.telefon) : '';
@@ -81,6 +93,22 @@ function render() {
   document.getElementById('im-content').innerHTML = html;
 }
 lade();
+</script>
+<div style="max-width:820px;margin:26px auto 34px;padding:0 18px;text-align:center">
+  <!-- Paragraf 356a BGB verlangt, dass der Widerruf GUT SICHTBAR erreichbar ist. Vorher stand
+       er nur als Textzeile in der Portal-Fusszeile und auf diesen Seiten gar nicht. -->
+  <a href="vertrag-widerrufen.html" id="widerruf-knopf"
+     style="display:inline-block;background:var(--accent);color:#171717;padding:11px 22px;border-radius:9px;font-weight:800;text-decoration:none">Vertrag widerrufen</a>
+</div>
+<script>
+(function () {
+  // Zweisprachig wie der Rest der Seite: dieselbe Quelle (localStorage), damit der Knopf nicht
+  // als einziges Element deutsch bleibt, wenn der Kunde auf Englisch liest.
+  try {
+    var en = (localStorage.getItem("rp_portal_lang") || "de") === "en";
+    if (en) document.getElementById("widerruf-knopf").textContent = "Withdraw from contract";
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
