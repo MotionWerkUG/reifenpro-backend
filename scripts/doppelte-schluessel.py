@@ -10,6 +10,7 @@
 # Hand findet man das nicht.
 #
 # Aufruf:  python3 scripts/doppelte-schluessel.py frontend/portal/index.html frontend/index.html
+#          --sprachen  nur den Sprachabgleich, ohne die Doppler-Suche
 # Rueckgabe: 0 wenn sauber, 1 wenn etwas gefunden wurde (fuer eine Pruefung vor dem Ausliefern).
 #
 # Zeichenketten, Kommentare und regulaere Ausdruecke werden uebersprungen. Die Zeilennummern
@@ -70,19 +71,53 @@ def schluessel_doppler(js):
         letztes_zeichen = c; i += 1
     return funde
 
+# ── Zweite Pruefung: fehlen Schluessel in einer Sprache? ────────────────────────────────────────
+#
+# WARUM ZUSAETZLICH: Die Pruefung oben meldet gleiche Namen in VERSCHIEDENEN Objektliteralen
+# absichtlich nicht -- de und en sollen dieselben Schluessel tragen. Genau deshalb faellt der
+# umgekehrte Fall dort per Bauart durch: Ein Schluessel, den es nur in EINER Sprache gibt.
+# Am 09.09.2026 ist das passiert: Beim Entdoppeln wurde password_repeat auch im englischen Block
+# entfernt, wo er gar nicht doppelt war. Englische Nutzer haetten ueber den Rueckfall den
+# deutschen Text gesehen -- kein Absturz, kein Test schlaegt fehl, es faellt nur irgendwann auf.
+#
+# Gemeldet wird nur, was auch VERWENDET wird: Ein ungenutzter Schluessel in einer Sprache ist
+# folgenlos, und eine Liste voller folgenloser Meldungen liest bald niemand mehr.
+def sprach_luecken(quelltext, verwendungstext=None):
+    bloecke = {}
+    for m in re.finditer(r"\n  ([a-z]{2}): \{(.*?)\n  \}", quelltext, re.S):
+        bloecke[m.group(1)] = set(re.findall(r"(?:^|[\s{,])([a-zA-Z_][a-zA-Z_0-9]*):", m.group(2)))
+    if len(bloecke) < 2:
+        return []
+    verwendung = verwendungstext if verwendungstext is not None else quelltext
+    alle = set().union(*bloecke.values())
+    funde = []
+    for name in sorted(alle):
+        fehlt_in = sorted(sp for sp, keys in bloecke.items() if name not in keys)
+        if not fehlt_in:
+            continue
+        benutzt = bool(re.search(r"t\(['\"]" + re.escape(name) + r"['\"]\)", verwendung)
+                       or re.search(r'data-i18n(?:-[a-z]+)?="' + re.escape(name) + r'"', verwendung))
+        funde.append((name, fehlt_in, benutzt))
+    return [f for f in funde if f[2]]
+
+nur_sprachen = '--sprachen' in sys.argv
+dateien = [a for a in sys.argv[1:] if not a.startswith('--')]
+
 gefunden = False
-for datei in sys.argv[1:]:
+for datei in dateien:
     s = io.open(datei, encoding='utf-8').read()
     if datei.endswith('.html'):
         js = '\n'.join(m.group(1) for m in re.finditer(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', s, re.S))
     else:
         js = s
-    f = schluessel_doppler(js)
-    if f:
+    f = [] if nur_sprachen else schluessel_doppler(js)
+    l = sprach_luecken(js, s)   # Woerterbuecher aus dem Skript, Verwendungen aus der GANZEN Datei
+    if f or l:
         print(datei + ':')
         for name, z1, z2 in f: print('   ' + name + '  zuerst bei Zeile ' + str(z1) + ', erneut bei ' + str(z2))
+        for name, fehlt_in, _ in l: print('   ' + name + '  fehlt in: ' + ', '.join(fehlt_in) + '  (wird verwendet)')
     else:
-        print(datei + ': keine doppelten Schluessel')
-    if f: gefunden = True
+        print(datei + ': keine doppelten Schluessel' + ('' if nur_sprachen else ', keine Sprachluecken'))
+    if f or l: gefunden = True
 
 sys.exit(1 if gefunden else 0)
