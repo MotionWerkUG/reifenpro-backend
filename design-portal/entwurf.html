@@ -138,24 +138,31 @@
     <b>Nicht</b> gezeigt werden Konditionen oder Rabattstufen als solche: Der Kunde sieht seinen
     Preis, nicht seine Einstufung.
     <br><br>
-    <b>Ein Nachlass ist eine EIGENE ZEILE, kein durchgestrichener Preis.</b> So macht es die
-    Rechnung, und das Portal darf davon nicht abweichen &mdash; sonst sieht der Kunde zwei
-    Darstellungen derselben Sache. Nachgesehen in <code>rechnungen.js</code>,
-    Funktion <code>nachlassPositionen()</code>: Jede Leistung steht mit ihrem <b>vollen</b>
-    Preis, darunter je Rabattsatz eine Minuszeile.
+    <b>Ein Nachlass ist eine EIGENE ZEILE, kein durchgestrichener Preis.</b> Jede Leistung steht
+    mit ihrem <b>vollen</b> Preis, darunter je Rabattsatz eine Minuszeile.
+    <br><br>
+    <b>Den Wortlaut baut niemand nach.</b> Er kommt aus einer gemeinsamen Funktion,
+    <code>nachlassZeilen(positionen, herkunft)</code> in <code>src/lib/nachlass.js</code>: Sie
+    liefert je Rabattsatz eine fertige Zeile &mdash; bei genau einer betroffenen Leistung deren
+    Name, sonst &bdquo;&uuml;brige Leistungen&ldquo;, die Herkunft mit Gedankenstrich angeh&auml;ngt.
+    Portal und Rechnung nehmen dieselbe Funktion; zwei Fassungen k&ouml;nnen damit nicht
+    auseinanderlaufen. Genau daran war mein erster Entwurf gescheitert.
     <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">
-      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>gutschein</code></td>
-          <td style="padding:5px 0">&bdquo;Nachlass Reifeneinlagerung (25&nbsp;%)&ldquo; und &bdquo;Nachlass &uuml;brige Leistungen (10&nbsp;%)&ldquo;, Herkunft &bdquo;Gutschein WINTER2026&ldquo;. Betrifft ein Satz genau eine Leistung, wird sie benannt; sonst &bdquo;&uuml;brige Leistungen&ldquo;. Auch ein Gewerbekunde kann einen Gutschein einl&ouml;sen.</td></tr>
-      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>konditionen</code></td>
-          <td style="padding:5px 0">dieselbe Form, Herkunft &bdquo;Vereinbarter Nachlass&ldquo; &mdash; gibt es <b>nur bei Gewerbekunden</b>. Nachl&auml;sse stapeln sich nicht: Wer einen vereinbarten Nachlass hat, kann daneben keinen Gutschein einl&ouml;sen.</td></tr>
-      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>kundenpreis</code></td>
+      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top">Herkunft <code>gutschein</code></td>
+          <td style="padding:5px 0">&bdquo;Nachlass Reifeneinlagerung (25&nbsp;%) &mdash; Gutschein WINTER2026&ldquo;. Auch ein Gewerbekunde kann einen Gutschein einl&ouml;sen.</td></tr>
+      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top">Herkunft <code>konditionen</code></td>
+          <td style="padding:5px 0">&bdquo;&hellip; &mdash; Vereinbarter Nachlass&ldquo; &mdash; gibt es <b>nur bei Gewerbekunden</b>. Nachl&auml;sse stapeln sich nicht.</td></tr>
+      <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top">fester Kundenpreis</td>
           <td style="padding:5px 0"><b>gar keine Minuszeile.</b> Der Preis IST der Preis.</td></tr>
     </table>
-    <b>Die Zahlen oben sind echt</b>, nicht ausgedacht: Am 09.09.2026 gegen die Preisauskunft
-    gepr&uuml;ft (R&auml;derwechsel 39,00, Einlagerung 32,00, Auswuchten 25,00; mit WINTER2026
-    ergeben sich &minus;8,00 und &minus;6,40, Summe 81,60). Mein erster Entwurf zeigte
-    durchgestrichene Zeilenpreise &mdash; das h&auml;tte im Portal andere Betr&auml;ge ergeben
-    als auf der Rechnung.
+    <b>Achtung bei Gastbuchungen:</b> Dort ist <code>preis_quelle</code> leer &mdash; die
+    Kundenpreis-Logik l&auml;uft ohne Kunden gar nicht. Die Herkunft muss dann aus
+    <code>termine.gutschein_code</code> kommen. Wer sich allein auf <code>preis_quelle</code>
+    verl&auml;sst, schreibt bei jeder Gastbuchung &bdquo;Nachlass&ldquo; ohne Herkunft.
+    <br><br>
+    <b>Die Zahlen oben sind echt</b>, am 09.09.2026 gegen die Preisauskunft gepr&uuml;ft:
+    R&auml;derwechsel 39,00, Einlagerung 32,00, Auswuchten 25,00; mit WINTER2026 ergeben sich
+    &minus;8,00 und &minus;6,40, Summe 81,60.
   </div>
 
   <div class="rahmen">
