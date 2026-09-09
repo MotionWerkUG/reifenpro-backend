@@ -944,6 +944,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
               <div class="fg full"><label>Terminbestätigung</label><textarea id="s-mt" rows="4"></textarea></div>
               <div class="fg full"><label>Terminerinnerung (48h vorher)</label><textarea id="s-mr" rows="4"></textarea></div>
               <div class="fg full"><label>Terminstornierung</label><textarea id="s-msto" rows="4"></textarea></div>
+              <div class="fg full"><label>Termin verschoben</label><textarea id="s-msve" rows="4" placeholder="Leer lassen für den eingebauten Standardtext"></textarea></div>
               <div class="fg full"><label>Saison-Erinnerung (Werbung — nur mit Einwilligung)</label><textarea id="s-msai" rows="4"></textarea></div>
               <div class="fg full"><label>Bewertungsanfrage (Werbung — nur mit Einwilligung)</label><textarea id="s-mb" rows="4"></textarea></div>
             </div>
@@ -3032,7 +3033,7 @@ function fillEinst() {
   fv('s-me', EINST.email_einlagerung); fv('s-ma', EINST.email_abholbereit);
   fv('s-mn', EINST.email_raeder_nachziehen); fv('s-mb', EINST.email_bewertung);
   fv('s-mt', EINST.email_termin_bestaetigung); fv('s-mr', EINST.email_termin_erinnerung);
-  fv('s-msto', EINST.email_termin_stornierung); fv('s-msai', EINST.email_erinnerung);
+  fv('s-msto', EINST.email_termin_stornierung); fv('s-msve', EINST.email_termin_verschoben); fv('s-msai', EINST.email_erinnerung);
   if (EINST.logo_url) {
     document.getElementById('s-logo-prev').innerHTML = '<img src="' + EINST.logo_url + '" style="max-height:60px;border-radius:6px">';
   }
@@ -3071,7 +3072,8 @@ function saveEinst() {
     email_einlagerung: gv('s-me'), email_abholbereit: gv('s-ma'),
     email_raeder_nachziehen: gv('s-mn'), email_bewertung: gv('s-mb'),
     email_termin_bestaetigung: gv('s-mt'), email_termin_erinnerung: gv('s-mr'),
-    email_termin_stornierung: gv('s-msto'), email_erinnerung: gv('s-msai')
+    email_termin_stornierung: gv('s-msto'), email_termin_verschoben: gv('s-msve'),
+    email_erinnerung: gv('s-msai')
   };
   api('PUT', '/einstellungen', data).then(function(r) {
     if (r) EINST = r;

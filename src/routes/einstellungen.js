@@ -18,7 +18,7 @@ const ALLOWED = [
   'vertragsdauer_monate', 'verlaengerung_automatisch', 'abholungsfrist_wochen', 'lagerungsort',
   'email_einlagerung', 'email_abholbereit', 'email_bewertung', 'email_raeder_nachziehen',
   'email_erinnerung', 'email_termin_bestaetigung', 'email_termin_erinnerung',
-  'email_termin_stornierung', 'email_neukunde_admin', 'saison_erinnerung_wochen',
+  'email_termin_stornierung', 'email_termin_verschoben', 'email_neukunde_admin', 'saison_erinnerung_wochen',
   'mo_fr_von', 'mo_fr_bis', 'sa_von', 'sa_bis', 'sa_offen',
   'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
   'max_parallele_termine', 'stornierung_frist_h', 'portal_url', 'besucher_ausschluss',

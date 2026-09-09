@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
 const { auditLog } = require('../middleware/errorHandler');
-const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail, ohneGeheimnisse } = require('../lib/kundendaten');
+const { pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail, ohneGeheimnisse, spiegleFahrzeugInStamm } = require('../lib/kundendaten');
 
 // Deutsches Kennzeichen pruefen/normalisieren (z. B. WOR-AB-1234, optional E/H). Leeres Feld erlaubt.
 function normKennzeichen(raw) {
@@ -272,13 +272,9 @@ router.get('/:id/einlagerungen', async (req, res, next) => {
 // ── FAHRZEUGE (Standort pflegt Fahrzeuge eines Kunden) ──
 const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 
-// Spiegelt das zuletzt gepflegte Fahrzeug in die Kunden-Stammfelder (fuer Suche/Profil/Buchung/HU-Warnung)
-async function syncPrimaerFahrzeug(kundenId, fz) {
-  if (!fz) return;
-  await query(
-    'UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3, hu_datum=COALESCE($4, hu_datum) WHERE id=$5',
-    [fz.kennzeichen || null, fz.marke || null, fz.modell || null, fz.hu_datum || null, kundenId]
-  );
+// Die Regel steht in src/lib/kundendaten.js, damit Admin und Portal dieselbe anwenden.
+async function syncPrimaerFahrzeug(kundenId) {
+  await spiegleFahrzeugInStamm(query, kundenId);
 }
 
 router.get('/:id/fahrzeuge', async (req, res, next) => {
@@ -300,7 +296,7 @@ router.post('/:id/fahrzeuge', async (req, res, next) => {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [req.params.id, t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null]
     );
-    await syncPrimaerFahrzeug(req.params.id, rows[0]);
+    await syncPrimaerFahrzeug(req.params.id);
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -318,7 +314,7 @@ router.put('/:id/fahrzeuge/:fid', async (req, res, next) => {
       [t, marke || null, modell || null, kzF.wert, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz || null, req.params.fid, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
-    await syncPrimaerFahrzeug(req.params.id, rows[0]);
+    await syncPrimaerFahrzeug(req.params.id);
     res.json(rows[0]);
   } catch (err) { next(err); }
 });
@@ -327,10 +323,11 @@ router.delete('/:id/fahrzeuge/:fid', async (req, res, next) => {
   try {
     const { rows } = await query('DELETE FROM fahrzeuge WHERE id=$1 AND kunden_id=$2 RETURNING id', [req.params.fid, req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden.' });
-    // Stammkennzeichen des Kunden nachziehen (kein Phantom-Kennzeichen): juengstes verbleibendes Fahrzeug, sonst leeren.
-    const rest = (await query('SELECT * FROM fahrzeuge WHERE kunden_id=$1 ORDER BY erstellt_am DESC LIMIT 1', [req.params.id])).rows[0];
-    if (rest) await syncPrimaerFahrzeug(req.params.id, rest);
-    else await query('UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL WHERE id=$1', [req.params.id]);
+    // Stammkennzeichen nachziehen (kein Phantom-Kennzeichen). Bleibt genau ein Fahrzeug uebrig,
+    // wandert es in den Stamm; bleibt keines, wird geleert. Die Regel liegt in kundendaten.js.
+    const bleibt = parseInt((await query('SELECT count(*)::int AS n FROM fahrzeuge WHERE kunden_id=$1', [req.params.id])).rows[0].n, 10);
+    if (bleibt === 0) await query('UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL WHERE id=$1', [req.params.id]);
+    else await syncPrimaerFahrzeug(req.params.id);
     res.json({ message: 'Gelöscht.' });
   } catch (err) { next(err); }
 });

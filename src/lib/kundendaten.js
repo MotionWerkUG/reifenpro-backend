@@ -76,4 +76,42 @@ function ohneGeheimnisse(zeile) {
   return k;
 }
 
-module.exports = { ohneGeheimnisse, KUNDENTYPEN, strasseHatHausnummer, plzGueltig, pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail };
+
+// ── Fahrzeug-Stammfelder am Kunden spiegeln ───────────────────────────────────────────────────
+//
+// Die Kunden-Tabelle traegt aus der Zeit vor der Fahrzeugliste noch kennzeichen, fahrzeug_marke,
+// fahrzeug_modell und hu_datum. Diese Felder sind heute nur noch RUECKFALL: termine.js und
+// protokolle.js greifen darauf zurueck, wenn der Vorgang selbst kein Kennzeichen traegt, und die
+// Einlagerungsliste zeigt sie an. Nicht mehr daran haengen: die HU-Erinnerung (laeuft seit dem
+// Fuhrpark-Umbau ueber fahrzeuge.hu_datum, siehe server.js) und die Kundensuche (sucht bereits
+// mit EXISTS ueber fahrzeuge.kennzeichen).
+//
+// BISHER wurde immer das ZULETZT gepflegte Fahrzeug gespiegelt. Bei zwei Autos sah der Kunde in
+// seinem Profil nur noch das zweite -- fuer ihn wie Datenverlust, obwohl beide gespeichert sind
+// (von der Portal-Sitzung am 09.09.2026 nachgemessen).
+//
+// DIE REGEL JETZT:
+//   genau ein Fahrzeug  -> spiegeln, der Rueckfall bleibt warm
+//   zwei oder mehr      -> Stammfelder LEEREN
+//
+// Warum leeren und nicht einfrieren: Ein eingefrorener Stamm liefert den Rueckfaellen weiterhin
+// ein Kennzeichen -- nur eben das falsche. Auf einem Arbeitsprotokoll stuende dann das Auto, das
+// nicht in der Halle steht. Ein leeres Feld ist sichtbar leer, ein falsches nicht. Die Fahrzeuge
+// selbst bleiben unangetastet; Admin und Portal zeigen sie aus der Fahrzeugliste.
+async function spiegleFahrzeugInStamm(query, kundenId) {
+  const anzahl = parseInt((await query('SELECT count(*)::int AS n FROM fahrzeuge WHERE kunden_id=$1', [kundenId])).rows[0].n, 10);
+  if (anzahl === 1) {
+    const f = (await query('SELECT kennzeichen, marke, modell, hu_datum FROM fahrzeuge WHERE kunden_id=$1', [kundenId])).rows[0];
+    await query(
+      'UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3, hu_datum=COALESCE($4, hu_datum) WHERE id=$5',
+      [f.kennzeichen || null, f.marke || null, f.modell || null, f.hu_datum || null, kundenId]);
+    return { gespiegelt: true, anzahl };
+  }
+  if (anzahl > 1) {
+    await query('UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL WHERE id=$1', [kundenId]);
+    return { gespiegelt: false, anzahl };
+  }
+  return { gespiegelt: false, anzahl };   // gar kein Fahrzeug -> Stamm unangetastet lassen
+}
+
+module.exports = { spiegleFahrzeugInStamm, ohneGeheimnisse, KUNDENTYPEN, strasseHatHausnummer, plzGueltig, pruefeAnschrift, pruefeKundentyp, pruefeRechnungEmail };
