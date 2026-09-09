@@ -133,7 +133,7 @@
     <b>Die Regeln:</b> Jede gebuchte Leistung steht als eigene Zeile mit ihrem Preis, darunter die
     Summe. Die Preise sind die am Termin <b>eingefrorenen</b> Werte (<code>leistungen[].zeilen_brutto</code>)
     und werden <b>nie neu gerechnet</b> — sonst zeigt das Portal einen anderen Betrag als die Rechnung.
-    Ein Nachlass wird mit seiner <b>Herkunft</b> genannt, nie als nackte Zahl.
+    Ein Nachlass wird mit seiner <b>Herkunft</b> genannt, nie als nackte Zahl &mdash; und <b>nur dann</b>, wenn einer greift. Wo keiner greift, steht unter der Leistung nichts: Der Preis ist der Preis, ihn als &bdquo;Listenpreis&ldquo; zu bezeichnen erkl&auml;rt nichts und wirft die Frage auf, welchen anderen Preis es noch gibt.
     <b>Nicht</b> gezeigt werden Konditionen oder Rabattstufen als solche: Der Kunde sieht seinen
     Preis, nicht seine Einstufung.
     <br><br>
@@ -141,11 +141,11 @@
     <code>preis_quelle</code> an der einzelnen Position:
     <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:13px">
       <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>gutschein</code></td>
-          <td style="padding:5px 0">&bdquo;Gutschein WINTER2026 (&minus;25&nbsp;%)&ldquo;, alter Preis daneben durchgestrichen</td></tr>
+          <td style="padding:5px 0">&bdquo;Gutschein WINTER2026 (&minus;25&nbsp;%)&ldquo;, alter Preis daneben durchgestrichen. Auch ein Gewerbekunde kann einen Gutschein einl&ouml;sen.</td></tr>
       <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>konditionen</code></td>
-          <td style="padding:5px 0">&bdquo;Vereinbarter Nachlass (&minus;20&nbsp;%)&ldquo; &mdash; der Fall bei jedem Gewerbekunden mit Pauschalnachlass</td></tr>
+          <td style="padding:5px 0">&bdquo;Vereinbarter Nachlass (&minus;20&nbsp;%)&ldquo; &mdash; gibt es <b>nur bei Gewerbekunden</b>. Nachlaesse stapeln sich nicht: Wer einen vereinbarten Nachlass hat, kann daneben keinen Gutschein einl&ouml;sen.</td></tr>
       <tr><td style="padding:5px 10px 5px 0;white-space:nowrap;vertical-align:top"><code>kundenpreis</code></td>
-          <td style="padding:5px 0"><b>gar keine Nachlasszeile.</b> Der Preis IST der Preis; eine Nachlasszeile w&auml;re schlicht falsch</td></tr>
+          <td style="padding:5px 0"><b>gar keine Zeile darunter.</b> Der Preis IST der Preis</td></tr>
     </table>
     <b>Der Wortlaut folgt der Rechnung</b>, nachgesehen in <code>src/routes/rechnungen.js</code>:
     Dort hei&szlig;t es &bdquo;Gutschein WINTER2026 (-25&nbsp;%)&ldquo; und &bdquo;Vereinbarter Nachlass (-20&nbsp;%)&ldquo;.
@@ -175,7 +175,7 @@
 
         <table class="pos">
           <tr>
-            <td>Räderwechsel<span class="quelle">Listenpreis</span></td>
+            <td>Räderwechsel</td>
             <td class="betrag">49,00 €</td>
           </tr>
           <tr>
@@ -183,7 +183,7 @@
             <td class="betrag"><span class="durchgestrichen">42,50 €</span>32,00 €</td>
           </tr>
           <tr>
-            <td>Wuchten, 4 Räder<span class="quelle">Listenpreis</span></td>
+            <td>Wuchten, 4 Räder</td>
             <td class="betrag">24,00 €</td>
           </tr>
           <tr class="summe">
@@ -213,7 +213,7 @@
           <span class="badge b-info">Angefragt</span>
         </div>
         <table class="pos">
-          <tr><td>Reifen aus der Einlagerung holen<span class="quelle">Listenpreis</span></td><td class="betrag">0,00 €</td></tr>
+          <tr><td>Reifen aus der Einlagerung holen</td><td class="betrag">0,00 €</td></tr>
           <tr class="summe"><td>Summe, inkl. MwSt.</td><td class="betrag">0,00 €</td></tr>
         </table>
         <div class="zeile"><span>L-AB-4711 · Audi A4</span></div>
