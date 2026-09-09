@@ -14,6 +14,12 @@
 #      allerersten Lauf.
 #   2. Ohne Wortgrenze suchen. "id", "status" oder "typ" kommen in jedem zweiten Wort vor und
 #      liefern immer einen Treffer, also nie einen Befund.
+#   3. NUR den Anwendungscode durchsuchen. Eine Spalte kann in der DATENBANK selbst benutzt
+#      werden -- von einer Sicht, einem Index, einer Bedingung, einem Ausloeser oder einer
+#      Funktion. lager_config.reihen wurde am 09.09.2026 als tot gemeldet und stand in der Sicht
+#      v_statistiken; das DROP scheiterte erst am Fremdschluessel-Schutz von PostgreSQL. Ohne
+#      diesen Schutz waere eine benutzte Spalte geloescht worden. Seitdem fragt das Werkzeug
+#      auch die Datenbank.
 #
 # Der Befund ist ein HINWEIS, kein Urteil: Eine Spalte kann ueber dynamischen Zugriff
 # (row[name], SELECT *) benutzt werden, ohne dass ihr Name im Code steht. Vor dem Loeschen
@@ -29,10 +35,33 @@ NUR="${1:-}"
 # Durchsucht src/, frontend/ UND die .js-Dateien im Projektwurzelverzeichnis (dort liegen die
 # zeitgesteuerten Auftraege). Die Worktrees der anderen Bereiche bleiben aussen vor -- sie sind
 # Kopien und wuerden jede Spalte am Leben halten, auch eine wirklich tote.
-suche() {
+suche_code() {
   grep -rqw "$1" --include=*.js --include=*.html src/ frontend/ 2>/dev/null && return 0
   grep -qw "$1" ./*.js 2>/dev/null
 }
+
+# Benutzt ein DATENBANKOBJEKT die Spalte? Sichten, Ausloeser und Funktionen tragen ihren
+# Quelltext in pg_catalog; Indizes und Bedingungen liefern ihre Definition ueber pg_get_*def.
+# Gesucht wird mit Wortgrenze, damit "reihen" nicht in "sortierreihenfolge" anschlaegt.
+suche_db() {
+  local treffer
+  treffer=$(sudo -u postgres psql -tAq -d "$DB" -c "
+    SELECT 1 FROM pg_views      WHERE schemaname='public' AND definition ~ '\\m$1\\M'
+    UNION ALL
+    SELECT 1 FROM pg_matviews   WHERE schemaname='public' AND definition ~ '\\m$1\\M'
+    UNION ALL
+    SELECT 1 FROM pg_indexes    WHERE schemaname='public' AND indexdef ~ '\\m$1\\M'
+    UNION ALL
+    SELECT 1 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
+      WHERE n.nspname='public' AND pg_get_constraintdef(c.oid) ~ '\\m$1\\M'
+    UNION ALL
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='public' AND p.prosrc ~ '\\m$1\\M'
+    LIMIT 1" 2>/dev/null)
+  [ -n "$treffer" ]
+}
+
+suche() { suche_code "$1" || suche_db "$1"; }
 
 # ── Selbstpruefung: Das Werkzeug muss an einem BEKANNTEN Fall anschlagen ───────────────────────
 # Ohne sie hiesse "keine Funde" womoeglich nur, dass die Suche nicht funktioniert.
@@ -46,6 +75,17 @@ fi
 if ! suche "erinnerung_gesendet"; then
   echo "SELBSTPRUEFUNG FEHLGESCHLAGEN: 'erinnerung_gesendet' wird nicht gefunden, obwohl es in" >&2
   echo "cron-erinnerungen.js steht. Die Suche deckt zu wenige Ordner ab." >&2
+  exit 2
+fi
+# Dritter Selbsttest, fuer Falle 3: 'reihen' steht in KEINER Codedatei, aber in der Sicht
+# v_statistiken. Findet die Suche es nicht, meldet das Werkzeug wieder eine benutzte Spalte
+# als tot -- genau der Fehler vom 09.09.2026.
+if suche_code "reihen"; then
+  echo "SELBSTPRUEFUNG UEBERSPRUNGEN: 'reihen' steht inzwischen doch im Code -- der Testfall" >&2
+  echo "fuer Datenbankobjekte braucht ein neues Beispiel." >&2
+elif ! suche_db "reihen"; then
+  echo "SELBSTPRUEFUNG FEHLGESCHLAGEN: 'reihen' wird in der Datenbank nicht gefunden, obwohl die" >&2
+  echo "Sicht v_statistiken damit rechnet. Die Suche deckt keine Datenbankobjekte ab." >&2
   exit 2
 fi
 if ! suche "kunden_nr"; then
