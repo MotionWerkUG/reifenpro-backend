@@ -34,14 +34,20 @@
 -- wiederherstellt, haette beides verloren -- und mit "widerrufe" den Nachweis, wann ein
 -- Widerruf eingegangen ist. Genau dieser Zeitpunkt ist die fristwahrende Tatsache.
 --
+-- ZWEITER LAUF AM 09.09.2026: Dazugekommen sind die Erstzulassung an fahrzeuge und kunden, die
+-- Mailvorlage fuer verschobene Termine, das Merkmal termine.vereinbart_ueber samt Riegel-Trigger
+-- trg_termin_weg. Zwischen beiden Laeufen liegen wenige Stunden -- das ist kein Zeichen von
+-- Hektik, sondern der Grund, warum diese Datei ueberhaupt regelmaessig neu erzeugt wird: Sie ist
+-- der einzige Weg, das System aus dem Repository heraus wieder aufzubauen.
+--
 -- GEGENGEPRUEFT: Auf einer leeren Wegwerf-Datenbank von vorn bis hinten durchgelaufen,
--- Tabellenzahl und Trigger gegen die Produktion verglichen.
+-- Tabellenzahl, Spalten und Trigger gegen die Produktion verglichen.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 --
 -- PostgreSQL database dump
 --
 
-\restrict outafD2J55R8qaMyQdtwZ4bzYmEpfBdhXMhdQJZa8fEVNsbVEP3ffBRY8VR8nl7
+\restrict SQiudjE15LJ4YSkGi2yC2lciWLurw66aLwi6UHs9NKdXZQbLIDnymPMUT5Bdj4R
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -186,6 +192,27 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: termin_weg_setzen(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+-- Riegel: portal_buchung=true heisst per Definition, dass ueber eine Online-Oberflaeche
+-- geschlossen wurde -- dann ist 'online' nicht Annahme, sondern die einzig richtige Angabe.
+-- Steht als Trigger in der Datenbank statt als Merkregel in vier Routen, weil Termine an vier
+-- Stellen entstehen und eine vergessene Spalte still 'tresen' ergaebe: Ein Fernabsatzvertrag
+-- saehe dann aus wie ein Tresengeschaeft, und genau diese Verwechslung soll die Spalte
+-- verhindern.
+CREATE FUNCTION public.termin_weg_setzen() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.portal_buchung IS TRUE AND NEW.vereinbart_ueber IS DISTINCT FROM 'online' THEN
+    NEW.vereinbart_ueber := 'online';
+  END IF;
+  RETURN NEW;
+END $$;
 
 
 --
@@ -498,7 +525,8 @@ CREATE TABLE public.einstellungen (
     berufsrechtliche_regelungen text,
     schlichtung_bereit boolean DEFAULT false NOT NULL,
     schlichtung_stelle text,
-    besucher_ausschluss text
+    besucher_ausschluss text,
+    email_termin_verschoben text
 );
 
 
@@ -554,7 +582,8 @@ CREATE TABLE public.fahrzeuge (
     notiz text,
     erstellt_am timestamp with time zone DEFAULT now() NOT NULL,
     geaendert_am timestamp with time zone,
-    hu_erinnerung_gesendet boolean DEFAULT false
+    hu_erinnerung_gesendet boolean DEFAULT false,
+    erstzulassung date
 );
 
 
@@ -728,6 +757,7 @@ CREATE TABLE public.kunden (
     kundentyp text DEFAULT 'privat'::text NOT NULL,
     land text,
     rechnung_email text,
+    erstzulassung date,
     CONSTRAINT kunden_kundentyp_check CHECK ((kundentyp = ANY (ARRAY['privat'::text, 'firma'::text])))
 );
 
@@ -1168,7 +1198,9 @@ CREATE TABLE public.termine (
     zustimmung_angefragt_am timestamp with time zone,
     vorzeitige_leistung_ip text,
     vorzeitige_leistung_quelle text,
-    CONSTRAINT termine_status_check CHECK ((status = ANY (ARRAY['angefragt'::text, 'bestaetigt'::text, 'abgeschlossen'::text, 'storniert'::text, 'abgesagt'::text, 'nicht_erschienen'::text])))
+    vereinbart_ueber text DEFAULT 'tresen'::text NOT NULL,
+    CONSTRAINT termine_status_check CHECK ((status = ANY (ARRAY['angefragt'::text, 'bestaetigt'::text, 'abgeschlossen'::text, 'storniert'::text, 'abgesagt'::text, 'nicht_erschienen'::text]))),
+    CONSTRAINT termine_vereinbart_ueber_check CHECK ((vereinbart_ueber = ANY (ARRAY['tresen'::text, 'telefon'::text, 'online'::text])))
 );
 
 
@@ -1990,6 +2022,13 @@ CREATE TRIGGER trg_rechnung_schutz BEFORE DELETE OR UPDATE ON public.rechnungen 
 
 
 --
+-- Name: termine trg_termin_weg; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER trg_termin_weg BEFORE INSERT OR UPDATE OF portal_buchung, vereinbart_ueber ON public.termine FOR EACH ROW EXECUTE FUNCTION public.termin_weg_setzen();
+
+
+--
 -- Name: termine trg_termine_ts; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -2359,7 +2398,7 @@ ALTER TABLE ONLY public.widerrufe
 -- PostgreSQL database dump complete
 --
 
-\unrestrict outafD2J55R8qaMyQdtwZ4bzYmEpfBdhXMhdQJZa8fEVNsbVEP3ffBRY8VR8nl7
+\unrestrict SQiudjE15LJ4YSkGi2yC2lciWLurw66aLwi6UHs9NKdXZQbLIDnymPMUT5Bdj4R
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Zugriffsrechte fuer den Anwendungsnutzer.
