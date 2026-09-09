@@ -4721,8 +4721,17 @@ function zFristende(erstelltAm) {
   // Fehlt der Vertragszeitpunkt, rechnet das Backend (zustimmungNoetig) ab HEUTE. Die Oberflaeche
   // muss dasselbe tun, sonst verschweigt sie einen Termin, den der Server sehr wohl fuer
   // zustimmungspflichtig haelt.
-  var roh = String(erstelltAm || '').slice(0, 10);
-  var v = new Date((/^\d{4}-\d{2}-\d{2}$/.test(roh) ? roh : new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+  // Der Server liefert erstellt_am als Zeitstempel in UTC. Die ersten zehn Zeichen sind also der
+  // UTC-Tag: Ein Termin, der um 00:30 Berliner Zeit angelegt wurde, waere hier einen Tag zu
+  // frueh. Darum ausdruecklich in Berliner Zeit umrechnen -- dieselbe Zeitzone, in der auch der
+  // Server rechnet.
+  var roh = '';
+  if (erstelltAm) {
+    var d = new Date(erstelltAm);
+    if (!isNaN(d)) roh = d.toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+  }
+  var jetzt = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Berlin' });
+  var v = new Date((/^\d{4}-\d{2}-\d{2}$/.test(roh) ? roh : jetzt) + 'T12:00:00');
   if (isNaN(v)) return null;
   return new Date(v.getTime() + 14 * 86400000);
 }
