@@ -172,7 +172,10 @@ router.get('/leistungen', stoeberLimiter, async (req, res, next) => {
     const vars = ids.length ? (await query('SELECT artikel_id, preis FROM artikel_preise WHERE artikel_id = ANY($1::uuid[])', [ids])).rows : [];
     // preise_inkl_mwst + buchbar_ab gemeinsam laden. buchbar_ab per to_char als YYYY-MM-DD (kein
     // Date-Objekt -> kein UTC-Vortag-Bug), damit das /termin/-Frontend sein Mindestdatum dynamisch zieht.
-    const einst0 = (await query("SELECT preise_inkl_mwst, to_char(buchbar_ab,'YYYY-MM-DD') AS buchbar_ab FROM einstellungen ORDER BY id LIMIT 1")).rows[0] || {};
+    // telefon dazu: Vor der Eroeffnung ist der Anruf der EINZIGE Weg zu einem Termin, und auf
+    // der Buchungsseite stand die Nummer bisher nirgends — wer frueher kommen wollte, stand
+    // ohne Kontaktmoeglichkeit da.
+    const einst0 = (await query("SELECT preise_inkl_mwst, telefon, to_char(buchbar_ab,'YYYY-MM-DD') AS buchbar_ab FROM einstellungen ORDER BY id LIMIT 1")).rows[0] || {};
     const inkl = einst0.preise_inkl_mwst !== false;
     const minByArt = {};
     vars.forEach(v => { const p = Number(v.preis); if (minByArt[v.artikel_id] == null || p < minByArt[v.artikel_id]) minByArt[v.artikel_id] = p; });
@@ -188,7 +191,8 @@ router.get('/leistungen', stoeberLimiter, async (req, res, next) => {
     res.json({
       haupt: rows.filter(r => r.rolle === 'haupt'),
       zusatz: rows.filter(r => r.rolle === 'zusatz'),
-      buchbar_ab: einst0.buchbar_ab || null
+      buchbar_ab: einst0.buchbar_ab || null,
+      telefon: einst0.telefon || null
     });
   } catch (e) { next(e); }
 });
