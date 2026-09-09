@@ -379,7 +379,14 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
             <input id="fz-kz4" maxlength="1" placeholder="E" style="width:42px;text-transform:uppercase;font-family:monospace;text-align:center" oninput="this.value=this.value.toUpperCase()">
           </div>
         </div>
-        <div class="fg"><label data-i18n="first_reg">Erstzulassung (Monat)</label><input id="fz-ez" type="month"></div>
+        <div class="fg"><label data-i18n="first_reg">Erstzulassung</label>
+          <div style="display:flex;gap:6px">
+            <select id="fz-ez-tag" style="flex:1"><option value="" data-i18n="day_optional">Tag (optional)</option></select>
+            <select id="fz-ez-monat" style="flex:1.4" onchange="fzEzTageAnpassen()"><option value="" data-i18n="month_optional">Monat (optional)</option></select>
+            <select id="fz-ez-jahr" style="flex:1" onchange="fzEzTageAnpassen()"><option value="" data-i18n="year_label">Jahr</option></select>
+          </div>
+          <div style="font-size:12px;color:var(--muted);margin-top:5px" data-i18n="first_reg_hint">Das Jahr genügt. Monat und Tag können Sie angeben, wenn Sie sie kennen.</div>
+        </div>
         <div class="fg"><label data-i18n="hu_date">HU fällig (Monat)</label><input id="fz-hu" type="month"></div>
         <input type="hidden" id="fz-id">
         <div style="display:flex;gap:8px;margin-top:6px">
@@ -579,6 +586,8 @@ var I18N = {
     session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
     consent_renew: 'Erinnerungen wieder einschalten',
     your_vehicles: 'Ihre Fahrzeuge', manage_vehicles: 'Fahrzeuge verwalten',
+    day_optional: 'Tag (optional)', month_optional: 'Monat (optional)', year_label: 'Jahr',
+    first_reg_hint: 'Das Jahr genügt. Monat und Tag können Sie angeben, wenn Sie sie kennen.',
     no_vehicles_profile: 'Noch kein Fahrzeug hinterlegt.', no_plate: 'ohne Kennzeichen', first_reg: 'Erstzulassung',
     show_password: 'Anzeigen', hide_password: 'Verbergen',
     consent_mail_sent: 'Wir haben Ihnen eine Bestätigungsmail geschickt.',
@@ -660,6 +669,8 @@ var I18N = {
     session_expired: 'Your session has expired. Please sign in again.',
     consent_renew: 'Turn reminders back on',
     your_vehicles: 'Your vehicles', manage_vehicles: 'Manage vehicles',
+    day_optional: 'Day (optional)', month_optional: 'Month (optional)', year_label: 'Year',
+    first_reg_hint: 'The year is enough. Add month and day if you know them.',
     no_vehicles_profile: 'No vehicle on file yet.', no_plate: 'no plate', first_reg: 'First registration',
     show_password: 'Show', hide_password: 'Hide',
     consent_mail_sent: 'We have sent you a confirmation email.',
@@ -746,6 +757,9 @@ function setLang(l) {
   applyI18n();
 }
 function applyI18n() {
+  // Die Monatsnamen der Erstzulassung stehen in erzeugten Auswahlfeldern, nicht im Markup --
+  // ohne diesen Aufruf blieben sie in der zuerst geladenen Sprache stehen.
+  if (document.getElementById('fz-ez-monat')) fzEzFelder();
   document.querySelectorAll('[data-i18n]').forEach(function(el) {
     var key = el.getAttribute('data-i18n');
     var txt = t(key);
@@ -1899,15 +1913,70 @@ function rechnungPdf(id) {
     .then(function(b) { window.open(URL.createObjectURL(b), '_blank'); })
     .catch(function(e) { notify(e.message, 'err'); });
 }
-// Erstzulassung anzeigen. Ein vorhandenes Baujahr wird NICHT zu einer Erstzulassung gemacht --
-// dort stuende sonst ein Monat, den nie jemand erfasst hat. Dann lieber ehrlich "Baujahr 1980".
+// Erstzulassung so genau anzeigen, wie sie erfasst wurde -- nicht genauer. Der 1. Januar bei
+// Genauigkeit 'jahr' ist ein Platzhalter zum Sortieren; ihn als Tag auszugeben hiesse, ein Datum
+// zu behaupten, das nie jemand erfasst hat. Gleicher Wortlaut wie im Admin (erstzulassungText).
+// Fehlt die Genauigkeit (Altdaten), wird das Jahr gezeigt -- die vorsichtigste Aussage.
 function fzErstzulassung(f) {
-  if (f.erstzulassung) {
-    var d = String(f.erstzulassung).slice(0, 10).split('-');
-    return t('first_reg') + ' ' + d[1] + '/' + d[0];
-  }
-  if (f.baujahr) return t('year') + ' ' + f.baujahr;
-  return '';
+  if (!f.erstzulassung) return '';
+  var d = String(f.erstzulassung).slice(0, 10).split('-');
+  var g = f.erstzulassung_genauigkeit;
+  var txt = (g === 'tag') ? (d[2] + '.' + d[1] + '.' + d[0])
+          : (g === 'monat') ? (d[1] + '/' + d[0])
+          : d[0];
+  return t('first_reg') + ' ' + txt;
+}
+
+// Die drei Auswahlfelder aufbauen. Jahre bis 1960 zurueck -- Oldtimer sind bei einem Reifendienst
+// kein Sonderfall. BEI JEDEM AUFRUF neu, nicht nur einmal: Sonst blieben die Monatsnamen in der
+// Sprache stehen, in der das Formular zuerst geoeffnet wurde, waehrend der Rest der Seite wechselt.
+// Die getroffene Auswahl bleibt dabei erhalten.
+function fzEzFelder() {
+  var jahr = document.getElementById('fz-ez-jahr');
+  var monat = document.getElementById('fz-ez-monat');
+  var tag = document.getElementById('fz-ez-tag');
+  if (!jahr || !monat || !tag) return;
+  var altJ = jahr.value, altM = monat.value, altT = tag.value;
+  var jetzt = new Date().getFullYear();
+  jahr.length = 1;
+  for (var y = jetzt + 1; y >= 1960; y--) jahr.add(new Option(String(y), String(y)));
+  var namen = (LANG === 'en')
+    ? ['January','February','March','April','May','June','July','August','September','October','November','December']
+    : ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  monat.length = 1;
+  for (var m = 1; m <= 12; m++) monat.add(new Option(namen[m - 1], String(m).padStart(2, '0')));
+  jahr.value = altJ; monat.value = altM;
+  fzEzTageAnpassen(altT);
+}
+
+// Nur Tage anbieten, die es im gewaehlten Monat gibt. Vorher standen dort immer 1 bis 31 -- der
+// 31. Februar war waehlbar, und der Kunde erfuhr erst nach dem Absenden, dass es ihn nicht gibt.
+// Ohne Jahr wird von einem Schaltjahr ausgegangen, damit der 29. Februar nicht vorschnell fehlt.
+function fzEzTageAnpassen(vorauswahl) {
+  var jahr = document.getElementById('fz-ez-jahr');
+  var monat = document.getElementById('fz-ez-monat');
+  var tag = document.getElementById('fz-ez-tag');
+  if (!tag) return;
+  var alt = vorauswahl !== undefined ? vorauswahl : tag.value;
+  var j = parseInt(jahr.value, 10), m = parseInt(monat.value, 10);
+  var anzahl = 31;
+  if (m >= 1 && m <= 12) anzahl = new Date(Date.UTC(j > 0 ? j : 2024, m, 0)).getUTCDate();
+  tag.length = 1;
+  for (var d = 1; d <= anzahl; d++) tag.add(new Option(String(d), String(d).padStart(2, '0')));
+  // Ein zuvor gewaehlter 31. bleibt nur, wenn es ihn im neuen Monat gibt.
+  tag.value = (alt && parseInt(alt, 10) <= anzahl) ? alt : '';
+}
+
+// Aus den drei Feldern die Angabe bauen, die der Server erwartet: Jahr, Jahr-Monat oder
+// Jahr-Monat-Tag. Ohne Jahr gibt es gar keine Angabe. Ein Tag ohne Monat wird verworfen -- er
+// waere keine Aussage, und ein erfundener Monat dazu waere genau das, was wir vermeiden wollen.
+function fzEzWert() {
+  var j = (document.getElementById('fz-ez-jahr') || {}).value || '';
+  var m = (document.getElementById('fz-ez-monat') || {}).value || '';
+  var d = (document.getElementById('fz-ez-tag') || {}).value || '';
+  if (!j) return null;
+  if (!m) return j;
+  return d ? (j + '-' + m + '-' + d) : (j + '-' + m);
 }
 
 function ladeFahrzeuge() {
@@ -1945,7 +2014,8 @@ function fzFormZeigen() {
   document.getElementById('fz-id').value = '';
   document.getElementById('fz-form-titel').textContent = t('add_vehicle');
   document.getElementById('fz-typ').value = 'PKW';
-  ['fz-marke', 'fz-modell', 'fz-ez', 'fz-hu'].forEach(function(id) { document.getElementById(id).value = ''; });
+  fzEzFelder();
+  ['fz-marke', 'fz-modell', 'fz-hu', 'fz-ez-tag', 'fz-ez-monat', 'fz-ez-jahr'].forEach(function(id) { document.getElementById(id).value = ''; });
   fzKzInTeile('');
   document.getElementById('fz-form-card').style.display = '';
 }
@@ -1961,7 +2031,18 @@ function fzEdit(id) {
     fzKzInTeile(f.kennzeichen || '');
     // Nur eine echte Erstzulassung vorbelegen. Ein Baujahr traegt keinen Monat und darf
     // hier nicht als einer erscheinen.
-    document.getElementById('fz-ez').value = f.erstzulassung ? String(f.erstzulassung).slice(0, 7) : '';
+    // Nur so genau vorbelegen, wie erfasst wurde: Bei 'jahr' bleiben Monat und Tag leer, sonst
+    // machte das Formular aus einem Platzhalter eine Angabe.
+    fzEzFelder();
+    var _t = f.erstzulassung ? String(f.erstzulassung).slice(0, 10).split('-') : null;
+    var _g = f.erstzulassung_genauigkeit;
+    document.getElementById('fz-ez-jahr').value = _t ? _t[0] : '';
+    // Ohne Genauigkeit (Altdaten vor der neuen Spalte): Monat trotzdem uebernehmen. Er stammt aus
+    // der alten Route, die NUR Monatsangaben zuliess -- er ist also echt. Der Tag nicht: Der war
+    // dort immer der 01. aus der Normalisierung.
+    document.getElementById('fz-ez-monat').value = (_t && (_g === 'monat' || _g === 'tag' || !_g)) ? _t[1] : '';
+    document.getElementById('fz-ez-tag').value = (_t && _g === 'tag') ? _t[2] : '';
+    fzEzTageAnpassen();
     document.getElementById('fz-hu').value = f.hu_datum ? String(f.hu_datum).substring(0, 7) : '';
     document.getElementById('fz-form-card').style.display = '';
   }).catch(function(e) { notify(e.message, 'err'); });
@@ -1987,7 +2068,7 @@ function fzSpeichern() {
     modell: document.getElementById('fz-modell').value.trim(),
     kennzeichen: kennz,
     // Roh als 'YYYY-MM' senden -- der Server normalisiert ueber lib/datum.js.
-    erstzulassung: document.getElementById('fz-ez').value || null,
+    erstzulassung: fzEzWert(),
     hu_datum: hu ? hu + '-01' : null
   };
   var id = document.getElementById('fz-id').value;
