@@ -109,3 +109,65 @@ test('Der Beleg weist die Nachlaesse aus', async () => {
   assert.ok(text.includes('Nachlass Räderwechsel (10 %)'), 'zweiter Nachlass benannt');
   assert.ok(text.includes('65,10'), 'Gesamtbetrag 39,00 + 40,00 - 3,90 - 10,00');
 });
+
+// ── Gestaffelter Gutschein am Tresen ─────────────────────────────────────────────────────────
+// Der Flyer verspricht 25 % auf die Einlagerung und 10 % auf alles Uebrige. Frueher las das
+// Rechnungswesen NUR gutscheine.rabatt_prozent und zog den Satz pauschal auf den ganzen Beleg —
+// je nachdem, welcher Satz dort stand, war das zu viel oder zu wenig. Der Kunde bekam entweder
+// 25 % auf Leistungen, fuer die sie nie versprochen waren, oder 10 % auf die Einlagerung,
+// obwohl ihm 25 % zugesagt wurden.
+async function seedGestaffelt() {
+  const a = await h.query("INSERT INTO artikel (name, preis) VALUES ('Reifeneinlagerung', 40) RETURNING id");
+  const b = await h.query("INSERT INTO artikel (name, preis) VALUES ('Auswuchten', 25) RETURNING id");
+  const g = await h.query("INSERT INTO gutscheine (code, rabatt_prozent, aktiv) VALUES ('STAFFEL', 10, true) RETURNING id");
+  await h.query('INSERT INTO gutschein_regeln (gutschein_id, artikel_id, rabatt_prozent) VALUES ($1,$2,25)',
+    [g.rows[0].id, a.rows[0].id]);
+  return { einlagerung: a.rows[0].id, auswuchten: b.rows[0].id };
+}
+
+test('Gutschein am Tresen wird je Leistung angewandt, nicht pauschal', async () => {
+  const ids = await seedGestaffelt();
+  const r = await h.api(token, 'POST', '/api/rechnungen', {
+    empfaenger: EMPF,
+    gutschein_code: 'STAFFEL',
+    positionen: [
+      { bezeichnung: 'Reifeneinlagerung', menge: 1, einzelpreis_brutto: 40, mwst_satz: 19, artikel_id: ids.einlagerung },
+      { bezeichnung: 'Auswuchten', menge: 1, einzelpreis_brutto: 25, mwst_satz: 19, artikel_id: ids.auswuchten }
+    ]
+  });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+
+  const pos = (await h.query('SELECT bezeichnung, zeilen_brutto FROM rechnung_positionen WHERE rechnung_id=$1 ORDER BY position', [r.body.id])).rows;
+  const minus = pos.filter((p) => Number(p.zeilen_brutto) < 0);
+  assert.equal(minus.length, 2, 'je Satz eine eigene Zeile: ' + JSON.stringify(pos.map((p) => p.bezeichnung)));
+
+  const betraege = minus.map((p) => Number(p.zeilen_brutto)).sort((x, y) => x - y);
+  assert.deepEqual(betraege, [-10.00, -2.50], '25 % von 40,00 und 10 % von 25,00');
+  assert.ok(minus.every((p) => p.bezeichnung.includes('STAFFEL')), 'der Code steht auf dem Beleg');
+
+  // 65,00 abzueglich 12,50 = 52,50 — nicht 58,50 (pauschal 10 %) und nicht 48,75 (pauschal 25 %).
+  assert.equal(Number(r.body.brutto_summe), 52.50);
+});
+
+test('Ohne passende Leistung sagt der Gutschein das, statt still nichts zu tun', async () => {
+  await seedGestaffelt();
+  await h.query("UPDATE gutscheine SET rabatt_prozent=0 WHERE code='STAFFEL'");
+  const r = await h.api(token, 'POST', '/api/rechnungen', {
+    empfaenger: EMPF,
+    gutschein_code: 'STAFFEL',
+    positionen: [{ bezeichnung: 'Sonderleistung', menge: 1, einzelpreis_brutto: 30, mwst_satz: 19 }]
+  });
+  assert.equal(r.status, 400, JSON.stringify(r.body));
+  assert.match(r.body.error, /keinen Nachlass/);
+});
+
+test('Gutschein neben bereits gesetzten Nachlaessen wird abgelehnt', async () => {
+  await seedGestaffelt();
+  const r = await h.api(token, 'POST', '/api/rechnungen', {
+    empfaenger: EMPF,
+    gutschein_code: 'STAFFEL',
+    positionen: [{ bezeichnung: 'Auswuchten', menge: 1, einzelpreis_brutto: 25, mwst_satz: 19, rabatt_prozent: 10 }]
+  });
+  assert.equal(r.status, 400, JSON.stringify(r.body));
+  assert.match(r.body.error, /doppelt/);
+});
