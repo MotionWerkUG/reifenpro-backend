@@ -14,7 +14,18 @@
 // die auseinanderlaufen, sind genau die Fehlerquelle, an der in diesem Projekt schon die
 // Gutscheinrechnung, die Oeffnungszeiten und die Widerrufsfrist auseinandergelaufen sind.
 
-// Nimmt 'YYYY-MM' (Monatsfeld) oder 'YYYY-MM-DD' (Datumsfeld) entgegen.
+// Ein Date-Objekt in den KALENDERTAG umrechnen, den es in Deutschland bezeichnet.
+//
+// Warum nicht toISOString(): Ein Date ist ein Zeitpunkt, kein Kalendertag. 00:30 Uhr Berliner
+// Zeit ist in UTC noch der Vortag -- toISOString() macht aus dem 10. August den 9. Genau diese
+// Verwechslung hat in der Admin-Sitzung eine Fristrechnung um einen Tag verschoben.
+// Ein ungueltiges Date gibt null zurueck; der Aufrufer entscheidet, was das bedeutet.
+function alsTag(wert) {
+  if (!(wert instanceof Date) || isNaN(wert.getTime())) return null;
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }).format(wert);
+}
+
+// Nimmt 'YYYY-MM' (Monatsfeld), 'YYYY-MM-DD' (Datumsfeld) oder ein Date entgegen.
 //
 // Rueckgabe:
 //   { ok: true,  wert: 'YYYY-MM-DD' | null }   null = nichts angegeben, das ist erlaubt
@@ -24,6 +35,14 @@
 // Der Aufrufer entscheidet, ob ein leerer Wert zulaessig ist -- hier ist er es.
 function monatOderTag(wert) {
   if (wert == null || String(wert).trim() === '') return { ok: true, wert: null };
+  // Ein Date-Objekt kommt aus dem Datenbanktreiber (z. B. termine.erstellt_am). Ausdruecklich
+  // annehmen, aber ueber die Zeitzone umrechnen -- nicht ueber toISOString().
+  if (wert instanceof Date) {
+    const tag = alsTag(wert);
+    // Ein ungueltiges Date ist ein Programmierfehler und muss sichtbar bleiben. Ein stiller
+    // Rueckfall saehe wie eine Absicherung aus, macht aus dem Fehler aber ein falsches Ergebnis.
+    return tag ? { ok: true, wert: tag } : { ok: false, fehler: 'Das übergebene Datum ist ungültig.' };
+  }
   const v = String(wert).trim();
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
@@ -49,4 +68,4 @@ function monatOderTag(wert) {
   return { ok: false, fehler: 'Bitte geben Sie Monat und Jahr an (zum Beispiel 04/2027).' };
 }
 
-module.exports = { monatOderTag };
+module.exports = { monatOderTag, alsTag };
