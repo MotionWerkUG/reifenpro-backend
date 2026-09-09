@@ -6526,6 +6526,7 @@ function renderWiderrufe(liste) {
       (w.termin_datum
         ? '<div style="font-size:12px;color:var(--muted);margin-top:5px">Zugeordneter Termin: ' + fd(w.termin_datum) + ' ' + String(w.termin_zeit || '').substring(0,5) + ' (' + kEsc(w.termin_status || '') + ')</div>'
         : '<div style="font-size:12px;color:var(--accent);margin-top:5px">Kein Termin automatisch zugeordnet — bitte im Kalender suchen.</div>') +
+      widerrufFall(w) +
       (w.bestaetigung_gesendet_am
         ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">Eingangsbestätigung gesendet ' + fdz(w.bestaetigung_gesendet_am) + '</div>'
         // Der Eingangszeitpunkt steht bewusst NOCH EINMAL in dieser Zeile, obwohl er zwei Zeilen
@@ -6542,6 +6543,53 @@ function renderWiderrufe(liste) {
       '</div></div>';
   }).join('');
 }
+// ── Was ist bei diesem Widerruf zu tun? ──────────────────────────────────────────────────────
+//
+// Der Betrieb soll den Fall am Widerruf ablesen koennen, statt ihn aus Kalender, Kundenakte und
+// Rechnungsliste zusammenzusuchen. Vier Faelle, und nur einer davon kostet Geld:
+//
+//   A  Noch nicht gearbeitet          -> Termin absagen, fertig. Keine Rechnung, kein Storno.
+//   B  Kein Fernabsatz (Tresen) oder Firmenkunde -> gar kein Widerrufsrecht.
+//   C  Gearbeitet MIT Zustimmung      -> Das Widerrufsrecht ist mit der vollstaendigen Leistung
+//                                        erloschen (§ 356 Abs. 4 BGB). Die Rechnung bleibt.
+//   D  Gearbeitet OHNE Zustimmung     -> Der Widerruf greift, und § 357a Abs. 2 BGB gibt uns
+//                                        keinen Wertersatz. Rechnung stornieren, Geld zurueck.
+//
+// Fall D ist der teure -- und genau der, den die Zustimmungsabfrage am Termin verhindern soll.
+function widerrufFall(w) {
+  var kasten = function(farbe, titel, text) {
+    return '<div style="margin-top:8px;padding:9px 11px;border-radius:8px;background:rgba(' + farbe +
+      ',.09);border:1px solid rgba(' + farbe + ',.35)">' +
+      '<div style="font-size:12px;font-weight:700">' + titel + '</div>' +
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.5">' + text + '</div></div>';
+  };
+  if (!w.termin_id) return '';
+  var firma = (w.kundentyp || w.kontakt_kundentyp) === 'firma';
+  if (firma) {
+    return kasten('47,158,255', 'Firmenkunde — kein Widerrufsrecht',
+      'Das gesetzliche Widerrufsrecht steht nur Verbrauchern zu. Bitte dem Kunden freundlich antworten; eine Stornierung aus Kulanz bleibt Ihre Entscheidung.');
+  }
+  if (w.vereinbart_ueber === 'tresen') {
+    return kasten('47,158,255', 'Am Tresen vereinbart — kein Fernabsatz',
+      'Es gab persönlichen Kontakt, damit besteht kein Widerrufsrecht (§ 312c BGB). Falls der Termin doch telefonisch vereinbart wurde, korrigieren Sie das bitte am Termin.');
+  }
+  var erledigt = w.termin_status === 'abgeschlossen';
+  if (!erledigt) {
+    return kasten('62,207,142', 'Noch nicht gearbeitet — Termin absagen genügt',
+      'Es ist keine Leistung erbracht und keine Rechnung entstanden. Sagen Sie den Termin ab; damit ist der Widerruf erledigt.');
+  }
+  if (w.vorzeitige_leistung === true) {
+    return kasten('62,207,142', 'Zustimmung lag vor — Widerrufsrecht ist erloschen',
+      'Der Kunde hat der Ausführung vor Fristablauf ausdrücklich zugestimmt. Mit der vollständig erbrachten Leistung ist sein Widerrufsrecht erloschen (§ 356 Abs. 4 BGB). Die Rechnung' +
+      (w.rechnungsnr ? ' ' + kEsc(w.rechnungsnr) : '') + ' bleibt bestehen. Bitte antworten Sie dem Kunden und erklären Sie ihm das.');
+  }
+  return kasten('232,80,42', 'Gearbeitet ohne Zustimmung — das wird teuer',
+    'Die Leistung ist erbracht, aber es liegt keine Zustimmung zur Ausführung vor Fristablauf vor. Der Widerruf greift, und ohne dieses vorherige Verlangen steht uns nach § 357a Abs. 2 BGB kein Wertersatz zu — der Kunde muss nichts zahlen.' +
+    (w.rechnungsnr
+      ? '<br><b>Rechnung ' + kEsc(w.rechnungsnr) + '</b> muss storniert werden (eigener Beleg, das Original bleibt). Bereits erhaltenes Geld innerhalb von 14 Tagen über dasselbe Zahlungsmittel zurück.'
+      : '<br>Eine Rechnung gibt es noch nicht — schreiben Sie keine mehr.'));
+}
+
 function widerrufErledigt(id) {
   var n = prompt('Was wurde veranlasst? (Termin abgesagt, Betrag erstattet …)', 'Termin abgesagt, keine Zahlung eingegangen');
   if (n === null) return;

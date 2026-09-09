@@ -135,12 +135,21 @@ router.post('/', limiter, async (req, res, next) => {
 // ── Betrieb: eingegangene Widerrufe ansehen und abhaken ──────────────────────────────────────
 router.get('/', authenticate, requireStaff, async (req, res, next) => {
   try {
+    // Mit den drei Angaben, die entscheiden, was zu tun ist -- damit der Betrieb den Fall am
+    // Widerruf ablesen kann, statt ihn aus drei Bildschirmen zusammenzusuchen:
+    //   1. Wurde schon gearbeitet? (Terminstatus)
+    //   2. Lag die Zustimmung zur vorzeitigen Ausfuehrung vor? Dann ist das Widerrufsrecht mit
+    //      der vollstaendigen Leistung erloschen (§ 356 Abs. 4 BGB) und der Widerruf geht ins Leere.
+    //   3. Gibt es schon eine Rechnung? Nur dann kommt ueberhaupt ein Storno in Frage.
     const { rows } = await query(
       `SELECT w.*, t.datum AS termin_datum, t.uhrzeit_von AS termin_zeit, t.status AS termin_status,
-              k.kunden_nr
+              t.vorzeitige_leistung, t.vereinbart_ueber, t.kontakt_kundentyp,
+              k.kunden_nr, k.kundentyp,
+              r.rechnungsnr, r.status AS rechnung_status, r.zahlungsstatus
          FROM widerrufe w
          LEFT JOIN termine t ON t.id = w.termin_id
          LEFT JOIN kunden k ON k.id = w.kunden_id
+         LEFT JOIN rechnungen r ON r.id = t.rechnung_id
         ORDER BY w.eingegangen_am DESC LIMIT 300`);
     res.json(rows);
   } catch (e) { next(e); }
