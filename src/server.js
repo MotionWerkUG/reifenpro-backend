@@ -1,5 +1,32 @@
 'use strict';
 require('dotenv').config();
+
+// ── Zeitstempel fuer JEDE Protokollzeile ─────────────────────────────────────────────────────
+//
+// OHNE IHN IST DAS FEHLERPROTOKOLL WERTLOS: Es sammelt sich ueber Wochen an, und wer eine Zeile
+// liest, kann nicht erkennen, ob sie von heute stammt oder von vorletzter Woche. Am 09.09.2026
+// hat genau das zwei Sitzungen unabhaengig voneinander in die Irre gefuehrt -- einmal wurde ein
+// laengst behobener Fehler als aktiv gemeldet, einmal musste die Position der Zeile in der Datei
+// muehsam als Altersbeleg herhalten.
+//
+// Zentral statt an dreissig einzelnen console.error-Aufrufen: So tragen auch die Meldungen aus
+// anderen Bereichen und alle kuenftigen einen Zeitstempel, ohne dass jemand daran denken muss.
+// Ortszeit, nicht UTC -- wer ins Protokoll sieht, vergleicht mit seiner Uhr.
+(function zeitstempelInsProtokoll() {
+  const p = (n) => String(n).padStart(2, '0');
+  const stempel = function () {
+    const d = new Date();
+    return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '. ' +
+           p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  };
+  ['log', 'warn', 'error'].forEach(function (art) {
+    const original = console[art].bind(console);
+    console[art] = function () {
+      original.apply(null, [stempel()].concat(Array.prototype.slice.call(arguments)));
+    };
+  });
+})();
+
 const express     = require('express');
 const cors        = require('cors');
 const { istProduktionsinstanz } = require('./lib/betrieb');
