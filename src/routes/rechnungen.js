@@ -10,6 +10,7 @@ const { resolvePreis } = require('../lib/preis');
 const { portalMailHtml, esc } = require('../lib/mail-template');
 const { sendMail } = require('../lib/mailer');
 const kasse = require('../lib/kasse');
+const widerruf = require('../lib/widerruf');
 
 router.use(authenticate, requireStaff);
 
@@ -183,6 +184,61 @@ const LEER_EMPF = {
 // Anschriftspruefung erst ab 250 EUR greift. Die Anonymisierung wird schon in der
 // DSGVO-Route gesperrt, solange offene Termine bestehen; das hier ist die zweite Schicht,
 // denn Bestandsdaten aus der Zeit davor kennen diese Sperre nicht.
+// ── Hinweis: Widerrufsrecht ohne dokumentierte Zustimmung ────────────────────────────────────
+// Wurde ein Fernabsatzvertrag INNERHALB der 14-taegigen Widerrufsfrist abgearbeitet, ohne dass
+// der Kunde dem vorzeitigen Leistungsbeginn ausdruecklich zugestimmt hat, kann er nach getaner
+// Arbeit widerrufen und schuldet nichts — § 357a Abs. 2 BGB knuepft den Wertersatz genau an
+// dieses Verlangen.
+//
+// NUR BEI ONLINE-BUCHUNGEN (portal_buchung), und das ist eine bewusste Einschraenkung:
+// Ein Fernabsatzvertrag entsteht beim Buchen im Portal und am Telefon — nicht am Tresen. In den
+// Daten sind Tresen- und Telefontermin aber NICHT unterscheidbar: Beide legt der Betrieb ueber
+// dieselbe Route an, und ein Telefontermin OHNE Zustimmung sieht aus wie ein Tresentermin.
+// Wuerde hier auf gut Glueck gewarnt, traefe es fast jede am selben Tag angenommene und
+// abgerechnete Arbeit — das Alltagsgeschaeft eines Reifendienstes, bei dem gar kein
+// Widerrufsrecht besteht. Eine Warnung, die staendig kommt, wird weggeklickt und fehlt dann
+// genau dort, wo sie zaehlt.
+// Der Telefonfall wird deshalb dort abgefangen, wo er hingehoert: beim Termin, VOR der Arbeit
+// (src/routes/zustimmung.js). Soll er auch hier greifen, braucht der Termin ein Merkmal, wie er
+// zustande kam — siehe .claude/bereiche/rechnungswesen/.
+//
+// HINWEIS, KEINE SPERRE: Die Rechnung ist steuerlich einwandfrei. Betroffen ist die
+// Durchsetzbarkeit der Forderung, nicht die Richtigkeit des Belegs. Eine erbrachte Leistung
+// MUSS abgerechnet werden; das Festschreiben zu verweigern waere selbst ein GoBD-Problem.
+//
+// Die Fristrechnung kommt aus src/lib/widerruf.js und wird NICHT hier nachgebaut.
+async function widerrufHinweis(ausfuehrer, rechnungId) {
+  try {
+    const { rows } = await ausfuehrer(
+      // Beide Daten ausdruecklich als 'JJJJ-MM-TT'. zustimmungNoetigAbVertrag() erwartet diese
+      // Form; ein Zeitstempel als Objekt fuehrte frueher still zu "ab heute rechnen".
+      // kundentyp: Gast-Termine haben keinen Kundensatz, ihre Einordnung steht am Termin.
+      `SELECT to_char(t.datum,'YYYY-MM-DD') AS datum,
+              to_char(t.erstellt_am AT TIME ZONE 'Europe/Berlin','YYYY-MM-DD') AS vertrag_datum,
+              t.vorzeitige_leistung, t.portal_buchung,
+              COALESCE(k.kundentyp, t.kontakt_kundentyp) AS kundentyp
+         FROM termine t LEFT JOIN kunden k ON k.id = t.kunden_id
+        WHERE t.rechnung_id = $1 LIMIT 1`, [rechnungId]);
+    if (!rows.length) return null;
+    const t = rows[0];
+    if (t.portal_buchung !== true) return null;
+    // Das Widerrufsrecht steht Verbrauchern zu. Bei einem Firmenkunden waere der Hinweis ein
+    // Fehlalarm — und ein Fehlalarm entwertet den Hinweis fuer die Faelle, in denen er zaehlt.
+    if (t.kundentyp === 'firma') return null;
+    if (t.vorzeitige_leistung === true) return null;
+    if (!t.datum || !t.vertrag_datum) return null;
+    if (!widerruf.zustimmungNoetigAbVertrag(t.vertrag_datum, t.datum)) return null;
+    return 'Der Termin wurde online gebucht und lag innerhalb der 14-tägigen Widerrufsfrist; '
+      + 'eine Zustimmung zum vorzeitigen Leistungsbeginn ist nicht dokumentiert. '
+      + 'Die Rechnung ist korrekt — im Fall eines Widerrufs wäre die Forderung aber '
+      + 'voraussichtlich nicht durchsetzbar (§ 357a Abs. 2 BGB).';
+  } catch (e) {
+    // Ein fehlender Hinweis darf niemals das Festschreiben verhindern.
+    console.error('[Widerruf-Hinweis]', e.message);
+    return null;
+  }
+}
+
 // ── Belegsicherung (GoBD Rz. 110/119) ────────────────────────────────────────
 // Der Trigger schuetzt den Datensatz und den Dateipfad, nicht den INHALT der Datei. Deshalb
 // wird die Pruefsumme bei der Erzeugung festgeschrieben und jedes Kettenglied schliesst das
@@ -868,7 +924,10 @@ router.post('/aus-termin/:terminId', async (req, res, next) => {
       return ins.rows[0];
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.aus_termin', tabelle: 'rechnungen', datensatzId: result.id, neueWerte: { termin_id: t.id, rabatt_quelle: rabattQuelle, rabatt_prozent: rabattProzent, rabatt_label: rabattLabel }, req });
-    res.status(201).json(result);
+    // Schon beim Erzeugen des Entwurfs hinweisen, nicht erst beim Festschreiben: Hier ist der
+    // Vorgang noch offen, und der Betrieb kann die Zustimmung ggf. noch nachholen.
+    const whEntwurf = await widerrufHinweis(query, result.id);
+    res.status(201).json(Object.assign({}, result, whEntwurf ? { widerruf_hinweis: whEntwurf } : {}));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
@@ -1079,7 +1138,14 @@ router.post('/:id/festschreiben', async (req, res, next) => {
       return upd.rows[0];
     });
     await auditLog({ userId: req.user.id, aktion: 'rechnung.festgeschrieben', tabelle: 'rechnungen', datensatzId: result.id, neueWerte: { rechnungsnr: result.rechnungsnr }, req });
-    res.json(result);
+    // Der Hinweis wird NACH der Transaktion geholt: Er darf das Festschreiben unter keinen
+    // Umstaenden gefaehrden, und die Rechnung ist zu diesem Zeitpunkt bereits gueltig.
+    const whFest = await widerrufHinweis(query, result.id);
+    if (whFest) {
+      await auditLog({ userId: req.user.id, aktion: 'rechnung.widerruf_hinweis', tabelle: 'rechnungen',
+        datensatzId: result.id, neueWerte: { rechnungsnr: result.rechnungsnr }, req });
+    }
+    res.json(Object.assign({}, result, whFest ? { widerruf_hinweis: whFest } : {}));
   } catch (e) {
     if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);

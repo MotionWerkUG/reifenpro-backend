@@ -2330,6 +2330,10 @@ function rechnungAusTermin(terminId) {
     if (r && r.id) {
       notify('Rechnungsentwurf erstellt.');
       api('PATCH', '/termine/' + terminId + '/fakturiert', { fakturiert: true }).then(function() { loadAbzurechnen(); }).catch(function() {});
+      // Beim Entwurf nur eine Meldung. Der Dialog kommt beim Festschreiben — dort wird es
+      // verbindlich, und zwei fast wortgleiche Dialoge im selben Arbeitsgang wegzuklicken
+      // ist der schnellste Weg, dass man sie kuenftig gar nicht mehr liest.
+      if (r.widerruf_hinweis) notify('Hinweis zum Widerrufsrecht — Einzelheiten beim Festschreiben.', 'err');
       showPage('rechnungen'); setTimeout(function() { editRechnung(r.id); }, 300);
     }
   }).catch(function(e) { notify(e.message, 'err'); });
@@ -2697,7 +2701,13 @@ function editRechnung(id) {
 }
 function festschreibenRechnung(id) {
   if (!confirm('Rechnung verbindlich festschreiben? Danach ist sie unveränderbar und erhält eine fortlaufende Rechnungsnummer.')) return;
-  api('POST', '/rechnungen/' + id + '/festschreiben').then(function(r) { if (r) { notify('Festgeschrieben: ' + r.rechnungsnr); loadRechnungen(); } }).catch(function(e) { notify(e.message, 'err'); });
+  api('POST', '/rechnungen/' + id + '/festschreiben').then(function(r) {
+    if (!r) return;
+    notify('Festgeschrieben: ' + r.rechnungsnr);
+    loadRechnungen();
+    // Die Rechnung ist gueltig und bleibt es — der Hinweis betrifft nur die Durchsetzbarkeit.
+    if (r.widerruf_hinweis) alert('Hinweis zum Widerrufsrecht — Rechnung ' + r.rechnungsnr + '\n\n' + r.widerruf_hinweis);
+  }).catch(function(e) { notify(e.message, 'err'); });
 }
 function loescheRechnung(id) {
   if (!confirm('Entwurf löschen?')) return;
