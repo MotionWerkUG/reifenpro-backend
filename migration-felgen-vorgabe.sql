@@ -1,0 +1,11 @@
+-- Vorgabewert 'Nein' bei einlagerungen.felgen entfernen.
+--
+-- Die Spalte war einmal ein Ja/Nein-Feld ("Sind Felgen dabei?"). Heute traegt sie die ART der
+-- Felge: Alufelgen oder Stahlfelgen. Der alte Vorgabewert blieb stehen -- eine ohne Angabe
+-- angelegte Einlagerung bekaeme also 'Nein' und das Kundenportal schriebe "4 Räder auf Nein".
+-- Die Portal-Sitzung blendet den Altwert inzwischen aus; die Ursache gehoert aber hierher.
+--
+-- Gefahrlos: 0 Zeilen in der Tabelle, und die Adminmaske bietet nur die beiden echten Werte an
+-- (kein leerer Eintrag), sendet also immer einen. Ohne Vorgabe steht kuenftig NULL statt einer
+-- falschen Aussage -- eine fehlende Angabe soll wie eine fehlende Angabe aussehen.
+ALTER TABLE einlagerungen ALTER COLUMN felgen DROP DEFAULT;

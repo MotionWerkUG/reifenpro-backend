@@ -49,14 +49,19 @@
 -- scripts/schema-abgleich.sh: "zuviel in schema.sql: fahrzeuge.baujahr, kunden.baujahr".
 -- Genau dafuer gibt es das Skript.
 --
+-- VIERTER LAUF AM 09.09.2026: Der Vorgabewert 'Nein' bei einlagerungen.felgen ist entfallen --
+-- die Spalte war einmal ein Ja/Nein-Feld und traegt heute die Felgenart. Der erste Abgleich
+-- meldete das NICHT, weil er nur Spalten und Typen verglich. scripts/schema-abgleich.sh prueft
+-- seitdem auch Vorgabewerte und Nullbarkeit; erst dann fiel es auf.
+--
 -- GEGENGEPRUEFT: Auf einer leeren Wegwerf-Datenbank von vorn bis hinten durchgelaufen,
--- Tabellenzahl, Spalten und Trigger gegen die Produktion verglichen.
+-- Tabellenzahl, Spalten, Vorgabewerte und Trigger gegen die Produktion verglichen.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 --
 -- PostgreSQL database dump
 --
 
-\restrict zLhpN1O3ZZoMcXsuaWFWbaiSYh13vC3QkyuuZsDZpbZcyzldMwmWZcRnrJSbKw9
+\restrict mCLMWxUALLT2I3WnxtUvM2R3P5hPTooKEKswNjZRPvD1WCpSSj6BAu5MWeUBqj9
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -417,7 +422,7 @@ CREATE TABLE public.einlagerungen (
     profil_hl numeric(4,1),
     profil_hr numeric(4,1),
     anzahl integer DEFAULT 4 NOT NULL,
-    felgen text DEFAULT 'Nein'::text,
+    felgen text,
     dot text,
     lagerplatz text NOT NULL,
     status text DEFAULT 'Eingelagert'::text NOT NULL,
@@ -2409,7 +2414,7 @@ ALTER TABLE ONLY public.widerrufe
 -- PostgreSQL database dump complete
 --
 
-\unrestrict zLhpN1O3ZZoMcXsuaWFWbaiSYh13vC3QkyuuZsDZpbZcyzldMwmWZcRnrJSbKw9
+\unrestrict mCLMWxUALLT2I3WnxtUvM2R3P5hPTooKEKswNjZRPvD1WCpSSj6BAu5MWeUBqj9
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Zugriffsrechte fuer den Anwendungsnutzer.

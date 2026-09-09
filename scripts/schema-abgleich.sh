@@ -21,7 +21,11 @@ if ! sudo -u postgres psql -v ON_ERROR_STOP=1 -q -d "${PRUEF}" < src/db/schema.s
   sudo -u postgres psql -q -c "DROP DATABASE ${PRUEF};"; exit 1
 fi
 
-spalten() { sudo -u postgres psql -tAq -d "$1" -c "SELECT table_name||'.'||column_name||':'||data_type FROM information_schema.columns WHERE table_schema='public' ORDER BY 1"; }
+# Vergleicht Typ, Nullbarkeit UND Vorgabewert. Der Vorgabewert gehoert dazu: Am 09.09.2026 wurde
+# ein veralteter Default entfernt (einlagerungen.felgen war einmal ein Ja/Nein-Feld), und diese
+# Pruefung meldete nichts -- sie sah nur Spalten und Typen. Eine wiederhergestellte Datenbank
+# haette dann eine Spalte mit einem Vorgabewert gehabt, den die Produktion nicht mehr kennt.
+spalten() { sudo -u postgres psql -tAq -d "$1" -c "SELECT table_name||'.'||column_name||' : '||data_type||' | null='||is_nullable||' | vorgabe='||COALESCE(column_default,'-') FROM information_schema.columns WHERE table_schema='public' ORDER BY 1"; }
 objekte() { sudo -u postgres psql -tAq -d "$1" -c "SELECT (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE')||' Tabellen, '||(SELECT count(*) FROM pg_constraint WHERE contype='f')||' FKs, '||(SELECT count(*) FROM pg_trigger WHERE NOT tgisinternal)||' Trigger, '||(SELECT count(*) FROM pg_indexes WHERE schemaname='public')||' Indizes'"; }
 
 echo "Produktion:        $(objekte "$QUELLE")"

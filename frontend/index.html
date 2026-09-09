@@ -2891,6 +2891,12 @@ function ezAuswahlFuellen(praefix, mitMonat) {
   }
 }
 
+// 'YYYY-MM-DD' aus einem Date-Objekt -- in der HIESIGEN Zeitzone, nicht in UTC.
+function localDatum(d) {
+  var x = (d instanceof Date) ? d : new Date(d);
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+}
+
 // Datum MIT Uhrzeit. Bei Widerrufen ist die Minute die fristwahrende Tatsache, nicht der Tag.
 function fdz(d) {
   if (!d) return '-';
@@ -4600,11 +4606,16 @@ function loadTermine(callback) {
   var bis = new Date(kalDatum);
   bis.setDate(1); bis.setMonth(bis.getMonth() + 2);
   // Werkstatt-Datum auch einschliessen
-  var wsStr = wsTagDatum.toISOString().substring(0, 10);
-  if (wsStr < von.toISOString().substring(0,10)) von = new Date(wsTagDatum);
-  if (wsStr > bis.toISOString().substring(0,10)) bis = new Date(wsTagDatum);
-  var vonStr = von.toISOString().substring(0, 10);
-  var bisStr = bis.toISOString().substring(0, 10);
+  // NICHT toISOString(): Das rechnet nach UTC um. Der 1. Oktober, 00:00 Berliner Zeit, ist in
+  // UTC noch der 30. September -- die Zeitspanne begaenne also einen Tag zu frueh und endete
+  // einen Tag zu frueh. Heute faellt das nicht auf, weil die Spanne einen Monat Luft nach beiden
+  // Seiten hat; es ist derselbe Fehler, an dem im Kundenportal ein Abholdatum um einen Tag
+  // danebenlag. localDatum() nimmt Jahr, Monat und Tag so, wie sie hier gelten.
+  var wsStr = localDatum(wsTagDatum);
+  if (wsStr < localDatum(von)) von = new Date(wsTagDatum);
+  if (wsStr > localDatum(bis)) bis = new Date(wsTagDatum);
+  var vonStr = localDatum(von);
+  var bisStr = localDatum(bis);
   api('GET', '/termine?von=' + vonStr + '&bis=' + bisStr).then(function(r) {
     allTermine = r || [];
     renderKalender();
@@ -4686,7 +4697,9 @@ function renderKalenderWoche() {
   for (var i = 0; i < 7; i++) {
     var d = new Date(mo); d.setDate(mo.getDate() + i);
     tage.push(d);
-    var dStr = d.toISOString().substring(0, 10);
+    // (Hier stand eine ungenutzte Zuweisung mit toISOString -- die Zuordnung der Termine laeuft
+    // weiter unten ueber ds aus getFullYear/getMonth/getDate, also in Ortszeit. Entfernt, damit
+    // niemand sie spaeter fuer die richtige Quelle haelt.)
     var istHeute = d.toDateString() === new Date().toDateString();
     html += '<div style="text-align:center;padding:6px;font-size:12px;font-weight:' + (istHeute ? '700' : '400') + ';color:' + (istHeute ? 'var(--accent)' : 'var(--muted)') + '">' +
       ['Mo','Di','Mi','Do','Fr','Sa','So'][i] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.</div>';
@@ -4965,7 +4978,10 @@ function fillNtForm() {
       return '<option value="' + a.id + '" data-dauer="' + (a.dauer_minuten || 30) + '">' + a.name + ' (' + (a.dauer_minuten || 30) + ' Min)</option>';
     }).join('');
   if (!document.getElementById('nt-datum').value) {
-    document.getElementById('nt-datum').value = new Date().toISOString().substring(0, 10);
+    // NICHT toISOString(): Zwischen Mitternacht und 02:00 Ortszeit stuende hier der VORTAG,
+    // weil UTC dann noch nicht umgesprungen ist. Wer nachts einen Termin anlegt, bekaeme ein
+    // falsches Vorgabedatum -- und merkt es womoeglich nicht, weil ein Datum ja dasteht.
+    document.getElementById('nt-datum').value = localDatum(new Date());
   }
   ntEditId = null;
   document.getElementById('nt-titel').textContent = 'Neuer Termin';
