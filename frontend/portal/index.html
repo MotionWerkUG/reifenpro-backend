@@ -1358,7 +1358,7 @@ function terminKarte(tm, mitAktionen) {
     // keine Zeile: Dort IST der Preis der Preis, ein Nachlass waere erfunden.
     (tm.rabatt_zeilen || []).forEach(function(z) {
       html += '<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;color:var(--accent-text)">'
-           + '<span>' + pEsc(z.bezeichnung) + ' (\u2212' + z.satz + ' %)</span>'
+           + '<span>' + pEsc(z.bezeichnung) + '</span>'
            + '<span style="white-space:nowrap">\u2212' + eurP(z.betrag) + '</span></div>';
     });
     if (tm.summe_brutto != null) {

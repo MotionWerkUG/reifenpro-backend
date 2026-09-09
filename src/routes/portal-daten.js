@@ -7,6 +7,7 @@ const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
 const konditionen = require('../lib/konditionen');
+const nachlass = require('../lib/nachlass');
 const { spiegleFahrzeugInStamm } = require('../lib/kundendaten');
 const { monatOderTag, erstzulassungPruefen } = require('../lib/datum');
 const widerruf = require('../lib/widerruf');
@@ -60,31 +61,29 @@ function terminMitPreisen(tm) {
   if (!pos.length) return Object.assign({}, tm, { zustimmung_offen: offen, positionen: [], rabatt_zeilen: [], summe_brutto: null, summe_nach_rabatt: null });
 
   const brutto = gutschein.round2(pos.reduce((sum, p) => sum + (Number(p.zeilen_brutto) || 0), 0));
-  const r = gutschein.rabattAusPositionen(pos);
-  // Herkunft je Satz: Ein Gutschein und eine Dauervereinbarung duerfen nicht in eine Zeile
-  // fallen, auch wenn der Satz zufaellig gleich ist -- der Kunde soll sehen, worauf der
-  // Nachlass beruht. preis_quelle steht je Position am Termin.
-  // preis_quelle gibt es erst seit der Gutschein-/Konditionen-Umstellung. Aeltere Termine haben
-  // den Nachlass, aber nicht seine Herkunft -- dort steht sie nur an termine.gutschein_code.
-  // Ohne diesen Rueckfall schriebe das Portal bei genau diesen Terminen "Nachlass", waehrend die
-  // Rechnung "Gutschein <CODE>" ausweist (routes/rechnungen.js). Ein Termin, zwei Bezeichnungen --
-  // gefunden beim Durchklicken an einem echten Termin vom 14.10., nicht in der Theorie.
+  // WORAUS der Nachlass stammt. Gutschein und Gewerbe-Kondition schliessen sich aus (Entscheidung
+  // des Inhabers), es gibt je Termin also genau eine Herkunft -- die Rechnung haelt es genauso.
+  //
+  // preis_quelle je Position gibt es erst seit der Gutschein-/Konditionen-Umstellung, und bei
+  // GASTBUCHUNGEN wird sie nie gesetzt (konditionen.js laeuft ohne Kundenkonto gar nicht). In
+  // beiden Faellen steht die Herkunft nur an termine.gutschein_code. Ohne den Rueckfall darauf
+  // schriebe das Portal "Nachlass", waehrend die Rechnung "Gutschein <CODE>" ausweist -- ein
+  // Vorgang, zwei Bezeichnungen. Gefunden beim Durchklicken an einem echten Termin vom 14.10.
   const quelleGepflegt = pos.some((p) => p.preis_quelle != null);
-  const zeilen = r.zeilen.map(function (z) {
-    const quellen = new Set(pos.filter((p) => Number(p.rabatt_prozent || 0) === z.satz).map((p) => p.preis_quelle));
-    // Ist die Herkunft gepflegt, entscheidet sie. Fehlt sie ganz, entscheidet der Gutscheincode --
-    // dieselbe Regel wie auf der Rechnung, damit beide Papiere dasselbe sagen.
-    const ausGutschein = tm.gutschein_code && (quellen.has('gutschein') || !quelleGepflegt);
-    const bez = ausGutschein ? 'Gutschein ' + tm.gutschein_code
-              : (quellen.has('konditionen') ? 'Vereinbarter Nachlass' : 'Nachlass');
-    return { satz: z.satz, betrag: z.betrag, bezeichnung: bez };
-  });
+  const quellen = new Set(pos.map((p) => p.preis_quelle));
+  const herkunft = tm.gutschein_code && (quellen.has('gutschein') || !quelleGepflegt)
+    ? 'Gutschein ' + tm.gutschein_code
+    : (quellen.has('konditionen') ? 'Vereinbarter Nachlass' : null);
+  // Beschriftung und Betrag kommen aus derselben Stelle wie auf der Rechnung (lib/nachlass.js).
+  // Vorher stand hier eine eigene Fassung: Das Portal schrieb "Gutschein WINTER2026 (-25 %)",
+  // die Rechnung "Nachlass Reifeneinlagerung (25 %) - Gutschein WINTER2026".
+  const zeilen = nachlass.nachlassZeilen(pos, herkunft);
   return Object.assign({}, tm, {
     zustimmung_offen: offen,
     positionen: pos,
     rabatt_zeilen: zeilen,
     summe_brutto: brutto,
-    summe_nach_rabatt: gutschein.round2(brutto - r.summe)
+    summe_nach_rabatt: gutschein.round2(brutto - nachlass.nachlassSumme(zeilen))
   });
 }
 
