@@ -424,9 +424,10 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
            kontakt_strasse, kontakt_plz, kontakt_ort, fahrzeugtyp, datum, uhrzeit_von, uhrzeit_bis, termin_typ, beschreibung,
            kennzeichen, artikel_id, leistungen, datenschutz_am, werbung_einwilligung, status, portal_buchung,
            bestaetigung_token, bestaetigung_token_ablauf, gutschein_code, gutschein_rabatt,
-           kontakt_kundentyp, kontakt_firma, agb_am, vorzeitige_leistung, vorzeitige_leistung_am)
+           kontakt_kundentyp, kontakt_firma, agb_am, vorzeitige_leistung, vorzeitige_leistung_am,
+           vereinbart_ueber)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW(),$19,'angefragt',true,$20,$21,$22,$23,$24,$25,
-                 NOW(), $26, CASE WHEN $26 THEN NOW() ELSE NULL END)`,
+                 NOW(), $26, CASE WHEN $26 THEN NOW() ELSE NULL END, 'online')`,
         [nm, an, vn, nn, tel, em, str, pz, or, fzt, datum, uhrzeit_von, uhrzeit_bis, terminTyp, beschreibung, kz, mainArtId, JSON.stringify(kalk.positionen), werbung === true, token, ablauf, gutscheinCode, gutscheinRabatt, kundentyp, fa, vorzeitige_leistung === true]);
     });
 

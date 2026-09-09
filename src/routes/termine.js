@@ -161,10 +161,16 @@ router.post('/', async (req, res, next) => {
         });
       }
     }
+    // Wie der Termin zustande kam, entscheidet ueber das Widerrufsrecht: Am Tresen gab es
+    // persoenlichen Kontakt, also keinen Fernabsatz (§ 312c BGB). Am Telefon schon. Der Bediener
+    // weiss es beim Anlegen; raten muesste sonst der Code an drei Stellen. 'online' wird hier
+    // NICHT angenommen -- das setzen nur Buchungsstrecke und Portal.
+    const wegRoh = String(req.body.vereinbart_ueber || 'tresen');
+    const weg = ['tresen', 'telefon'].includes(wegRoh) ? wegRoh : 'tresen';
     const { rows } = await query(
-      `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, fahrzeug_id, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'bestaetigt') RETURNING *`,
-      [kunden_id || null, kontakt_name || null, kontakt_telefon || null, kontakt_email || null, datum, uhrzeit_von, uhrzeit_bis, termin_typ || null, artikel_id || null, kennzeichen || null, beschreibung || null, notizen_intern || null, fahrzeug_id || null]
+      `INSERT INTO termine (kunden_id, kontakt_name, kontakt_telefon, kontakt_email, datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, fahrzeug_id, status, vereinbart_ueber)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'bestaetigt',$14) RETURNING *`,
+      [kunden_id || null, kontakt_name || null, kontakt_telefon || null, kontakt_email || null, datum, uhrzeit_von, uhrzeit_bis, termin_typ || null, artikel_id || null, kennzeichen || null, beschreibung || null, notizen_intern || null, fahrzeug_id || null, weg]
     );
     res.status(201).json(rows[0]);
   } catch (e) { next(e); }
@@ -174,6 +180,7 @@ router.post('/', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const { datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id, kennzeichen, beschreibung, notizen_intern, status, kunden_id, kontakt_name, kontakt_telefon, trotzdem } = req.body;
+    const wegNeu = ['tresen', 'telefon'].includes(String(req.body.vereinbart_ueber)) ? String(req.body.vereinbart_ueber) : null;
     // Verschieben ist derselbe Fall wie Neuanlegen: Wer einen Termin auf eine belegte Zeit
     // zieht, soll es sehen. Der eigene Termin zaehlt dabei nicht als Konflikt.
     if (trotzdem !== true && datum && uhrzeit_von && uhrzeit_bis) {
@@ -194,10 +201,14 @@ router.put('/:id', async (req, res, next) => {
     const { rows } = await query(
       `UPDATE termine SET datum=$1, uhrzeit_von=$2, uhrzeit_bis=$3, termin_typ=$4, artikel_id=$5,
        kennzeichen=$6, beschreibung=$7, notizen_intern=$8, status=COALESCE($9, status),
-       kunden_id=$11, kontakt_name=$12, kontakt_telefon=$13, geaendert_am=NOW()
+       kunden_id=$11, kontakt_name=$12, kontakt_telefon=$13, geaendert_am=NOW(),
+       -- Nur zwischen tresen und telefon umstellbar. Eine Online-Buchung bleibt eine
+       -- Online-Buchung; sie nachtraeglich zu "Tresen" zu erklaeren, wuerde ein belegtes
+       -- Widerrufsrecht wegdefinieren. Der Riegel in der Datenbank haelt das ohnehin fest.
+       vereinbart_ueber=COALESCE($14, vereinbart_ueber)
        WHERE id=$10 RETURNING *`,
       [datum, uhrzeit_von, uhrzeit_bis, termin_typ, artikel_id || null, kennzeichen, beschreibung, notizen_intern, status || null, req.params.id,
-       kunden_id || null, kontakt_name || null, kontakt_telefon || null]
+       kunden_id || null, kontakt_name || null, kontakt_telefon || null, wegNeu]
     );
     if (!rows.length) return res.status(404).json({ error: 'Nicht gefunden' });
     res.json(rows[0]);

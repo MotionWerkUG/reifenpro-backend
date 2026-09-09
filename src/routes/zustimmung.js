@@ -80,6 +80,7 @@ router.post('/anfordern/:terminId', authenticate, requireStaff, async (req, res,
               -- Als Kalendertag in Berliner Zeit, nicht als Zeitstempel: Der Treiber lieferte
               -- sonst ein Date-Objekt, aus dem die Fristrechnung "Mon Aug 10" las.
               to_char(termine.erstellt_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS vertrag_tag,
+              termine.vereinbart_ueber,
               COALESCE(k.vorname, kontakt_vorname) AS vorname,
               COALESCE(k.nachname, kontakt_nachname) AS nachname,
               COALESCE(k.anrede, kontakt_anrede) AS anrede,
@@ -93,6 +94,14 @@ router.post('/anfordern/:terminId', authenticate, requireStaff, async (req, res,
     // Ab VERTRAGSSCHLUSS rechnen, nicht ab heute: Der Vertrag kam am Telefon zustande, der
     // Termin wurde danach angelegt. Wer ab heute rechnet, fragt bei Terminen, deren Frist
     // laengst abgelaufen ist -- und behauptet dabei einen Satz, der nicht stimmt.
+    // Ein am TRESEN vereinbarter Termin ist kein Fernabsatzvertrag: Es gibt kein Widerrufsrecht
+    // und damit auch nichts zuzustimmen. Eine trotzdem vermerkte "Zustimmung" waere eine
+    // Erklaerung zu einem Recht, das der Kunde gar nicht hat -- im Streitfall wertlos und
+    // irrefuehrend. Die Oberflaeche zeigt die Knoepfe dort nicht; die Sperre gehoert trotzdem
+    // hierher, nicht in die Anzeige.
+    if (t.vereinbart_ueber === 'tresen') {
+      return res.status(409).json({ error: 'Dieser Termin wurde am Tresen vereinbart — kein Fernabsatz, also kein Widerrufsrecht und keine Zustimmung nötig. Wurde er doch am Telefon vereinbart, ändern Sie das bitte zuerst am Termin.' });
+    }
     if (!widerruf.zustimmungNoetigAbVertrag(t.vertrag_tag, t.datum)) {
       return res.status(409).json({ error: 'Der Termin liegt außerhalb der 14-tägigen Widerrufsfrist. Eine Zustimmung ist dafür nicht nötig.' });
     }
@@ -202,7 +211,7 @@ router.get('/bestaetigen', linkLimiter, async (req, res, next) => {
 router.post('/telefonisch/:terminId', authenticate, requireStaff, async (req, res, next) => {
   try {
     const t = (await query(
-      `SELECT id, datum, vorzeitige_leistung,
+      `SELECT id, datum, vorzeitige_leistung, vereinbart_ueber,
               to_char(erstellt_am AT TIME ZONE 'Europe/Berlin', 'YYYY-MM-DD') AS vertrag_tag
          FROM termine WHERE id=$1`, [req.params.terminId])).rows[0];
     if (!t) return res.status(404).json({ error: 'Termin nicht gefunden.' });
@@ -210,6 +219,14 @@ router.post('/telefonisch/:terminId', authenticate, requireStaff, async (req, re
     // Ab VERTRAGSSCHLUSS rechnen, nicht ab heute: Der Vertrag kam am Telefon zustande, der
     // Termin wurde danach angelegt. Wer ab heute rechnet, fragt bei Terminen, deren Frist
     // laengst abgelaufen ist -- und behauptet dabei einen Satz, der nicht stimmt.
+    // Ein am TRESEN vereinbarter Termin ist kein Fernabsatzvertrag: Es gibt kein Widerrufsrecht
+    // und damit auch nichts zuzustimmen. Eine trotzdem vermerkte "Zustimmung" waere eine
+    // Erklaerung zu einem Recht, das der Kunde gar nicht hat -- im Streitfall wertlos und
+    // irrefuehrend. Die Oberflaeche zeigt die Knoepfe dort nicht; die Sperre gehoert trotzdem
+    // hierher, nicht in die Anzeige.
+    if (t.vereinbart_ueber === 'tresen') {
+      return res.status(409).json({ error: 'Dieser Termin wurde am Tresen vereinbart — kein Fernabsatz, also kein Widerrufsrecht und keine Zustimmung nötig. Wurde er doch am Telefon vereinbart, ändern Sie das bitte zuerst am Termin.' });
+    }
     if (!widerruf.zustimmungNoetigAbVertrag(t.vertrag_tag, t.datum)) {
       return res.status(409).json({ error: 'Der Termin liegt außerhalb der 14-tägigen Widerrufsfrist. Eine Zustimmung ist dafür nicht nötig.' });
     }
