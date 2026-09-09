@@ -1,3 +1,9 @@
+-- NACH DEM ANWENDEN NICHT VERGESSEN: In src/routes/rechnungen.js muss in POST /:id/barzahlung
+-- die Zeile "kasse_zahlart=$4" wieder in das UPDATE aufgenommen werden (samt Parameter
+-- zahlart). Sie wurde bewusst herausgenommen, damit ausgelieferter Code nicht auf eine Spalte
+-- schreibt, die es noch nicht gibt. Ohne sie bleibt die Zahlart leer und eine Erstattung ist
+-- nicht buchbar.
+
 -- ACHTUNG ZUM DATEINAMEN: Das zz-Praefix ist Absicht, siehe
 -- migration-zz-2026-09-07-beleg-pruefsumme.sql. Migrationen laufen alphabetisch; diese Datei
 -- ersetzt rechnung_schutz() und muss deshalb NACH allen anderen laufen, die sie definieren.
