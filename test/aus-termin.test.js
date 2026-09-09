@@ -242,6 +242,45 @@ test('Ohne Saetze je Leistung greift weiterhin der pauschale Satz vom Termin', a
   assert.equal(Number(r.body.brutto_summe), 90.00, '10 % pauschal auf 100,00');
 });
 
+test('Gutschein am Tresen wird auch beim Termin je Leistung gerechnet', async () => {
+  // Derselbe Fehler wie im Rechnungseditor lauerte hier: Der Kunde legt den Gutschein erst beim
+  // Abholen vor, der Termin traegt also keine eingefrorenen Saetze. Frueher wurde dann
+  // gutscheine.rabatt_prozent pauschal auf den ganzen Beleg gezogen — 10 % auch auf die
+  // Einlagerung, fuer die 25 % versprochen waren.
+  const { token } = await h.seedBasis({ preise_inkl_mwst: true });
+  const kunde = await h.seedKunde();
+  const a = await h.query("INSERT INTO artikel (name, preis) VALUES ('Reifeneinlagerung', 40) RETURNING id");
+  const b = await h.query("INSERT INTO artikel (name, preis) VALUES ('Auswuchten', 25) RETURNING id");
+  const g = await h.query("INSERT INTO gutscheine (code, rabatt_prozent, aktiv) VALUES ('TRESEN', 10, true) RETURNING id");
+  await h.query('INSERT INTO gutschein_regeln (gutschein_id, artikel_id, rabatt_prozent) VALUES ($1,$2,25)',
+    [g.rows[0].id, a.rows[0].id]);
+
+  // Leistungen OHNE rabatt_prozent — der Gutschein kommt erst am Tresen dazu.
+  const leistungen = [
+    { bezeichnung: 'Reifeneinlagerung', mwst_satz: 19, zeilen_brutto: 40, zeilen_netto: 33.61,
+      grundpreis_netto: 33.61, zuschlag_netto: 0, artikel_id: a.rows[0].id },
+    { bezeichnung: 'Auswuchten', mwst_satz: 19, zeilen_brutto: 25, zeilen_netto: 21.01,
+      grundpreis_netto: 21.01, zuschlag_netto: 0, artikel_id: b.rows[0].id }
+  ];
+  const t = await h.query(
+    `INSERT INTO termine (datum, uhrzeit_von, uhrzeit_bis, termin_typ, status, kunden_id, leistungen)
+     VALUES (CURRENT_DATE, '09:00', '10:00', 'Raederwechsel', 'abgeschlossen', $1, $2) RETURNING id`,
+    [kunde, JSON.stringify(leistungen)]);
+
+  const r = await h.api(token, 'POST', '/api/rechnungen/aus-termin/' + t.rows[0].id, { gutschein_code: 'TRESEN' });
+  assert.equal(r.status, 201, JSON.stringify(r.body));
+
+  const pos = (await h.query('SELECT bezeichnung, zeilen_brutto FROM rechnung_positionen WHERE rechnung_id=$1 ORDER BY position', [r.body.id])).rows;
+  const minus = pos.filter((p) => Number(p.zeilen_brutto) < 0);
+  assert.equal(minus.length, 2, 'je Satz eine eigene Zeile: ' + JSON.stringify(pos.map((p) => p.bezeichnung)));
+  assert.deepEqual(minus.map((p) => Number(p.zeilen_brutto)).sort((x, y) => x - y), [-10.00, -2.50],
+    '25 % von 40,00 und 10 % von 25,00');
+  assert.ok(minus.every((p) => p.bezeichnung.includes('TRESEN')), 'der Code steht auf dem Beleg');
+
+  // 65,00 abzueglich 12,50 = 52,50 — nicht 58,50 (pauschal 10 %) und nicht 48,75 (pauschal 25 %).
+  assert.equal(Number(r.body.brutto_summe), 52.50);
+});
+
 test('Fuer denselben Termin entsteht keine zweite Rechnung', async () => {
   const { token } = await h.seedBasis({ preise_inkl_mwst: true });
   const terminId = await terminMitArtikel(44.00, 19, await h.seedKunde());
