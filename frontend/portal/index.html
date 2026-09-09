@@ -579,7 +579,7 @@ var I18N = {
     session_expired: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
     consent_renew: 'Erinnerungen wieder einschalten',
     your_vehicles: 'Ihre Fahrzeuge', manage_vehicles: 'Fahrzeuge verwalten',
-    no_vehicles: 'Noch kein Fahrzeug hinterlegt.', no_plate: 'ohne Kennzeichen', first_reg: 'Erstzulassung',
+    no_vehicles_profile: 'Noch kein Fahrzeug hinterlegt.', no_plate: 'ohne Kennzeichen', first_reg: 'Erstzulassung',
     show_password: 'Anzeigen', hide_password: 'Verbergen',
     consent_mail_sent: 'Wir haben Ihnen eine Bestätigungsmail geschickt.',
     delete_request_pending: 'Ihr Löschauftrag ist eingegangen. Wir melden uns bei Ihnen. Bis dahin können Sie sich weiterhin anmelden.',
@@ -587,7 +587,7 @@ var I18N = {
     company_name: 'Firma',
     company_hint: 'Bitte geben Sie den vollständigen Firmennamen mit Rechtsform an — so erscheint er auf der Rechnung. Name und Anrede darunter sind Ihre Ansprechperson.',
     company_required: 'Bitte geben Sie den Firmennamen an — er steht später auf der Rechnung.',
-    password_repeat: 'Passwort wiederholen', accept_dsgvo: 'Ich habe die',
+    accept_dsgvo: 'Ich habe die',
     dsgvo_link: 'Datenschutzerklärung', accept_read: 'gelesen und akzeptiere sie.',
     accept_agb: 'Ich akzeptiere die', agb_link: 'AGB',
     accept_saison: 'Ich möchte saisonale Erinnerungen zum Reifenwechsel per E-Mail erhalten (optional, jederzeit widerrufbar).',
@@ -660,7 +660,7 @@ var I18N = {
     session_expired: 'Your session has expired. Please sign in again.',
     consent_renew: 'Turn reminders back on',
     your_vehicles: 'Your vehicles', manage_vehicles: 'Manage vehicles',
-    no_vehicles: 'No vehicle on file yet.', no_plate: 'no plate', first_reg: 'First registration',
+    no_vehicles_profile: 'No vehicle on file yet.', no_plate: 'no plate', first_reg: 'First registration',
     show_password: 'Show', hide_password: 'Hide',
     consent_mail_sent: 'We have sent you a confirmation email.',
     delete_request_pending: 'Your deletion request has been received. We will get back to you. Until then you can still sign in.',
@@ -1728,7 +1728,7 @@ function ladeProfil() {
       fzBox.textContent = t('loading');
       papi('GET', '/daten/fahrzeuge').then(function(liste) {
         var arr = Array.isArray(liste) ? liste : (liste && liste.fahrzeuge) || [];
-        if (!arr.length) { fzBox.textContent = t('no_vehicles'); return; }
+        if (!arr.length) { fzBox.textContent = t('no_vehicles_profile'); return; }
         fzBox.innerHTML = arr.map(function(f) {
           var name = [f.marke, f.modell].filter(Boolean).join(' ');
           var rechts = [f.typ, fzErstzulassung(f)].filter(Boolean).join(' · ');
@@ -1737,7 +1737,7 @@ function ladeProfil() {
                + (rechts ? ' <span style="color:var(--muted)">(' + pEsc(rechts) + ')</span>' : '')
                + '</div>';
         }).join('');
-      }).catch(function() { fzBox.textContent = t('no_vehicles'); });
+      }).catch(function() { fzBox.textContent = t('no_vehicles_profile'); });
     }
     var cs = g('consent-state');
     if (cs) {
