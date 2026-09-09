@@ -266,7 +266,7 @@ router.get('/einwilligung/bestaetigen', async (req, res, next) => {
     if (!k) return res.status(400).send(seite('Link ungültig oder abgelaufen', 'Dieser Bestätigungslink ist nicht mehr gültig. Bitte fordern Sie bei Bedarf einen neuen an.'));
     // Beweisdaten: NUR req.ip -- der vom Client gesetzte Kopfteil waere frei waehlbar.
     const ip = (req.ip || '').toString();
-    await query("UPDATE kunden SET einwilligung_saison_erinnerung=true, einwilligung_saison_bestaetigt=true, einwilligung_saison_bestaetigt_am=NOW(), einwilligung_ip=$2, einwilligung_token=NULL, einwilligung_token_ablauf=NULL WHERE id=$1", [k.id, ip]);
+    await query("UPDATE kunden SET einwilligung_saison_erinnerung=true, einwilligung_saison_bestaetigt=true, einwilligung_saison_bestaetigt_am=NOW(), einwilligung_ip=$2, einwilligung_token=NULL, einwilligung_token_ablauf=NULL, widerruf_datum=NULL WHERE id=$1", [k.id, ip]);
     res.send(seite('Vielen Dank!', 'Ihre Einwilligung für saisonale Erinnerungen ist bestätigt. Sie können sie jederzeit widerrufen.'));
   } catch (e) { next(e); }
 });

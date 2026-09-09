@@ -509,7 +509,13 @@ router.post('/passwort-reset', resetSchrittLimiter, async (req, res, next) => {
 // ── GET /api/portal/auth/me ──
 router.get('/me', authKunde, async (req, res) => {
   const k = req.kunde;
-  res.json({ id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, telefon: k.telefon, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, fahrzeug_typ: k.fahrzeug_typ, hu_datum: k.hu_datum, anrede: k.anrede, ist_gewerbe: k.ist_gewerbe, kunden_nr: k.kunden_nr });
+  res.json({ id: k.id, vorname: k.vorname, nachname: k.nachname, email: k.portal_email, telefon: k.telefon, kennzeichen: k.kennzeichen, fahrzeug_marke: k.fahrzeug_marke, fahrzeug_modell: k.fahrzeug_modell, fahrzeug_typ: k.fahrzeug_typ, hu_datum: k.hu_datum, anrede: k.anrede, ist_gewerbe: k.ist_gewerbe, kunden_nr: k.kunden_nr,
+    // Einwilligungen mitliefern: Das Profil entscheidet daran, welcher Knopf erscheint.
+    // Ohne sie las die Oberflaeche undefined und zeigte immer denselben Zustand.
+    // saison_bestaetigt trennt 'eingeschaltet' von 'Bestaetigungsmail unterwegs'.
+    einwilligung_saison_erinnerung: k.einwilligung_saison_erinnerung,
+    einwilligung_saison_bestaetigt: k.einwilligung_saison_bestaetigt,
+    einwilligung_werbung: k.einwilligung_werbung });
 });
 
 // ── PUT /api/portal/auth/profil ──
@@ -599,6 +605,42 @@ router.post('/einwilligung-widerrufen', authKunde, async (req, res, next) => {
       [req.kunde.id]
     );
     res.json({ message: 'Ihre Einwilligung wurde widerrufen. Sie erhalten keine Werbe-, Saison- oder Bewertungs-E-Mails mehr.' });
+  } catch (e) { next(e); }
+});
+
+// ── POST /api/portal/auth/einwilligung-erneuern ── Erinnerungen wieder einschalten
+// Gegenstueck zum Widerruf. Bewusst NICHT direkt setzen: Eine Werbeeinwilligung braucht den
+// Doppel-Opt-in, sonst laesst sie sich spaeter nicht nachweisen. Der Bestaetigungsweg ist
+// derselbe wie bei der Buchung (GET /api/gast/einwilligung/bestaetigen).
+router.post('/einwilligung-erneuern', resetLimiter, authKunde, async (req, res, next) => {
+  try {
+    const k = req.kunde;
+    const token = crypto.randomBytes(32).toString('hex');
+    const ablauf = new Date(Date.now() + 14 * 24 * 3600000);
+    // saison_erinnerung wird gesetzt, bestaetigt aber NICHT -- erst der Klick in der Mail macht
+    // die Einwilligung wirksam. Der Erinnerungslauf prueft auf bestaetigt.
+    await query(
+      `UPDATE kunden SET einwilligung_saison_erinnerung=true, einwilligung_saison_bestaetigt=false,
+       einwilligung_token=$1, einwilligung_token_ablauf=$2, einwilligung_ip=$3,
+       geaendert_am=NOW() WHERE id=$4`,
+      // widerruf_datum bleibt bewusst STEHEN: Es ist der Nachweis des frueheren Widerrufs.
+      // Erst die Bestaetigung raeumt es weg -- klickt der Kunde nie, war der Widerruf der
+      // letzte wirksame Wille und muss nachweisbar bleiben (Art. 7 Abs. 3 DSGVO).
+      [token, ablauf, req.ip || null, k.id]);
+    const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
+    const basis = (einst.portal_url || '').replace(/\/portal\/?$/, '') || 'https://www.schroeder-scholz.de';
+    const link = basis + '/reifenpro/api/gast/einwilligung/bestaetigen?token=' + token;
+    sendMail(
+      k.portal_email,
+      'Bitte bestätigen Sie Ihre Erinnerungen — Schröder & Scholz',
+      portalMailHtml(einst, {
+        titel: 'Erinnerungen bestätigen', name: k.vorname,
+        absaetze: ['Sie möchten wieder Saison- und Serviceerinnerungen von uns erhalten. Bitte bestätigen Sie das mit einem Klick — erst danach senden wir Ihnen wieder etwas zu.'],
+        button: { text: 'Erinnerungen bestätigen', url: link },
+        hinweis: 'Der Bestätigungslink ist 14 Tage gültig. Sie können jederzeit wieder widerrufen.'
+      })
+    ).catch(() => {});
+    res.json({ message: 'Wir haben Ihnen eine Bestätigungsmail geschickt. Erst nach Ihrem Klick darin senden wir Ihnen wieder Erinnerungen.' });
   } catch (e) { next(e); }
 });
 
