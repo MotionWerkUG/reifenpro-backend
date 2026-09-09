@@ -120,15 +120,33 @@ def sprach_luecken(quelltext, verwendungstext=None):
         return []
     verwendung = verwendungstext if verwendungstext is not None else quelltext
     alle = set().union(*bloecke.values())
+
+    # Alle Schluessel einsammeln, die die Oberflaeche TATSAECHLICH nachschlaegt.
+    # (?<![A-Za-z_0-9]) ist keine Feinheit, sondern noetig: Ohne die Wortgrenze trifft das Muster
+    # auch das schliessende t von portalLogou-t('abgelaufen') und params.ge-t('reset'). Beim ersten
+    # Lauf waren fuenf von sechs Treffern genau solche Falschmeldungen -- ein Werkzeug, das
+    # Falsches meldet, wird nach dem dritten Mal nicht mehr gelesen.
+    benutzte = set(re.findall(r"(?<![A-Za-z_0-9])t\(['\"]([a-zA-Z_][a-zA-Z_0-9]*)['\"]\)", verwendung))
+    benutzte |= set(re.findall(r'data-i18n(?:-[a-z]+)?="([a-zA-Z_][a-zA-Z_0-9]*)"', verwendung))
+
     funde = []
     for name in sorted(alle):
         fehlt_in = sorted(sp for sp, keys in bloecke.items() if name not in keys)
-        if not fehlt_in:
-            continue
-        benutzt = bool(re.search(r"t\(['\"]" + re.escape(name) + r"['\"]\)", verwendung)
-                       or re.search(r'data-i18n(?:-[a-z]+)?="' + re.escape(name) + r'"', verwendung))
-        funde.append((name, fehlt_in, benutzt))
-    return [f for f in funde if f[2]]
+        if fehlt_in and name in benutzte:
+            funde.append((name, fehlt_in, True))
+
+    # Dritte Fehlerart, und die schwerste: ein Schluessel, den KEIN Woerterbuch kennt. Die
+    # Schleife oben kann ihn nicht finden -- sie laeuft ueber die Woerterbuchschluessel, und dort
+    # kommt er ja gerade nicht vor. Die Oberflaeche zeigt dann in JEDER Sprache den rohen
+    # Schluessel: dem Kunden stand woertlich "nicht_erschienen" auf der Terminkarte.
+    #
+    # Gefunden am 09.09.2026, als ich selbst t('delete') schrieb, ohne dass es den Schluessel gab.
+    # Das Werkzeug meldete "keine Sprachluecken" -- zum dritten Mal an einem Tag richtig geschwiegen
+    # und dabei blind gewesen.
+    for name in sorted(benutzte - alle):
+        funde.append((name, sorted(bloecke.keys()), True))
+
+    return funde
 
 
 nur_sprachen = '--sprachen' in sys.argv
@@ -185,7 +203,16 @@ var I18N = {
 """
 # Die Verwendung steht NUR im Markup, nicht im Skript. Genau daran scheitert eine Fassung, die
 # Verwendungen nur in den <script>-Bloecken sucht -- der Fehler vom 09.09.2026.
-PROBE_HTML = '<html><body><span data-i18n="nur_deutsch">x</span><script>' + PROBE_JS + '</script></body></html>'
+# 'gibt_es_nicht' steht in KEINEM Woerterbuch und wird trotzdem nachgeschlagen -- die dritte
+# Fehlerart. Ohne sie in der Probe koennte die Pruefung darauf still blind werden.
+# irgendwasGet('...') darf NICHT als t('...') durchgehen -- sonst meldet das Werkzeug Falsches,
+# und ein Werkzeug, dem man nicht glaubt, ist so gut wie keins. Beim ersten Lauf waren genau das
+# fuenf von sechs Treffern.
+PROBE_HTML = ('<html><body><span data-i18n="nur_deutsch">x</span>'
+              '<span data-i18n="gibt_es_nicht">y</span>'
+              '<script>' + PROBE_JS
+              + "\nvar egal = params.get('kein_schluessel'); portalLogout('auch_keiner');\n"
+              + '</script></body></html>')
 
 def selbstpruefung():
     ok = True
@@ -194,9 +221,10 @@ def selbstpruefung():
         print('SELBSTPRUEFUNG: Der Doppelschluessel-Finder schlaegt nicht an. Erwartet ["gruss"], '
               'gefunden ' + str([x[0] for x in doppler]) + '.', file=sys.stderr)
         ok = False
-    if [x[0] for x in luecken] != ['nur_deutsch']:
-        print('SELBSTPRUEFUNG: Der Sprachabgleich schlaegt nicht an. Erwartet ["nur_deutsch"], '
-              'gefunden ' + str([x[0] for x in luecken]) + '.', file=sys.stderr)
+    if sorted(x[0] for x in luecken) != ['gibt_es_nicht', 'nur_deutsch']:
+        print('SELBSTPRUEFUNG: Der Sprachabgleich schlaegt nicht an. Erwartet '
+              '["gibt_es_nicht", "nur_deutsch"], gefunden ' + str(sorted(x[0] for x in luecken)) + '.',
+              file=sys.stderr)
         ok = False
     if not ok:
         print('Das Werkzeug ist nicht verlaesslich -- ein "keine Funde" waere hier wertlos.', file=sys.stderr)
@@ -212,7 +240,10 @@ for datei in dateien:
     if f or l:
         print(datei + ':')
         for name, z1, z2 in f: print('   ' + name + '  zuerst bei Zeile ' + str(z1) + ', erneut bei ' + str(z2))
-        for name, fehlt_in, _ in l: print('   ' + name + '  fehlt in: ' + ', '.join(fehlt_in) + '  (wird verwendet)')
+        for name, fehlt_in, _ in l:
+            ganz = len(fehlt_in) > 1
+            print('   ' + name + ('  in KEINEM Woerterbuch (' if ganz else '  fehlt in: ')
+                  + ', '.join(fehlt_in) + (') -- angezeigt wird der rohe Schluessel' if ganz else '  (wird verwendet)'))
     else:
         print(datei + ': keine doppelten Schluessel' + ('' if nur_sprachen else ', keine Sprachluecken'))
     if f or l: gefunden = True
