@@ -647,7 +647,7 @@ var I18N = {
     doc_storage: 'Einlagerungsschein ansehen', doc_release: 'Auslagerungsschein ansehen', doc_contract: 'Einlagerungsvertrag ansehen', doc_privacy: 'Datenschutzerklärung ansehen', doc_generic: 'Dokument ansehen', doc_missing: 'Dokument nicht verfügbar.',
     address_needed: 'Für die Rechnung brauchen wir noch Ihre Anschrift.', street: 'Straße und Hausnummer', zip: 'PLZ', city: 'Ort',
     next_appointment: 'Nächster Termin', hu_due: 'HU fällig', hu_overdue: 'überfällig', hu_soon: 'bald fällig',
-    confirm_booking_title: 'Bitte Buchung bestätigen', no_services: 'Zurzeit sind online keine Leistungen buchbar. Bitte rufen Sie uns an{tel}.',  agreed_discount: 'Vereinbarter Nachlass', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.',  confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
+    confirm_booking_title: 'Bitte Buchung bestätigen', no_services: 'Zurzeit sind online keine Leistungen buchbar. Bitte rufen Sie uns an{tel}.',  agreed_discount: 'Vereinbarter Nachlass', voucher_no_effect: 'Gutschein {code} gilt für diese Leistung nicht. Für andere Leistungen bleibt er gültig.', voucher_not_applied: 'Gutschein {code} nicht angewandt — Ihre vereinbarte Kondition ist günstiger. Der Gutschein bleibt gültig.', confirm_book_btn: 'Verbindlich buchen', back: 'Zurück', time_label: 'Uhrzeit',
     no_slots: 'Keine freien Zeiten an diesem Tag.', loading: 'Lädt...',
     gewerbe_link_q: 'Sie sind Gewerbekunde?', gewerbe_link: 'Zugang anfragen',
     gewerbe_sub: 'Gewerbe-Zugang anfragen', gewerbe_intro: 'Als Gewerbekunde (Fuhrpark/Flotte) erhalten Sie Sonderkonditionen. Senden Sie uns eine Anfrage – wir prüfen sie und schalten Ihren Zugang frei.',
@@ -733,7 +733,7 @@ var I18N = {
     doc_storage: 'View storage receipt', doc_release: 'View release receipt', doc_contract: 'View storage contract', doc_privacy: 'View privacy notice', doc_generic: 'View document', doc_missing: 'Document not available.',
     address_needed: 'We still need your address for the invoice.', street: 'Street and number', zip: 'Postcode', city: 'City',
     next_appointment: 'Next appointment', hu_due: 'MOT due', hu_overdue: 'overdue', hu_soon: 'due soon',
-    confirm_booking_title: 'Please confirm your booking', no_services: 'No services can be booked online at the moment. Please give us a call{tel}.',  agreed_discount: 'Agreed discount', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.',  confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
+    confirm_booking_title: 'Please confirm your booking', no_services: 'No services can be booked online at the moment. Please give us a call{tel}.',  agreed_discount: 'Agreed discount', voucher_no_effect: 'Voucher {code} does not apply to this service. It remains valid for others.', voucher_not_applied: 'Voucher {code} not applied — your agreed rate is better. The voucher remains valid.', confirm_book_btn: 'Book now', back: 'Back', time_label: 'Time',
     no_slots: 'No available times on this day.', loading: 'Loading...',
     gewerbe_link_q: 'Are you a business customer?', gewerbe_link: 'Request access',
     gewerbe_sub: 'Request business access', gewerbe_intro: 'As a business customer (fleet) you receive special conditions. Send us a request – we will review it and activate your access.',
@@ -1185,6 +1185,13 @@ function verworfenHinweis(p, code) {
   if (na && na.art === 'gutschein' && na.code) {
     return ' <span style="font-weight:400;color:var(--muted)">· '
          + pEsc(t('voucher_not_applied').replace('{code}', na.code)) + '</span>';
+  }
+  // Gueltiger Code, der fuer GENAU DIESE Leistung 0 % gibt. Vorher fiel er in den
+  // "ungueltig"-Zweig -- eine Falschaussage ueber einen Gutschein, den der Kunde in der Hand
+  // haelt. Die vierte Moeglichkeit neben angewandt, verworfen und ungueltig.
+  if (na && na.art === 'gutschein_ohne_wirkung' && na.code) {
+    return ' <span style="font-weight:400;color:var(--muted)">· '
+         + pEsc(t('voucher_no_effect').replace('{code}', na.code)) + '</span>';
   }
   if (code && !(p && p.gutschein)) {
     return ' <span style="font-weight:400;color:var(--muted)">· ' + t('voucher_invalid') + '</span>';

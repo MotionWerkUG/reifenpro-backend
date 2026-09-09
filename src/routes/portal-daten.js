@@ -724,8 +724,17 @@ router.get('/artikel/:id/preis', authKunde, async (req, res, next) => {
       preis_quelle: w.quelle,
       // Eingegebener Code, der wegen der guenstigeren Kondition nicht griff (oder umgekehrt) --
       // die Oberflaeche sagt das dem Kunden, statt ihn im Unklaren zu lassen.
+      // Drei zu unterscheidende Gruende, warum ein eingegebener Code nicht im Preis auftaucht.
+      // Der dritte fehlte: Ein GUELTIGER Gutschein mit 0 % fuer genau diese Leistung erzeugte
+      // gar keinen Kandidaten (konditionen.js bildet ihn nur bei gSatz > 0), also blieb
+      // verworfen null -- und die Oberflaeche nannte den Code "ungueltig oder abgelaufen".
+      // Er ist weder das eine noch das andere: Er gilt, nur nicht hier.
+      // Eine 0-Prozent-Regel je Artikel ist die naheliegende Schreibweise fuer einen Ausschluss,
+      // und die Staffelregeln entstehen von Hand in der Datenbank -- es gibt keine Maske dafuer.
+      // gCode ist gesetzt, sobald der Code GEFUNDEN wurde; daran laesst sich der Fall erkennen.
       nicht_angewandt: w.verworfen === 'gutschein' && gCode ? { art: 'gutschein', code: gCode, rabatt_prozent: gSatz }
-                     : (w.verworfen === 'konditionen' ? { art: 'konditionen' } : null),
+                     : (w.verworfen === 'konditionen' ? { art: 'konditionen' }
+                     : (gCode && gSatz === 0 ? { art: 'gutschein_ohne_wirkung', code: gCode } : null)),
       brutto_vor_rabatt: w.brutto, rabatt_summe: r.summe,
       brutto_nach_rabatt: gutschein.round2(w.brutto - r.summe),
       listen_brutto: w.listen_brutto
