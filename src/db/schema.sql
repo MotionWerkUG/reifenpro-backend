@@ -44,6 +44,11 @@
 -- Fehler ist beim Aufraeumen aufgefallen, nicht beim Bauen -- deshalb gehoert der Abgleich in
 -- die Pruefliste und nicht ins Gedaechtnis.
 --
+-- VIERTER LAUF AM 09.09.2026: baujahr entfernt (Entscheidung des Inhabers -- massgeblich ist
+-- die Erstzulassung). Diesmal hat nicht das Gedaechtnis gewarnt, sondern
+-- scripts/schema-abgleich.sh: "zuviel in schema.sql: fahrzeuge.baujahr, kunden.baujahr".
+-- Genau dafuer gibt es das Skript.
+--
 -- GEGENGEPRUEFT: Auf einer leeren Wegwerf-Datenbank von vorn bis hinten durchgelaufen,
 -- Tabellenzahl, Spalten und Trigger gegen die Produktion verglichen.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
@@ -51,7 +56,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xhNLH98mSgkR0dRfXdwahh7JWcZhEWmmRyNmfwG5dXKdquktwlCUOBNGeKWXcQ0
+\restrict zLhpN1O3ZZoMcXsuaWFWbaiSYh13vC3QkyuuZsDZpbZcyzldMwmWZcRnrJSbKw9
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -581,7 +586,6 @@ CREATE TABLE public.fahrzeuge (
     marke text,
     modell text,
     kennzeichen text,
-    baujahr integer,
     hu_datum date,
     notiz text,
     erstellt_am timestamp with time zone DEFAULT now() NOT NULL,
@@ -716,7 +720,6 @@ CREATE TABLE public.kunden (
     kennzeichen text,
     fahrzeug_marke text,
     fahrzeug_modell text,
-    baujahr integer,
     portal_aktiv boolean DEFAULT false,
     portal_email text,
     portal_password text,
@@ -2406,7 +2409,7 @@ ALTER TABLE ONLY public.widerrufe
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xhNLH98mSgkR0dRfXdwahh7JWcZhEWmmRyNmfwG5dXKdquktwlCUOBNGeKWXcQ0
+\unrestrict zLhpN1O3ZZoMcXsuaWFWbaiSYh13vC3QkyuuZsDZpbZcyzldMwmWZcRnrJSbKw9
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Zugriffsrechte fuer den Anwendungsnutzer.
