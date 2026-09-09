@@ -103,10 +103,14 @@ async function spiegleFahrzeugInStamm(query, kundenId) {
   if (anzahl === 1) {
     const f = (await query('SELECT kennzeichen, marke, modell, hu_datum, erstzulassung, erstzulassung_genauigkeit FROM fahrzeuge WHERE kunden_id=$1', [kundenId])).rows[0];
     await query(
+      // OHNE COALESCE. Der Stamm ist ein SPIEGEL, kein Archiv: Was am Fahrzeug leer ist, muss
+      // auch hier leer sein. Mit COALESCE blieb ein altes HU-Datum stehen, obwohl das Fahrzeug
+      // keines mehr traegt -- und der Kunde bekaeme eine Erinnerung fuer einen Termin, den
+      // niemand eingetragen hat. Die urspruengliche Begruendung (Altdaten nicht wegwerfen) ist
+      // seit migration-fahrzeuge-aus-stamm.sql gegenstandslos: Altdaten gibt es hier keine mehr,
+      // sie stehen als echte Fahrzeugsaetze in fahrzeuge.
       `UPDATE kunden SET kennzeichen=$1, fahrzeug_marke=$2, fahrzeug_modell=$3,
-              hu_datum=COALESCE($4, hu_datum),
-              erstzulassung=COALESCE($5, erstzulassung),
-              erstzulassung_genauigkeit=COALESCE($6, erstzulassung_genauigkeit)
+              hu_datum=$4, erstzulassung=$5, erstzulassung_genauigkeit=$6
         WHERE id=$7`,
       [f.kennzeichen || null, f.marke || null, f.modell || null, f.hu_datum || null,
        f.erstzulassung || null, f.erstzulassung_genauigkeit || null, kundenId]);
@@ -122,7 +126,15 @@ async function spiegleFahrzeugInStamm(query, kundenId) {
   // mehr dastehen. Altdaten aus der Zeit vor der Fahrzeugliste sind kein Gegenargument: Sie
   // werden von migration-fahrzeuge-aus-stamm.sql in echte Fahrzeugsaetze ueberfuehrt, bevor
   // ueberhaupt jemand ein Fahrzeug anlegen kann.
-  await query('UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL WHERE id=$1', [kundenId]);
+  // ALLE sechs Felder, nicht nur die drei offensichtlichen. Bis zum 09.09.2026 blieben hu_datum,
+  // erstzulassung und erstzulassung_genauigkeit hier stehen -- die Portal-Sitzung hat es an einer
+  // Kopie nachgemessen: Fahrzeugseite "Noch keine Fahrzeuge erfasst", daneben "HU faellig 05/2027"
+  // fuer ein Fahrzeug, das es nicht mehr gibt. Derselbe Geisterwert wie beim Kennzeichen, nur an
+  // den Feldern, an die ich beim ersten Mal nicht gedacht habe.
+  await query(
+    `UPDATE kunden SET kennzeichen=NULL, fahrzeug_marke=NULL, fahrzeug_modell=NULL,
+            hu_datum=NULL, erstzulassung=NULL, erstzulassung_genauigkeit=NULL
+      WHERE id=$1`, [kundenId]);
   return { gespiegelt: false, anzahl };
 }
 
