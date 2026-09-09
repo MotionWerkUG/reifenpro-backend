@@ -70,6 +70,11 @@ router.get('/freie-slots', authKunde, async (req, res, next) => {
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0];
     if (!einst) return res.status(500).json({ error: 'Einstellungen fehlen' });
 
+    // Vor dem Buchungsstart gar keine Zeiten anbieten. Sonst waehlt der Kunde eine und bekommt
+    // erst beim Buchen die Absage -- die Sperre stand nur in POST /termine, nicht in der Anzeige.
+    const _sperreS = vorBuchungsstart(einst.buchbar_ab, datum);
+    if (_sperreS) return res.json({ slots: [], grund: _sperreS });
+
     // Artikel + Preisstaffel laden, effektive Dauer nach Typ/Zoll ermitteln.
     // Nur online freigegebene Leistungen -- sonst zeigt das Portal freie Zeiten fuer etwas an,
     // das anschliessend bei der Buchung abgelehnt wird.
@@ -482,6 +487,34 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
         [datum, uhrzeit_von, uhrzeit_bis, t.id, _vzNeu]);
       return r.rows[0];
     });
+    // Bestaetigung zum NEUEN Termin. Gleiche Vorlage wie beim Buchen, damit der Kunde nicht zwei
+    // verschiedene Schreiben zum selben Vorgang bekommt. Nachgemessen hatte das Verschieben gar
+    // keine Mail ausgeloest -- der Termin ist danach aber sofort bestaetigt, dann muss der Kunde
+    // auch etwas Schriftliches daruber haben.
+    // Nicht awaiten: Die Antwort soll nicht am Mailversand haengen, und ein Mailfehler darf das
+    // Verschieben nicht scheitern lassen -- verschoben ist der Termin dann bereits.
+    try {
+      const _k = req.kunde;
+      const _dF = new Date(String(datum).slice(0, 10) + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+      const _uz = String(uhrzeit_von).substring(0, 5);
+      const _html = kundenMailHtml(einst || {}, {
+        anrede: _k.anrede, vorname: _k.vorname, nachname: _k.nachname,
+        titel: 'Ihr Termin wurde verschoben',
+        // Wie bei Bestaetigung und Storno aus den Einstellungen, falls dort gepflegt. Die Spalte
+        // muss nicht existieren -- fehlt sie, greift der Standardtext. So kann die Admin-Seite
+        // das Feld ergaenzen, ohne dass ich an der Produktionsdatenbank arbeite.
+        text: (einst && einst.email_termin_verschoben)
+            || 'Ihr Termin wurde auf {datum} um {uhrzeit} Uhr verschoben ({leistung}). '
+            + 'Bis {stornofrist} Stunden vorher können Sie ihn im Kundenportal erneut ändern oder absagen.',
+        vars: {
+          vorname: _k.vorname || '', nachname: _k.nachname || '', kennzeichen: t.kennzeichen || _k.kennzeichen || '',
+          datum: _dF, uhrzeit: _uz, leistung: t.termin_typ || '',
+          stornofrist: fristH, portal_url: (einst && einst.portal_url) || '',
+          telefon: (einst && einst.telefon) || '', firmenname: (einst && einst.firmenname) || 'Schröder & Scholz'
+        }
+      });
+      sendMail(_k.portal_email, 'Termin verschoben — ' + _dF + ' ' + _uz, _html).catch(() => {});
+    } catch (mailFehler) { /* Verschieben ist erfolgt; eine misslungene Mail aendert daran nichts */ }
     res.json(updated);
   } catch (e) {
     if (e && e.status) return res.status(e.status).json({ error: e.message });
@@ -728,6 +761,31 @@ router.get('/dokumente/:id', authKunde, async (req, res, next) => {
 const FAHRZEUG_TYPEN = ['PKW', 'SUV', 'Transporter', 'Motorrad', 'Sonstiges'];
 
 // Spiegelt das zuletzt gepflegte Fahrzeug in die Kunden-Stammfelder (Suche/Profil/Buchung/HU)
+// HU-Datum aus dem Formular annehmbar machen. Ein Monatsfeld (type="month") liefert
+// 'YYYY-MM' -- ohne Tag lehnt Postgres das Einfuegen ab und die Route antwortete mit 500.
+// Rueckgabe: { wert } bei Erfolg, { fehler } bei unlesbarer Eingabe.
+function huDatumPruefen(roh) {
+  if (roh == null || String(roh).trim() === '') return { wert: null };
+  const v = String(roh).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    // Form allein genuegt nicht: '2027-02-30' und '2027-13-01' passen auf das Muster, sind aber
+    // keine Kalendertage und liessen die Datenbank scheitern -- also derselbe 500 wie vorher,
+    // nur fuer einen Vertipper statt fuer ein Monatsfeld. Rundlauf ueber Date: Nur wenn Jahr,
+    // Monat und Tag unveraendert zurueckkommen, hat der Tag wirklich existiert.
+    const teile = v.split('-').map(Number);
+    const d = new Date(Date.UTC(teile[0], teile[1] - 1, teile[2]));
+    if (d.getUTCFullYear() === teile[0] && d.getUTCMonth() === teile[1] - 1 && d.getUTCDate() === teile[2]) return { wert: v };
+    return { fehler: 'Dieses Datum gibt es nicht. Bitte prüfen Sie Tag und Monat.' };
+  }
+  // Monat ohne Tag: Der Kunde meint den Monat, wir legen den Ersten zugrunde.
+  const m = v.match(/^(\d{4})-(\d{1,2})$/);
+  if (m) {
+    const monat = parseInt(m[2], 10);
+    if (monat >= 1 && monat <= 12) return { wert: m[1] + '-' + String(monat).padStart(2, '0') + '-01' };
+  }
+  return { fehler: 'Bitte geben Sie das HU-Datum als Monat und Jahr an (zum Beispiel 04/2027).' };
+}
+
 async function syncKundeFz(kundenId, fz) {
   if (!fz) return;
   await query(
@@ -751,6 +809,8 @@ router.get('/fahrzeuge', authKunde, async (req, res, next) => {
 router.post('/fahrzeuge', authKunde, async (req, res, next) => {
   try {
     const { typ, baujahr, hu_datum } = req.body;
+    const _hu = huDatumPruefen(hu_datum);
+    if (_hu.fehler) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
     // Freitext von HTML-Zeichen befreien (landet unescaped in Werkstatt-/Bestaetigungs-/HU-Mails) + Laengen-Cap.
     const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
     const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
@@ -761,7 +821,7 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
     const { rows } = await query(
       `INSERT INTO fahrzeuge (kunden_id, typ, marke, modell, kennzeichen, baujahr, hu_datum, notiz)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [req.kunde.id, t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz]
+      [req.kunde.id, t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, _hu.wert, notiz]
     );
     await syncKundeFz(req.kunde.id, rows[0]);
     res.status(201).json(rows[0]);
@@ -771,6 +831,8 @@ router.post('/fahrzeuge', authKunde, async (req, res, next) => {
 router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
   try {
     const { typ, baujahr, hu_datum } = req.body;
+    const _hu = huDatumPruefen(hu_datum);
+    if (_hu.fehler) return res.status(400).json({ code: 'HU_DATUM_UNGUELTIG', error: _hu.fehler });
     // Freitext von HTML-Zeichen befreien (Mails) + Laengen-Cap.
     const clean = (s, n) => s == null ? null : String(s).replace(/[<>]/g, '').slice(0, n);
     const marke = clean(req.body.marke, 60), modell = clean(req.body.modell, 60);
@@ -781,7 +843,7 @@ router.put('/fahrzeuge/:id', authKunde, async (req, res, next) => {
     const { rows } = await query(
       `UPDATE fahrzeuge SET typ=$1, marke=$2, modell=$3, kennzeichen=$4, baujahr=$5, hu_datum=$6, notiz=$7, geaendert_am=NOW()
        WHERE id=$8 AND kunden_id=$9 RETURNING *`,
-      [t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, hu_datum || null, notiz, req.params.id, req.kunde.id]
+      [t, marke, modell, kennzeichen, baujahr ? parseInt(baujahr) : null, _hu.wert, notiz, req.params.id, req.kunde.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Fahrzeug nicht gefunden' });
     await syncKundeFz(req.kunde.id, rows[0]);

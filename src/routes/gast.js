@@ -240,6 +240,15 @@ router.get('/slots', stoeberLimiter, async (req, res, next) => {
       } else dauer = 30;
     }
     dauer = Math.min(dauer, 480);
+    // Wie im Portal: Vor dem Buchungsstart keine Zeiten anbieten. Die Sperre stand bisher nur im
+    // Buchen -- der Besucher sah freie Zeiten fuer morgen, obwohl erst ab dem Starttag gebucht
+    // werden kann, waehlte eine und bekam erst dann die Absage. Nachgemessen: 34 Zeiten fuer
+    // morgen bei buchbar_ab = 01.10.
+    // to_char wie in /leistungen, damit hier derselbe String-Vergleich greift wie beim Buchen.
+    const _eS = (await query("SELECT to_char(buchbar_ab,'YYYY-MM-DD') AS buchbar_ab FROM einstellungen ORDER BY id LIMIT 1")).rows[0];
+    if (_eS && _eS.buchbar_ab && datum < _eS.buchbar_ab) {
+      return res.json({ slots: [], grund: 'Online-Buchungen sind erst ab dem ' + _eS.buchbar_ab.split('-').reverse().join('.') + ' möglich.' });
+    }
     const r = await freieSlots(datum, dauer);
     if (r.error) return res.status(400).json({ error: r.error });
     res.json(r);
