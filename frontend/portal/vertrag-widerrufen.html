@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Vertrag widerrufen — Schröder &amp; Scholz</title>
+<style>
+  :root, :root[data-theme="light"] { --bg:#f3f2ef; --panel:#ffffff; --text:#201e1b; --muted:#6f6a61; --accent:#eab308; --accent-text:#87680c; --border:#e2ddd3; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --border:#2a3441; } }
+  :root[data-theme="dark"] { --bg:#0d1117; --panel:#161b22; --text:#e6edf3; --muted:#8b949e; --accent:#eab308; --accent-text:#eec33a; --border:#2a3441; }
+  .wm-tx { fill: var(--text); } .wm-sub { fill: var(--muted); }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; font-size:15px; }
+  .wrap { max-width:640px; margin:0 auto; padding:32px 22px 60px; }
+  .logo { display:flex; align-items:center; margin-bottom:8px; }
+  h1 { font-size:24px; margin:24px 0 6px; font-weight:800; }
+  p { margin-bottom:12px; }
+  .meta { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  a { color:var(--accent-text); }
+  .lang-toggle { position:fixed; top:14px; right:14px; display:flex; gap:4px; }
+  .lang-toggle button { background:var(--panel); border:1px solid var(--border); border-radius:7px; color:var(--muted); padding:5px 11px; cursor:pointer; font-weight:700; font-size:12px; }
+  .lang-toggle button.on { background:var(--accent); color:#171717; border-color:var(--accent-text); }
+  .karte { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px 20px 22px; margin-top:18px; }
+  label { display:block; font-size:13px; font-weight:600; margin:14px 0 5px; }
+  .hint { font-size:12px; color:var(--muted); font-weight:400; margin-top:3px; }
+  input, textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:11px 12px; color:var(--text); font-size:15px; font-family:inherit; }
+  input:focus, textarea:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  textarea { min-height:84px; resize:vertical; }
+  .knopf { width:100%; margin-top:22px; background:var(--accent); color:#171717; border:0; border-radius:9px; padding:14px 18px; font-size:16px; font-weight:800; cursor:pointer; }
+  .knopf:disabled { opacity:.55; cursor:default; }
+  .hp { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  .fehler { margin-top:14px; padding:11px 13px; border-radius:9px; background:rgba(200,64,42,.1); border:1px solid rgba(200,64,42,.4); color:#c8402a; font-size:14px; }
+  .ok { background:rgba(62,207,142,.1); border:1px solid rgba(62,207,142,.42); border-radius:12px; padding:20px; margin-top:18px; }
+  .ok h2 { font-size:18px; margin-bottom:8px; }
+  .hinweis { background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.25); border-radius:10px; padding:14px 16px; font-size:13px; color:var(--muted); margin-top:20px; }
+  .back { display:inline-block; margin-top:24px; color:var(--accent-text); text-decoration:none; font-weight:600; }
+</style>
+<script>(function(){try{var t=localStorage.getItem('rp_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+</head>
+<body>
+<div class="lang-toggle">
+  <button id="wl-de" class="on" onclick="setLang('de')">DE</button>
+  <button id="wl-en" onclick="setLang('en')">EN</button>
+</div>
+<div class="wrap">
+  <div class="logo">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 100" width="240" height="43"><text x="0" y="52" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="42" font-weight="800" letter-spacing="-1.5" class="wm-tx">SCHRÖDER <tspan fill="#eab308">&amp;</tspan> SCHOLZ</text><rect x="2" y="68" width="46" height="5" fill="#eab308"/><text x="58" y="74" font-family="-apple-system,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="600" letter-spacing="3.5" class="wm-sub">REIFENSERVICE UND FAHRZEUGTECHNIK</text></svg>
+  </div>
+  <div id="inhalt"></div>
+  <a href="/portal/widerruf.html" class="back" id="zurueck">&larr; Zur Widerrufsbelehrung</a>
+</div>
+<script>
+// Elektronische Widerrufsfunktion nach Paragraf 356a BGB (in Kraft seit 19.06.2026).
+//
+// Dies ist die zweite Stufe: Die erste Stufe ist die Schaltflaeche "Vertrag widerrufen", die in
+// der Fussleiste jeder Seite steht und hierher fuehrt. Das Gesetz verlangt genau drei Angaben --
+// Name, Angaben zur Identifizierung des Vertrags und ein elektronisches Kommunikationsmittel fuer
+// die Eingangsbestaetigung. MEHR ZU FRAGEN IST RECHTLICH RISKANT: Jede zusaetzliche Huerde kann
+// als Erschwerung des Widerrufs gewertet werden. Darum steht hier bewusst kein Grund-Feld, keine
+// Kundennummer und keine Anmeldung.
+//
+// Die Bestaetigung des Eingangs erfolgt per E-Mail, nicht auf dieser Seite: Das Gesetz verlangt
+// einen dauerhaften Datentraeger, und eine Webseite ist keiner.
+var API = (location.pathname.indexOf('/reifenpro/') === 0) ? '/reifenpro/api' : '/api';
+var LANG = 'de';
+
+var T = {
+  de: {
+    titel: 'Vertrag widerrufen',
+    meta: 'Hier können Sie einen bei uns online oder telefonisch geschlossenen Vertrag widerrufen — ohne Angabe von Gründen.',
+    einleitung: 'Füllen Sie die drei Felder aus und bestätigen Sie Ihren Widerruf. Wir senden Ihnen anschließend sofort eine Eingangsbestätigung per E-Mail. Ihr Widerruf ist bereits mit dem Eingang wirksam.',
+    lName: 'Ihr Name',
+    hName: 'Vor- und Nachname, so wie bei der Buchung angegeben.',
+    lVertrag: 'Welchen Vertrag möchten Sie widerrufen?',
+    hVertrag: 'Zum Beispiel: „Termin am 14.10.2026 um 09:30 Uhr, Räderwechsel, L-PT-1234".',
+    lMail: 'Ihre E-Mail-Adresse',
+    hMail: 'An diese Adresse senden wir die gesetzlich vorgeschriebene Eingangsbestätigung.',
+    knopf: 'Widerruf bestätigen',
+    sende: 'Wird gesendet …',
+    okTitel: 'Ihr Widerruf ist bei uns eingegangen',
+    okText: 'Eingegangen am <strong>{zeit}</strong>. Wir haben Ihnen soeben eine Eingangsbestätigung an <strong>{mail}</strong> gesendet — bitte bewahren Sie sie auf.',
+    okMailFehlt: 'Eingegangen am <strong>{zeit}</strong>. Ihr Widerruf ist damit wirksam. Die Bestätigungsmail an <strong>{mail}</strong> konnte gerade nicht zugestellt werden — wir senden sie Ihnen von Hand nach.',
+    okTermin: 'Haben Sie einen Termin bei uns? Dann müssen Sie nichts weiter tun — wir sagen ihn für Sie ab.',
+    zurueck: '← Zur Widerrufsbelehrung',
+    fehlerAllg: 'Ihr Widerruf konnte nicht übermittelt werden. Bitte versuchen Sie es erneut oder schreiben Sie uns eine E-Mail.'
+  },
+  en: {
+    titel: 'Withdraw from contract',
+    meta: 'Here you can withdraw from a contract concluded with us online or by telephone — no reason required.',
+    einleitung: 'Fill in the three fields and confirm your withdrawal. We will immediately send you a confirmation of receipt by email. Your withdrawal takes effect upon receipt.',
+    lName: 'Your name',
+    hName: 'First and last name, as given when booking.',
+    lVertrag: 'Which contract do you wish to withdraw from?',
+    hVertrag: 'For example: "Appointment on 14/10/2026 at 09:30, wheel change, L-PT-1234".',
+    lMail: 'Your email address',
+    hMail: 'We will send the legally required confirmation of receipt to this address.',
+    knopf: 'Confirm withdrawal',
+    sende: 'Sending …',
+    okTitel: 'We have received your withdrawal',
+    okText: 'Received on <strong>{zeit}</strong>. We have just sent a confirmation of receipt to <strong>{mail}</strong> — please keep it.',
+    okMailFehlt: 'Received on <strong>{zeit}</strong>. Your withdrawal is effective. The confirmation email to <strong>{mail}</strong> could not be delivered just now — we will send it manually.',
+    okTermin: 'Do you have an appointment with us? Then there is nothing further to do — we will cancel it for you.',
+    zurueck: '← To the withdrawal policy',
+    fehlerAllg: 'Your withdrawal could not be transmitted. Please try again or send us an email.'
+  }
+};
+
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function t() { return T[LANG]; }
+
+function setLang(l) {
+  LANG = l;
+  document.getElementById('wl-de').classList.toggle('on', l === 'de');
+  document.getElementById('wl-en').classList.toggle('on', l === 'en');
+  document.documentElement.lang = l;
+  document.title = t().titel + ' — Schröder & Scholz';
+  document.getElementById('zurueck').textContent = t().zurueck;
+  formular();
+}
+
+function formular(fehler) {
+  var x = t();
+  document.getElementById('inhalt').innerHTML =
+    '<h1>' + esc(x.titel) + '</h1>' +
+    '<div class="meta">' + esc(x.meta) + '</div>' +
+    '<p>' + esc(x.einleitung) + '</p>' +
+    '<div class="karte">' +
+      '<label for="w-name">' + esc(x.lName) + '<div class="hint">' + esc(x.hName) + '</div></label>' +
+      '<input id="w-name" type="text" autocomplete="name" maxlength="200">' +
+      '<label for="w-vertrag">' + esc(x.lVertrag) + '<div class="hint">' + esc(x.hVertrag) + '</div></label>' +
+      '<textarea id="w-vertrag" maxlength="1000"></textarea>' +
+      '<label for="w-mail">' + esc(x.lMail) + '<div class="hint">' + esc(x.hMail) + '</div></label>' +
+      '<input id="w-mail" type="email" autocomplete="email" maxlength="200">' +
+      '<div class="hp"><label>Website<input id="w-hp" type="text" tabindex="-1" autocomplete="off"></label></div>' +
+      (fehler ? '<div class="fehler">' + esc(fehler) + '</div>' : '') +
+      '<button class="knopf" id="w-send" onclick="senden()">' + esc(x.knopf) + '</button>' +
+    '</div>';
+}
+
+function senden() {
+  var x = t();
+  var knopf = document.getElementById('w-send');
+  knopf.disabled = true; knopf.textContent = x.sende;
+  var mail = document.getElementById('w-mail').value.trim();
+  fetch(API + '/widerrufe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: document.getElementById('w-name').value,
+      vertrag: document.getElementById('w-vertrag').value,
+      email: mail,
+      website: document.getElementById('w-hp').value
+    })
+  }).then(function(r) {
+    return r.json().catch(function() { return {}; }).then(function(d) {
+      if (!r.ok) throw new Error(d.error || x.fehlerAllg);
+      return d;
+    });
+  }).then(function(d) {
+    var zeit = new Date(d.eingegangen_am || Date.now()).toLocaleString(LANG === 'de' ? 'de-DE' : 'en-GB',
+      { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    var text = (d.bestaetigung_gesendet === false ? x.okMailFehlt : x.okText)
+      .replace('{zeit}', esc(zeit)).replace('{mail}', esc(mail));
+    document.getElementById('inhalt').innerHTML =
+      '<h1>' + esc(x.titel) + '</h1>' +
+      '<div class="ok"><h2>' + esc(x.okTitel) + '</h2><p>' + text + '</p><p>' + esc(x.okTermin) + '</p></div>';
+    window.scrollTo(0, 0);
+  }).catch(function(e) {
+    formular(e.message || x.fehlerAllg);
+  });
+}
+
+formular();
+</script>
+</body>
+</html>
