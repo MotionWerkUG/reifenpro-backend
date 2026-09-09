@@ -731,7 +731,10 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
       <!-- DSGVO -->
       <div class="page" id="page-dsgvo">
-        <div class="ph"><div class="pt">DSGVO-Anfragen</div></div>
+        <div class="ph"><div class="pt">Datenschutz und Recht</div></div>
+        <div class="ptitle" style="margin-bottom:8px">Widerrufe (&sect; 356a BGB)</div>
+        <div id="widerrufe-liste"></div>
+        <div class="ptitle" style="margin:22px 0 8px">DSGVO-Anfragen</div>
         <div id="dsgvo-liste"></div>
       </div>
 
@@ -2792,6 +2795,13 @@ function fd(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
+// Datum MIT Uhrzeit. Bei Widerrufen ist die Minute die fristwahrende Tatsache, nicht der Tag.
+function fdz(d) {
+  if (!d) return '-';
+  var x = new Date(d);
+  return x.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+    ' um ' + x.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr';
+}
 function sbadge(s) {
   var m = { 'Eingelagert': 'b-r', 'Abholbereit': 'b-y', 'Abgeholt': 'b-g' };
   return '<span class="badge ' + (m[s] || 'b-b') + '">' + s + '</span>';
@@ -4699,6 +4709,87 @@ function ntVorausfuellen(datum, zeit) {
 // Anschrift, Einwilligungen und Rechnungsdaten braucht und deshalb beim Inhaber liegt.
 // Entscheidung des Inhabers: Neukunden nimmt er selbst auf. Entfernt, nicht ausgeblendet -- die
 // Rolle "Werkstatt" darf Kunden ohnehin nur noch ansehen.
+// ── Zustimmung zum vorzeitigen Leistungsbeginn (§ 356 Abs. 4 / § 357a Abs. 2 BGB) ────────────
+// Ein am TELEFON vereinbarter Termin ist ein Fernabsatzvertrag: 14 Tage Widerrufsrecht ab
+// Vertragsschluss. Fast jeder Termin liegt darin. Wer ohne ausdrueckliche Zustimmung arbeitet und
+// der Kunde widerruft danach, bekommt keinen Cent -- § 357a Abs. 2 BGB verlangt genau dieses
+// Verlangen fuer den Wertersatz. Am TRESEN vereinbarte Termine sind nicht betroffen (persoenlicher
+// Kontakt, kein Fernabsatz) -- welcher Fall vorliegt, weiss nur der Betrieb, darum die Nachfrage.
+function zFristende(erstelltAm) {
+  // Fehlt der Vertragszeitpunkt, rechnet das Backend (zustimmungNoetig) ab HEUTE. Die Oberflaeche
+  // muss dasselbe tun, sonst verschweigt sie einen Termin, den der Server sehr wohl fuer
+  // zustimmungspflichtig haelt.
+  var roh = String(erstelltAm || '').slice(0, 10);
+  var v = new Date((/^\d{4}-\d{2}-\d{2}$/.test(roh) ? roh : new Date().toISOString().slice(0, 10)) + 'T12:00:00');
+  if (isNaN(v)) return null;
+  return new Date(v.getTime() + 14 * 86400000);
+}
+function zInFrist(t) {
+  var ende = zFristende(t.erstellt_am);
+  if (!ende || !t.datum) return false;
+  return new Date(String(t.datum).slice(0, 10) + 'T12:00:00') < ende;
+}
+function zustimmungBlock(t) {
+  if (t.vorzeitige_leistung === true) {
+    var q = t.vorzeitige_leistung_quelle || '';
+    var woher = q === 'mail' ? 'per E-Mail bestätigt' : (q === 'portal' || q === 'buchung' ? 'bei der Buchung erteilt' : (q || 'erteilt'));
+    return '<div style="margin-top:12px;padding:9px 11px;border-radius:8px;background:rgba(62,207,142,.1);border:1px solid rgba(62,207,142,.35)">' +
+      '<div style="font-size:12px;font-weight:600;color:#3ecf8e">Zustimmung zur Ausführung liegt vor</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:3px">' + kEsc(woher) +
+      (t.vorzeitige_leistung_am ? ' am ' + fd(t.vorzeitige_leistung_am) : '') + '</div></div>';
+  }
+  if (t.status === 'storniert' || t.status === 'abgesagt' || t.status === 'nicht_erschienen') return '';
+  if (!zInFrist(t)) return '';
+  var ende = zFristende(t.erstellt_am);
+  return '<div style="margin-top:12px;padding:10px 11px;border-radius:8px;background:rgba(232,80,42,.09);border:1px solid rgba(232,80,42,.35)">' +
+    '<div style="font-size:12px;font-weight:600;color:var(--accent)">Keine Zustimmung zur vorzeitigen Ausführung</div>' +
+    '<div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5">' +
+    'Der Termin liegt in der 14-tägigen Widerrufsfrist (läuft bis ' + fd(ende) + '). ' +
+    'Wurde er am <strong>Telefon</strong> vereinbart, brauchen wir vor der Arbeit die Zustimmung des Kunden — ' +
+    'sonst kann er nach getaner Arbeit widerrufen, ohne zu zahlen.<br>' +
+    'Am <strong>Tresen</strong> vereinbart? Dann ist nichts zu tun.</div>' +
+    // Nur mit Schreibrecht am Kalender: Wer den Termin nur ansehen darf, bekaeme sonst Knoepfe,
+    // die der Server mit 403 abweist.
+    (!BEREICHE || BEREICHE['kalender'] === 'bearbeiten'
+      ? '<div style="display:flex;gap:7px;margin-top:9px;flex-wrap:wrap">' +
+        '<button class="btn btn-p btn-sm" id="zk-mail" onclick="zustimmungAnfordern(\'' + t.id + '\')">Bestätigung per E-Mail anfordern</button>' +
+        '<button class="btn btn-g btn-sm" id="zk-tel" onclick="zustimmungTelefonisch(\'' + t.id + '\')">Am Telefon zugestimmt</button>' +
+        '</div>'
+      : '<div style="font-size:11px;color:var(--muted);margin-top:7px">Bitte den Inhaber informieren — die Zustimmung nimmt er auf.</div>') +
+    '</div>';
+}
+function zustimmungNachladen(id) {
+  return api('GET', '/termine/' + id).then(function(r) {
+    if (!r || !r.id) return;
+    var i = allTermine.findIndex(function(x) { return x.id === id; });
+    if (i >= 0) allTermine[i] = r; else allTermine.push(r);
+    zeigeTermin(id);
+  });
+}
+function zSperren(sperren) {
+  // Ein schneller Doppelklick wuerde sonst zwei Mails mit zwei Kennungen ausloesen -- die erste
+  // Mail traegt dann einen Link, der bereits ungueltig ist.
+  ['zk-mail', 'zk-tel'].forEach(function(id) {
+    var b = document.getElementById(id); if (b) b.disabled = sperren;
+  });
+}
+function zustimmungAnfordern(id) {
+  zSperren(true);
+  api('POST', '/zustimmung/anfordern/' + id).then(function(r) {
+    if (!r) return;
+    notify(r.message || 'Bestätigungsmail gesendet.', 'ok');
+    return zustimmungNachladen(id);
+  }).catch(function(e) { zSperren(false); notify(e.message, 'err'); });
+}
+function zustimmungTelefonisch(id) {
+  if (!confirm('Hat der Kunde am Telefon ausdrücklich zugestimmt, dass wir den Termin vor Ablauf seiner 14-tägigen Widerrufsfrist ausführen — und weiß er, dass sein Widerrufsrecht damit erlischt, sobald die Leistung vollständig erbracht ist?')) return;
+  zSperren(true);
+  api('POST', '/zustimmung/telefonisch/' + id).then(function(r) {
+    if (!r) return;
+    notify(r.message || 'Zustimmung vermerkt.', 'ok');
+    return zustimmungNachladen(id);
+  }).catch(function(e) { zSperren(false); notify(e.message, 'err'); });
+}
 function zeigeTermin(id) {
   var t = allTermine.find(function(x) { return x.id === id; });
   if (!t) { api('GET', '/termine/' + id).then(function(r) { if (r && r.id) { allTermine.push(r); zeigeTermin(id); } else notify('Termin nicht gefunden.', 'err'); }).catch(function() { notify('Termin nicht gefunden.', 'err'); }); return; }
@@ -4736,6 +4827,7 @@ function zeigeTermin(id) {
     (t.beschreibung ? '<div>' + iz('Beschreibung', t.beschreibung) + '</div>' : '') +
     (t.notizen_intern ? '<div>' + iz('Interne Notizen', t.notizen_intern) + '</div>' : '') +
     '</div>' +
+    zustimmungBlock(t) +
     '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' + btns + '</div>';
   openModal('td');
 }
@@ -6289,8 +6381,62 @@ function userRolleWechseln(uid) {
     .catch(function(e) { notify(e.message, 'err'); });
 }
 
+// ── WIDERRUFE (§ 356a BGB) ──
+// Ein Widerruf ist mit seinem EINGANG wirksam, nicht mit unserer Bearbeitung. Er darf deshalb
+// nicht in einem Postfach liegenbleiben: Der Termin muss abgesagt und bereits geleistete
+// Zahlungen muessen innerhalb von 14 Tagen erstattet werden. Darum steht die Liste oben und
+// offene Eintraege sind rot.
+function loadWiderrufe() {
+  api('GET', '/widerrufe').then(function(r) { renderWiderrufe(r || []); }).catch(function() {});
+}
+function renderWiderrufe(liste) {
+  var el = document.getElementById('widerrufe-liste'); if (!el) return;
+  if (!liste.length) { el.innerHTML = '<div class="empty">Keine Widerrufe eingegangen.</div>'; return; }
+  el.innerHTML = liste.map(function(w) {
+    var offen = w.status === 'offen';
+    var badgeCls = offen ? 'b-r' : (w.status === 'abgelehnt' ? 'b-b' : 'b-g');
+    var badgeTxt = offen ? 'Offen' : (w.status === 'abgelehnt' ? 'Abgelehnt' : 'Bearbeitet');
+    return '<div style="background:var(--panel);border:1px solid ' + (offen ? 'rgba(232,80,42,.5)' : 'var(--border)') + ';border-radius:10px;padding:14px;margin-bottom:10px">' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap">' +
+      '<div style="min-width:240px;flex:1">' +
+      '<div style="font-weight:700;font-size:14px">' + kEsc(w.name) + '</div>' +
+      '<div style="font-size:12px;color:var(--muted);margin-top:2px">' + kEsc(w.kontakt_email) +
+        (w.kunden_nr ? ' · ' + kEsc(w.kunden_nr) : '') + '</div>' +
+      '<div style="margin-top:6px"><span class="badge ' + badgeCls + '">' + badgeTxt + '</span>' +
+      '<span style="font-size:11px;color:var(--muted);margin-left:8px">Eingegangen ' + fdz(w.eingegangen_am) + '</span></div>' +
+      '<div style="font-size:12px;margin-top:6px;padding:8px;background:var(--bg);border-radius:6px;border-left:3px solid var(--accent)">' + kEsc(w.vertrag_angabe) + '</div>' +
+      (w.termin_datum
+        ? '<div style="font-size:12px;color:var(--muted);margin-top:5px">Zugeordneter Termin: ' + fd(w.termin_datum) + ' ' + String(w.termin_zeit || '').substring(0,5) + ' (' + kEsc(w.termin_status || '') + ')</div>'
+        : '<div style="font-size:12px;color:var(--accent);margin-top:5px">Kein Termin automatisch zugeordnet — bitte im Kalender suchen.</div>') +
+      (w.bestaetigung_gesendet_am
+        ? '<div style="font-size:11px;color:var(--muted);margin-top:4px">Eingangsbestätigung gesendet ' + fdz(w.bestaetigung_gesendet_am) + '</div>'
+        : '<div style="font-size:11px;color:#c8402a;margin-top:4px;font-weight:600">Eingangsbestätigung NICHT gesendet — gesetzlich vorgeschrieben, bitte von Hand nachholen.</div>') +
+      (w.notiz ? '<div style="font-size:12px;margin-top:6px;color:var(--muted)">Notiz: ' + kEsc(w.notiz) + '</div>' : '') +
+      '</div>' +
+      (offen ? '<div style="display:flex;flex-direction:column;gap:6px">' +
+        '<button class="btn btn-grn btn-sm" onclick="widerrufErledigt(\'' + w.id + '\')">Erledigt</button>' +
+        '<button class="btn btn-g btn-sm" onclick="widerrufAbgelehnt(\'' + w.id + '\')">Ablehnen</button></div>' : '') +
+      '</div></div>';
+  }).join('');
+}
+function widerrufErledigt(id) {
+  var n = prompt('Was wurde veranlasst? (Termin abgesagt, Betrag erstattet …)', 'Termin abgesagt, keine Zahlung eingegangen');
+  if (n === null) return;
+  api('PUT', '/widerrufe/' + id, { status: 'bearbeitet', notiz: n })
+    .then(function() { notify('Widerruf abgehakt.'); loadWiderrufe(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+function widerrufAbgelehnt(id) {
+  var n = prompt('Warum wird der Widerruf abgelehnt? Bitte begründen — die Ablehnung eines wirksamen Widerrufs ist rechtlich heikel.', '');
+  if (!n) return;
+  api('PUT', '/widerrufe/' + id, { status: 'abgelehnt', notiz: n })
+    .then(function() { notify('Vermerkt.'); loadWiderrufe(); })
+    .catch(function(e) { notify(e.message, 'err'); });
+}
+
 // ── DSGVO-ANFRAGEN ──
 function loadDsgvo() {
+  loadWiderrufe();
   api('GET', '/dsgvo').then(function(r) { renderDsgvo(r || []); }).catch(function() {});
 }
 function renderDsgvo(liste) {

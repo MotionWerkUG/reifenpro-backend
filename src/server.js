@@ -82,6 +82,8 @@ app.use('/api', rechte.torwaechter(authenticate));
 app.use('/api/auth',                       require('./routes/auth'));
 app.use('/api/users',                      require('./routes/users'));
 app.use('/api/rollen',                     require('./routes/rollen'));
+app.use('/api/zustimmung',                 require('./routes/zustimmung'));
+app.use('/api/widerrufe',                  require('./routes/widerrufe'));
 app.use('/api/kunden',                     require('./routes/kunden'));
 app.use('/api/einlagerungen',              require('./routes/einlagerungen'));
 app.use('/api/einstellungen',              require('./routes/einstellungen'));

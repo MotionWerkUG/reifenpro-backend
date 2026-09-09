@@ -31,7 +31,8 @@ const BEREICH_JE_PFAD = {
   users:        'einstellungen',   // Benutzerverwaltung liegt in den Einstellungen
   rollen:       'einstellungen',   // Rollenverwaltung ebenso
   dokumente:    'kunden',          // Kundendokumente haengen an der Kundenakte
-  zustimmung:   'kalender'         // Zustimmung gehoert zum Termin
+  zustimmung:   'kalender',        // Zustimmung gehoert zum Termin
+  widerrufe:    'datenschutz'      // Widerrufe nach § 356a BGB -- Recht, nicht Kalender
 };
 
 // Diese Pfade tragen ihre eigene Pruefung und duerfen NICHT ueber Rollen laufen:
