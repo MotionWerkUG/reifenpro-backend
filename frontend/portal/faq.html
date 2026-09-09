@@ -74,11 +74,14 @@ function oeffnungszeiten(de) {
       z.push((j > i ? namen[i] + '–' + namen[j] : namen[i]) + ': ' + txt);
       i = j + 1;
     }
-  } else {
-    if (f.mo_fr_von && f.mo_fr_bis) z.push((de ? 'Mo–Fr: ' : 'Mon–Fri: ') + hm(f.mo_fr_von) + '–' + hm(f.mo_fr_bis));
-    if (f.sa_offen && f.sa_von && f.sa_bis) z.push((de ? 'Sa: ' : 'Sat: ') + hm(f.sa_von) + '–' + hm(f.sa_bis));
-    if (f.so_offen && f.so_von && f.so_bis) z.push((de ? 'So: ' : 'Sun: ') + hm(f.so_von) + '–' + hm(f.so_bis));
   }
+  // KEIN Rueckfall mehr auf die Alt-Felder mo_fr_*, sa_*, so_*. Sie kennen nur EINEN Mo-Fr-Block,
+  // keine Sa/So-Mittagspause und zeigen tagesgenau gepflegte Zeiten falsch an -- eine zweite
+  // Wahrheit, die niemand mehr pflegt. Massgeblich ist allein das Wochenraster aus der Tabelle
+  // oeffnungszeiten.
+  // Ist die Tabelle leer, liefert der Server woche=null und hier steht der ehrliche Satz
+  // "Bitte erfragen Sie unsere aktuellen Oeffnungszeiten" -- besser als Zeiten aus einer Quelle,
+  // die seit Monaten niemand angefasst hat.
   if (!z.length) return de ? 'Bitte erfragen Sie unsere aktuellen Öffnungszeiten.' : 'Please ask for our current opening hours.';
   var out = z.join('<br>');
   if (f.oeffnungszeiten_hinweis) out += '<br><span style="color:var(--muted);font-size:14px">' + esc(f.oeffnungszeiten_hinweis) + '</span>';
@@ -113,6 +116,22 @@ function render() {
   document.getElementById('faq-content').innerHTML = html;
 }
 lade();
+</script>
+<div style="max-width:820px;margin:26px auto 34px;padding:0 18px;text-align:center">
+  <!-- Paragraf 356a BGB verlangt, dass der Widerruf GUT SICHTBAR erreichbar ist. Vorher stand
+       er nur als Textzeile in der Portal-Fusszeile und auf diesen Seiten gar nicht. -->
+  <a href="vertrag-widerrufen.html" id="widerruf-knopf"
+     style="display:inline-block;background:var(--accent);color:#171717;padding:11px 22px;border-radius:9px;font-weight:800;text-decoration:none">Vertrag widerrufen</a>
+</div>
+<script>
+(function () {
+  // Zweisprachig wie der Rest der Seite: dieselbe Quelle (localStorage), damit der Knopf nicht
+  // als einziges Element deutsch bleibt, wenn der Kunde auf Englisch liest.
+  try {
+    var en = (localStorage.getItem("rp_portal_lang") || "de") === "en";
+    if (en) document.getElementById("widerruf-knopf").textContent = "Withdraw from contract";
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>
