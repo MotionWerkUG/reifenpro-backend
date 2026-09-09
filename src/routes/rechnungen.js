@@ -1395,7 +1395,7 @@ router.post('/:id/erstattung', requireAdmin, async (req, res, next) => {
 
     const beleg = kasse.belegAus(antwort);
     const upd = await query(
-      `UPDATE rechnungen SET kasse_erstattung_beleg=$1, kasse_erstattung_am=(now() AT TIME ZONE 'Europe/Berlin')::date
+      `UPDATE rechnungen SET kasse_erstattung_beleg=$1
          WHERE id=$2 AND kasse_erstattung_beleg IS NULL RETURNING id`,
       [beleg || ('ohne-Nr-' + st.rechnungsnr), r.id]);
     // Kein Treffer heisst: Ein zweiter Vorgang war schneller. Geldseitig ist nichts passiert —

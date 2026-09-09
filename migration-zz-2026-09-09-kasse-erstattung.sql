@@ -4,6 +4,11 @@
 --
 -- Erstattung nach Widerruf: Zahlart und Erstattungsbeleg
 --
+-- BEWUSST NUR ZWEI SPALTEN. Ein Erstattungsdatum waere die dritte gewesen — es ist aber aus
+-- dem Aenderungsprotokoll und vom Kassenbeleg selbst ablesbar. Eine Spalte, die nur eine
+-- vorhandene Information wiederholt, kostet keinen Speicher, aber sie kostet Verstaendlichkeit:
+-- Der Naechste muss entscheiden, welche der beiden Quellen gilt.
+--
 -- Die Zahlart einer Kassenzahlung wurde bisher gar nicht gespeichert. Damit liess sich die
 -- Regel "Erstattung nur ueber dasselbe Zahlungsmittel" nicht einhalten. Und ein Storno einer
 -- bar bezahlten Rechnung buchte nichts zurueck — das Geld waere ohne Gegenbuchung in der
@@ -14,7 +19,6 @@
 
 ALTER TABLE rechnungen ADD COLUMN IF NOT EXISTS kasse_zahlart          text;
 ALTER TABLE rechnungen ADD COLUMN IF NOT EXISTS kasse_erstattung_beleg text;
-ALTER TABLE rechnungen ADD COLUMN IF NOT EXISTS kasse_erstattung_am    date;
 
 CREATE OR REPLACE FUNCTION public.rechnung_schutz()
  RETURNS trigger
