@@ -2891,6 +2891,36 @@ function ezAuswahlFuellen(praefix, mitMonat) {
   }
 }
 
+// Was ein Gutschein an DIESEM Termin tatsaechlich abzieht -- in Euro, aus den eingefrorenen
+// Positionen, nie neu gerechnet.
+//
+// WARUM NICHT DER PROZENTSATZ: termine.gutschein_rabatt ist der EFFEKTIVE Gesamtsatz, gerundet.
+// WINTER2026 ist gestaffelt (25 % auf die Einlagerung, 10 % auf den Rest). Bei einem Termin mit
+// drei Leistungen stand dort "15 %" -- ein Satz, der zu keiner einzelnen Zeile passt und dessen
+// Anwendung auf die Summe 15,00 statt der tatsaechlichen 15,40 ergibt. Wer nachrechnet, findet
+// einen Widerspruch, den es gar nicht gibt.
+// Hinweis der Homepage-Sitzung: Die Buchungsstrecke zeigt dem Kunden aus genau diesem Grund
+// nie einen Prozentsatz, sondern den Abzug in Euro. Der Adminbereich tat es an drei Stellen doch.
+function gutscheinAbzug(t) {
+  var l = t.leistungen;
+  if (typeof l === 'string') { try { l = JSON.parse(l); } catch (e) { l = null; } }
+  if (!Array.isArray(l) || !l.length) return null;      // ohne Positionen keine belegbare Zahl
+  var summe = 0, hatSatz = false;
+  l.forEach(function(p) {
+    var satz = Number(p.rabatt_prozent) || 0;
+    var basis = Number(p.zeilen_brutto) || 0;
+    if (satz > 0 && basis > 0) { hatSatz = true; summe += Math.round(basis * satz) / 100; }
+  });
+  return hatSatz ? Math.round(summe * 100) / 100 : null;
+}
+// Beschriftung fuer die Anzeige. Ohne belegbaren Betrag steht nur der Code da -- lieber keine
+// Zahl als eine, die nicht stimmt.
+function gutscheinText(t, mitCode) {
+  var a = gutscheinAbzug(t);
+  var code = mitCode ? 'Gutschein ' + t.gutschein_code : t.gutschein_code;
+  return a === null ? code : code + ' −' + a.toFixed(2).replace('.', ',') + ' €';
+}
+
 // 'YYYY-MM-DD' aus einem Date-Objekt -- in der HIESIGEN Zeitzone, nicht in UTC.
 function localDatum(d) {
   var x = (d instanceof Date) ? d : new Date(d);
@@ -4466,7 +4496,7 @@ function loadAbzurechnen() {
         var d = t.datum ? fd(t.datum) : '';
         return '<div onclick="zeigeTermin(\'' + t.id + '\')" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid rgba(74,158,255,.3);cursor:pointer">' +
           '<div><span style="font-weight:600">' + kEsc(name) + '</span> <span style="color:#666;font-size:12px">' + kEsc(leist) + (d ? ' · ' + d : '') + '</span>' +
-            (t.gutschein_code ? ' <span style="color:var(--red);font-size:11px;font-weight:600">Gutschein ' + kEsc(t.gutschein_code) + ' −' + (t.gutschein_rabatt || 0) + '%</span>' : '') + '</div>' +
+            (t.gutschein_code ? ' <span style="color:var(--red);font-size:11px;font-weight:600">' + kEsc(gutscheinText(t, true)) + '</span>' : '') + '</div>' +
           (t.kunden_id
             ? '<button class="btn btn-p btn-sm" onclick="event.stopPropagation();rechnungAusTermin(\'' + t.id + '\')">Rechnung</button>'
             : '') +
@@ -4961,7 +4991,7 @@ function zeigeTermin(id) {
     '<div>' + iz('Kennzeichen', t.kennzeichen || '-') + '</div>' +
     '<div>' + iz('Vereinbart über', t.vereinbart_ueber === 'telefon' ? 'Telefon' : (t.vereinbart_ueber === 'online' ? 'Online gebucht' : 'Tresen / persönlich')) + '</div>' +
     '<div>' + iz('Telefon', t.kontakt_telefon || '-') + '</div>' +
-    (t.gutschein_code ? '<div>' + iz('Gutschein', t.gutschein_code + (t.gutschein_rabatt ? ' (−' + t.gutschein_rabatt + ' %)' : '')) + '</div>' : '') +
+    (t.gutschein_code ? '<div>' + iz('Gutschein', gutscheinText(t, false)) + '</div>' : '') +
     (t.beschreibung ? '<div>' + iz('Beschreibung', t.beschreibung) + '</div>' : '') +
     (t.notizen_intern ? '<div>' + iz('Interne Notizen', t.notizen_intern) + '</div>' : '') +
     '</div>' +
@@ -5190,7 +5220,7 @@ function renderWS() {
           '<div style="font-size:15px;font-weight:800;color:var(--text);' + (istErledigt ? 'text-decoration:line-through' : '') + '">' + leistung + '</div>' +
           (kz ? '<span class="kz-tag" style="font-size:13px">' + kz + '</span>' : '') +
           (einlagernAktiv(t) ? '<span style="font-size:11px;font-weight:800;color:#fff;background:var(--accent-text);padding:2px 9px;border-radius:10px;letter-spacing:.5px">EINLAGERN</span>' : '') +
-          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:var(--red)">Gutschein −' + (t.gutschein_rabatt || 0) + '%</span>' : '') +
+          (t.gutschein_code ? '<span style="font-size:11px;font-weight:700;color:var(--red)">' + kEsc(gutscheinText(t, true)) + '</span>' : '') +
           (istErledigt ? '<span style="font-size:11px;font-weight:700;color:var(--green);background:rgba(62,207,142,.15);padding:2px 8px;border-radius:10px">Erledigt</span>' : '') +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
