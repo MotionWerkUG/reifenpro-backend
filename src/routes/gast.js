@@ -359,7 +359,7 @@ router.post('/termin', bookLimiter, async (req, res, next) => {
     }
 
     // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
-    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB) —
+    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 5 Nr. 2 BGB) —
     // sonst entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB) und die
     // geleistete Arbeit bliebe unbezahlt. Die Rechnung liegt in lib/widerruf.js; sie stand frueher
     // hier und verglich Mitternacht gegen 12 Uhr des Termintags -- eine halbe Tagesdifferenz, die

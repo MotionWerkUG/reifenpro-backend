@@ -139,7 +139,7 @@ router.get('/', authenticate, requireStaff, async (req, res, next) => {
     // Widerruf ablesen kann, statt ihn aus drei Bildschirmen zusammenzusuchen:
     //   1. Wurde schon gearbeitet? (Terminstatus)
     //   2. Lag die Zustimmung zur vorzeitigen Ausfuehrung vor? Dann ist das Widerrufsrecht mit
-    //      der vollstaendigen Leistung erloschen (§ 356 Abs. 4 BGB) und der Widerruf geht ins Leere.
+    //      der vollstaendigen Leistung erloschen (§ 356 Abs. 5 Nr. 2 BGB) und der Widerruf geht ins Leere.
     //   3. Gibt es schon eine Rechnung? Nur dann kommt ueberhaupt ein Storno in Frage.
     const { rows } = await query(
       `SELECT w.*, t.datum AS termin_datum, t.uhrzeit_von AS termin_zeit, t.status AS termin_status,

@@ -4805,7 +4805,7 @@ function ntVorausfuellen(datum, zeit) {
 // Anschrift, Einwilligungen und Rechnungsdaten braucht und deshalb beim Inhaber liegt.
 // Entscheidung des Inhabers: Neukunden nimmt er selbst auf. Entfernt, nicht ausgeblendet -- die
 // Rolle "Werkstatt" darf Kunden ohnehin nur noch ansehen.
-// ── Zustimmung zum vorzeitigen Leistungsbeginn (§ 356 Abs. 4 / § 357a Abs. 2 BGB) ────────────
+// ── Zustimmung zum vorzeitigen Leistungsbeginn (§ 356 Abs. 5 Nr. 2 / § 357a Abs. 2 BGB) ─────
 // Ein am TELEFON vereinbarter Termin ist ein Fernabsatzvertrag: 14 Tage Widerrufsrecht ab
 // Vertragsschluss. Fast jeder Termin liegt darin. Wer ohne ausdrueckliche Zustimmung arbeitet und
 // der Kunde widerruft danach, bekommt keinen Cent -- § 357a Abs. 2 BGB verlangt genau dieses
@@ -6551,7 +6551,7 @@ function renderWiderrufe(liste) {
 //   A  Noch nicht gearbeitet          -> Termin absagen, fertig. Keine Rechnung, kein Storno.
 //   B  Kein Fernabsatz (Tresen) oder Firmenkunde -> gar kein Widerrufsrecht.
 //   C  Gearbeitet MIT Zustimmung      -> Das Widerrufsrecht ist mit der vollstaendigen Leistung
-//                                        erloschen (§ 356 Abs. 4 BGB). Die Rechnung bleibt.
+//                                        erloschen (§ 356 Abs. 5 Nr. 2 BGB). Die Rechnung bleibt.
 //   D  Gearbeitet OHNE Zustimmung     -> Der Widerruf greift, und § 357a Abs. 2 BGB gibt uns
 //                                        keinen Wertersatz. Rechnung stornieren, Geld zurueck.
 //
@@ -6580,7 +6580,7 @@ function widerrufFall(w) {
   }
   if (w.vorzeitige_leistung === true) {
     return kasten('62,207,142', 'Zustimmung lag vor — Widerrufsrecht ist erloschen',
-      'Der Kunde hat der Ausführung vor Fristablauf ausdrücklich zugestimmt. Mit der vollständig erbrachten Leistung ist sein Widerrufsrecht erloschen (§ 356 Abs. 4 BGB). Die Rechnung' +
+      'Der Kunde hat der Ausführung vor Fristablauf ausdrücklich zugestimmt. Mit der vollständig erbrachten Leistung ist sein Widerrufsrecht erloschen (§ 356 Abs. 5 Nr. 2 BGB). Die Rechnung' +
       (w.rechnungsnr ? ' ' + kEsc(w.rechnungsnr) : '') + ' bleibt bestehen. Bitte antworten Sie dem Kunden und erklären Sie ihm das.');
   }
   return kasten('232,80,42', 'Gearbeitet ohne Zustimmung — das wird teuer',

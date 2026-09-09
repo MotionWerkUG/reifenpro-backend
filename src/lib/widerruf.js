@@ -22,7 +22,7 @@ function tageBisTermin(datumStr) {
 }
 
 // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
-// Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB);
+// Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 5 Nr. 2 BGB);
 // ohne sie entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB) und die
 // geleistete Arbeit bliebe unbezahlt.
 // Grenze: 13 Tage ja, 14 Tage nein. Bei spaeteren Terminen ist die Frage gegenstandslos und
@@ -51,7 +51,7 @@ function zustimmungNoetig(datumStr) {
 // der Fehler, an dem die 13-Tage-Grenze auseinanderlief.
 
 // Endet die Widerrufsfrist erst NACH dem Termin? Dann wird vor ihrem Ablauf gearbeitet und es
-// braucht die ausdrueckliche Zustimmung (Paragraf 356 Abs. 4 BGB).
+// braucht die ausdrueckliche Zustimmung (Paragraf 356 Abs. 5 Nr. 2 BGB).
 // vertragStr = Zeitpunkt des Vertragsschlusses ('YYYY-MM-DD' oder Date/Zeitstempel),
 // terminStr  = Termindatum.
 // Bringt einen Zeitpunkt auf 'YYYY-MM-DD' -- egal ob er als Zeichenkette oder als Date-Objekt

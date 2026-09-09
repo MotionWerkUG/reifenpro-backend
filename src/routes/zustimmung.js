@@ -7,7 +7,7 @@
 //
 // Fast jeder Termin liegt innerhalb dieser 14 Tage. Es wird also gearbeitet, bevor die Frist
 // abgelaufen ist. Ohne die ausdrueckliche Zustimmung des Kunden UND seine Bestaetigung, dass er
-// den Rechtsverlust kennt (§ 356 Abs. 4 BGB), koennte er nach getaner Arbeit widerrufen und
+// den Rechtsverlust kennt (§ 356 Abs. 5 Nr. 2 BGB), koennte er nach getaner Arbeit widerrufen und
 // muesste nichts zahlen — § 357a Abs. 2 BGB verlangt fuer den Wertersatz genau dieses Verlangen.
 //
 // Wer am Tresen bucht, ist NICHT betroffen: Da gab es persoenlichen Kontakt, also keinen

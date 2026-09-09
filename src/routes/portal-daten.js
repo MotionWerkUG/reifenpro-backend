@@ -291,7 +291,7 @@ router.post('/termine', authKunde, async (req, res, next) => {
     if (_sperre) return res.status(409).json({ error: _sperre });
 
     // Liegt der Termin innerhalb der 14-taegigen Widerrufsfrist, arbeiten wir vor deren Ablauf.
-    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 4 BGB);
+    // Dafuer braucht es die ausdrueckliche Zustimmung des Verbrauchers (Paragraf 356 Abs. 5 Nr. 2 BGB);
     // ohne sie entfaellt bei einem Widerruf auch der Wertersatz (Paragraf 357a Abs. 2 BGB).
     // Dieselbe Rechnung und dieselbe Grenze wie im Gaeste-Weg (gast.js): 13 Tage ja, 14 nein.
     // Die Pruefung steht hier und nicht nur im Formular, weil ein Aufruf ohne Oberflaeche das
