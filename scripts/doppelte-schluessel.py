@@ -100,18 +100,85 @@ def sprach_luecken(quelltext, verwendungstext=None):
         funde.append((name, fehlt_in, benutzt))
     return [f for f in funde if f[2]]
 
+
 nur_sprachen = '--sprachen' in sys.argv
 dateien = [a for a in sys.argv[1:] if not a.startswith('--')]
+
+# Eine Datei pruefen. Bewusst als Funktion und nicht im Schleifenkoerper: Die Selbstpruefung
+# unten nimmt genau diesen Weg. Sonst prueft sie die Finder einzeln und uebersieht, wenn sie
+# falsch verdrahtet sind -- und genau das war der Fehler, gegen den sie schuetzen soll.
+def pruefe(inhalt, ist_html, ohne_doppler=False):
+    if ist_html:
+        js = '\n'.join(m.group(1) for m in re.finditer(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', inhalt, re.S))
+    else:
+        js = inhalt
+    doppler = [] if ohne_doppler else schluessel_doppler(js)
+    # Woerterbuecher aus dem Skript, Verwendungen aus der GANZEN Datei: Bei .html stehen die
+    # meisten Verwendungen als data-i18n im Markup, nicht im Skript.
+    luecken = sprach_luecken(js, inhalt)
+    return doppler, luecken
+
+# ── Selbstpruefung ───────────────────────────────────────────────────────────────────────────
+#
+# Ein Werkzeug, das Fehler finden soll, muss einmal an einem ECHTEN Fehler gezeigt haben, dass es
+# ihn findet. "Keine Funde" auf sauberen Dateien beweist gar nichts: Das kann Sauberkeit heissen
+# oder Blindheit, und an der Ausgabe sieht man den Unterschied nicht.
+#
+# Am 09.09.2026 ist genau das passiert: Der erste Sprachabgleich suchte die Verwendungen nur in
+# den <script>-Bloecken, waehrend sie bei .html groesstenteils als data-i18n im Markup stehen. Er
+# meldete auf allen sauberen Dateien "keine Luecken" und war dabei blind. Aufgefallen ist es nur,
+# weil eine Datei absichtlich beschaedigt wurde.
+#
+# Darum laeuft vor jeder Pruefung ein Beispiel mit, in dem beide Fehlerarten stecken. Schlagen
+# die Finder dort nicht an, bricht das Werkzeug mit Rueckgabewert 2 ab -- ein "keine Funde" waere
+# dann wertlos und gefaehrlicher als gar keine Pruefung.
+# Die Probe muss die Form der echten Woerterbuecher haben: zwei Leerzeichen Einzug,
+# zweibuchstabiger Sprachcode, schliessende Klammer wieder auf zwei Leerzeichen.
+# ACHTUNG, das ist zugleich eine Empfindlichkeit des Sprachabgleichs: Wird die Einrueckung
+# im Portal je geaendert, findet er die Bloecke nicht mehr -- und meldet dann "keine Luecken".
+# Genau davor schuetzt diese Selbstpruefung nicht, denn sie prueft die Probe, nicht die Datei.
+PROBE_JS = """
+var I18N = {
+  de: {
+    gruss: 'Hallo',
+    hinweis: 'ein Text mit { Klammer } und "gruss:" darin',
+    /* gruss: 'im Kommentar, zaehlt nicht' */
+    muster: /gruss:/,
+    nur_deutsch: 'nur hier',
+    gruss: 'Guten Tag'
+  },
+  en: {
+    gruss: 'Hello',
+    hinweis: 'a text'
+  }
+};
+"""
+# Die Verwendung steht NUR im Markup, nicht im Skript. Genau daran scheitert eine Fassung, die
+# Verwendungen nur in den <script>-Bloecken sucht -- der Fehler vom 09.09.2026.
+PROBE_HTML = '<html><body><span data-i18n="nur_deutsch">x</span><script>' + PROBE_JS + '</script></body></html>'
+
+def selbstpruefung():
+    ok = True
+    doppler, luecken = pruefe(PROBE_HTML, True)
+    if [x[0] for x in doppler] != ['gruss']:
+        print('SELBSTPRUEFUNG: Der Doppelschluessel-Finder schlaegt nicht an. Erwartet ["gruss"], '
+              'gefunden ' + str([x[0] for x in doppler]) + '.', file=sys.stderr)
+        ok = False
+    if [x[0] for x in luecken] != ['nur_deutsch']:
+        print('SELBSTPRUEFUNG: Der Sprachabgleich schlaegt nicht an. Erwartet ["nur_deutsch"], '
+              'gefunden ' + str([x[0] for x in luecken]) + '.', file=sys.stderr)
+        ok = False
+    if not ok:
+        print('Das Werkzeug ist nicht verlaesslich -- ein "keine Funde" waere hier wertlos.', file=sys.stderr)
+    return ok
+
+if not selbstpruefung():
+    sys.exit(2)
 
 gefunden = False
 for datei in dateien:
     s = io.open(datei, encoding='utf-8').read()
-    if datei.endswith('.html'):
-        js = '\n'.join(m.group(1) for m in re.finditer(r'<script(?![^>]*src=)[^>]*>(.*?)</script>', s, re.S))
-    else:
-        js = s
-    f = [] if nur_sprachen else schluessel_doppler(js)
-    l = sprach_luecken(js, s)   # Woerterbuecher aus dem Skript, Verwendungen aus der GANZEN Datei
+    f, l = pruefe(s, datei.endswith('.html'), nur_sprachen)
     if f or l:
         print(datei + ':')
         for name, z1, z2 in f: print('   ' + name + '  zuerst bei Zeile ' + str(z1) + ', erneut bei ' + str(z2))
