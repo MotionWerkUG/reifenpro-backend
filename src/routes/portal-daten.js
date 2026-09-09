@@ -64,9 +64,18 @@ function terminMitPreisen(tm) {
   // Herkunft je Satz: Ein Gutschein und eine Dauervereinbarung duerfen nicht in eine Zeile
   // fallen, auch wenn der Satz zufaellig gleich ist -- der Kunde soll sehen, worauf der
   // Nachlass beruht. preis_quelle steht je Position am Termin.
+  // preis_quelle gibt es erst seit der Gutschein-/Konditionen-Umstellung. Aeltere Termine haben
+  // den Nachlass, aber nicht seine Herkunft -- dort steht sie nur an termine.gutschein_code.
+  // Ohne diesen Rueckfall schriebe das Portal bei genau diesen Terminen "Nachlass", waehrend die
+  // Rechnung "Gutschein <CODE>" ausweist (routes/rechnungen.js). Ein Termin, zwei Bezeichnungen --
+  // gefunden beim Durchklicken an einem echten Termin vom 14.10., nicht in der Theorie.
+  const quelleGepflegt = pos.some((p) => p.preis_quelle != null);
   const zeilen = r.zeilen.map(function (z) {
     const quellen = new Set(pos.filter((p) => Number(p.rabatt_prozent || 0) === z.satz).map((p) => p.preis_quelle));
-    const bez = quellen.has('gutschein') && tm.gutschein_code ? 'Gutschein ' + tm.gutschein_code
+    // Ist die Herkunft gepflegt, entscheidet sie. Fehlt sie ganz, entscheidet der Gutscheincode --
+    // dieselbe Regel wie auf der Rechnung, damit beide Papiere dasselbe sagen.
+    const ausGutschein = tm.gutschein_code && (quellen.has('gutschein') || !quelleGepflegt);
+    const bez = ausGutschein ? 'Gutschein ' + tm.gutschein_code
               : (quellen.has('konditionen') ? 'Vereinbarter Nachlass' : 'Nachlass');
     return { satz: z.satz, betrag: z.betrag, bezeichnung: bez };
   });
