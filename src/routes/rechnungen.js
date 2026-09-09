@@ -1305,10 +1305,16 @@ router.post('/:id/barzahlung', async (req, res, next) => {
     const beleg = kasse.belegAus(antwort);
     const upd = await query(
       `UPDATE rechnungen SET zahlungsstatus='bezahlt', bezahlt_am=(now() AT TIME ZONE 'Europe/Berlin')::date,
-         kasse_beleg_nr=$1, kasse_beleg_datum=(now() AT TIME ZONE 'Europe/Berlin')::date, kasse_beleg_url=$2,
-         kasse_zahlart=$4
+         kasse_beleg_nr=$1, kasse_beleg_datum=(now() AT TIME ZONE 'Europe/Berlin')::date, kasse_beleg_url=$2
        WHERE id=$3 AND zahlungsstatus<>'bezahlt' RETURNING *`,
-      [beleg, (antwort && antwort.belegUrl) || null, req.params.id, zahlart]);
+      [beleg, (antwort && antwort.belegUrl) || null, req.params.id]);
+    // ACHTUNG: Die Zahlart wird hier NOCH NICHT mitgeschrieben. Die Spalte kasse_zahlart kommt
+    // erst mit migration-zz-2026-09-09-kasse-erstattung.sql. Wuerde sie hier stehen, bevor die
+    // Migration gelaufen ist, haette die Kasse den Betrag bereits gebucht und unser UPDATE
+    // wuerde danach mit einem Datenbankfehler abbrechen — das Geld waere in der Kasse, die
+    // Rechnung offen, und der Bediener saehe nur einen Fehler. Genau der geteilte Zustand,
+    // gegen den der ganze Ablauf gebaut ist.
+    // MIT der Migration wird diese Zeile wieder eingesetzt: kasse_zahlart=$4 / zahlart.
 
     await auditLog({ userId: req.user.id, aktion: 'rechnung.barzahlung', tabelle: 'rechnungen', datensatzId: r.id,
       neueWerte: { zahlart: zahlart, kassenbeleg: beleg, bereits_verarbeitet: !!(antwort && antwort.bereitsVerarbeitet) }, req });
