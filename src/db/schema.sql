@@ -40,6 +40,10 @@
 -- Hektik, sondern der Grund, warum diese Datei ueberhaupt regelmaessig neu erzeugt wird: Sie ist
 -- der einzige Weg, das System aus dem Repository heraus wieder aufzubauen.
 --
+-- DRITTER LAUF AM 09.09.2026: erstzulassung_genauigkeit an fahrzeuge und kunden fehlte. Der
+-- Fehler ist beim Aufraeumen aufgefallen, nicht beim Bauen -- deshalb gehoert der Abgleich in
+-- die Pruefliste und nicht ins Gedaechtnis.
+--
 -- GEGENGEPRUEFT: Auf einer leeren Wegwerf-Datenbank von vorn bis hinten durchgelaufen,
 -- Tabellenzahl, Spalten und Trigger gegen die Produktion verglichen.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
@@ -47,7 +51,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict SQiudjE15LJ4YSkGi2yC2lciWLurw66aLwi6UHs9NKdXZQbLIDnymPMUT5Bdj4R
+\restrict xhNLH98mSgkR0dRfXdwahh7JWcZhEWmmRyNmfwG5dXKdquktwlCUOBNGeKWXcQ0
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -583,7 +587,9 @@ CREATE TABLE public.fahrzeuge (
     erstellt_am timestamp with time zone DEFAULT now() NOT NULL,
     geaendert_am timestamp with time zone,
     hu_erinnerung_gesendet boolean DEFAULT false,
-    erstzulassung date
+    erstzulassung date,
+    erstzulassung_genauigkeit text,
+    CONSTRAINT fahrzeuge_ez_genauigkeit_check CHECK (((erstzulassung_genauigkeit IS NULL) OR (erstzulassung_genauigkeit = ANY (ARRAY['tag'::text, 'monat'::text, 'jahr'::text]))))
 );
 
 
@@ -758,6 +764,8 @@ CREATE TABLE public.kunden (
     land text,
     rechnung_email text,
     erstzulassung date,
+    erstzulassung_genauigkeit text,
+    CONSTRAINT kunden_ez_genauigkeit_check CHECK (((erstzulassung_genauigkeit IS NULL) OR (erstzulassung_genauigkeit = ANY (ARRAY['tag'::text, 'monat'::text, 'jahr'::text])))),
     CONSTRAINT kunden_kundentyp_check CHECK ((kundentyp = ANY (ARRAY['privat'::text, 'firma'::text])))
 );
 
@@ -2398,7 +2406,7 @@ ALTER TABLE ONLY public.widerrufe
 -- PostgreSQL database dump complete
 --
 
-\unrestrict SQiudjE15LJ4YSkGi2yC2lciWLurw66aLwi6UHs9NKdXZQbLIDnymPMUT5Bdj4R
+\unrestrict xhNLH98mSgkR0dRfXdwahh7JWcZhEWmmRyNmfwG5dXKdquktwlCUOBNGeKWXcQ0
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Zugriffsrechte fuer den Anwendungsnutzer.
