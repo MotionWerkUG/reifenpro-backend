@@ -1394,10 +1394,17 @@ router.post('/:id/erstattung', requireAdmin, async (req, res, next) => {
     }
 
     const beleg = kasse.belegAus(antwort);
-    await query(
+    const upd = await query(
       `UPDATE rechnungen SET kasse_erstattung_beleg=$1, kasse_erstattung_am=(now() AT TIME ZONE 'Europe/Berlin')::date
-         WHERE id=$2 AND kasse_erstattung_beleg IS NULL`,
+         WHERE id=$2 AND kasse_erstattung_beleg IS NULL RETURNING id`,
       [beleg || ('ohne-Nr-' + st.rechnungsnr), r.id]);
+    // Kein Treffer heisst: Ein zweiter Vorgang war schneller. Geldseitig ist nichts passiert —
+    // die Kasse ist ueber quelleBeleg idempotent und hat nur einmal gebucht. Aber ein zweiter
+    // Erfolgseintrag im Aenderungsprotokoll wuerde eine Erstattung behaupten, die es nicht gab.
+    // Bei einer Kassennachschau ist genau diese Spur das, was gelesen wird.
+    if (!upd.rows.length) {
+      return res.status(409).json({ error: 'Die Erstattung wurde zwischenzeitlich bereits gebucht.' });
+    }
     await auditLog({ userId: req.user.id, aktion: 'rechnung.erstattet', tabelle: 'rechnungen', datensatzId: r.id,
       neueWerte: { storno: st.rechnungsnr, zahlart: r.kasse_zahlart, betrag: -Math.abs(Number(r.brutto_summe)), kassenbeleg: beleg }, req });
 
