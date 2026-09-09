@@ -224,8 +224,16 @@ async function erzeugeRechnungPdf(rech, positionen) {
       }
 
       // ── Fusszeile mit Pflichtangaben (§ 14 UStG) – eine Seite garantiert ──
+      // Die Rechtsform ist nach § 5a GmbHG Teil der FIRMA — sie steht deshalb in aller Regel
+      // schon im Firmennamen ("Schröder & Scholz UG (haftungsbeschränkt) i.G."). Sie dann
+      // getrennt noch einmal auszugeben, ergibt zwei Zeilen mit demselben Zusatz. Nicht die
+      // Daten umbauen, sondern hier pruefen: Ein Nutzer tippt die Rechtsform naturgemaess in
+      // den Firmennamen, und das ist nicht falsch, sondern richtig.
+      const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const rfDoppelt = a.rechtsform && norm(a.firmenname).includes(norm(a.rechtsform));
+
       const fuss = [
-        a.firmenname, a.rechtsform,
+        a.firmenname, rfDoppelt ? null : a.rechtsform,
         // Eine Kapitalgesellschaft hat keinen Inhaber, sondern einen Geschaeftsfuehrer.
         // Das Feld ist dasselbe, die Beschriftung richtet sich nach der Rechtsform.
         a.inhaber ? (/\b(UG|GmbH|AG|SE|KGaA)\b/i.test(String(a.rechtsform || '')) ? 'Geschäftsführer: ' : 'Inhaber: ') + a.inhaber : null,
