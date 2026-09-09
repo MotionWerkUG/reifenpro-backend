@@ -77,6 +77,12 @@ function terminMitPreisen(tm) {
   // Beschriftung und Betrag kommen aus derselben Stelle wie auf der Rechnung (lib/nachlass.js).
   // Vorher stand hier eine eigene Fassung: Das Portal schrieb "Gutschein WINTER2026 (-25 %)",
   // die Rechnung "Nachlass Reifeneinlagerung (25 %) - Gutschein WINTER2026".
+  // ACHTUNG fuer jeden, der diese Antwort spaeter erweitert: tm.gutschein_rabatt geht ueber t.*
+  // mit ans Portal, ist aber der EFFEKTIVE Gesamtsatz, gerundet. WINTER2026 gibt 25 % auf die
+  // Einlagerung und 10 % auf alles andere; am Termin steht dann "15 %" -- ein Satz, der zu keiner
+  // einzelnen Zeile passt und auf die Summe angewandt 15,00 ergibt statt der tatsaechlichen 15,40.
+  // Der Adminbereich hat ihn an drei Stellen angezeigt und musste sie alle zuruecknehmen.
+  // Die Saetze hier kommen je Position aus rabatt_prozent, nie aus dem Aggregat.
   const zeilen = nachlass.nachlassZeilen(pos, herkunft);
   return Object.assign({}, tm, {
     zustimmung_offen: offen,
