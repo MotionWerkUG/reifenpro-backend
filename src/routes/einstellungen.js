@@ -19,8 +19,6 @@ const ALLOWED = [
   'email_einlagerung', 'email_abholbereit', 'email_bewertung', 'email_raeder_nachziehen',
   'email_erinnerung', 'email_termin_bestaetigung', 'email_termin_erinnerung',
   'email_termin_stornierung', 'email_termin_verschoben', 'email_neukunde_admin', 'saison_erinnerung_wochen',
-  'mo_fr_von', 'mo_fr_bis', 'sa_von', 'sa_bis', 'sa_offen',
-  'so_offen', 'so_von', 'so_bis', 'mittagspause_von', 'mittagspause_bis',
   'max_parallele_termine', 'stornierung_frist_h', 'portal_url', 'besucher_ausschluss',
   'bank', 'iban', 'bic', 'zahlungsziel_tage',
   'facebook_url', 'instagram_url', 'geo_breite', 'geo_laenge', 'bundesland', 'buchbar_ab',
@@ -38,8 +36,6 @@ const ALLOWED = [
 // Spalten vom Typ time/integer/numeric: leerer String wird zu NULL,
 // damit die DB keinen Typfehler wirft, wenn das Frontend '' sendet.
 const NULL_IF_EMPTY = new Set([
-  'mo_fr_von', 'mo_fr_bis', 'sa_von', 'sa_bis', 'so_von', 'so_bis',
-  'mittagspause_von', 'mittagspause_bis',
   'einlagerung_preis_komplett', 'einlagerung_preis_ohne_felgen', 'kofferraum_preis',
   'reifenwechsel_preis', 'mahngebuehr', 'vertragsdauer_monate', 'abholungsfrist_wochen',
   'saison_erinnerung_wochen', 'max_parallele_termine',
@@ -59,8 +55,6 @@ const DEFAULT = {
   email_einlagerung: '', email_abholbereit: '',
   email_raeder_nachziehen: 'Bitte denken Sie daran, die Radschrauben nach ca. 50-100 km nachzuziehen.',
   email_bewertung: '', email_erinnerung: '',
-  mo_fr_von: '08:00', mo_fr_bis: '18:00',
-  sa_von: '08:00', sa_bis: '13:00', sa_offen: true,
   bank: '', iban: '', bic: '', zahlungsziel_tage: 14
 };
 
@@ -150,7 +144,7 @@ router.put('/oeffnungszeiten', authenticate, requireAdmin, async (req, res, next
     // „geschlossen" setzen und damit auch die Online-Buchung abschalten.
     const fehler = pruefeWoche(req.body.woche);
     if (fehler) return res.status(400).json({ error: fehler });
-    // wocheSpeichern() schreibt Raster + Alt-Feld-Sync (mo_fr/sa/so/mittagspause) in EINER
+    // wocheSpeichern() schreibt das Raster in EINER
     // Transaktion. Frueher stand hier eine eigene Kopie dieser Logik, die die Schliesszeit an
     // Sa/So mit Mittagspause aus bis1 statt bis2 nahm -> falsche Anzeige auf der Website.
     await wocheSpeichern(req.body.woche);

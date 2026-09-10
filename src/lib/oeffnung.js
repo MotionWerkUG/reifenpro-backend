@@ -63,10 +63,9 @@ async function besondereTageAbHeute(tage) {
   return rows.filter((r) => r.geschlossen || (r.von && r.bis));
 }
 
-// Wochenraster speichern (7 Tage, je bis zu 2 Spannen) + Alt-Felder synchron halten.
-// Alt-Felder (mo_fr_*, sa_*, so_*, mittagspause_*) werden weiterhin von Portal-FAQ,
-// Einlagerungs-Mails und dem Admin-Kalender gelesen -> muessen zum Raster passen.
-// Zwilling dieser Sync-Logik: src/routes/einstellungen.js (PUT /oeffnungszeiten).
+// Wochenraster speichern (7 Tage, je bis zu 2 Spannen). Die Tabelle `oeffnungszeiten` ist die
+// einzige Quelle; Portal-FAQ, Einlagerungs-Mails, Homepage und Admin-Kalender lesen ueber
+// regulaereWoche() bzw. oeffnungFuerTag(). Die frueheren Alt-Spalten sind entfernt.
 function normalisiereWoche(eingabe) {
   const zeit = (v) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '').trim()) ? String(v).trim() : null);
   // Boolesche Werte koennen als String ankommen ('true' aus Formularen) -> sauber deuten
@@ -118,26 +117,14 @@ function pruefeWoche(eingabe) {
 
 async function wocheSpeichern(eingabe) {
   const woche = normalisiereWoche(eingabe);
-  const mo = woche[0], sa = woche[5], so = woche[6];
-  const pause = (d) => d && !d.geschlossen && d.von2 && d.bis2;
-  // Hinweis: Die Alt-Felder kennen nur EINEN Mo–Fr-Block; abweichende Zeiten an einzelnen
-  // Werktagen bilden sie nicht ab (Montag ist der Stellvertreter). Sie sind Uebergang —
-  // Portal/E-Mails sollten mittelfristig auf regulaereWoche()/oeffnungFuerTag() umstellen.
-  const sync = {
-    mo_fr_von: mo.geschlossen ? null : mo.von1,
-    mo_fr_bis: mo.geschlossen ? null : (pause(mo) ? mo.bis2 : mo.bis1),
-    mittagspause_von: pause(mo) ? mo.bis1 : null,
-    mittagspause_bis: pause(mo) ? mo.von2 : null,
-    sa_offen: !sa.geschlossen,
-    sa_von: sa.geschlossen ? null : sa.von1,
-    sa_bis: sa.geschlossen ? null : (pause(sa) ? sa.bis2 : sa.bis1),
-    so_offen: !so.geschlossen,
-    so_von: so.geschlossen ? null : so.von1,
-    so_bis: so.geschlossen ? null : (pause(so) ? so.bis2 : so.bis1)
-  };
-  const cols = Object.keys(sync);
-  // Alles in EINER Transaktion: sonst koennte eine halb geschriebene Woche entstehen oder
-  // das Raster nicht mehr zu den Alt-Feldern passen (Buchung vs. Anzeige).
+  // Frueher wurden hier zusaetzlich zehn Alt-Spalten in `einstellungen` mitgeschrieben
+  // (mo_fr_von/bis, sa_*, so_*, mittagspause_*). Sie waren eine zweite Wahrheit ueber dieselbe
+  // Sache und konnten das Raster nur unvollstaendig abbilden: EIN Mo-Fr-Block, Montag als
+  // Stellvertreter, und die Mittagspause fiel je nach Leseweg weg. Genau daran haette ein Kunde
+  // um halb eins vor verschlossener Tuer gestanden. Alle Leser sind auf regulaereWoche() bzw.
+  // oeffnungFuerTag() umgestellt; die Spalten sind entfernt. Es gibt nur noch `oeffnungszeiten`.
+  // Alles in EINER Transaktion: sonst koennte eine halb geschriebene Woche entstehen --
+  // etwa Montag neu und Dienstag alt.
   await withTransaction(async (client) => {
     for (const d of woche) {
       await client.query(
@@ -146,10 +133,6 @@ async function wocheSpeichern(eingabe) {
          ON CONFLICT (wochentag) DO UPDATE SET geschlossen=$2, von1=$3, bis1=$4, von2=$5, bis2=$6`,
         [d.wochentag, d.geschlossen, d.von1, d.bis1, d.von2, d.bis2]);
     }
-    await client.query(
-      'UPDATE einstellungen SET ' + cols.map((c, i) => c + '=$' + (i + 1)).join(', ') +
-      ', geaendert_am=NOW() WHERE id=(SELECT id FROM einstellungen ORDER BY id LIMIT 1)',
-      cols.map((c) => sync[c]));
   });
   return woche;
 }
