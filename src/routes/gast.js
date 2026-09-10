@@ -10,6 +10,7 @@ const { portalMailHtml } = require('../lib/mail-template');
 const { resolvePreis } = require('../lib/preis');
 const oeffnung = require('../lib/oeffnung');
 const gutschein = require('../lib/gutschein');
+const belehrung = require('../lib/widerrufsbelehrung');
 const widerruf = require('../lib/widerruf');
 
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
@@ -598,6 +599,22 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
       // (eine <table> darin waere ungueltiges HTML und bricht in Outlook). Konsistent mit der gastSeite-CTA.
       const kontoCtaMail = '<a href="' + escAttr(kontoUrlMail) + '" style="display:inline-block;background:#eab308;color:#171717;text-decoration:none;border-radius:10px;padding:13px 30px;font-size:15px;font-weight:700">Kundenkonto erstellen</a>'
         + '<br><span style="display:inline-block;margin-top:10px;font-size:13px;color:#777">Termine online verwalten und Ihre eingelagerten Räder jederzeit einsehen.</span>';
+      // Vertragsbestaetigung auf dauerhaftem Datentraeger (Paragraf 312f BGB, Artikel 246a
+      // Paragraf 1 Abs. 2 EGBGB): Mit DIESER Mail ist der Vertrag geschlossen, also muss die
+      // Widerrufsbelehrung DARIN stehen — ein Link auf eine Seite, die sich spaeter aendern kann,
+      // genuegt nicht sicher. Der Wortlaut kommt aus src/lib/widerrufsbelehrung.js, damit es nicht
+      // zwei Fassungen desselben Rechtstextes gibt.
+      // Aufgefallen beim ersten vollstaendigen Durchlauf der Gastbuchung am 10.09.2026: Weder die
+      // Anfrage- noch die Bestaetigungsmail trug die Belehrung, obwohl der Kunde im Assistenten
+      // AGB und Widerrufsbelehrung bestaetigt hatte.
+      const zustimmungZeile = t.vorzeitige_leistung === true
+        ? 'Sie haben ausdrücklich zugestimmt, dass wir mit der Ausführung vor Ablauf der '
+          + 'Widerrufsfrist beginnen, und zur Kenntnis genommen, dass Ihr Widerrufsrecht mit '
+          + 'vollständiger Erbringung der Leistung erlischt.'
+        : '';
+      const belehrungBlock = '<span style="display:block;margin-top:6px;padding-top:14px;border-top:1px solid #eee;'
+        + 'font-size:13px;line-height:1.5;color:#555;white-space:pre-wrap">'
+        + escAttr(belehrung.alsText(einst)) + '</span>';
       // Selbstbedienungs-Absage (PR1): ohne diesen Link bleibt dem Gast ohne Konto nur der Anruf.
       // Signierter Link, gueltig bis einen Tag nach dem Termin; Absage kostenfrei bis zur Stornofrist.
       const fristH = einst.stornierung_frist_h != null ? einst.stornierung_frist_h : 24;
@@ -609,7 +626,9 @@ router.post('/termin/bestaetigen', limiter, async (req, res, next) => {
           '<strong>Datum:</strong> ' + dF + '<br><strong>Uhrzeit:</strong> ' + hhmm + ' Uhr<br><strong>Kennzeichen:</strong> ' + (t.kennzeichen || '') + (t.fahrzeugtyp ? ' (' + t.fahrzeugtyp + ')' : ''),
           preisBlock,
           absageZeile,
-          kontoCtaMail],
+          kontoCtaMail,
+          zustimmungZeile,
+          belehrungBlock],
         hinweis: 'Der Endpreis ist abhängig von Zollgröße und Fahrzeugart und kann vor Ort ggf. abweichen. Bei Fragen erreichen Sie uns' + (einst.telefon ? ' unter ' + einst.telefon : '') + '. Bitte sagen Sie rechtzeitig ab, falls Sie verhindert sind.'
       });
       await transporter.sendMail({ from: '"Schröder & Scholz" <' + process.env.SMTP_USER + '>', to: t.kontakt_email, replyTo: einst.email || process.env.SMTP_USER, subject: 'Terminbestätigung ' + dF + ' ' + hhmm + ' Uhr — Schröder & Scholz', html: htmlGast });
