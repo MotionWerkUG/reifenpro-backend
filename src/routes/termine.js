@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const { portalUrl } = require('../lib/portal-url');
 const router = express.Router();
 const { query } = require('../db/index');
 const { authenticate, requireStaff } = require('../middleware/auth');
@@ -284,7 +285,7 @@ router.post('/portal-freigabe/:kundenId', async (req, res, next) => {
     const k = rows[0];
     // Willkommens-E-Mail
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const portalAdresse = portalUrl(einst);
     const nodemailer = require('nodemailer');
     const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: parseInt(process.env.SMTP_PORT) || 587, secure: false, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } });
     await transporter.sendMail({
@@ -298,7 +299,7 @@ router.post('/portal-freigabe/:kundenId', async (req, res, next) => {
           'Ihr Zugang zum Kundenportal von Schröder &amp; Scholz ist ab sofort freigeschaltet.',
           'Sie können sich jetzt anmelden, Ihre eingelagerten Räder einsehen und bequem online Ihre Termine buchen.'
         ],
-        button: { text: 'Zum Kundenportal', url: portalUrl }
+        button: { text: 'Zum Kundenportal', url: portalAdresse }
       })
     }).catch(() => {});
     await auditLog({ userId: req.user.id, aktion: 'kunde.portal_freigegeben', tabelle: 'kunden', datensatzId: req.params.kundenId, req });

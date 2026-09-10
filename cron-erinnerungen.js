@@ -7,6 +7,7 @@
 
 require('dotenv').config();
 const { query } = require('./src/db/index');
+const { portalUrl: portalAdresse } = require('./src/lib/portal-url');
 const nodemailer = require('nodemailer');
 const jwt = require('jsonwebtoken');
 const { kundenMailHtml } = require('./src/lib/mail-template');
@@ -129,7 +130,7 @@ async function saisonErinnerung() {
       ? 'Sie erhalten diese E-Mail, weil Sie Saison-Erinnerungen abonniert haben. <a href="' + link + '">Hier mit einem Klick abmelden</a>.'
       : 'Sie erhalten diese E-Mail, weil Sie Saison-Erinnerungen abonniert haben. Sie können dem jederzeit widersprechen.';
     try {
-      const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+      const portalUrl = portalAdresse(einst);
       const htmlSaison = kundenMailHtml(einst, {
         anrede: k.anrede, vorname: k.vorname, nachname: k.nachname,
         titel: 'Zeit für den Räderwechsel',

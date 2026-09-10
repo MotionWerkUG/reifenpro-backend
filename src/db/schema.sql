@@ -488,7 +488,7 @@ CREATE TABLE public.einstellungen (
     ust_id text DEFAULT ''::text,
     agb_zusatz text DEFAULT ''::text,
     datenschutz_beauftragter text DEFAULT ''::text,
-    portal_url text DEFAULT 'http://161.97.187.239/reifenpro/portal/'::text,
+    portal_url text DEFAULT 'https://www.schroeder-scholz.de/portal/'::text,
     stornierung_frist_h integer DEFAULT 24,
     email_termin_bestaetigung text,
     email_termin_erinnerung text,
