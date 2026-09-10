@@ -764,7 +764,13 @@ async function wochenRaster() {
 // aeltere, noch nicht nachgezogene Seiten in der Antwort.
 router.get('/oeffnungszeiten', async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis, mittagspause_von, mittagspause_bis, oeffnungszeiten_hinweis FROM einstellungen LIMIT 1');
+    // Die zehn Alt-Spalten (mo_fr_*, sa_*, so_*, mittagspause_*) stehen hier NICHT mehr.
+    // Sie waren als Rueckfallebene fuer noch nicht nachgezogene Seiten gedacht; nachgemessen am
+    // ausgelieferten Stand liest sie keine einzige Seite mehr, die diese Route aufruft.
+    // Solange sie in der SELECT-Liste stehen, bricht die Route in dem Moment, in dem die geplante
+    // Migration die Spalten entfernt -- und mit ihr das ganze Portal, nicht nur die
+    // Oeffnungszeiten. Jetzt ist das Loeschen ein reiner Aufraeumvorgang ohne Stichtag.
+    const { rows } = await query('SELECT oeffnungszeiten_hinweis FROM einstellungen LIMIT 1');
     res.json(Object.assign({}, rows[0] || {}, { woche: await wochenRaster() }));
   } catch (e) { next(e); }
 });
@@ -775,11 +781,11 @@ router.get('/firmendaten', async (req, res, next) => {
       `SELECT firmenname, rechtsform, inhaber, strasse, plz, ort, telefon, email,
        ust_id, handelsreg_nr, registergericht, datenschutz_beauftragter,
        vertragsdauer_monate, abholungsfrist_wochen, lagerungsort, stornierung_frist_h,
-       mo_fr_von, mo_fr_bis, sa_von, sa_bis, sa_offen, so_offen, so_von, so_bis,
        oeffnungszeiten_hinweis
        FROM einstellungen LIMIT 1`
     );
-    // Wie oben: `woche` ist massgeblich, die Alt-Felder sind nur Rueckfallebene.
+    // Ohne die zehn Alt-Spalten -- siehe Begruendung bei /oeffnungszeiten. `woche` ist die
+    // einzige Quelle; sie kann null sein (leere Tabelle), dann sagt die Oberflaeche das ehrlich.
     res.json(Object.assign({}, rows[0] || {}, { woche: await wochenRaster() }));
   } catch (e) { next(e); }
 });
