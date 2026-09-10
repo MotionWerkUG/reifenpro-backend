@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { query, withTransaction } = require('../db/index');
 const { portalMailHtml } = require('../lib/mail-template');
+const { portalUrl: portalAdresse } = require('../lib/portal-url');
 const { authenticate, requireStaff } = require('../middleware/auth');
 
 // Brute-Force-Schutz: fehlgeschlagene Logins begrenzen, Reset-/Vergessen-Mails drosseln
@@ -314,7 +315,7 @@ router.post('/registrieren', registrierLimiter, async (req, res, next) => {
 
     // Mails NICHT awaiten (fire-and-forget mit .catch) -> Antwortzeit haengt nicht am Mailversand (Timing-Enum).
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const portalUrl = portalAdresse(einst);
     if (bestandskunde.rows.length) {
       // Bestandskunde: Link zum Passwort-Festlegen (bestaetigt zugleich die E-Mail). Kein vorab gesetztes Passwort.
       const setzLink = portalUrl + '?reset=' + resetToken;
@@ -407,7 +408,7 @@ router.post('/bestaetigung-erneut', resetLimiter, async (req, res, next) => {
       const ablauf = new Date(Date.now() + 24 * 3600000);
       await query('UPDATE kunden SET portal_bestaetigung_token=$1, portal_token_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
       const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-      const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+      const portalUrl = portalAdresse(einst);
       const link = portalUrl + '?bestaetigen=' + token;
       sendMail(
         k.portal_email,
@@ -476,7 +477,7 @@ router.post('/passwort-vergessen', resetLimiter, async (req, res, next) => {
     const ablauf = new Date(Date.now() + 3600000);
     await query('UPDATE kunden SET portal_reset_token=$1, portal_reset_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const portalUrl = portalAdresse(einst);
     // Nicht abwarten: Sonst bestimmt die Dauer des echten Mailversands die Antwortzeit und
     // verraet damit wieder, dass die Adresse existiert. Gleiche Loesung wie bei /registrieren.
     sendMail(
@@ -671,7 +672,7 @@ router.post('/personal/bestaetigung-erneut/:kundenId', authenticate, requireStaf
     const ablauf = new Date(Date.now() + 24 * 3600000);
     await query('UPDATE kunden SET portal_bestaetigung_token=$1, portal_token_ablauf=$2 WHERE id=$3', [token, ablauf, k.id]);
     const einst = (await query('SELECT * FROM einstellungen LIMIT 1')).rows[0] || {};
-    const portalUrl = einst.portal_url || 'http://161.97.187.239/reifenpro/portal/';
+    const portalUrl = portalAdresse(einst);
     const link = portalUrl + '?bestaetigen=' + token;
     let versandt = true;
     await sendMail(
