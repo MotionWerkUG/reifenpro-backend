@@ -14,6 +14,20 @@ function schluessel() { return process.env.KASSE_ERP_KEY || ''; }
 // soll das unterscheiden koennen von "Kasse antwortet nicht".
 function konfiguriert() { return !!(basis() && schluessel()); }
 
+// ── Testmodus ────────────────────────────────────────────────────────────────────────────────
+// Oeffnet den TSE-Riegel fuer einen Probelauf. AUSSCHLIESSLICH ueber eine Umgebungsvariable,
+// nie ueber einen Knopf in der Oberflaeche: Ein Schalter, den man im Betrieb umlegen kann,
+// wird im Betrieb umgelegt. Eine Variable muss jemand bewusst setzen und der Dienst neu
+// starten — beides passiert nicht aus Versehen am Tresen.
+//
+// Woran man erkennt, dass er WIEDER ZU ist (die wichtigste Eigenschaft):
+//   GET /api/rechnungen/kassenstatus liefert testmodus:false, und der Warnbalken im Admin
+//   verschwindet. Zusaetzlich sagt es das Startprotokoll bei jedem Start.
+// Und was bleibt: Jede im Testmodus erzeugte Rechnung traegt den Vermerk dauerhaft in ihrem
+// eingefrorenen Aussteller-Abbild. Sie sind damit jederzeit auffindbar — auch Wochen spaeter,
+// auch wenn niemand mehr weiss, wann der Schalter an war.
+function testmodus() { return String(process.env.KASSE_TESTMODUS || '') === '1'; }
+
 // Zustand der Kasse, OHNE Schluessel und ohne Anmeldung abfragbar. Wichtig ist hier vor allem
 // tseKonfiguriert: Ohne technische Sicherheitseinrichtung darf keine Barbuchung entstehen
 // (§ 146a AO). Die Kasse selbst faengt einen TSE-AUSFALL bewusst ab und laeuft weiter — das ist
@@ -120,4 +134,4 @@ function belegAus(antwort) {
   return a.beleg || a.belegnummer || (a.buchung && a.buchung.belegnummer) || null;
 }
 
-module.exports = { konfiguriert, zustand, tseFehltSicher, meldeZahlung, holeBuchungen, belegAus };
+module.exports = { konfiguriert, testmodus, zustand, tseFehltSicher, meldeZahlung, holeBuchungen, belegAus };
