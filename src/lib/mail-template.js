@@ -77,18 +77,25 @@ function fuelleText(text, vars) {
 }
 
 // Baut eine fertige Kunden-Mail aus einem Vorlagentext (aus den Einstellungen) + Platzhaltern.
-// opts: { anrede, vorname, nachname, titel, text, vars, button:{text,url}, hinweis }
+// opts: { anrede, vorname, nachname, titel, text, vars, button:{text,url}, hinweis, zusatzAbsaetze }
 // Der Vorlagentext nutzt \n\n als Absatztrenner und \n als Zeilenumbruch (z.B. Datenblock).
+//
+// zusatzAbsaetze: FERTIGES HTML, das hinter den Textabsaetzen steht. Noetig fuer Inhalte, die
+// nicht aus der pflegbaren Textvorlage kommen duerfen -- allen voran die Widerrufsbelehrung:
+// Sie muss WORTGLEICH aus lib/widerrufsbelehrung.js stammen und darf nicht versehentlich im
+// Einstellungstext ueberschrieben werden. Der uebrige Text wird weiterhin vollstaendig escaped;
+// wer hier HTML einsetzt, ist selbst dafuer verantwortlich, Nutzertext vorher zu escapen.
 function kundenMailHtml(einst, opts) {
   const o = opts || {};
   const gefuellt = fuelleText(o.text, o.vars);
   const absaetze = gefuellt.split(/\n{2,}/).map(function (p) {
     return esc(p).replace(/\n/g, '<br>');
   });
+  const zusatz = Array.isArray(o.zusatzAbsaetze) ? o.zusatzAbsaetze.filter(Boolean) : [];
   return portalMailHtml(einst, {
     titel: o.titel,
     gruss: anredeGruss(o.anrede, o.vorname, o.nachname),
-    absaetze: absaetze,
+    absaetze: absaetze.concat(zusatz),
     button: o.button,
     hinweis: o.hinweis
   });
