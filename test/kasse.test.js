@@ -308,7 +308,7 @@ async function bezahltUndStorniert(zahlart) {
   return { original: r, storno: st.body };
 }
 
-test('Erstattung geht als eigener Vorgang mit negativem Betrag und Bezug an die Kasse', { skip: 'Wartet auf migration-zz-2026-09-09-kasse-erstattung.sql: ohne kasse_zahlart ist keine Erstattung buchbar.' }, async () => {
+test('Erstattung geht als eigener Vorgang mit negativem Betrag und Bezug an die Kasse', async () => {
   const f = await bezahltUndStorniert('bar');
 
   const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
@@ -328,7 +328,7 @@ test('Erstattung geht als eigener Vorgang mit negativem Betrag und Bezug an die 
   assert.equal(db.kasse_zahlart, 'bar');
 });
 
-test('Eine Kartenzahlung wird ueber die Karte erstattet, nicht bar', { skip: 'Wartet auf migration-zz-2026-09-09-kasse-erstattung.sql: ohne kasse_zahlart ist keine Erstattung buchbar.' }, async () => {
+test('Eine Kartenzahlung wird ueber die Karte erstattet, nicht bar', async () => {
   // § 357 Abs. 3 BGB verlangt beim Widerruf dasselbe Zahlungsmittel. Unabhaengig davon ist
   // "unbar herein, bar hinaus" das Muster, das die Geldwaeschestelle als Anhaltspunkt fuehrt.
   const f = await bezahltUndStorniert('ec');
@@ -337,7 +337,7 @@ test('Eine Kartenzahlung wird ueber die Karte erstattet, nicht bar', { skip: 'Wa
   assert.equal(empfangen.zahlart, 'ec', 'die Zahlart stammt aus der urspruenglichen Zahlung');
 });
 
-test('Keine zweite Erstattung zur selben Rechnung', { skip: 'Wartet auf migration-zz-2026-09-09-kasse-erstattung.sql: ohne kasse_zahlart ist keine Erstattung buchbar.' }, async () => {
+test('Keine zweite Erstattung zur selben Rechnung', async () => {
   // Unsere Seite der Deckelung: Die Kasse deckelt Rechnungsbezuege bewusst NICHT, weil sie den
   // Rechnungsbetrag nicht kennt. Also muessen wir es tun.
   const f = await bezahltUndStorniert('bar');
@@ -345,17 +345,6 @@ test('Keine zweite Erstattung zur selben Rechnung', { skip: 'Wartet auf migratio
   empfangen = null;
   const zweite = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
   assert.equal(zweite.status, 409, JSON.stringify(zweite.body));
-  assert.equal(empfangen, null, 'es darf nichts an die Kasse gegangen sein');
-});
-
-test('Solange die Zahlart fehlt, wird nicht erstattet — und es geht nichts an die Kasse', async () => {
-  // Der heutige Zustand, bis die Migration laeuft: kasse_zahlart existiert noch nicht, also
-  // ist unbekannt, ueber welches Zahlungsmittel zurueckzuzahlen waere. Die Route muss das
-  // sauber ablehnen statt zu raten — bar zurueckzugeben, was per Karte kam, waere falsch.
-  const f = await bezahltUndStorniert('bar');
-  const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
-  assert.equal(e.status, 409, JSON.stringify(e.body));
-  assert.match(e.body.error, /Zahlart/);
   assert.equal(empfangen, null, 'es darf nichts an die Kasse gegangen sein');
 });
 
@@ -381,7 +370,7 @@ test('Lehnt die Kasse die Erstattung ab, wird bei uns nichts vermerkt', async ()
   assert.equal(db.kasse_erstattung_beleg, null, 'kein Vermerk ohne Buchung in der Kasse');
 });
 
-test('Ohne TSE wird auch nicht erstattet', { skip: 'Wartet auf migration-zz-2026-09-09-kasse-erstattung.sql: ohne kasse_zahlart ist keine Erstattung buchbar.' }, async () => {
+test('Ohne TSE wird auch nicht erstattet', async () => {
   const f = await bezahltUndStorniert('bar');
   tseKonfiguriert = false;
   const e = await h.api(token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');

@@ -60,8 +60,19 @@
 --
 -- PostgreSQL database dump
 --
+--
+-- NEU ERZEUGT AM 10.09.2026: Erstattung nach Storno. Neu sind kasse_zahlart und
+-- kasse_erstattung_beleg sowie drei zusaetzliche Regeln im Schutztrigger — die Kassenfelder
+-- sind jetzt einmalig setzbar und danach unveraenderbar, wie PDF-Pfad und Pruefsumme. Vorher
+-- war der Verweis auf den Kassenbeleg frei aenderbar; eine Rechnung haette still einem anderen
+-- Kassenvorgang zugeordnet werden koennen.
+-- ═══════════════════════════════════════════════════════════════════════════════════════
 
-\restrict mCLMWxUALLT2I3WnxtUvM2R3P5hPTooKEKswNjZRPvD1WCpSSj6BAu5MWeUBqj9
+--
+-- PostgreSQL database dump
+--
+
+\restrict QQ57UdpDHgSMT252lPHcjVtND2qGy4hlbzpYw5I9i8XpEch1INAQdrycuc1p8OO
 
 -- Dumped from database version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)
@@ -121,8 +132,6 @@ $$;
 -- Name: rechnung_pos_schutz(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- Positionen einer festgeschriebenen/stornierten Rechnung sind unveraenderbar (UPDATE/DELETE gesperrt).
--- INSERT bleibt erlaubt, da der Storno seine Positionen nach dem Festschreiben-Status anlegt.
 CREATE FUNCTION public.rechnung_pos_schutz() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -142,11 +151,6 @@ $$;
 -- Name: rechnung_schutz(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- ── GoBD: Unveraenderbarkeit festgeschriebener/stornierter Rechnungen ──
--- Sperrt jedes DELETE sowie das Aendern der eingefrorenen Inhalts-/Pflichtfelder, sobald eine
--- Rechnung festgeschrieben oder storniert ist. Erlaubt bleiben nur administrative Felder
--- (zahlungsstatus, bezahlt_am, mahnstufe, mahnung_am), der Statuswechsel
--- festgeschrieben->storniert und das EINMALIGE Setzen des PDF-Pfads (NULL->Wert, z. B. beim Storno).
 CREATE FUNCTION public.rechnung_schutz() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -202,6 +206,19 @@ BEGIN
     IF OLD.beleg_hash_vorgaenger IS NOT NULL AND NEW.beleg_hash_vorgaenger IS DISTINCT FROM OLD.beleg_hash_vorgaenger THEN
       RAISE EXCEPTION 'GoBD: Der Kettenverweis des Belegs % darf nicht nachträglich geändert werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
     END IF;
+    -- Kassenbezug: einmalig setzbar, danach unveraenderbar. Bisher war der Verweis auf den
+    -- Kassenbeleg frei aenderbar — eine Rechnung haette still einem anderen Kassenvorgang
+    -- zugeordnet werden koennen. Die Zahlart gehoert dazu, weil eine Erstattung nur ueber
+    -- dasselbe Zahlungsmittel laufen darf.
+    IF OLD.kasse_beleg_nr IS NOT NULL AND NEW.kasse_beleg_nr IS DISTINCT FROM OLD.kasse_beleg_nr THEN
+      RAISE EXCEPTION 'GoBD: Der Kassenbeleg zu Rechnung % darf nicht ausgetauscht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    IF OLD.kasse_zahlart IS NOT NULL AND NEW.kasse_zahlart IS DISTINCT FROM OLD.kasse_zahlart THEN
+      RAISE EXCEPTION 'GoBD: Die Zahlart zu Rechnung % darf nicht nachträglich geändert werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
+    IF OLD.kasse_erstattung_beleg IS NOT NULL AND NEW.kasse_erstattung_beleg IS DISTINCT FROM OLD.kasse_erstattung_beleg THEN
+      RAISE EXCEPTION 'GoBD: Der Erstattungsbeleg zu Rechnung % darf nicht ausgetauscht werden.', COALESCE(OLD.rechnungsnr, OLD.id::text);
+    END IF;
   END IF;
   RETURN NEW;
 END;
@@ -212,12 +229,6 @@ $$;
 -- Name: termin_weg_setzen(); Type: FUNCTION; Schema: public; Owner: -
 --
 
--- Riegel: portal_buchung=true heisst per Definition, dass ueber eine Online-Oberflaeche
--- geschlossen wurde -- dann ist 'online' nicht Annahme, sondern die einzig richtige Angabe.
--- Steht als Trigger in der Datenbank statt als Merkregel in vier Routen, weil Termine an vier
--- Stellen entstehen und eine vergessene Spalte still 'tresen' ergaebe: Ein Fernabsatzvertrag
--- saehe dann aus wie ein Tresengeschaeft, und genau diese Verwechslung soll die Spalte
--- verhindern.
 CREATE FUNCTION public.termin_weg_setzen() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -475,12 +486,6 @@ CREATE TABLE public.einstellungen (
     email_bewertung text DEFAULT ''::text,
     email_raeder_nachziehen text DEFAULT 'Bitte denken Sie daran, die Radschrauben nach ca. 50-100 km nachzuziehen.'::text,
     email_erinnerung text DEFAULT ''::text,
-    mo_fr_von time without time zone DEFAULT '08:00:00'::time without time zone,
-    mo_fr_bis time without time zone DEFAULT '18:00:00'::time without time zone,
-    sa_von time without time zone DEFAULT '08:00:00'::time without time zone,
-    sa_bis time without time zone DEFAULT '13:00:00'::time without time zone,
-    sa_offen boolean DEFAULT true,
-    termine_pro_stunde integer DEFAULT 2,
     geaendert_am timestamp with time zone DEFAULT now(),
     rechtsform text DEFAULT 'Einzelunternehmen'::text,
     handelsreg_nr text DEFAULT ''::text,
@@ -495,11 +500,6 @@ CREATE TABLE public.einstellungen (
     email_termin_stornierung text,
     email_neukunde_admin text,
     saison_erinnerung_wochen integer DEFAULT 3,
-    so_offen boolean DEFAULT false,
-    so_von time without time zone,
-    so_bis time without time zone,
-    mittagspause_von time without time zone,
-    mittagspause_bis time without time zone,
     max_parallele_termine integer DEFAULT 1,
     bank text,
     iban text,
@@ -740,7 +740,6 @@ CREATE TABLE public.kunden (
     portal_dsgvo_akzeptiert boolean DEFAULT false,
     portal_dsgvo_datum timestamp with time zone,
     einwilligung_werbung boolean DEFAULT false,
-    einwilligung_etikett boolean DEFAULT false,
     widerruf_datum timestamp with time zone,
     loeschung_beantragt_am timestamp with time zone,
     anonymisiert_am timestamp with time zone,
@@ -998,7 +997,9 @@ CREATE TABLE public.rechnungen (
     kasse_beleg_url text,
     pdf_sha256 text,
     beleg_hash text,
-    beleg_hash_vorgaenger text
+    beleg_hash_vorgaenger text,
+    kasse_zahlart text,
+    kasse_erstattung_beleg text
 );
 
 
@@ -2414,7 +2415,7 @@ ALTER TABLE ONLY public.widerrufe
 -- PostgreSQL database dump complete
 --
 
-\unrestrict mCLMWxUALLT2I3WnxtUvM2R3P5hPTooKEKswNjZRPvD1WCpSSj6BAu5MWeUBqj9
+\unrestrict QQ57UdpDHgSMT252lPHcjVtND2qGy4hlbzpYw5I9i8XpEch1INAQdrycuc1p8OO
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════
 -- Zugriffsrechte fuer den Anwendungsnutzer.
