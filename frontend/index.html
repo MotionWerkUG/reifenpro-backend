@@ -401,6 +401,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
     padding:9px 0; border-bottom:1px solid var(--border); }
   .bgrp { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1.1px;
     color:var(--muted); padding:16px 0 7px; }
+
+    /* Testbetrieb-Warnbalken. Bewusst laut und nicht wegklickbar: Er markiert einen Zustand,
+       in dem Rechnungen mit einer unechten Steuernummer entstehen oder ohne Signatur kassiert
+       wird. Ein Hinweis, den man wegklicken kann, ist am naechsten Morgen weg -- der Zustand nicht. */
+    #testbalken { position:sticky; top:0; z-index:9999; background:#b03a24; color:#fff;
+                  padding:9px 16px; font-size:13.5px; font-weight:600; letter-spacing:.2px;
+                  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+                  box-shadow:0 2px 8px rgba(0,0,0,.25); }
+    #testbalken .tb-marke { background:rgba(255,255,255,.22); border-radius:4px; padding:2px 8px;
+                  font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    #testbalken .tb-was { font-weight:500; opacity:.95; }
 </style>
 </head>
 <body>
@@ -444,6 +455,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
 </div>
 
 <div id="app">
+  <div id="testbalken" style="display:none"></div>
   <header>
     <button class="navtoggle" onclick="toggleNav()" aria-label="Menü"><span class="bar"></span><span class="bar"></span><span class="bar"></span></button>
     <div class="hlogo">Reifen<span>Pro</span></div>
@@ -3190,10 +3202,40 @@ function showEinstTab(name) {
     p.style.display = p.getAttribute('data-epanel') === name ? '' : 'none';
   });
 }
+// Warnbalken fuer den Testbetrieb. Zwei Zustaende koennen ihn ausloesen, beide gefaehrlich,
+// wenn man sie vergisst:
+//   1. Eine Steuernummer, die keine ist. Damit lassen sich Rechnungen festschreiben -- und eine
+//      festgeschriebene Rechnung ist durch die GoBD-Ausloeser gegen Aenderung und Loeschung
+//      geschuetzt. Sie bleibt also stehen, bis jemand eine Nullstellung fuehrt.
+//   2. Ein geoeffneter Kassier-Riegel ohne TSE. Dann entstehen Kassenbuchungen ohne Signatur.
+// Der Balken ist nicht wegklickbar: Ein Hinweis, den man schliessen kann, ist am naechsten
+// Morgen weg -- der Zustand nicht.
+function pruefeTestbetrieb() {
+  var el = document.getElementById('testbalken'); if (!el) return;
+  var gruende = [];
+  var st = String((EINST && EINST.steuernummer) || '');
+  if (/TESTLAUF|TEST|PLATZHALTER|XXX/i.test(st)) {
+    gruende.push('Die Steuernummer ist ein Platzhalter — jede festgeschriebene Rechnung ist formal falsch und muss vor dem 1. Oktober verworfen werden.');
+  }
+  api('GET', '/rechnungen/kassenstatus').then(function (k) {
+    if (k && k.testmodus === true) {
+      gruende.push('Der Kassier-Riegel ist für den Test geöffnet — es wird ohne technische Sicherheitseinrichtung gebucht, die Belege tragen keine Signatur.');
+    }
+    zeigeTestbalken(el, gruende);
+  }).catch(function () { zeigeTestbalken(el, gruende); });
+}
+function zeigeTestbalken(el, gruende) {
+  if (!gruende.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.innerHTML = '<span class="tb-marke">Testbetrieb</span>'
+    + '<span class="tb-was">' + gruende.map(kEsc).join(' &nbsp;·&nbsp; ') + '</span>';
+  el.style.display = 'flex';
+}
+
 function loadEinst() {
   api('GET', '/einstellungen').then(function(r) {
     if (r) EINST = r;
     renderDash();
+    pruefeTestbetrieb();
   }).catch(function() {});
   ladeOeffnungRaster();
 }
