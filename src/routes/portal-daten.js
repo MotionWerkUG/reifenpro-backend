@@ -617,7 +617,27 @@ router.put('/termine/:id', authKunde, async (req, res, next) => {
           datum: _dF, uhrzeit: _uz, leistung: t.termin_typ || '',
           stornofrist: fristH, portal_url: (einst && einst.portal_url) || '',
           telefon: (einst && einst.telefon) || '', firmenname: (einst && einst.firmenname) || 'Schröder & Scholz'
-        }
+        },
+        // NUR die Zustimmung bestaetigen, NICHT die ganze Widerrufsbelehrung.
+        //
+        // Beim Verschieben kommt kein neuer Vertrag zustande -- die Belehrungspflicht nach
+        // Paragraf 312f BGB entsteht also nicht neu. Stuende die volle Belehrung hier, erwecke
+        // sie den Eindruck, die Frist beginne von vorn. Das waere schlechter als gar nichts.
+        //
+        // Was hineingehoert, ist der Fall, dass beim Verschieben NEU zugestimmt wurde: Der
+        // Wertersatz nach Paragraf 357a Abs. 2 BGB haengt daran, dass die Zustimmung
+        // ausdruecklich erteilt UND dokumentiert ist. Eine Bestaetigung, die der Kunde in der
+        // Hand haelt, ist der beste Nachweis -- und widerspricht er, merkt man es sofort statt
+        // erst im Streit. Abgestimmt mit dem Adminbereich am 10.09.2026.
+        //
+        // Nur bei NEUER Zustimmung: Bringt der Termin seine Zustimmung schon mit (_vzSchonDa),
+        // hat der Kunde sie bereits bei der Buchung bestaetigt bekommen. Ein zweites Mal
+        // dasselbe zu schreiben, liest sich wie eine zweite Erklaerung.
+        zusatzAbsaetze: (_vzNeu && !_vzSchonDa)
+          ? ['Sie haben ausdrücklich zugestimmt, dass wir mit der Ausführung vor Ablauf der '
+             + 'Widerrufsfrist beginnen, und zur Kenntnis genommen, dass Ihr Widerrufsrecht mit '
+             + 'vollständiger Erbringung der Leistung erlischt.']
+          : []
       });
       sendMail(_k.portal_email, 'Termin verschoben — ' + _dF + ' ' + _uz, _html).catch(() => {});
     } catch (mailFehler) { /* Verschieben ist erfolgt; eine misslungene Mail aendert daran nichts */ }
