@@ -445,6 +445,96 @@ router.get('/kassenstatus', async (req, res) => {
 });
 
 // ── GET /export ── GoBD: Rechnungsjournal als CSV (maschinell auswertbar) ──
+// ── GET /kassenabgleich ── Stimmen beide Systeme ueberein?
+// Vor /:id definiert, sonst faengt die ID-Route den Pfad ab.
+//
+// Die Frage, die ein Pruefer beim Tagesabschluss stellt: Steht jede kassierte Zahlung in
+// BEIDEN Systemen? Sie hat zwei Richtungen, und nur beide zusammen sind eine Antwort:
+//   a) Eine Rechnung gilt bei uns als ueber die Kasse bezahlt — kennt die Kasse den Vorgang?
+//      Fehlt er dort, haben wir Geld vermerkt, das im Kassenbuch nicht auftaucht.
+//   b) Die Kasse fuehrt einen Rechnungsausgleich — gibt es die Rechnung bei uns?
+//      Fehlt sie hier, wurde Geld vereinnahmt, zu dem keine Forderung existiert.
+// Richtung b) ist die unangenehmere und wird gern vergessen.
+//
+// BEWUSST NUR LESEND: Der Abgleich korrigiert nichts. Was er findet, gehoert vor Augen und
+// nicht in eine stille Reparatur — eine Abweichung zwischen Kassenbuch und Rechnungswesen ist
+// nichts, was ein Programm allein aufloesen darf.
+router.get('/kassenabgleich', requireAdmin, async (req, res, next) => {
+  try {
+    if (!kasse.konfiguriert()) return res.status(503).json({ error: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+
+    // Unsere Seite: alles, was als ueber die Kasse bezahlt gilt.
+    const unsere = (await query(
+      `SELECT rechnungsnr, brutto_summe, kasse_beleg_nr, zahlungsstatus
+         FROM rechnungen
+        WHERE kasse_beleg_nr IS NOT NULL AND rechnungsnr IS NOT NULL
+        ORDER BY rechnungsnr`)).rows;
+
+    // Die Kasse seitenweise abholen, bis nichts mehr kommt. Deckel gegen eine Endlosschleife,
+    // falls der Cursor einmal nicht weiterlaeuft.
+    const ihre = [];
+    let cursor = null, seiten = 0;
+    while (seiten < 50) {
+      let antwort;
+      try {
+        antwort = await kasse.holeBuchungen(cursor, 500);
+      } catch (e) {
+        if (e.code === 'NICHT_ERREICHBAR') return res.status(502).json({ error: 'Die Kasse ist nicht erreichbar — der Abgleich konnte nicht durchgeführt werden.' });
+        return res.status(502).json({ error: 'Die Kasse lieferte keinen Export: ' + e.message });
+      }
+      const zeilen = (antwort && (antwort.vorgaenge || antwort.daten || antwort.rows)) || [];
+      zeilen.forEach((z) => ihre.push(z));
+      const naechster = antwort && (antwort.nextCursor || antwort.cursor);
+      if (!zeilen.length || !naechster || naechster === cursor) break;
+      cursor = naechster; seiten++;
+    }
+
+    // Nur Rechnungsausgleiche sind vergleichbar. Ein Barverkauf ohne Rechnung gehoert der
+    // Kasse allein und ist hier kein Befund.
+    const ausgleiche = ihre.filter((z) => String(z.betragArt || z.betrag_art || '') === 'rechnungsausgleich');
+    const ihreNach = new Map();
+    ausgleiche.forEach((z) => {
+      const q = String(z.quelleBeleg || z.quelle_beleg || z.ticket || '').trim();
+      if (q) ihreNach.set(q, z);
+    });
+
+    const nurBeiUns = unsere.filter((r) => !ihreNach.has(r.rechnungsnr))
+      .map((r) => ({ rechnungsnr: r.rechnungsnr, betrag: Number(r.brutto_summe), kassenbeleg: r.kasse_beleg_nr }));
+
+    const unsereNr = new Set(unsere.map((r) => r.rechnungsnr));
+    const nurInDerKasse = [];
+    ihreNach.forEach((z, q) => { if (!unsereNr.has(q)) nurInDerKasse.push({ quelleBeleg: q, betrag: Number(z.betrag || 0), belegnummer: z.belegnummer || null }); });
+
+    // Betragsabweichungen bei Vorgaengen, die es auf beiden Seiten gibt.
+    const betragWeicht = [];
+    unsere.forEach((r) => {
+      const z = ihreNach.get(r.rechnungsnr);
+      if (!z) return;
+      const hier = round2(Number(r.brutto_summe));
+      const dort = round2(Math.abs(Number(z.betrag || 0)));
+      if (hier !== dort) betragWeicht.push({ rechnungsnr: r.rechnungsnr, bei_uns: hier, in_der_kasse: dort });
+    });
+
+    const befunde = nurBeiUns.length + nurInDerKasse.length + betragWeicht.length;
+    await auditLog({ userId: req.user.id, aktion: 'rechnung.kassenabgleich', tabelle: 'rechnungen',
+      neueWerte: { geprueft: unsere.length, kassenvorgaenge: ausgleiche.length, befunde: befunde }, req });
+
+    res.json({
+      geprueft_bei_uns: unsere.length,
+      rechnungsausgleiche_in_der_kasse: ausgleiche.length,
+      in_ordnung: befunde === 0,
+      nur_bei_uns: nurBeiUns,
+      nur_in_der_kasse: nurInDerKasse,
+      betrag_weicht_ab: betragWeicht,
+      zusammenfassung: (unsere.length === 0 && ausgleiche.length === 0)
+        ? 'Es gibt noch keine Kassenzahlungen zum Abgleichen.'
+        : (befunde === 0
+            ? unsere.length + ' Zahlung(en) geprüft — beide Systeme stimmen überein.'
+            : befunde + ' Abweichung(en) gefunden. Bitte prüfen, bevor der Tag abgeschlossen wird.')
+    });
+  } catch (e) { next(e); }
+});
+
 // ── GET /belegpruefung ── Alle Belege gegen Pruefsumme und Kette pruefen
 // Vor /:id definiert, sonst faengt die ID-Route den Pfad ab.
 // Zweck: Die Unveraenderbarkeit muss nicht nur technisch bestehen, sie muss auch NACHWEISBAR
