@@ -399,8 +399,18 @@ input, select, textarea, button { font-family: inherit; font-size: 16px; }
     <div id="page-termine" class="page">
       <div class="card" id="resched-card" style="display:none">
         <div class="card-titel" data-i18n="reschedule">Termin verschieben</div>
-        <div class="fg"><label data-i18n="date">Datum</label><input id="resched-datum" type="date" onchange="reschedSlots()"></div>
+        <div class="fg"><label data-i18n="date">Datum</label><input id="resched-datum" type="date" onchange="reschedSlots(); reschedVorzeitigPruefen(this.value)"></div>
         <div id="resched-slots" class="slot-grid"></div>
+        <!-- Dasselbe Haekchen wie in der Buchungsstrecke. Vorher fehlte es: Der Server lehnte
+             ein Verschieben IN die Widerrufsfrist mit der Aufforderung ab, zuzustimmen -- und
+             die Oberflaeche bot keine Moeglichkeit dazu. Eine Aufforderung, die der Kunde nicht
+             erfuellen kann, ist schlimmer als gar keine. -->
+        <div id="resched-vorzeitig" class="hidden" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)">
+          <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;line-height:1.55;cursor:pointer">
+            <input type="checkbox" id="resched-vorzeitig-box" style="margin-top:3px;flex-shrink:0">
+            <span id="resched-vorzeitig-text"></span>
+          </label>
+        </div>
         <div style="margin-top:10px"><button class="btn btn-g btn-sm" onclick="reschedAbbrechen()" data-i18n="cancel">Abbrechen</button></div>
       </div>
       <div id="termine-liste"></div>
@@ -1590,6 +1600,7 @@ function terminVerschiebenStart(id, artikelId) {
   d.min = n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
   d.value = d.min;
   document.getElementById('resched-slots').innerHTML = '';
+  reschedVorzeitigPruefen(d.value);   // Vorgabedatum ist heute -- ggf. sofort fragen
   card.style.display = '';
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
   reschedSlots();
@@ -1610,7 +1621,15 @@ function reschedSlots() {
   }).catch(function(e) { el.innerHTML = '<div class="empty">' + e.message + '</div>'; });
 }
 function reschedConfirm(zeit) {
-  papi('PUT', '/daten/termine/' + reschedId, { datum: document.getElementById('resched-datum').value, uhrzeit_von: zeit }).then(function() {
+  var vzBox = document.getElementById('resched-vorzeitig-box');
+  var vzWrap = document.getElementById('resched-vorzeitig');
+  var vzSichtbar = vzWrap && !vzWrap.classList.contains('hidden');
+  // Ist das Haekchen sichtbar, aber nicht gesetzt, gar nicht erst senden: Der Server wuerde mit
+  // derselben Aufforderung antworten, und der Kunde hat sie schon vor sich.
+  if (vzSichtbar && vzBox && !vzBox.checked) { notify(t('early_service_required'), 'err'); return; }
+  var nutzlast = { datum: document.getElementById('resched-datum').value, uhrzeit_von: zeit };
+  if (vzSichtbar && vzBox && vzBox.checked) nutzlast.vorzeitige_leistung = true;
+  papi('PUT', '/daten/termine/' + reschedId, nutzlast).then(function() {
     notify(t('reschedule_done'), 'ok'); reschedAbbrechen(); ladeTermine();
   }).catch(function(e) { notify(e.message, 'err'); });
 }
@@ -1812,6 +1831,37 @@ function buchenVorzeitigNoetig(datum) {
   return Math.round((ziel - heute) / 86400000) < 14;
 }
 
+// Der Satz, mit dem der Kunde zustimmt -- EINE Fassung fuer Buchung und Verschieben.
+// ICH-Form: eine Erklaerung des Kunden ueber sich selbst, damit sie von der Anrede unabhaengig
+// ist. Zwei Fassungen desselben Satzes waeren genau die Art Dublette, die in diesem Projekt
+// schon Betraege und Fristen auseinanderlaufen liess.
+function vorzeitigSatz(datum) {
+  // fmtDatum statt selbst zusammengesetzt: Es liefert bei englischer Oberflaeche 15/09/2026,
+  // bei deutscher 15.09.2026. Vorher stand in der englischen Fassung ein deutsches Format --
+  // mitgeschleppt aus der Buchungsstrecke, die den Satz vorher allein trug.
+  var datumDe = fmtDatum(datum);
+  return (LANG === 'en')
+    ? ('I agree that the appointment on <strong>' + pEsc(datumDe) + '</strong> may be carried out '
+       + 'even though my 14-day withdrawal period is still running. I am aware that my right of '
+       + 'withdrawal expires once the service has been fully performed.')
+    : ('Ich bin damit einverstanden, dass der Termin am <strong>' + pEsc(datumDe) + '</strong> '
+       + 'ausgeführt wird, obwohl meine 14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, '
+       + 'dass mein Widerrufsrecht erlischt, sobald die Leistung vollständig erbracht ist.');
+}
+
+// Haekchen fuer das VERSCHIEBEN. Gleiche Regel wie serverseitig (widerruf.zustimmungNoetig,
+// gerechnet ab heute) und gleiche Absicherung: Der Server lehnt notfalls ab, die Oberflaeche
+// fragt nur vorher.
+function reschedVorzeitigPruefen(datum) {
+  var wrap = document.getElementById('resched-vorzeitig');
+  var box = document.getElementById('resched-vorzeitig-box');
+  if (!wrap || !box) return;
+  box.checked = false;   // die Zustimmung gilt fuer GENAU diesen Termin, nie fuer den vorherigen
+  if (!datum || !buchenVorzeitigNoetig(datum)) { wrap.classList.add('hidden'); return; }
+  document.getElementById('resched-vorzeitig-text').innerHTML = vorzeitigSatz(datum);
+  wrap.classList.remove('hidden');
+}
+
 function buchenVorzeitigPruefen(datum) {
   var wrap = document.getElementById('buchen-vorzeitig');
   var box = document.getElementById('buchen-vorzeitig-box');
@@ -1820,17 +1870,7 @@ function buchenVorzeitigPruefen(datum) {
   // Haken aus einer vorherigen Buchung waere eine Erklaerung, die der Kunde nie abgegeben hat.
   box.checked = false;
   if (!buchenVorzeitigNoetig(datum)) { wrap.classList.add('hidden'); return; }
-  var d = String(datum).split('-');
-  var datumDe = d[2] + '.' + d[1] + '.' + d[0];
-  // ICH-Form: eine Erklaerung des Kunden ueber sich selbst, keine Ansprache des Betriebs. Damit
-  // ist der Satz von der Anrede unabhaengig.
-  document.getElementById('buchen-vorzeitig-text').innerHTML = (LANG === 'en')
-    ? ('I agree that the appointment on <strong>' + pEsc(datumDe) + '</strong> may be carried out '
-       + 'even though my 14-day withdrawal period is still running. I am aware that my right of '
-       + 'withdrawal expires once the service has been fully performed.')
-    : ('Ich bin damit einverstanden, dass der Termin am <strong>' + pEsc(datumDe) + '</strong> '
-       + 'ausgeführt wird, obwohl meine 14-tägige Widerrufsfrist dann noch läuft. Mir ist bekannt, '
-       + 'dass mein Widerrufsrecht erlischt, sobald die Leistung vollständig erbracht ist.');
+  document.getElementById('buchen-vorzeitig-text').innerHTML = vorzeitigSatz(datum);
   wrap.classList.remove('hidden');
 }
 var buchungLaeuft = false; // In-Flight-Sperre: verhindert einen zweiten POST waehrend eine Buchung laeuft
