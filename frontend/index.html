@@ -764,6 +764,7 @@ html, body { max-width: 100%; overflow-x: hidden; }
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="btn btn-g btn-sm admin-only" onclick="rechnungExport()">CSV-Export (GoBD)</button>
             <button class="btn btn-g btn-sm admin-only" onclick="belegPruefung()">Belege prüfen</button>
+            <button class="btn btn-g btn-sm admin-only" onclick="kassenAbgleich()">Kassenabgleich</button>
             <button class="btn btn-g btn-sm" onclick="verfahrensdoku()">Verfahrensdoku</button>
             <button class="btn btn-p" onclick="openNeueRechnung()">+ Neue Rechnung</button>
           </div>
@@ -2877,6 +2878,22 @@ function belegPruefung() {
     }).join('\n');
     notify(r.befunde.length + ' Beanstandung(en) — Einzelheiten im Hinweisfenster.', 'err');
     alert(text + '\n\nBitte den Vorgang dokumentieren und den Steuerberater informieren.');
+  }).catch(function(e) { notify(e.message, 'err'); });
+}
+// Kassenabgleich: Steht jede kassierte Zahlung in BEIDEN Systemen? Gehoert zum Tagesabschluss.
+// Die zweite Richtung — die Kasse fuehrt einen Ausgleich, zu dem hier keine Rechnung steht —
+// ist die unangenehmere und wird gern vergessen. Deshalb steht sie hier gleichberechtigt.
+function kassenAbgleich() {
+  notify('Beide Systeme werden verglichen …');
+  api('GET', '/rechnungen/kassenabgleich').then(function(r) {
+    if (!r) return;
+    if (r.in_ordnung) { notify(r.zusammenfassung); return; }
+    var z = [];
+    (r.nur_bei_uns || []).forEach(function(x) { z.push('• ' + x.rechnungsnr + ': bei uns als bezahlt vermerkt, in der Kasse nicht gefunden'); });
+    (r.nur_in_der_kasse || []).forEach(function(x) { z.push('• ' + x.quelleBeleg + ': in der Kasse gebucht, hier keine Rechnung'); });
+    (r.betrag_weicht_ab || []).forEach(function(x) { z.push('• ' + x.rechnungsnr + ': bei uns ' + x.bei_uns + ' €, in der Kasse ' + x.in_der_kasse + ' €'); });
+    notify(r.zusammenfassung, 'err');
+    alert(r.zusammenfassung + '\n\n' + z.join('\n') + '\n\nDer Abgleich korrigiert nichts. Bitte klären, bevor der Tag abgeschlossen wird.');
   }).catch(function(e) { notify(e.message, 'err'); });
 }
 function einwilligungReconfirm() {

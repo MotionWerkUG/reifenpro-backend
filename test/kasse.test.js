@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const h = require('./helper');
 
-let token, kasse, kassePort, empfangen, antwortet, tseKonfiguriert;
+let token, kasse, kassePort, empfangen, antwortet, tseKonfiguriert, kassenExport;
 let gebucht = [];
 
 const EMPF = { vorname: 'Max', nachname: 'Mustermann', strasse: 'Musterweg 2', plz: '54321', ort: 'Musterstadt' };
@@ -32,6 +32,11 @@ test.before(async () => {
   });
   // Die echte Kasse gibt ihren Zustand ohne Schluessel preis. Wir fragen ihn vor dem Kassieren,
   // um keine Buchung zu senden, die mangels TSE gar nicht signiert werden koennte.
+  // Export der Kassenvorgaenge — Grundlage fuer den Abgleich beider Systeme.
+  app.get('/api/export/verkaeufe', (req, res) => {
+    if (req.get('X-ERP-Key') !== 'test-schluessel') return res.status(401).json({ error: 'Ungültiger X-ERP-Key' });
+    res.json({ vorgaenge: kassenExport, nextCursor: null });
+  });
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', app: 'autokasse-backend', db: true, tseKonfiguriert: tseKonfiguriert, erpKonfiguriert: true });
   });
@@ -47,6 +52,7 @@ test.beforeEach(async () => {
   gebucht = [];
   antwortet = { status: 200, body: { ok: true, status: 'gebucht', beleg: 'LEI-2026-0042', belegUrl: 'https://kasse.example/bon/LEI-2026-0042/abc' } };
   tseKonfiguriert = true;
+  kassenExport = [];
   process.env.KASSE_URL = 'http://127.0.0.1:' + kassePort;
   process.env.KASSE_ERP_KEY = 'test-schluessel';
 });
@@ -389,4 +395,63 @@ test('Nur der Inhaber darf erstatten', async () => {
   const mitarbeiter = await h.seedNutzer('mitarbeiter');
   const e = await h.api(mitarbeiter.token, 'POST', '/api/rechnungen/' + f.original.id + '/erstattung');
   assert.equal(e.status, 403, JSON.stringify(e.body));
+});
+
+// ── Abgleich beider Systeme ──────────────────────────────────────────────────────────────────
+test('Abgleich meldet Uebereinstimmung, wenn beide Systeme dasselbe fuehren', async () => {
+  const r = await festgeschrieben();
+  const k = await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'bar' });
+  assert.equal(k.status, 200, JSON.stringify(k.body));
+  kassenExport = [{ quelleBeleg: r.rechnungsnr, betragArt: 'rechnungsausgleich', betrag: 119, belegnummer: 'LEI-2026-0042' }];
+
+  const a = await h.api(token, 'GET', '/api/rechnungen/kassenabgleich');
+  assert.equal(a.status, 200, JSON.stringify(a.body));
+  assert.equal(a.body.in_ordnung, true, JSON.stringify(a.body));
+  assert.equal(a.body.geprueft_bei_uns, 1);
+});
+
+test('Abgleich findet eine Zahlung, die NUR bei uns steht', async () => {
+  // Wir haben Geld vermerkt, das im Kassenbuch nicht auftaucht.
+  const r = await festgeschrieben();
+  assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'bar' })).status, 200);
+  kassenExport = [];
+
+  const a = await h.api(token, 'GET', '/api/rechnungen/kassenabgleich');
+  assert.equal(a.body.in_ordnung, false);
+  assert.equal(a.body.nur_bei_uns.length, 1);
+  assert.equal(a.body.nur_bei_uns[0].rechnungsnr, r.rechnungsnr);
+});
+
+test('Abgleich findet auch die unangenehmere Richtung: nur in der Kasse', async () => {
+  // Geld vereinnahmt, zu dem bei uns keine Forderung steht. Diese Richtung wird gern vergessen.
+  kassenExport = [{ quelleBeleg: 'RE-2099-9999', betragArt: 'rechnungsausgleich', betrag: 50, belegnummer: 'LEI-2026-0099' }];
+  const a = await h.api(token, 'GET', '/api/rechnungen/kassenabgleich');
+  assert.equal(a.body.in_ordnung, false);
+  assert.equal(a.body.nur_in_der_kasse.length, 1);
+  assert.equal(a.body.nur_in_der_kasse[0].quelleBeleg, 'RE-2099-9999');
+});
+
+test('Abgleich findet abweichende Betraege', async () => {
+  const r = await festgeschrieben();
+  assert.equal((await h.api(token, 'POST', '/api/rechnungen/' + r.id + '/barzahlung', { zahlart: 'bar' })).status, 200);
+  kassenExport = [{ quelleBeleg: r.rechnungsnr, betragArt: 'rechnungsausgleich', betrag: 99, belegnummer: 'LEI-2026-0042' }];
+
+  const a = await h.api(token, 'GET', '/api/rechnungen/kassenabgleich');
+  assert.equal(a.body.in_ordnung, false);
+  assert.equal(a.body.betrag_weicht_ab.length, 1);
+  assert.equal(a.body.betrag_weicht_ab[0].bei_uns, 119);
+  assert.equal(a.body.betrag_weicht_ab[0].in_der_kasse, 99);
+});
+
+test('Ein reiner Barverkauf der Kasse ist kein Befund', async () => {
+  // Ohne Rechnung gehoert der Vorgang der Kasse allein — er darf den Abgleich nicht stoeren.
+  kassenExport = [{ quelleBeleg: 'BAR-1', betragArt: 'montage', betrag: 44, belegnummer: 'LEI-2026-0100' }];
+  const a = await h.api(token, 'GET', '/api/rechnungen/kassenabgleich');
+  assert.equal(a.body.in_ordnung, true, JSON.stringify(a.body));
+});
+
+test('Nur der Inhaber darf abgleichen', async () => {
+  const m = await h.seedNutzer('mitarbeiter');
+  const a = await h.api(m.token, 'GET', '/api/rechnungen/kassenabgleich');
+  assert.equal(a.status, 403);
 });
