@@ -11,7 +11,8 @@ const nachlass = require('../lib/nachlass');
 const { spiegleFahrzeugInStamm } = require('../lib/kundendaten');
 const { monatOderTag, erstzulassungPruefen } = require('../lib/datum');
 const widerruf = require('../lib/widerruf');
-const { kundenMailHtml } = require('../lib/mail-template');
+const { kundenMailHtml, esc: mailEsc } = require('../lib/mail-template');
+const belehrung = require('../lib/widerrufsbelehrung');
 const { sha256Datei } = require('../lib/rechnung-pdf');
 const { auditLog } = require('../middleware/errorHandler');
 const fs = require('fs');
@@ -462,7 +463,32 @@ router.post('/termine', authKunde, async (req, res, next) => {
         datum: datumFormatiert, uhrzeit: uhrzeit_von, leistung: art.name,
         stornofrist: (einst && einst.stornierung_frist_h) || 24, portal_url: (einst && einst.portal_url) || '',
         telefon: (einst && einst.telefon) || '', firmenname: (einst && einst.firmenname) || 'Schröder & Scholz'
-      }
+      },
+      // Vertragsbestaetigung auf dauerhaftem Datentraeger (Paragraf 312f BGB, Artikel 246a
+      // Paragraf 1 Abs. 2 EGBGB): Mit DIESER Mail ist der Vertrag geschlossen, also muss die
+      // Widerrufsbelehrung DARIN stehen. Ein Link auf eine Seite, die sich spaeter aendern kann,
+      // genuegt nicht sicher.
+      //
+      // Dieselbe Luecke hatte die Gastbuchung; sie wurde dort am 10.09.2026 behoben. Hier fehlte
+      // sie noch -- derselbe Fehler an der zweiten Stelle. Ein angemeldeter Kunde schliesst
+      // genauso einen Fernabsatzvertrag wie ein Gast.
+      // Folge waere eine verlaengerte Widerrufsfrist und der Wegfall des Wertersatzes: Der Kunde
+      // koennte nach getaner Arbeit widerrufen und muesste nichts zahlen.
+      //
+      // Der Wortlaut kommt aus lib/widerrufsbelehrung.js -- dieselbe Quelle wie in der
+      // Gastbuchung, damit es nicht zwei Fassungen desselben Rechtstextes gibt.
+      zusatzAbsaetze: [
+        // Die erteilte Zustimmung wird dem Kunden bestaetigt, nicht nur intern vermerkt. Er hat
+        // ein Haekchen gesetzt und muss schwarz auf weiss haben, worauf.
+        _vorzeitig
+          ? 'Sie haben ausdrücklich zugestimmt, dass wir mit der Ausführung vor Ablauf der '
+            + 'Widerrufsfrist beginnen, und zur Kenntnis genommen, dass Ihr Widerrufsrecht mit '
+            + 'vollständiger Erbringung der Leistung erlischt.'
+          : '',
+        '<span style="display:block;margin-top:6px;padding-top:14px;border-top:1px solid #eee;'
+          + 'font-size:13px;line-height:1.5;color:#555;white-space:pre-wrap">'
+          + mailEsc(belehrung.alsText(einst || {})) + '</span>'
+      ]
     });
     await sendMail(k.portal_email, 'Terminbestätigung — ' + datumFormatiert + ' ' + uhrzeit_von, htmlBestaetigung).catch(() => {});
 
