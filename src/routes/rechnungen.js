@@ -333,6 +333,12 @@ function empfaengerAusBody(body) {
   };
 }
 
+// Der Testmodus-Vermerk gehoert in das eingefrorene Aussteller-Abbild, nicht in eine neue
+// Spalte: Er ist damit unveraenderbar (der Schutztrigger sperrt `aussteller`), er steht auf dem
+// Beleg, und die Uebungsbelege sind spaeter exakt auffindbar —
+//   SELECT rechnungsnr FROM rechnungen WHERE aussteller->>'testmodus' = 'true'
+// Das ist die Liste, nach der die Nullstellung geht. Ohne sie muesste man raten, welche Belege
+// aus dem Probelauf stammen.
 function ausstellerSnapshot(einst) {
   const e = einst || {};
   return {
@@ -340,7 +346,8 @@ function ausstellerSnapshot(einst) {
     strasse: e.strasse, plz: e.plz, ort: e.ort, telefon: e.telefon, email: e.email,
     ust_id: e.ust_id, steuernummer: e.steuernummer,
     handelsreg_nr: e.handelsreg_nr, registergericht: e.registergericht,
-    bank: e.bank, iban: e.iban, bic: e.bic
+    bank: e.bank, iban: e.iban, bic: e.bic,
+    testmodus: kasse.testmodus() ? true : undefined
   };
 }
 
@@ -415,18 +422,24 @@ router.get('/statistik', async (req, res, next) => {
 // Ein Knopf, der nur eine Fehlermeldung erzeugen kann, ist eine Sackgasse.
 router.get('/kassenstatus', async (req, res) => {
   const konf = kasse.konfiguriert();
-  if (!konf) return res.json({ konfiguriert: false, kassierbar: false, grund: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
+  const test = kasse.testmodus();
+  if (!konf) return res.json({ konfiguriert: false, kassierbar: false, testmodus: test, grund: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
   // Zustand nur nachreichen, nicht erzwingen: Antwortet die Kasse gerade nicht, bleibt die
   // Oberflaeche bedienbar und der Buchungsversuch meldet die Stoerung im Klartext.
   try {
     const z = await kasse.zustand();
     if (z && z.tseKonfiguriert === false) {
-      return res.json({ konfiguriert: true, kassierbar: false, tse: false,
+      if (test) {
+        return res.json({ konfiguriert: true, kassierbar: true, tse: false, testmodus: true,
+          grund: 'TESTMODUS: Die Kasse hat keine TSE. Es wird trotzdem kassiert — jede so erzeugte Rechnung ist eine Übung und trägt den Vermerk dauerhaft auf dem Beleg.' });
+      }
+      return res.json({ konfiguriert: true, kassierbar: false, tse: false, testmodus: false,
         grund: 'Die Kasse hat noch keine technische Sicherheitseinrichtung (TSE). Bis sie eingerichtet ist, darf nicht kassiert werden.' });
     }
-    return res.json({ konfiguriert: true, kassierbar: true, tse: true });
+    return res.json({ konfiguriert: true, kassierbar: true, tse: true, testmodus: test,
+      grund: test ? 'TESTMODUS ist eingeschaltet. Erzeugte Rechnungen sind Übungsbelege.' : undefined });
   } catch (e) {
-    return res.json({ konfiguriert: true, kassierbar: true, erreichbar: false,
+    return res.json({ konfiguriert: true, kassierbar: true, erreichbar: false, testmodus: test,
       hinweis: 'Die Kasse antwortet gerade nicht. Beim Kassieren wird es erneut versucht.' });
   }
 });
@@ -1281,7 +1294,7 @@ router.post('/:id/barzahlung', async (req, res, next) => {
     // vorher. Der Riegel greift NUR bei einer ausdruecklichen Auskunft "keine TSE"; eine
     // Stoerung der Kasse deuten wir nicht als fehlende TSE, sonst sperrt ein Netzproblem den
     // Tresen — darueber entscheidet dann der Buchungsversuch selbst.
-    if (await kasse.tseFehltSicher()) {
+    if (!kasse.testmodus() && await kasse.tseFehltSicher()) {
       await auditLog({ userId: req.user.id, aktion: 'rechnung.kassieren_abgelehnt', tabelle: 'rechnungen',
         datensatzId: r.id, neueWerte: { grund: 'keine TSE' }, req });
       return res.status(409).json({ error: 'Die Kasse hat noch keine technische Sicherheitseinrichtung (TSE). Bis sie eingerichtet ist, darf nicht kassiert werden — die Buchung wäre nicht signierbar.' });
@@ -1399,7 +1412,7 @@ router.post('/:id/erstattung', requireAdmin, async (req, res, next) => {
     if (!st) return res.status(409).json({ error: 'Zu dieser Rechnung ist keine Stornorechnung auffindbar.' });
 
     if (!kasse.konfiguriert()) return res.status(503).json({ error: 'Die Kassenanbindung ist auf diesem Server nicht eingerichtet.' });
-    if (await kasse.tseFehltSicher()) {
+    if (!kasse.testmodus() && await kasse.tseFehltSicher()) {
       return res.status(409).json({ error: 'Die Kasse hat noch keine technische Sicherheitseinrichtung (TSE). Bis sie eingerichtet ist, kann keine Erstattung gebucht werden.' });
     }
 

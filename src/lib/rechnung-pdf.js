@@ -71,6 +71,10 @@ async function erzeugeRechnungPdf(rech, positionen) {
       // aufloesbar. Mit festem Datum ist die Erzeugung bitgenau wiederholbar: Weicht eine
       // Datei von ihrer Pruefsumme ab, laesst sich aus dem geschuetzten Datensatz ein
       // nachweislich inhaltsgleiches Mehrstueck erzeugen (GoBD Rz. 76).
+      // Uebungsbeleg: Der Vermerk steht im eingefrorenen Aussteller-Abbild und wandert damit
+      // unveraenderbar auf den Beleg. Wer ihn spaeter in der Hand haelt, sieht sofort, dass es
+      // kein Geschaeftsvorfall war — auch wenn niemand mehr weiss, wann der Schalter an war.
+      const uebung = !!(a && a.testmodus);
       const erzDatum = new Date(String(rech.rechnungsdatum || '2000-01-01').slice(0, 10) + 'T12:00:00Z');
       const doc = new PDFDocument({
         size: 'A4', margins: { top: 48, bottom: 40, left: 50, right: 50 },
@@ -249,6 +253,17 @@ async function erzeugeRechnungPdf(rech, positionen) {
       doc.font('Helvetica').fontSize(7.5).fillColor('#666')
          .text(fuss || (a.firmenname || ''), left, 806, { width: rightEdge - left, align: 'center', lineBreak: false });
 
+      if (uebung) {
+        // Quer ueber die Seite, damit es auch auf einem Ausdruck nicht zu uebersehen ist.
+        doc.save();
+        doc.rotate(-30, { origin: [pageW / 2, 420] });
+        doc.font('Helvetica-Bold').fontSize(46).fillColor('#e0e0e0')
+           .text('ÜBUNGSBELEG', 0, 380, { width: pageW, align: 'center' });
+        doc.restore();
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#c8402a')
+           .text('ÜBUNGSBELEG — kein Geschäftsvorfall. Im Testmodus erzeugt.', left, 60, { width: rightEdge - left });
+        doc.fillColor(DARK);
+      }
       doc.end();
       stream.on('finish', function () {
         try { fs.chmodSync(pfad, 0o640); } catch (e) { /* Rechte nicht setzbar: Beleg trotzdem gueltig */ }
